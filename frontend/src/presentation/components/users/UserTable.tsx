@@ -1,6 +1,6 @@
 import { Table, Button, Space, Tag, Popconfirm } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import type { User } from '@/domain/entities';
+import { type User, UserRole } from '@/domain/entities';
 import type { ColumnsType } from 'antd/es/table';
 
 interface UserTableProps {
@@ -26,8 +26,8 @@ export function UserTable({ users, loading, onEdit, onDelete }: UserTableProps) 
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
-      render: (role: string) => {
-        const color = role === 'admin' ? 'red' : role === 'technician' ? 'blue' : 'green';
+      render: (role: UserRole) => {
+        const color = role === UserRole.ADMIN ? 'red' : role === UserRole.TECHNICIAN ? 'blue' : 'green';
         return <Tag color={color}>{role.toUpperCase()}</Tag>;
       },
     },
