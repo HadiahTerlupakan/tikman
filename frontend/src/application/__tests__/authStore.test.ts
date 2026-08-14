@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAuthStore } from "@/application/stores/authStore";
+import { User, UserRole } from "@/domain/entities/User";
 
 describe("Auth Store", () => {
   beforeEach(() => {
@@ -19,10 +20,17 @@ describe("Auth Store", () => {
 
   it("should set user on successful login", async () => {
     const { result } = renderHook(() => useAuthStore());
-    const mockUser = { id: "1", username: "admin", role: "admin" };
+    const mockUser: User = {
+      id: "1",
+      username: "admin",
+      email: "admin@example.com",
+      role: UserRole.ADMIN,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
     act(() => {
-      result.current.setUser(mockUser as any);
+      result.current.setUser(mockUser);
     });
 
     expect(result.current.isAuthenticated).toBe(true);
@@ -31,10 +39,17 @@ describe("Auth Store", () => {
 
   it("should clear user on logout", async () => {
     const { result } = renderHook(() => useAuthStore());
-    const mockUser = { id: "1", username: "admin", role: "admin" };
+    const mockUser: User = {
+      id: "1",
+      username: "admin",
+      email: "admin@example.com",
+      role: UserRole.ADMIN,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
     act(() => {
-      result.current.setUser(mockUser as any);
+      result.current.setUser(mockUser);
     });
     expect(result.current.isAuthenticated).toBe(true);
 

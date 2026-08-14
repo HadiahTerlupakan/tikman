@@ -3,8 +3,15 @@ import { UserRepository } from "../repositories/UserRepository";
 import type { CreateUserDto } from "@/domain/entities";
 import { UserRole } from "@/domain/entities";
 
+interface MockClient {
+  get: ReturnType<typeof vi.fn>;
+  post: ReturnType<typeof vi.fn>;
+  put: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+}
+
 describe("UserRepository", () => {
-  let mockClient: any;
+  let mockClient: MockClient;
   let repository: UserRepository;
 
   beforeEach(() => {

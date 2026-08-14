@@ -1,10 +1,16 @@
 import type { AxiosError } from "axios";
 
+interface ApiErrorResponse {
+  code?: string;
+  resource?: string;
+  details?: Record<string, string>;
+}
+
 export class ApiError extends Error {
   constructor(
     public statusCode: number,
     public code: string,
-    public details?: Record<string, any>,
+    public details?: Record<string, unknown>,
   ) {
     super();
     this.name = "ApiError";
@@ -36,7 +42,7 @@ export class NotFoundError extends ApiError {
 }
 
 export function mapApiError(error: AxiosError): ApiError {
-  const response = error.response?.data as any;
+  const response = error.response?.data as ApiErrorResponse | undefined;
 
   if (error.response?.status === 401) {
     return new UnauthorizedError();

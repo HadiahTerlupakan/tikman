@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
+import { User, UserRole } from "@/domain/entities/User";
+import { CreateUserDto, UpdateUserDto } from "@/domain/entities/User";
+import { CreateSiteDto, UpdateSiteDto } from "@/domain/entities/Site";
+import { CreateOltDto, UpdateOltDto, OltProtocol } from "@/domain/entities/Olt";
 
 // Mock repositories - must be defined before vi.mock for hoisting
 vi.mock("@/infrastructure/repositories", () => {
@@ -95,7 +99,37 @@ import * as repositories from "@/infrastructure/repositories";
 
 // Get mock objects
 const { mockAuthRepo, mockUserRepo, mockSiteRepo, mockOltRepo } = (
-  repositories as any
+  repositories as unknown as {
+    __mocks: {
+      mockAuthRepo: {
+        login: ReturnType<typeof vi.fn>;
+        logout: ReturnType<typeof vi.fn>;
+        getCurrentUser: ReturnType<typeof vi.fn>;
+      };
+      mockUserRepo: {
+        create: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+        delete: ReturnType<typeof vi.fn>;
+        getAll: ReturnType<typeof vi.fn>;
+        getById: ReturnType<typeof vi.fn>;
+      };
+      mockSiteRepo: {
+        create: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+        delete: ReturnType<typeof vi.fn>;
+        getAll: ReturnType<typeof vi.fn>;
+        getById: ReturnType<typeof vi.fn>;
+      };
+      mockOltRepo: {
+        create: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+        delete: ReturnType<typeof vi.fn>;
+        getAll: ReturnType<typeof vi.fn>;
+        getById: ReturnType<typeof vi.fn>;
+        getBySite: ReturnType<typeof vi.fn>;
+      };
+    };
+  }
 ).__mocks;
 
 const createWrapper = () => {
@@ -105,6 +139,16 @@ const createWrapper = () => {
   return ({ children }: { children: React.ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
 };
+
+// Helper to create mock user
+const createMockUser = (): User => ({
+  id: "1",
+  username: "admin",
+  email: "admin@example.com",
+  role: UserRole.ADMIN,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});
 
 describe("Auth Hooks", () => {
   beforeEach(() => {
@@ -153,11 +197,7 @@ describe("Auth Hooks", () => {
       // Set a user first
       const { result: authResult } = renderHook(() => useAuthStore());
       act(() => {
-        authResult.current.setUser({
-          id: "1",
-          username: "admin",
-          role: "admin",
-        } as any);
+        authResult.current.setUser(createMockUser());
       });
 
       expect(authResult.current.isAuthenticated).toBe(true);
@@ -202,8 +242,17 @@ describe("Query Invalidation", () => {
 
     const { result } = renderHook(() => useCreateOlt(), { wrapper });
 
+    const newOlt: CreateOltDto = {
+      name: "OLT1",
+      siteId: "site1",
+      ipAddress: "192.168.1.1",
+      protocol: OltProtocol.SSH,
+      username: "admin",
+      password: "password",
+    };
+
     act(() => {
-      result.current.mutate({ name: "OLT1", siteId: "site1" } as any);
+      result.current.mutate(newOlt);
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -223,7 +272,10 @@ describe("Query Invalidation", () => {
     const { result } = renderHook(() => useUpdateOlt(), { wrapper });
 
     act(() => {
-      result.current.mutate({ id: "1", data: { name: "OLT1-Updated" } as any });
+      result.current.mutate({
+        id: "1",
+        data: { name: "OLT1-Updated" } as UpdateOltDto,
+      });
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -263,8 +315,15 @@ describe("Query Invalidation", () => {
 
     const { result } = renderHook(() => useCreateUser(), { wrapper });
 
+    const newUser: CreateUserDto = {
+      username: "user1",
+      email: "user1@example.com",
+      password: "pass",
+      role: UserRole.VIEWER,
+    };
+
     act(() => {
-      result.current.mutate({ username: "user1", password: "pass" } as any);
+      result.current.mutate(newUser);
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -282,8 +341,10 @@ describe("Query Invalidation", () => {
 
     const { result } = renderHook(() => useCreateSite(), { wrapper });
 
+    const newSite: CreateSiteDto = { name: "Site1" };
+
     act(() => {
-      result.current.mutate({ name: "Site1" } as any);
+      result.current.mutate(newSite);
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -305,7 +366,10 @@ describe("Repository Integration", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "1", data: { username: "updated" } as any });
+      result.current.mutate({
+        id: "1",
+        data: { username: "updated" } as UpdateUserDto,
+      });
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -323,7 +387,10 @@ describe("Repository Integration", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "1", data: { name: "Updated Site" } as any });
+      result.current.mutate({
+        id: "1",
+        data: { name: "Updated Site" } as UpdateSiteDto,
+      });
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -341,7 +408,10 @@ describe("Repository Integration", () => {
     });
 
     act(() => {
-      result.current.mutate({ id: "1", data: { name: "Updated OLT" } as any });
+      result.current.mutate({
+        id: "1",
+        data: { name: "Updated OLT" } as UpdateOltDto,
+      });
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
