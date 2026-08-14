@@ -1,5 +1,7 @@
 package main
 
+// TikMan API Server - Main entry point
+
 import (
 	"context"
 	"fmt"
