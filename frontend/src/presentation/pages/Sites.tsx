@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Typography, message } from 'antd';
+import { Button, Typography, message, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from '@/application/hooks';
 import { SiteTable, SiteModal } from '../components/sites';
@@ -65,9 +65,9 @@ export default function SitesPage() {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
+    <div className="max-w-7xl">
+      <div className="flex justify-between items-center mb-6">
+        <Title level={3} className="!mb-0 !text-gray-900">
           Sites Management
         </Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
@@ -75,12 +75,14 @@ export default function SitesPage() {
         </Button>
       </div>
 
-      <SiteTable
-        sites={sites || []}
-        loading={isLoading}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+      <Card>
+        <SiteTable
+          sites={sites || []}
+          loading={isLoading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </Card>
 
       <SiteModal
         open={modalOpen}

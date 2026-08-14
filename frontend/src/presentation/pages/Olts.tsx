@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Typography, message } from 'antd';
+import { Button, Typography, message, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useOlts, useCreateOlt, useUpdateOlt, useDeleteOlt } from '@/application/hooks';
 import { OltTable, OltModal } from '../components/olts';
@@ -65,9 +65,9 @@ export default function OltsPage() {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>
+    <div className="max-w-7xl">
+      <div className="flex justify-between items-center mb-6">
+        <Title level={3} className="!mb-0 !text-gray-900">
           OLTs Management
         </Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
@@ -75,12 +75,14 @@ export default function OltsPage() {
         </Button>
       </div>
 
-      <OltTable
-        olts={olts || []}
-        loading={isLoading}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+      <Card>
+        <OltTable
+          olts={olts || []}
+          loading={isLoading}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </Card>
 
       <OltModal
         open={modalOpen}

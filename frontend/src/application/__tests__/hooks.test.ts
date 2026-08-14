@@ -74,11 +74,11 @@ vi.mock('@/infrastructure/repositories', () => {
 });
 
 // Import hooks after mocking
-import { useLogin, useLogout } from '../hooks/useAuth';
-import { useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useUsers';
-import { useCreateSite, useUpdateSite, useDeleteSite } from '../hooks/useSites';
-import { useCreateOlt, useUpdateOlt, useDeleteOlt } from '../hooks/useOlts';
-import { useAuthStore } from '../stores/authStore';
+import { useLogin, useLogout } from '@/application/hooks/useAuth';
+import { useCreateUser, useUpdateUser, useDeleteUser } from '@/application/hooks/useUsers';
+import { useCreateSite, useUpdateSite, useDeleteSite } from '@/application/hooks/useSites';
+import { useCreateOlt, useUpdateOlt, useDeleteOlt } from '@/application/hooks/useOlts';
+import { useAuthStore } from '@/application/stores/authStore';
 import * as repositories from '@/infrastructure/repositories';
 
 // Get mock objects

@@ -5,7 +5,7 @@ import { StatsCard } from '../components/dashboard';
 import { useAuthStore } from '@/application/stores';
 import { UserRole } from '@/domain/entities';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
@@ -14,19 +14,19 @@ export default function DashboardPage() {
   const { data: olts, isLoading: oltsLoading } = useOlts();
 
   return (
-    <div>
-      <Title level={2}>Dashboard</Title>
-      <Typography.Paragraph type="secondary">
-        Selamat datang, {user?.username}!
-      </Typography.Paragraph>
+    <div className="max-w-7xl">
+      <div className="mb-6">
+        <Title level={3} className="!mb-1 !text-gray-900">Dashboard</Title>
+        <Text className="text-gray-600">Selamat datang, {user?.username}!</Text>
+      </div>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+      <Row gutter={[16, 16]}>
         {user?.role === UserRole.ADMIN && (
           <Col xs={24} sm={12} lg={8}>
             <StatsCard
               title="Total Pengguna"
               value={users?.length || 0}
-              icon={<UserOutlined />}
+              icon={<UserOutlined style={{ fontSize: 20 }} />}
               loading={usersLoading}
             />
           </Col>
@@ -35,7 +35,7 @@ export default function DashboardPage() {
           <StatsCard
             title="Total Site"
             value={sites?.length || 0}
-            icon={<EnvironmentOutlined />}
+            icon={<EnvironmentOutlined style={{ fontSize: 20 }} />}
             loading={sitesLoading}
           />
         </Col>
@@ -43,7 +43,7 @@ export default function DashboardPage() {
           <StatsCard
             title="Total OLT"
             value={olts?.length || 0}
-            icon={<ApiOutlined />}
+            icon={<ApiOutlined style={{ fontSize: 20 }} />}
             loading={oltsLoading}
           />
         </Col>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore } from '@/application/stores/authStore';
 
 describe('Auth Store', () => {
   beforeEach(() => {
