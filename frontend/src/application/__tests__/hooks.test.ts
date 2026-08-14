@@ -74,7 +74,7 @@ vi.mock('@/infrastructure/repositories', () => {
 });
 
 // Import hooks after mocking
-import { useLogin, useLogout, useCurrentUser } from '../hooks/useAuth';
+import { useLogin, useLogout } from '../hooks/useAuth';
 import { useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useUsers';
 import { useCreateSite, useUpdateSite, useDeleteSite } from '../hooks/useSites';
 import { useCreateOlt, useUpdateOlt, useDeleteOlt } from '../hooks/useOlts';
