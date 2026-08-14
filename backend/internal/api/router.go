@@ -68,9 +68,9 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 		users := api.Group("/users")
 		users.Use(middleware.AuthMiddleware(sessionStore, logger))
 		{
-			users.GET("", middleware.RequireRole(models.UserRoleAdmin), userHandler.List)
+			users.GET("", userHandler.List)
 			users.POST("", middleware.RequireRole(models.UserRoleAdmin), userHandler.Create)
-			users.GET("/:id", middleware.RequireRole(models.UserRoleAdmin), userHandler.GetByID)
+			users.GET("/:id", userHandler.GetByID)
 			users.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin), userHandler.Update)
 			users.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), userHandler.Delete)
 		}
