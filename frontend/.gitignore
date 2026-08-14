@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+*.local
+
+# Env files
+.env.production
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage
