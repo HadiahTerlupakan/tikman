@@ -11,7 +11,7 @@ export function AppLayout() {
       <Sidebar />
       <Layout>
         <Header />
-        <Content className="m-6">
+        <Content className="p-6 bg-slate-50">
           <Outlet />
         </Content>
       </Layout>
