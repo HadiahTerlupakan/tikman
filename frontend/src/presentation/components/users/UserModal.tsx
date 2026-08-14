@@ -44,7 +44,7 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
         <Form.Item
           name="username"
           label="Username"
-          rules={[{ required: true, message: 'Username harus diisi' }]}
+          rules={[{ required: true, message: 'Please enter username' }]}
         >
           <Input />
         </Form.Item>
@@ -53,8 +53,8 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
           name="email"
           label="Email"
           rules={[
-            { required: true, message: 'Email harus diisi' },
-            { type: 'email', message: 'Email tidak valid' },
+            { required: true, message: 'Please enter email' },
+            { type: 'email', message: 'Invalid email address' },
           ]}
         >
           <Input />
@@ -65,8 +65,8 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
             name="password"
             label="Password"
             rules={[
-              { required: true, message: 'Password harus diisi' },
-              { min: 6, message: 'Password minimal 6 karakter' },
+              { required: true, message: 'Please enter password' },
+              { min: 6, message: 'Password must be at least 6 characters' },
             ]}
           >
             <Input.Password />
@@ -76,7 +76,7 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
         <Form.Item
           name="role"
           label="Role"
-          rules={[{ required: true, message: 'Role harus dipilih' }]}
+          rules={[{ required: true, message: 'Please select role' }]}
         >
           <Select>
             <Select.Option value={UserRole.ADMIN}>Admin</Select.Option>

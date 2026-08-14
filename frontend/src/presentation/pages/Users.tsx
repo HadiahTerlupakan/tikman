@@ -31,22 +31,22 @@ export default function UsersPage() {
         { id: selectedUser.id, data: data as UpdateUserDto },
         {
           onSuccess: () => {
-            message.success('User berhasil diupdate');
+            message.success('User updated successfully');
             setModalOpen(false);
           },
           onError: () => {
-            message.error('Gagal update user');
+            message.error('Failed to update user');
           },
         }
       );
     } else {
       createMutation.mutate(data as CreateUserDto, {
         onSuccess: () => {
-          message.success('User berhasil dibuat');
+          message.success('User created successfully');
           setModalOpen(false);
         },
         onError: () => {
-          message.error('Gagal membuat user');
+          message.error('Failed to create user');
         },
       });
     }
@@ -55,10 +55,10 @@ export default function UsersPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        message.success('User berhasil dihapus');
+        message.success('User deleted successfully');
       },
       onError: () => {
-        message.error('Gagal menghapus user');
+        message.error('Failed to delete user');
       },
     });
   };

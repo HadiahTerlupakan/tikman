@@ -59,9 +59,9 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="siteId"
           label="Site"
-          rules={[{ required: true, message: 'Site harus dipilih' }]}
+          rules={[{ required: true, message: 'Please select site' }]}
         >
-          <Select placeholder="Pilih site">
+          <Select placeholder="Select site">
             {sites?.map((site) => (
               <Select.Option key={site.id} value={site.id}>
                 {site.name}
@@ -73,7 +73,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="name"
           label="OLT Name"
-          rules={[{ required: true, message: 'Nama OLT harus diisi' }]}
+          rules={[{ required: true, message: 'Please enter OLT name' }]}
         >
           <Input />
         </Form.Item>
@@ -82,8 +82,8 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
           name="ipAddress"
           label="IP Address"
           rules={[
-            { required: true, message: 'IP Address harus diisi' },
-            { pattern: /^(\d{1,3}\.){3}\d{1,3}$/, message: 'IP Address tidak valid' },
+            { required: true, message: 'Please enter IP address' },
+            { pattern: /^(\d{1,3}\.){3}\d{1,3}$/, message: 'Invalid IP address' },
           ]}
         >
           <Input placeholder="192.168.1.1" />
@@ -92,7 +92,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="protocol"
           label="Protocol"
-          rules={[{ required: true, message: 'Protocol harus dipilih' }]}
+          rules={[{ required: true, message: 'Please select protocol' }]}
         >
           <Select>
             <Select.Option value={OltProtocol.SSH}>SSH</Select.Option>
@@ -103,7 +103,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="username"
           label="Username"
-          rules={[{ required: true, message: 'Username harus diisi' }]}
+          rules={[{ required: true, message: 'Please enter username' }]}
         >
           <Input />
         </Form.Item>
@@ -112,7 +112,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
           <Form.Item
             name="password"
             label="Password"
-            rules={[{ required: true, message: 'Password harus diisi' }]}
+            rules={[{ required: true, message: 'Please enter password' }]}
           >
             <Input.Password />
           </Form.Item>

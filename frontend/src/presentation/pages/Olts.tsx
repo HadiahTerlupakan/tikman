@@ -31,22 +31,22 @@ export default function OltsPage() {
         { id: selectedOlt.id, data: data as UpdateOltDto },
         {
           onSuccess: () => {
-            message.success('OLT berhasil diupdate');
+            message.success('OLT updated successfully');
             setModalOpen(false);
           },
           onError: () => {
-            message.error('Gagal update OLT');
+            message.error('Failed to update OLT');
           },
         }
       );
     } else {
       createMutation.mutate(data as CreateOltDto, {
         onSuccess: () => {
-          message.success('OLT berhasil dibuat');
+          message.success('OLT created successfully');
           setModalOpen(false);
         },
         onError: () => {
-          message.error('Gagal membuat OLT');
+          message.error('Failed to create OLT');
         },
       });
     }
@@ -55,10 +55,10 @@ export default function OltsPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        message.success('OLT berhasil dihapus');
+        message.success('OLT deleted successfully');
       },
       onError: () => {
-        message.error('Gagal menghapus OLT');
+        message.error('Failed to delete OLT');
       },
     });
   };

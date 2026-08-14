@@ -31,22 +31,22 @@ export default function SitesPage() {
         { id: selectedSite.id, data: data as UpdateSiteDto },
         {
           onSuccess: () => {
-            message.success('Site berhasil diupdate');
+            message.success('Site updated successfully');
             setModalOpen(false);
           },
           onError: () => {
-            message.error('Gagal update site');
+            message.error('Failed to update site');
           },
         }
       );
     } else {
       createMutation.mutate(data as CreateSiteDto, {
         onSuccess: () => {
-          message.success('Site berhasil dibuat');
+          message.success('Site created successfully');
           setModalOpen(false);
         },
         onError: () => {
-          message.error('Gagal membuat site');
+          message.error('Failed to create site');
         },
       });
     }
@@ -55,10 +55,10 @@ export default function SitesPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        message.success('Site berhasil dihapus');
+        message.success('Site deleted successfully');
       },
       onError: () => {
-        message.error('Gagal menghapus site');
+        message.error('Failed to delete site');
       },
     });
   };

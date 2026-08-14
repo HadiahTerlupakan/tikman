@@ -44,7 +44,7 @@ export function SiteModal({ open, site, onClose, onSubmit, loading }: SiteModalP
         <Form.Item
           name="name"
           label="Site Name"
-          rules={[{ required: true, message: 'Nama site harus diisi' }]}
+          rules={[{ required: true, message: 'Please enter site name' }]}
         >
           <Input />
         </Form.Item>
