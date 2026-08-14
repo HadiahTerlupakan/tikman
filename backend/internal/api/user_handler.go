@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,6 +18,14 @@ func NewUserHandler(service *services.UserService) *UserHandler {
 	return &UserHandler{service: service}
 }
 
+// isDuplicateError checks if the error is a unique constraint violation for the given field
+func isDuplicateError(err error, field string) bool {
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "duplicate") ||
+		strings.Contains(errMsg, "UNIQUE constraint failed") ||
+		(strings.Contains(errMsg, "unique") && strings.Contains(strings.ToLower(errMsg), field))
+}
+
 func (h *UserHandler) Create(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -30,6 +39,21 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 	user, err := h.service.Create(req.Username, req.Email, req.Password, req.Role)
 	if err != nil {
+		// Check for duplicate username/email
+		if isDuplicateError(err, "username") {
+			c.JSON(http.StatusConflict, ErrorResponse{
+				Error: "Username already exists",
+				Code:  "USERNAME_EXISTS",
+			})
+			return
+		}
+		if isDuplicateError(err, "email") {
+			c.JSON(http.StatusConflict, ErrorResponse{
+				Error: "Email already exists",
+				Code:  "EMAIL_EXISTS",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to create user",
 			Code:  "CREATE_FAILED",
@@ -119,7 +143,14 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	user, _ := h.service.GetByID(id)
+	user, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: "Failed to retrieve updated user",
+			Code:  "FETCH_FAILED",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, ToUserResponse(user))
 }
 

@@ -69,3 +69,60 @@ func TestUserService_Delete(t *testing.T) {
 	_, err = service.GetByID(user.ID)
 	assert.Error(t, err)
 }
+
+func TestUserService_Update(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewUserService(db)
+
+	user, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	require.NoError(t, err)
+
+	// Test updating email
+	updates := map[string]interface{}{
+		"email": "newemail@example.com",
+	}
+	err = service.Update(user.ID, updates)
+	require.NoError(t, err)
+
+	updated, err := service.GetByID(user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "newemail@example.com", updated.Email)
+
+	// Test updating password (should be hashed)
+	updates = map[string]interface{}{
+		"password": "newpassword456",
+	}
+	err = service.Update(user.ID, updates)
+	require.NoError(t, err)
+
+	updated, err = service.GetByID(user.ID)
+	require.NoError(t, err)
+	assert.NotEqual(t, "newpassword456", updated.PasswordHash)
+
+	// Test updating role
+	updates = map[string]interface{}{
+		"role": models.UserRoleTechnician,
+	}
+	err = service.Update(user.ID, updates)
+	require.NoError(t, err)
+
+	updated, err = service.GetByID(user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.UserRoleTechnician, updated.Role)
+}
+
+func TestUserService_VerifyPassword(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewUserService(db)
+
+	user, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	require.NoError(t, err)
+
+	// Test correct password
+	err = service.VerifyPassword(user, "password123")
+	assert.NoError(t, err)
+
+	// Test incorrect password
+	err = service.VerifyPassword(user, "wrongpassword")
+	assert.Error(t, err)
+}
