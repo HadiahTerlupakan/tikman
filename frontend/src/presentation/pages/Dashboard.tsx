@@ -24,7 +24,7 @@ export default function DashboardPage() {
         {user?.role === UserRole.ADMIN && (
           <Col xs={24} sm={12} lg={8}>
             <StatsCard
-              title="Total Users"
+              title="Total Pengguna"
               value={users?.length || 0}
               icon={<UserOutlined />}
               loading={usersLoading}
@@ -33,7 +33,7 @@ export default function DashboardPage() {
         )}
         <Col xs={24} sm={12} lg={8}>
           <StatsCard
-            title="Total Sites"
+            title="Total Site"
             value={sites?.length || 0}
             icon={<EnvironmentOutlined />}
             loading={sitesLoading}
@@ -41,7 +41,7 @@ export default function DashboardPage() {
         </Col>
         <Col xs={24} sm={12} lg={8}>
           <StatsCard
-            title="Total OLTs"
+            title="Total OLT"
             value={olts?.length || 0}
             icon={<ApiOutlined />}
             loading={oltsLoading}
