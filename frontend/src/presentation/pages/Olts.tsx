@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Button, Typography, message, Card } from 'antd';
+import { Button, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useOlts, useCreateOlt, useUpdateOlt, useDeleteOlt } from '@/application/hooks';
 import { OltTable, OltModal } from '../components/olts';
 import type { Olt, CreateOltDto, UpdateOltDto } from '@/domain/entities';
-
-const { Title } = Typography;
+import { PageHeader, DarkCard } from '../components/common';
 
 export default function OltsPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,24 +64,25 @@ export default function OltsPage() {
   };
 
   return (
-    <div className="max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
-        <Title level={3} className="!mb-0 !text-gray-900">
-          OLTs Management
-        </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Create OLT
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="OLTs Management"
+        description="Manage OLT devices and configurations"
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            Create OLT
+          </Button>
+        }
+      />
 
-      <Card>
+      <DarkCard>
         <OltTable
           olts={olts || []}
           loading={isLoading}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
-      </Card>
+      </DarkCard>
 
       <OltModal
         open={modalOpen}

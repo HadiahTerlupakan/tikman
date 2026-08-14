@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Button, Typography, message, Card } from 'antd';
+import { Button, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from '@/application/hooks';
 import { SiteTable, SiteModal } from '../components/sites';
 import type { Site, CreateSiteDto, UpdateSiteDto } from '@/domain/entities';
-
-const { Title } = Typography;
+import { PageHeader, DarkCard } from '../components/common';
 
 export default function SitesPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,24 +64,25 @@ export default function SitesPage() {
   };
 
   return (
-    <div className="max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
-        <Title level={3} className="!mb-0 !text-gray-900">
-          Sites Management
-        </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Create Site
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Sites Management"
+        description="Manage site locations for OLT devices"
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            Create Site
+          </Button>
+        }
+      />
 
-      <Card>
+      <DarkCard>
         <SiteTable
           sites={sites || []}
           loading={isLoading}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
-      </Card>
+      </DarkCard>
 
       <SiteModal
         open={modalOpen}

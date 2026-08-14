@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Button, Typography, message, Card } from 'antd';
+import { Button, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/application/hooks';
 import { UserTable, UserModal } from '../components/users';
 import type { User, CreateUserDto, UpdateUserDto } from '@/domain/entities';
-
-const { Title } = Typography;
+import { PageHeader, DarkCard } from '../components/common';
 
 export default function UsersPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,24 +64,25 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="max-w-7xl">
-      <div className="flex justify-between items-center mb-6">
-        <Title level={3} className="!mb-0 !text-gray-900">
-          Users Management
-        </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Create User
-        </Button>
-      </div>
+    <div>
+      <PageHeader
+        title="Users Management"
+        description="Manage user accounts and permissions"
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            Create User
+          </Button>
+        }
+      />
 
-      <Card>
+      <DarkCard>
         <UserTable
           users={users || []}
           loading={isLoading}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
-      </Card>
+      </DarkCard>
 
       <UserModal
         open={modalOpen}
