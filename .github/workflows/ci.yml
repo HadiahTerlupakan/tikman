@@ -12,11 +12,31 @@ permissions:
   security-events: write
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+
   # Backend Jobs
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, 'backend') || contains(github.event.head_commit.message, 'fix(ci)') || github.event_name == 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
 
     steps:
       - name: Checkout code
@@ -46,7 +66,8 @@ jobs:
   backend-lint:
     name: Backend Lint
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, 'backend') || contains(github.event.head_commit.message, 'fix(ci)') || github.event_name == 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
 
     steps:
       - name: Checkout code
@@ -68,8 +89,8 @@ jobs:
   backend-build:
     name: Backend Build
     runs-on: ubuntu-latest
-    needs: [backend-test, backend-lint]
-    if: contains(github.event.head_commit.message, 'backend') || contains(github.event.head_commit.message, 'fix(ci)') || github.event_name == 'pull_request'
+    needs: [changes, backend-test, backend-lint]
+    if: needs.changes.outputs.backend == 'true'
 
     steps:
       - name: Checkout code
@@ -91,7 +112,8 @@ jobs:
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, 'frontend') || contains(github.event.head_commit.message, 'fix(ci)') || github.event_name == 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
 
     steps:
       - name: Checkout code
@@ -115,7 +137,8 @@ jobs:
   frontend-lint:
     name: Frontend Lint
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, 'frontend') || contains(github.event.head_commit.message, 'fix(ci)') || github.event_name == 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
 
     steps:
       - name: Checkout code
@@ -143,8 +166,8 @@ jobs:
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
-    needs: [frontend-test, frontend-lint]
-    if: contains(github.event.head_commit.message, 'frontend') || contains(github.event.head_commit.message, 'fix(ci)') || github.event_name == 'pull_request'
+    needs: [changes, frontend-test, frontend-lint]
+    if: needs.changes.outputs.frontend == 'true'
 
     steps:
       - name: Checkout code
@@ -194,7 +217,7 @@ jobs:
     name: Docker Build & Push
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend-build, frontend-build]
+    needs: [changes, backend-build]
     permissions:
       contents: read
       packages: write
