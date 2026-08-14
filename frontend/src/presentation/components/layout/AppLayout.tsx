@@ -95,7 +95,7 @@ export function AppLayout() {
         route={{ routes }}
         siderWidth={256}
         token={{
-          bgLayout: '#0a0a0a',
+          bgLayout: 'transparent',
           sider: {
             colorMenuBackground: '#0a0a0a',
             colorBgMenuItemSelected: 'rgba(62, 207, 142, 0.1)',
