@@ -13,7 +13,7 @@ Web-based application for provisioning and monitoring ZTE OLT (Optical Line Term
 ## Tech Stack
 
 **Backend:**
-- Go 1.21+ with Gin framework
+- Go 1.23+ with Gin framework
 - PostgreSQL 15
 - Redis 7
 - GORM ORM
