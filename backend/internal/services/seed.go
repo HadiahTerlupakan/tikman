@@ -20,14 +20,14 @@ func CreateDefaultAdmin(db *gorm.DB, logger *zap.Logger) error {
 	}
 
 	service := NewUserService(db)
-	_, err := service.Create("admin", "admin@tikman.local", "changeme123", models.UserRoleAdmin)
+	_, err := service.Create("admin", "admin@tikman.local", "admin123", models.UserRoleAdmin)
 	if err != nil {
 		return fmt.Errorf("failed to create default admin: %w", err)
 	}
 
 	logger.Info("Default admin user created",
 		zap.String("username", "admin"),
-		zap.String("password", "changeme123"),
+		zap.String("password", "admin123"),
 	)
 
 	return nil

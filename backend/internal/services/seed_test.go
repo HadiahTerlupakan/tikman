@@ -37,7 +37,7 @@ func TestCreateDefaultAdmin_NoUsers(t *testing.T) {
 
 	// Verify password is correct
 	service := NewUserService(db)
-	err = service.VerifyPassword(&user, "changeme123")
+	err = service.VerifyPassword(&user, "admin123")
 	assert.NoError(t, err)
 }
 
