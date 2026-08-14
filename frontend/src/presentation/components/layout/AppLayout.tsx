@@ -97,14 +97,14 @@ export function AppLayout() {
         token={{
           bgLayout: 'transparent',
           sider: {
-            colorMenuBackground: '#0a0a0a',
+            colorMenuBackground: '#18181b',
             colorBgMenuItemSelected: 'rgba(62, 207, 142, 0.1)',
             colorTextMenuSelected: '#3ecf8e',
             colorTextMenu: '#a1a1aa',
             colorTextMenuItemHover: '#ffffff',
           },
           header: {
-            colorBgHeader: '#0a0a0a',
+            colorBgHeader: '#18181b',
             colorHeaderTitle: '#ffffff',
             colorTextMenu: '#a1a1aa',
             colorTextMenuSelected: '#ffffff',
