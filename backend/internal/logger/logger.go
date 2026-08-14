@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -33,7 +34,9 @@ func New(level string) (*zap.Logger, error) {
 	}
 
 	config.EncoderConfig.TimeKey = "timestamp"
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		zapcore.ISO8601TimeEncoder(t.UTC(), enc)
+	}
 
 	logger, err := config.Build()
 	if err != nil {
