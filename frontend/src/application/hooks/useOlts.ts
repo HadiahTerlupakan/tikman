@@ -40,6 +40,7 @@ export function useUpdateOlt() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['olts'] });
       queryClient.invalidateQueries({ queryKey: ['olts', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
   });
 }
