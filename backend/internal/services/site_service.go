@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -33,7 +34,10 @@ func (s *SiteService) Create(name, location, description string) (*models.Site, 
 func (s *SiteService) GetByID(id uuid.UUID) (*models.Site, error) {
 	var site models.Site
 	if err := s.db.Preload("OLTs").First(&site, "id = ?", id).Error; err != nil {
-		return nil, fmt.Errorf("site not found: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("site not found: %w", err)
+		}
+		return nil, fmt.Errorf("database error: %w", err)
 	}
 	return &site, nil
 }

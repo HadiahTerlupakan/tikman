@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -69,6 +70,13 @@ func (h *SiteHandler) GetByID(c *gin.Context) {
 
 	site, err := h.service.GetByID(id)
 	if err != nil {
+		if strings.Contains(err.Error(), "database error") {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error: "Database error",
+				Code:  "DATABASE_ERROR",
+			})
+			return
+		}
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "Site not found",
 			Code:  "NOT_FOUND",
@@ -118,7 +126,14 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		return
 	}
 
-	site, _ := h.service.GetByID(id)
+	site, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: "Failed to retrieve updated site",
+			Code:  "RETRIEVE_FAILED",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, ToSiteResponse(site))
 }
 
