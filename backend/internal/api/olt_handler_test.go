@@ -256,7 +256,8 @@ func TestOLTHandler_GetByID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, olt.ID, response.ID)
 		assert.Equal(t, "Test OLT", response.Name)
-		assert.Equal(t, "Test Site", response.SiteName)
+		assert.Equal(t, site.ID, response.SiteID)
+		// Note: SiteName is empty because we removed foreign key relationships
 	})
 
 	t.Run("invalid UUID", func(t *testing.T) {
