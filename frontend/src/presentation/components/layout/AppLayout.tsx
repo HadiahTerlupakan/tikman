@@ -7,11 +7,11 @@ const { Content } = Layout;
 
 export function AppLayout() {
   return (
-    <Layout className="min-h-screen">
+    <Layout className="min-h-screen" style={{ background: '#f5f5f5' }}>
       <Sidebar />
       <Layout>
         <Header />
-        <Content className="p-6 bg-slate-50">
+        <Content className="p-6">
           <Outlet />
         </Content>
       </Layout>
