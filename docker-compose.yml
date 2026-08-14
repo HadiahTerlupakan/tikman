@@ -70,6 +70,20 @@ services:
       - tikman-network
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tikman-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - tikman-network
+    restart: unless-stopped
+
 networks:
   tikman-network:
     driver: bridge
