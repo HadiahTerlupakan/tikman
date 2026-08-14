@@ -21,6 +21,7 @@ type Data struct {
 type Store struct {
 	client *redis.Client
 	ttl    time.Duration
+	memory *MemoryStore
 }
 
 func NewStore(client *redis.Client, ttl time.Duration) *Store {
@@ -31,6 +32,10 @@ func NewStore(client *redis.Client, ttl time.Duration) *Store {
 }
 
 func (s *Store) Create(userID uuid.UUID, role models.UserRole) (string, error) {
+	if s.memory != nil {
+		return s.memory.create(userID, role)
+	}
+
 	token := uuid.New().String()
 	now := time.Now().UTC()
 
@@ -57,6 +62,10 @@ func (s *Store) Create(userID uuid.UUID, role models.UserRole) (string, error) {
 }
 
 func (s *Store) Get(token string) (*Data, error) {
+	if s.memory != nil {
+		return s.memory.get(token)
+	}
+
 	key := fmt.Sprintf("session:%s", token)
 	ctx := context.Background()
 
@@ -77,6 +86,10 @@ func (s *Store) Get(token string) (*Data, error) {
 }
 
 func (s *Store) Delete(token string) error {
+	if s.memory != nil {
+		return s.memory.delete(token)
+	}
+
 	key := fmt.Sprintf("session:%s", token)
 	ctx := context.Background()
 
@@ -88,6 +101,10 @@ func (s *Store) Delete(token string) error {
 }
 
 func (s *Store) Refresh(token string) error {
+	if s.memory != nil {
+		return s.memory.refresh(token)
+	}
+
 	data, err := s.Get(token)
 	if err != nil {
 		return err
