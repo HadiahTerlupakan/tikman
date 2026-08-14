@@ -230,3 +230,47 @@ See `.env.example` for required variables. Key ones:
 - `REDIS_URL` - Redis connection string  
 - `ENCRYPTION_KEY` - 32-byte key for OLT credential encryption
 - `SESSION_SECRET` - Secret for session signing
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflows
+
+**Backend CI** (`.github/workflows/backend-ci.yml`)
+- Runs on push/PR to `main` or `develop`
+- Tests with race detector and coverage
+- Lints with golangci-lint
+- Builds binaries and uploads artifacts
+
+**Frontend CI** (`.github/workflows/frontend-ci.yml`)
+- Runs on push/PR to `main` or `develop`
+- Tests with Vitest and coverage
+- Lints with ESLint
+- Checks code formatting with Prettier
+- Builds production bundle
+
+**Docker Build** (`.github/workflows/docker-build.yml`)
+- Builds Docker images for backend and worker
+- Pushes to GitHub Container Registry (ghcr.io)
+- Tags: branch name, semver, SHA
+- Triggered on push to `main` or version tags
+
+**Code Quality** (`.github/workflows/code-quality.yml`)
+- Security scanning with Trivy
+- Dependency review for PRs
+- Go security scanning with Gosec
+- Results uploaded to GitHub Security tab
+
+**Deploy** (`.github/workflows/deploy.yml`)
+- Manual dispatch or triggered on release
+- Deploys to production/staging via SSH
+- Pulls latest Docker images
+- Runs health check post-deployment
+
+### Deployment Secrets Required
+
+Configure these in GitHub repository settings → Secrets:
+- `DEPLOY_HOST` - Server hostname/IP
+- `DEPLOY_USER` - SSH username
+- `DEPLOY_SSH_KEY` - Private SSH key
+- `DEPLOY_PORT` - SSH port (default: 22)
+- `DEPLOY_URL` - Application URL for health check
