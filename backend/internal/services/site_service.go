@@ -33,7 +33,7 @@ func (s *SiteService) Create(name, location, description string) (*models.Site, 
 
 func (s *SiteService) GetByID(id uuid.UUID) (*models.Site, error) {
 	var site models.Site
-	if err := s.db.Preload("OLTs").First(&site, "id = ?", id).Error; err != nil {
+	if err := s.db.First(&site, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("site not found: %w", err)
 		}
@@ -44,7 +44,7 @@ func (s *SiteService) GetByID(id uuid.UUID) (*models.Site, error) {
 
 func (s *SiteService) List() ([]models.Site, error) {
 	var sites []models.Site
-	if err := s.db.Preload("OLTs").Find(&sites).Error; err != nil {
+	if err := s.db.Find(&sites).Error; err != nil {
 		return nil, fmt.Errorf("failed to list sites: %w", err)
 	}
 	return sites, nil

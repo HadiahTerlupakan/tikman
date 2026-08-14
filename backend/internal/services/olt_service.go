@@ -67,7 +67,7 @@ func (s *OLTService) Create(siteID uuid.UUID, name, ipAddress, username, passwor
 
 func (s *OLTService) GetByID(id uuid.UUID) (*models.OLT, error) {
 	var olt models.OLT
-	if err := s.db.Preload("Site").Preload("ONTs").First(&olt, "id = ?", id).Error; err != nil {
+	if err := s.db.Preload("Site").First(&olt, "id = ?", id).Error; err != nil {
 		return nil, fmt.Errorf("OLT not found: %w", err)
 	}
 	return &olt, nil
@@ -75,7 +75,7 @@ func (s *OLTService) GetByID(id uuid.UUID) (*models.OLT, error) {
 
 func (s *OLTService) List() ([]models.OLT, error) {
 	var olts []models.OLT
-	if err := s.db.Preload("Site").Preload("ONTs").Find(&olts).Error; err != nil {
+	if err := s.db.Preload("Site").Find(&olts).Error; err != nil {
 		return nil, fmt.Errorf("failed to list OLTs: %w", err)
 	}
 	return olts, nil
