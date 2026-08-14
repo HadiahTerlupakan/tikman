@@ -5,15 +5,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
 type OLTHandler struct {
-	service *services.OLTService
+	service      *services.OLTService
+	auditService *services.AuditService
 }
 
-func NewOLTHandler(service *services.OLTService) *OLTHandler {
-	return &OLTHandler{service: service}
+func NewOLTHandler(service *services.OLTService, auditService *services.AuditService) *OLTHandler {
+	return &OLTHandler{
+		service:      service,
+		auditService: auditService,
+	}
 }
 
 func (h *OLTHandler) Create(c *gin.Context) {
@@ -71,6 +76,24 @@ func (h *OLTHandler) Create(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	h.auditService.Log(
+		actorID,
+		"create",
+		"olt",
+		olt.ID,
+		nil,
+		map[string]interface{}{
+			"site_id":           olt.SiteID,
+			"name":              olt.Name,
+			"ip_address":        olt.IPAddress,
+			"preferred_protocol": olt.PreferredProtocol,
+		},
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 
 	c.JSON(http.StatusCreated, ToOLTResponse(olt))
 }
@@ -135,6 +158,16 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Get old state for audit log
+	oldOLT, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "OLT not found",
+			Code:  "NOT_FOUND",
+		})
+		return
+	}
+
 	updates := make(map[string]interface{})
 	if req.Name != nil {
 		updates["name"] = *req.Name
@@ -180,6 +213,30 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	oldState := map[string]interface{}{
+		"name":               oldOLT.Name,
+		"ip_address":         oldOLT.IPAddress,
+		"preferred_protocol": oldOLT.PreferredProtocol,
+	}
+	newState := map[string]interface{}{
+		"name":               olt.Name,
+		"ip_address":         olt.IPAddress,
+		"preferred_protocol": olt.PreferredProtocol,
+	}
+	h.auditService.Log(
+		actorID,
+		"update",
+		"olt",
+		olt.ID,
+		oldState,
+		newState,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+
 	c.JSON(http.StatusOK, ToOLTResponse(olt))
 }
 
@@ -200,6 +257,19 @@ func (h *OLTHandler) Delete(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	h.auditService.Log(
+		actorID,
+		"delete",
+		"olt",
+		id,
+		nil,
+		nil,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 
 	c.JSON(http.StatusNoContent, nil)
 }

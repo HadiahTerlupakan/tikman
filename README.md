@@ -88,7 +88,7 @@ curl http://localhost:8080/health
 ### Default Credentials
 
 - **Username:** `admin`
-- **Password:** `changeme123`
+- **Password:** `admin123`
 
 **⚠️ Change the default password immediately after first login!**
 

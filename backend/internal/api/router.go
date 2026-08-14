@@ -24,6 +24,7 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	router := gin.New()
 
 	router.Use(gin.Recovery())
+	router.Use(middleware.RateLimitMiddleware(100))
 
 	router.Use(func(c *gin.Context) {
 		start := time.Now()
@@ -50,11 +51,12 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	userService := services.NewUserService(db)
 	siteService := services.NewSiteService(db)
 	oltService := services.NewOLTService(db, cfg.EncryptionKey)
+	auditService := services.NewAuditService(db, logger)
 
 	authHandler := NewAuthHandler(userService, sessionStore)
-	userHandler := NewUserHandler(userService)
-	siteHandler := NewSiteHandler(siteService)
-	oltHandler := NewOLTHandler(oltService)
+	userHandler := NewUserHandler(userService, auditService)
+	siteHandler := NewSiteHandler(siteService, auditService)
+	oltHandler := NewOLTHandler(oltService, auditService)
 
 	api := router.Group("/api/v1")
 	{

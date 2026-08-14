@@ -6,15 +6,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
 type SiteHandler struct {
-	service *services.SiteService
+	service      *services.SiteService
+	auditService *services.AuditService
 }
 
-func NewSiteHandler(service *services.SiteService) *SiteHandler {
-	return &SiteHandler{service: service}
+func NewSiteHandler(service *services.SiteService, auditService *services.AuditService) *SiteHandler {
+	return &SiteHandler{
+		service:      service,
+		auditService: auditService,
+	}
 }
 
 func (h *SiteHandler) Create(c *gin.Context) {
@@ -36,6 +41,23 @@ func (h *SiteHandler) Create(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	h.auditService.Log(
+		actorID,
+		"create",
+		"site",
+		site.ID,
+		nil,
+		map[string]interface{}{
+			"name":        site.Name,
+			"location":    site.Location,
+			"description": site.Description,
+		},
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 
 	c.JSON(http.StatusCreated, ToSiteResponse(site))
 }
@@ -107,6 +129,16 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Get old state for audit log
+	oldSite, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "Site not found",
+			Code:  "NOT_FOUND",
+		})
+		return
+	}
+
 	updates := make(map[string]interface{})
 	if req.Name != nil {
 		updates["name"] = *req.Name
@@ -134,6 +166,30 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	oldState := map[string]interface{}{
+		"name":        oldSite.Name,
+		"location":    oldSite.Location,
+		"description": oldSite.Description,
+	}
+	newState := map[string]interface{}{
+		"name":        site.Name,
+		"location":    site.Location,
+		"description": site.Description,
+	}
+	h.auditService.Log(
+		actorID,
+		"update",
+		"site",
+		site.ID,
+		oldState,
+		newState,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+
 	c.JSON(http.StatusOK, ToSiteResponse(site))
 }
 
@@ -154,6 +210,19 @@ func (h *SiteHandler) Delete(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	h.auditService.Log(
+		actorID,
+		"delete",
+		"site",
+		id,
+		nil,
+		nil,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 
 	c.JSON(http.StatusNoContent, nil)
 }

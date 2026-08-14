@@ -9,9 +9,9 @@ import (
 
 type ServiceProfile struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key"`
-	OLTID       uuid.UUID `gorm:"type:uuid;not null;index:idx_olt_profile_id"`
+	OLTID       uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_olt_profile_id"`
 	ProfileName string    `gorm:"type:varchar(255);not null"`
-	ProfileID   int       `gorm:"not null;index:idx_olt_profile_id"`
+	ProfileID   int       `gorm:"not null;uniqueIndex:idx_olt_profile_id"`
 	Description string    `gorm:"type:text"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -33,9 +33,9 @@ func (sp *ServiceProfile) TableName() string {
 
 type LineProfile struct {
 	ID            uuid.UUID `gorm:"type:uuid;primary_key"`
-	OLTID         uuid.UUID `gorm:"type:uuid;not null;index:idx_olt_line_profile_id"`
+	OLTID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_olt_line_profile_id"`
 	ProfileName   string    `gorm:"type:varchar(255);not null"`
-	ProfileID     int       `gorm:"not null;index:idx_olt_line_profile_id"`
+	ProfileID     int       `gorm:"not null;uniqueIndex:idx_olt_line_profile_id"`
 	BandwidthDown int       `gorm:"comment:Mbps"`
 	BandwidthUp   int       `gorm:"comment:Mbps"`
 	VLANID        int

@@ -11,11 +11,15 @@ import (
 )
 
 type UserHandler struct {
-	service *services.UserService
+	service      *services.UserService
+	auditService *services.AuditService
 }
 
-func NewUserHandler(service *services.UserService) *UserHandler {
-	return &UserHandler{service: service}
+func NewUserHandler(service *services.UserService, auditService *services.AuditService) *UserHandler {
+	return &UserHandler{
+		service:      service,
+		auditService: auditService,
+	}
 }
 
 // isDuplicateError checks if the error is a unique constraint violation for the given field
@@ -60,6 +64,23 @@ func (h *UserHandler) Create(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	h.auditService.Log(
+		actorID,
+		"create",
+		"user",
+		user.ID,
+		nil,
+		map[string]interface{}{
+			"username": user.Username,
+			"email":    user.Email,
+			"role":     user.Role,
+		},
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 
 	c.JSON(http.StatusCreated, ToUserResponse(user))
 }
@@ -124,6 +145,16 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Get old state for audit log
+	oldUser, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "User not found",
+			Code:  "NOT_FOUND",
+		})
+		return
+	}
+
 	updates := make(map[string]interface{})
 	if req.Email != nil {
 		updates["email"] = *req.Email
@@ -151,6 +182,28 @@ func (h *UserHandler) Update(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	oldState := map[string]interface{}{
+		"email": oldUser.Email,
+		"role":  oldUser.Role,
+	}
+	newState := map[string]interface{}{
+		"email": user.Email,
+		"role":  user.Role,
+	}
+	h.auditService.Log(
+		actorID,
+		"update",
+		"user",
+		user.ID,
+		oldState,
+		newState,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+
 	c.JSON(http.StatusOK, ToUserResponse(user))
 }
 
@@ -180,6 +233,19 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		})
 		return
 	}
+
+	// Audit log
+	actorID, _ := middleware.GetUserID(c)
+	h.auditService.Log(
+		actorID,
+		"delete",
+		"user",
+		id,
+		nil,
+		nil,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 
 	c.JSON(http.StatusNoContent, nil)
 }

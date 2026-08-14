@@ -57,6 +57,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		"session_token",
 		token,
@@ -79,6 +80,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.sessionStore.Delete(token)
 	}
 
+	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		"session_token",
 		"",

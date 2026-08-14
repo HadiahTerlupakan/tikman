@@ -20,10 +20,10 @@ const (
 
 type ONT struct {
 	ID               uuid.UUID  `gorm:"type:uuid;primary_key"`
-	OLTID            uuid.UUID  `gorm:"type:uuid;not null;index:idx_olt_status"`
+	OLTID            uuid.UUID  `gorm:"type:uuid;not null;index:idx_olt_status;uniqueIndex:idx_olt_pon_ont"`
 	SerialNumber     string     `gorm:"type:varchar(100);not null;index"`
-	PONPort          string     `gorm:"type:varchar(50);not null"`
-	ONTID            int        `gorm:"not null"`
+	PONPort          string     `gorm:"type:varchar(50);not null;uniqueIndex:idx_olt_pon_ont"`
+	ONTID            int        `gorm:"not null;uniqueIndex:idx_olt_pon_ont"`
 	ServiceProfileID *uuid.UUID `gorm:"type:uuid"`
 	LineProfileID    *uuid.UUID `gorm:"type:uuid"`
 	CustomerName     string     `gorm:"type:varchar(255)"`

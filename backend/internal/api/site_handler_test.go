@@ -23,11 +23,12 @@ func setupSiteHandlerTest(t *testing.T) (*SiteHandler, *gorm.DB) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = db.AutoMigrate(&models.Site{}, &models.OLT{})
+	err = db.AutoMigrate(&models.Site{}, &models.OLT{}, &models.AuditLog{})
 	require.NoError(t, err)
 
 	service := services.NewSiteService(db)
-	handler := NewSiteHandler(service)
+	auditService := services.NewAuditService(db, nil)
+	handler := NewSiteHandler(service, auditService)
 
 	return handler, db
 }
