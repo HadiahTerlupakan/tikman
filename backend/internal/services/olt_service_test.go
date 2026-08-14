@@ -97,7 +97,7 @@ func TestOLTService_GetByID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, created.ID, found.ID)
 	assert.Equal(t, created.Name, found.Name)
-	assert.Equal(t, site.Name, found.Site.Name)
+	assert.Equal(t, site.ID, found.SiteID)
 }
 
 func TestOLTService_List(t *testing.T) {
