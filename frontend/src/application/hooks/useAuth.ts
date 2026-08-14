@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AuthRepository } from '@/infrastructure/repositories';
-import { useAuthStore } from '../stores';
-import type { LoginCredentials } from '@/domain/repositories';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AuthRepository } from "@/infrastructure/repositories";
+import { useAuthStore } from "../stores";
+import type { LoginCredentials } from "@/domain/repositories";
 
 const authRepository = new AuthRepository();
 
@@ -10,10 +10,11 @@ export function useLogin() {
   const setUser = useAuthStore((state) => state.setUser);
 
   return useMutation({
-    mutationFn: (credentials: LoginCredentials) => authRepository.login(credentials),
+    mutationFn: (credentials: LoginCredentials) =>
+      authRepository.login(credentials),
     onSuccess: (data) => {
       setUser(data.user);
-      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     },
   });
 }
@@ -35,7 +36,7 @@ export function useCurrentUser() {
   const setUser = useAuthStore((state) => state.setUser);
 
   return useQuery({
-    queryKey: ['auth', 'me'],
+    queryKey: ["auth", "me"],
     queryFn: async () => {
       const user = await authRepository.getCurrentUser();
       setUser(user);

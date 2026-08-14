@@ -1,5 +1,5 @@
-import { Result, Button } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { Result, Button } from "antd";
+import { useNavigate } from "react-router-dom";
 
 export default function NotFoundPage() {
   const navigate = useNavigate();
@@ -10,7 +10,7 @@ export default function NotFoundPage() {
       title="404"
       subTitle="Halaman tidak ditemukan"
       extra={
-        <Button type="primary" onClick={() => navigate('/')}>
+        <Button type="primary" onClick={() => navigate("/")}>
           Kembali ke Dashboard
         </Button>
       }

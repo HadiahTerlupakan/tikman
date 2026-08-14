@@ -1,12 +1,12 @@
 export enum OltProtocol {
-  SSH = 'ssh',
-  TELNET = 'telnet',
+  SSH = "ssh",
+  TELNET = "telnet",
 }
 
 export enum OltStatus {
-  ONLINE = 'online',
-  OFFLINE = 'offline',
-  ERROR = 'error',
+  ONLINE = "online",
+  OFFLINE = "offline",
+  ERROR = "error",
 }
 
 export interface Olt {

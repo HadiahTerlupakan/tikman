@@ -1,7 +1,7 @@
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuthStore } from '@/application/stores';
-import { Spin } from 'antd';
-import { useCurrentUser } from '@/application/hooks';
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuthStore } from "@/application/stores";
+import { Spin } from "antd";
+import { useCurrentUser } from "@/application/hooks";
 
 export function ProtectedRoute() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -9,7 +9,14 @@ export function ProtectedRoute() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
         <Spin size="large" />
       </div>
     );

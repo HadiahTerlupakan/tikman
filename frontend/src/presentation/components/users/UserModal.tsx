@@ -1,6 +1,11 @@
-import { Modal, Form, Input, Select } from 'antd';
-import { UserRole, type User, type CreateUserDto, type UpdateUserDto } from '@/domain/entities';
-import { useEffect } from 'react';
+import { Modal, Form, Input, Select } from "antd";
+import {
+  UserRole,
+  type User,
+  type CreateUserDto,
+  type UpdateUserDto,
+} from "@/domain/entities";
+import { useEffect } from "react";
 
 interface UserModalProps {
   open: boolean;
@@ -10,7 +15,13 @@ interface UserModalProps {
   loading: boolean;
 }
 
-export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalProps) {
+export function UserModal({
+  open,
+  user,
+  onClose,
+  onSubmit,
+  loading,
+}: UserModalProps) {
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -33,7 +44,7 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
 
   return (
     <Modal
-      title={user ? 'Edit User' : 'Create User'}
+      title={user ? "Edit User" : "Create User"}
       open={open}
       onOk={handleSubmit}
       onCancel={onClose}
@@ -44,7 +55,7 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
         <Form.Item
           name="username"
           label="Username"
-          rules={[{ required: true, message: 'Please enter username' }]}
+          rules={[{ required: true, message: "Please enter username" }]}
         >
           <Input />
         </Form.Item>
@@ -53,8 +64,8 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
           name="email"
           label="Email"
           rules={[
-            { required: true, message: 'Please enter email' },
-            { type: 'email', message: 'Invalid email address' },
+            { required: true, message: "Please enter email" },
+            { type: "email", message: "Invalid email address" },
           ]}
         >
           <Input />
@@ -65,8 +76,8 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
             name="password"
             label="Password"
             rules={[
-              { required: true, message: 'Please enter password' },
-              { min: 6, message: 'Password must be at least 6 characters' },
+              { required: true, message: "Please enter password" },
+              { min: 6, message: "Password must be at least 6 characters" },
             ]}
           >
             <Input.Password />
@@ -76,11 +87,13 @@ export function UserModal({ open, user, onClose, onSubmit, loading }: UserModalP
         <Form.Item
           name="role"
           label="Role"
-          rules={[{ required: true, message: 'Please select role' }]}
+          rules={[{ required: true, message: "Please select role" }]}
         >
           <Select>
             <Select.Option value={UserRole.ADMIN}>Admin</Select.Option>
-            <Select.Option value={UserRole.TECHNICIAN}>Technician</Select.Option>
+            <Select.Option value={UserRole.TECHNICIAN}>
+              Technician
+            </Select.Option>
             <Select.Option value={UserRole.VIEWER}>Viewer</Select.Option>
           </Select>
         </Form.Item>

@@ -1,7 +1,7 @@
-import { apiClient } from '../http/apiClient';
-import { API_ENDPOINTS } from '../http/endpoints';
-import type { ISiteRepository } from '@/domain/repositories';
-import type { Site, CreateSiteDto, UpdateSiteDto } from '@/domain/entities';
+import { apiClient } from "../http/apiClient";
+import { API_ENDPOINTS } from "../http/endpoints";
+import type { ISiteRepository } from "@/domain/repositories";
+import type { Site, CreateSiteDto, UpdateSiteDto } from "@/domain/entities";
 
 export class SiteRepository implements ISiteRepository {
   async getAll(): Promise<Site[]> {

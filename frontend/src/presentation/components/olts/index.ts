@@ -1,2 +1,2 @@
-export * from './OltTable';
-export * from './OltModal';
+export * from "./OltTable";
+export * from "./OltModal";

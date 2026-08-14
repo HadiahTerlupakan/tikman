@@ -1,10 +1,15 @@
-import { useState } from 'react';
-import { Button, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from '@/application/hooks';
-import { SiteTable, SiteModal } from '../components/sites';
-import type { Site, CreateSiteDto, UpdateSiteDto } from '@/domain/entities';
-import { PageHeader, DarkCard } from '../components/common';
+import { useState } from "react";
+import { Button, message } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import {
+  useSites,
+  useCreateSite,
+  useUpdateSite,
+  useDeleteSite,
+} from "@/application/hooks";
+import { SiteTable, SiteModal } from "../components/sites";
+import type { Site, CreateSiteDto, UpdateSiteDto } from "@/domain/entities";
+import { PageHeader, DarkCard } from "../components/common";
 
 export default function SitesPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -31,22 +36,22 @@ export default function SitesPage() {
         { id: selectedSite.id, data: data as UpdateSiteDto },
         {
           onSuccess: () => {
-            message.success('Site updated successfully');
+            message.success("Site updated successfully");
             setModalOpen(false);
           },
           onError: () => {
-            message.error('Failed to update site');
+            message.error("Failed to update site");
           },
-        }
+        },
       );
     } else {
       createMutation.mutate(data as CreateSiteDto, {
         onSuccess: () => {
-          message.success('Site created successfully');
+          message.success("Site created successfully");
           setModalOpen(false);
         },
         onError: () => {
-          message.error('Failed to create site');
+          message.error("Failed to create site");
         },
       });
     }
@@ -55,10 +60,10 @@ export default function SitesPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        message.success('Site deleted successfully');
+        message.success("Site deleted successfully");
       },
       onError: () => {
-        message.error('Failed to delete site');
+        message.error("Failed to delete site");
       },
     });
   };

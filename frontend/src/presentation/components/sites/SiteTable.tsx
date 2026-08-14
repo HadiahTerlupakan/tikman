@@ -1,7 +1,7 @@
-import { Table, Button, Space, Badge, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import type { Site } from '@/domain/entities';
-import type { ColumnsType } from 'antd/es/table';
+import { Table, Button, Space, Badge, Popconfirm } from "antd";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import type { Site } from "@/domain/entities";
+import type { ColumnsType } from "antd/es/table";
 
 interface SiteTableProps {
   sites: Site[];
@@ -10,39 +10,44 @@ interface SiteTableProps {
   onDelete: (id: string) => void;
 }
 
-export function SiteTable({ sites, loading, onEdit, onDelete }: SiteTableProps) {
+export function SiteTable({
+  sites,
+  loading,
+  onEdit,
+  onDelete,
+}: SiteTableProps) {
   const columns: ColumnsType<Site> = [
     {
-      title: 'Site Name',
-      dataIndex: 'name',
-      key: 'name',
+      title: "Site Name",
+      dataIndex: "name",
+      key: "name",
     },
     {
-      title: 'Location',
-      dataIndex: 'location',
-      key: 'location',
+      title: "Location",
+      dataIndex: "location",
+      key: "location",
     },
     {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
+      title: "Description",
+      dataIndex: "description",
+      key: "description",
       ellipsis: true,
     },
     {
-      title: 'OLT Count',
-      dataIndex: 'oltCount',
-      key: 'oltCount',
+      title: "OLT Count",
+      dataIndex: "oltCount",
+      key: "oltCount",
       render: (count: number) => <Badge count={count} showZero color="blue" />,
     },
     {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleDateString('id-ID'),
+      title: "Created At",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (date: string) => new Date(date).toLocaleDateString("id-ID"),
     },
     {
-      title: 'Actions',
-      key: 'actions',
+      title: "Actions",
+      key: "actions",
       render: (_, record) => (
         <Space>
           <Button

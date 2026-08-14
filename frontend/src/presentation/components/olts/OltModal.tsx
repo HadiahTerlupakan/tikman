@@ -1,7 +1,12 @@
-import { Modal, Form, Input, Select, InputNumber } from 'antd';
-import { type Olt, type CreateOltDto, type UpdateOltDto, OltProtocol } from '@/domain/entities';
-import { useSites } from '@/application/hooks';
-import { useEffect } from 'react';
+import { Modal, Form, Input, Select, InputNumber } from "antd";
+import {
+  type Olt,
+  type CreateOltDto,
+  type UpdateOltDto,
+  OltProtocol,
+} from "@/domain/entities";
+import { useSites } from "@/application/hooks";
+import { useEffect } from "react";
 
 interface OltModalProps {
   open: boolean;
@@ -11,7 +16,13 @@ interface OltModalProps {
   loading: boolean;
 }
 
-export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProps) {
+export function OltModal({
+  open,
+  olt,
+  onClose,
+  onSubmit,
+  loading,
+}: OltModalProps) {
   const [form] = Form.useForm();
   const { data: sites } = useSites();
 
@@ -47,7 +58,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
 
   return (
     <Modal
-      title={olt ? 'Edit OLT' : 'Create OLT'}
+      title={olt ? "Edit OLT" : "Create OLT"}
       open={open}
       onOk={handleSubmit}
       onCancel={onClose}
@@ -59,7 +70,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="siteId"
           label="Site"
-          rules={[{ required: true, message: 'Please select site' }]}
+          rules={[{ required: true, message: "Please select site" }]}
         >
           <Select placeholder="Select site">
             {sites?.map((site) => (
@@ -73,7 +84,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="name"
           label="OLT Name"
-          rules={[{ required: true, message: 'Please enter OLT name' }]}
+          rules={[{ required: true, message: "Please enter OLT name" }]}
         >
           <Input />
         </Form.Item>
@@ -82,8 +93,11 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
           name="ipAddress"
           label="IP Address"
           rules={[
-            { required: true, message: 'Please enter IP address' },
-            { pattern: /^(\d{1,3}\.){3}\d{1,3}$/, message: 'Invalid IP address' },
+            { required: true, message: "Please enter IP address" },
+            {
+              pattern: /^(\d{1,3}\.){3}\d{1,3}$/,
+              message: "Invalid IP address",
+            },
           ]}
         >
           <Input placeholder="192.168.1.1" />
@@ -92,7 +106,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="protocol"
           label="Protocol"
-          rules={[{ required: true, message: 'Please select protocol' }]}
+          rules={[{ required: true, message: "Please select protocol" }]}
         >
           <Select>
             <Select.Option value={OltProtocol.SSH}>SSH</Select.Option>
@@ -103,7 +117,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         <Form.Item
           name="username"
           label="Username"
-          rules={[{ required: true, message: 'Please enter username' }]}
+          rules={[{ required: true, message: "Please enter username" }]}
         >
           <Input />
         </Form.Item>
@@ -112,7 +126,7 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
           <Form.Item
             name="password"
             label="Password"
-            rules={[{ required: true, message: 'Please enter password' }]}
+            rules={[{ required: true, message: "Please enter password" }]}
           >
             <Input.Password />
           </Form.Item>
@@ -123,15 +137,15 @@ export function OltModal({ open, olt, onClose, onSubmit, loading }: OltModalProp
         </Form.Item>
 
         <Form.Item name="sshPort" label="SSH Port">
-          <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+          <InputNumber min={1} max={65535} style={{ width: "100%" }} />
         </Form.Item>
 
         <Form.Item name="telnetPort" label="Telnet Port">
-          <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+          <InputNumber min={1} max={65535} style={{ width: "100%" }} />
         </Form.Item>
 
         <Form.Item name="snmpPort" label="SNMP Port">
-          <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+          <InputNumber min={1} max={65535} style={{ width: "100%" }} />
         </Form.Item>
       </Form>
     </Modal>

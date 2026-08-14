@@ -1,4 +1,4 @@
-import type { User, CreateUserDto, UpdateUserDto } from '../entities';
+import type { User, CreateUserDto, UpdateUserDto } from "../entities";
 
 export interface IUserRepository {
   getAll(): Promise<User[]>;

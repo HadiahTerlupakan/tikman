@@ -1,15 +1,18 @@
-import { apiClient } from '../http/apiClient';
-import { API_ENDPOINTS } from '../http/endpoints';
+import { apiClient } from "../http/apiClient";
+import { API_ENDPOINTS } from "../http/endpoints";
 import type {
   IAuthRepository,
   LoginCredentials,
   LoginResponse,
-} from '@/domain/repositories';
-import type { User } from '@/domain/entities';
+} from "@/domain/repositories";
+import type { User } from "@/domain/entities";
 
 export class AuthRepository implements IAuthRepository {
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    const response = await apiClient.post(API_ENDPOINTS.AUTH_LOGIN, credentials);
+    const response = await apiClient.post(
+      API_ENDPOINTS.AUTH_LOGIN,
+      credentials,
+    );
     return response.data;
   }
 

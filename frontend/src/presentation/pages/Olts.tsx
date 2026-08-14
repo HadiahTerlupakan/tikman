@@ -1,10 +1,15 @@
-import { useState } from 'react';
-import { Button, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import { useOlts, useCreateOlt, useUpdateOlt, useDeleteOlt } from '@/application/hooks';
-import { OltTable, OltModal } from '../components/olts';
-import type { Olt, CreateOltDto, UpdateOltDto } from '@/domain/entities';
-import { PageHeader, DarkCard } from '../components/common';
+import { useState } from "react";
+import { Button, message } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import {
+  useOlts,
+  useCreateOlt,
+  useUpdateOlt,
+  useDeleteOlt,
+} from "@/application/hooks";
+import { OltTable, OltModal } from "../components/olts";
+import type { Olt, CreateOltDto, UpdateOltDto } from "@/domain/entities";
+import { PageHeader, DarkCard } from "../components/common";
 
 export default function OltsPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -31,22 +36,22 @@ export default function OltsPage() {
         { id: selectedOlt.id, data: data as UpdateOltDto },
         {
           onSuccess: () => {
-            message.success('OLT updated successfully');
+            message.success("OLT updated successfully");
             setModalOpen(false);
           },
           onError: () => {
-            message.error('Failed to update OLT');
+            message.error("Failed to update OLT");
           },
-        }
+        },
       );
     } else {
       createMutation.mutate(data as CreateOltDto, {
         onSuccess: () => {
-          message.success('OLT created successfully');
+          message.success("OLT created successfully");
           setModalOpen(false);
         },
         onError: () => {
-          message.error('Failed to create OLT');
+          message.error("Failed to create OLT");
         },
       });
     }
@@ -55,10 +60,10 @@ export default function OltsPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        message.success('OLT deleted successfully');
+        message.success("OLT deleted successfully");
       },
       onError: () => {
-        message.error('Failed to delete OLT');
+        message.error("Failed to delete OLT");
       },
     });
   };

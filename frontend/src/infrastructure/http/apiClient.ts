@@ -1,14 +1,14 @@
-import axios from 'axios';
-import { camelizeKeys, decamelizeKeys } from 'humps';
-import { env } from '@/shared/config/env';
-import { mapApiError } from './errorMapper';
+import axios from "axios";
+import { camelizeKeys, decamelizeKeys } from "humps";
+import { env } from "@/shared/config/env";
+import { mapApiError } from "./errorMapper";
 
 export const apiClient = axios.create({
   baseURL: env.apiUrl,
   withCredentials: true, // Important: send cookies
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -16,7 +16,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     // Add correlation ID for logging
-    config.headers['X-Request-ID'] = crypto.randomUUID();
+    config.headers["X-Request-ID"] = crypto.randomUUID();
 
     // Transform request data from camelCase to snake_case
     if (config.data) {
@@ -25,7 +25,7 @@ apiClient.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Response interceptor
@@ -47,5 +47,5 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(mappedError);
-  }
+  },
 );

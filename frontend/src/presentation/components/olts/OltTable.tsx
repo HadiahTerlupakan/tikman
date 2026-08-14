@@ -1,7 +1,7 @@
-import { Table, Button, Space, Tag, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { type Olt, OltStatus } from '@/domain/entities';
-import type { ColumnsType } from 'antd/es/table';
+import { Table, Button, Space, Tag, Popconfirm } from "antd";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { type Olt, OltStatus } from "@/domain/entities";
+import type { ColumnsType } from "antd/es/table";
 
 interface OltTableProps {
   olts: Olt[];
@@ -14,56 +14,56 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
   const getStatusColor = (status: OltStatus) => {
     switch (status) {
       case OltStatus.ONLINE:
-        return 'green';
+        return "green";
       case OltStatus.OFFLINE:
-        return 'red';
+        return "red";
       case OltStatus.ERROR:
-        return 'orange';
+        return "orange";
       default:
-        return 'default';
+        return "default";
     }
   };
 
   const columns: ColumnsType<Olt> = [
     {
-      title: 'OLT Name',
-      dataIndex: 'name',
-      key: 'name',
+      title: "OLT Name",
+      dataIndex: "name",
+      key: "name",
     },
     {
-      title: 'Site',
-      dataIndex: 'siteName',
-      key: 'siteName',
+      title: "Site",
+      dataIndex: "siteName",
+      key: "siteName",
     },
     {
-      title: 'IP Address',
-      dataIndex: 'ipAddress',
-      key: 'ipAddress',
+      title: "IP Address",
+      dataIndex: "ipAddress",
+      key: "ipAddress",
     },
     {
-      title: 'Protocol',
-      dataIndex: 'protocol',
-      key: 'protocol',
+      title: "Protocol",
+      dataIndex: "protocol",
+      key: "protocol",
       render: (protocol: string) => protocol.toUpperCase(),
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
       render: (status: OltStatus) => (
         <Tag color={getStatusColor(status)}>{status.toUpperCase()}</Tag>
       ),
     },
     {
-      title: 'Last Seen',
-      dataIndex: 'lastSeen',
-      key: 'lastSeen',
+      title: "Last Seen",
+      dataIndex: "lastSeen",
+      key: "lastSeen",
       render: (date: string | null) =>
-        date ? new Date(date).toLocaleString('id-ID') : '-',
+        date ? new Date(date).toLocaleString("id-ID") : "-",
     },
     {
-      title: 'Actions',
-      key: 'actions',
+      title: "Actions",
+      key: "actions",
       render: (_, record) => (
         <Space>
           <Button

@@ -1,2 +1,2 @@
-export * from './UserTable';
-export * from './UserModal';
+export * from "./UserTable";
+export * from "./UserModal";

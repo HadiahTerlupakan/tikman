@@ -1,7 +1,7 @@
-import { apiClient } from '../http/apiClient';
-import { API_ENDPOINTS } from '../http/endpoints';
-import type { IUserRepository } from '@/domain/repositories';
-import type { User, CreateUserDto, UpdateUserDto } from '@/domain/entities';
+import { apiClient } from "../http/apiClient";
+import { API_ENDPOINTS } from "../http/endpoints";
+import type { IUserRepository } from "@/domain/repositories";
+import type { User, CreateUserDto, UpdateUserDto } from "@/domain/entities";
 
 export class UserRepository implements IUserRepository {
   private client = apiClient;

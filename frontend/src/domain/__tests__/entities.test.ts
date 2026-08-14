@@ -1,24 +1,24 @@
-import { describe, it, expect } from 'vitest';
-import { UserRole, type User } from '../entities/User';
+import { describe, it, expect } from "vitest";
+import { UserRole, type User } from "../entities/User";
 
-describe('User Entity', () => {
-  it('should have correct UserRole enum values', () => {
-    expect(UserRole.ADMIN).toBe('admin');
-    expect(UserRole.TECHNICIAN).toBe('technician');
-    expect(UserRole.VIEWER).toBe('viewer');
+describe("User Entity", () => {
+  it("should have correct UserRole enum values", () => {
+    expect(UserRole.ADMIN).toBe("admin");
+    expect(UserRole.TECHNICIAN).toBe("technician");
+    expect(UserRole.VIEWER).toBe("viewer");
   });
 
-  it('should create valid User object', () => {
+  it("should create valid User object", () => {
     const user: User = {
-      id: '123',
-      username: 'admin',
-      email: 'admin@test.com',
+      id: "123",
+      username: "admin",
+      email: "admin@test.com",
       role: UserRole.ADMIN,
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z',
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
     };
 
-    expect(user.username).toBe('admin');
+    expect(user.username).toBe("admin");
     expect(user.role).toBe(UserRole.ADMIN);
   });
 });

@@ -1,4 +1,4 @@
-import type { Site, CreateSiteDto, UpdateSiteDto } from '../entities';
+import type { Site, CreateSiteDto, UpdateSiteDto } from "../entities";
 
 export interface ISiteRepository {
   getAll(): Promise<Site[]>;

@@ -1,7 +1,7 @@
-import { apiClient } from '../http/apiClient';
-import { API_ENDPOINTS } from '../http/endpoints';
-import type { IOltRepository } from '@/domain/repositories';
-import type { Olt, CreateOltDto, UpdateOltDto } from '@/domain/entities';
+import { apiClient } from "../http/apiClient";
+import { API_ENDPOINTS } from "../http/endpoints";
+import type { IOltRepository } from "@/domain/repositories";
+import type { Olt, CreateOltDto, UpdateOltDto } from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
   async getAll(): Promise<Olt[]> {

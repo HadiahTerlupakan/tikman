@@ -1,6 +1,10 @@
-import { Modal, Form, Input } from 'antd';
-import { type Site, type CreateSiteDto, type UpdateSiteDto } from '@/domain/entities';
-import { useEffect } from 'react';
+import { Modal, Form, Input } from "antd";
+import {
+  type Site,
+  type CreateSiteDto,
+  type UpdateSiteDto,
+} from "@/domain/entities";
+import { useEffect } from "react";
 
 interface SiteModalProps {
   open: boolean;
@@ -10,7 +14,13 @@ interface SiteModalProps {
   loading: boolean;
 }
 
-export function SiteModal({ open, site, onClose, onSubmit, loading }: SiteModalProps) {
+export function SiteModal({
+  open,
+  site,
+  onClose,
+  onSubmit,
+  loading,
+}: SiteModalProps) {
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -33,7 +43,7 @@ export function SiteModal({ open, site, onClose, onSubmit, loading }: SiteModalP
 
   return (
     <Modal
-      title={site ? 'Edit Site' : 'Create Site'}
+      title={site ? "Edit Site" : "Create Site"}
       open={open}
       onOk={handleSubmit}
       onCancel={onClose}
@@ -44,7 +54,7 @@ export function SiteModal({ open, site, onClose, onSubmit, loading }: SiteModalP
         <Form.Item
           name="name"
           label="Site Name"
-          rules={[{ required: true, message: 'Please enter site name' }]}
+          rules={[{ required: true, message: "Please enter site name" }]}
         >
           <Input />
         </Form.Item>

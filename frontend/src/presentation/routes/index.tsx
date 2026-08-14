@@ -1,20 +1,20 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { ProtectedRoute } from './ProtectedRoute';
-import { AppLayout } from '../components/layout';
-import LoginPage from '../pages/Login';
-import DashboardPage from '../pages/Dashboard';
-import UsersPage from '../pages/Users';
-import SitesPage from '../pages/Sites';
-import OltsPage from '../pages/Olts';
-import NotFoundPage from '../pages/NotFound';
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "./ProtectedRoute";
+import { AppLayout } from "../components/layout";
+import LoginPage from "../pages/Login";
+import DashboardPage from "../pages/Dashboard";
+import UsersPage from "../pages/Users";
+import SitesPage from "../pages/Sites";
+import OltsPage from "../pages/Olts";
+import NotFoundPage from "../pages/NotFound";
 
 export const router = createBrowserRouter([
   {
-    path: '/login',
+    path: "/login",
     element: <LoginPage />,
   },
   {
-    path: '/',
+    path: "/",
     element: <ProtectedRoute />,
     children: [
       {
@@ -25,15 +25,15 @@ export const router = createBrowserRouter([
             element: <DashboardPage />,
           },
           {
-            path: 'users',
+            path: "users",
             element: <UsersPage />,
           },
           {
-            path: 'sites',
+            path: "sites",
             element: <SitesPage />,
           },
           {
-            path: 'olts',
+            path: "olts",
             element: <OltsPage />,
           },
         ],
@@ -41,11 +41,11 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: '/404',
+    path: "/404",
     element: <NotFoundPage />,
   },
   {
-    path: '*',
+    path: "*",
     element: <Navigate to="/404" replace />,
   },
 ]);

@@ -1,7 +1,7 @@
-import { Table, Button, Space, Tag, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { type User, UserRole } from '@/domain/entities';
-import type { ColumnsType } from 'antd/es/table';
+import { Table, Button, Space, Tag, Popconfirm } from "antd";
+import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { type User, UserRole } from "@/domain/entities";
+import type { ColumnsType } from "antd/es/table";
 
 interface UserTableProps {
   users: User[];
@@ -10,36 +10,46 @@ interface UserTableProps {
   onDelete: (id: string) => void;
 }
 
-export function UserTable({ users, loading, onEdit, onDelete }: UserTableProps) {
+export function UserTable({
+  users,
+  loading,
+  onEdit,
+  onDelete,
+}: UserTableProps) {
   const columns: ColumnsType<User> = [
     {
-      title: 'Username',
-      dataIndex: 'username',
-      key: 'username',
+      title: "Username",
+      dataIndex: "username",
+      key: "username",
     },
     {
-      title: 'Email',
-      dataIndex: 'email',
-      key: 'email',
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
     },
     {
-      title: 'Role',
-      dataIndex: 'role',
-      key: 'role',
+      title: "Role",
+      dataIndex: "role",
+      key: "role",
       render: (role: UserRole) => {
-        const color = role === UserRole.ADMIN ? 'red' : role === UserRole.TECHNICIAN ? 'blue' : 'green';
+        const color =
+          role === UserRole.ADMIN
+            ? "red"
+            : role === UserRole.TECHNICIAN
+              ? "blue"
+              : "green";
         return <Tag color={color}>{role.toUpperCase()}</Tag>;
       },
     },
     {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleDateString('id-ID'),
+      title: "Created At",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (date: string) => new Date(date).toLocaleDateString("id-ID"),
     },
     {
-      title: 'Actions',
-      key: 'actions',
+      title: "Actions",
+      key: "actions",
       render: (_, record) => (
         <Space>
           <Button

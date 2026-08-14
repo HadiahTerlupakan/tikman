@@ -1,4 +1,4 @@
-import type { Olt, CreateOltDto, UpdateOltDto } from '../entities';
+import type { Olt, CreateOltDto, UpdateOltDto } from "../entities";
 
 export interface IOltRepository {
   getAll(): Promise<Olt[]>;

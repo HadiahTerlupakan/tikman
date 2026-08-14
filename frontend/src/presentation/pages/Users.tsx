@@ -1,10 +1,15 @@
-import { useState } from 'react';
-import { Button, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/application/hooks';
-import { UserTable, UserModal } from '../components/users';
-import type { User, CreateUserDto, UpdateUserDto } from '@/domain/entities';
-import { PageHeader, DarkCard } from '../components/common';
+import { useState } from "react";
+import { Button, message } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import {
+  useUsers,
+  useCreateUser,
+  useUpdateUser,
+  useDeleteUser,
+} from "@/application/hooks";
+import { UserTable, UserModal } from "../components/users";
+import type { User, CreateUserDto, UpdateUserDto } from "@/domain/entities";
+import { PageHeader, DarkCard } from "../components/common";
 
 export default function UsersPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -31,22 +36,22 @@ export default function UsersPage() {
         { id: selectedUser.id, data: data as UpdateUserDto },
         {
           onSuccess: () => {
-            message.success('User updated successfully');
+            message.success("User updated successfully");
             setModalOpen(false);
           },
           onError: () => {
-            message.error('Failed to update user');
+            message.error("Failed to update user");
           },
-        }
+        },
       );
     } else {
       createMutation.mutate(data as CreateUserDto, {
         onSuccess: () => {
-          message.success('User created successfully');
+          message.success("User created successfully");
           setModalOpen(false);
         },
         onError: () => {
-          message.error('Failed to create user');
+          message.error("Failed to create user");
         },
       });
     }
@@ -55,10 +60,10 @@ export default function UsersPage() {
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        message.success('User deleted successfully');
+        message.success("User deleted successfully");
       },
       onError: () => {
-        message.error('Failed to delete user');
+        message.error("Failed to delete user");
       },
     });
   };
