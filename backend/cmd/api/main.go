@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
+	"github.com/redis/go-redis/v9"
+	"github.com/tikman/olt-provisioning/internal/api"
+	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/database"
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 )
 
@@ -28,16 +34,37 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
-
 	log.Info("Database connected successfully")
 
-	// Run migrations
 	if err := models.AutoMigrate(db); err != nil {
 		log.Fatal("Failed to run migrations", zap.Error(err))
 	}
 	log.Info("Database migrations completed")
 
-	// TODO: Start server
-	_ = db // Will be used when implementing server
-	select {}
+	if err := services.CreateDefaultAdmin(db, log); err != nil {
+		log.Fatal("Failed to seed default admin", zap.Error(err))
+	}
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
+		Password: cfg.RedisPassword,
+		DB:       0,
+	})
+
+	ctx := context.Background()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	log.Info("Redis connected successfully")
+
+	sessionStore := auth.NewStore(redisClient, 24*time.Hour)
+
+	router := api.Setup(cfg, db, sessionStore, log)
+
+	addr := fmt.Sprintf(":%d", cfg.APIPort)
+	log.Info("Server starting", zap.String("address", addr))
+
+	if err := router.Run(addr); err != nil {
+		log.Fatal("Failed to start server", zap.Error(err))
+	}
 }
