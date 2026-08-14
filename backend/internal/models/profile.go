@@ -36,8 +36,8 @@ type LineProfile struct {
 	OLTID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_olt_line_profile_id"`
 	ProfileName   string    `gorm:"type:varchar(255);not null"`
 	ProfileID     int       `gorm:"not null;uniqueIndex:idx_olt_line_profile_id"`
-	BandwidthDown int       `gorm:"comment:Mbps"`
-	BandwidthUp   int       `gorm:"comment:Mbps"`
+	BandwidthDown int       `gorm:"comment:'Bandwidth in Mbps'"`
+	BandwidthUp   int       `gorm:"comment:'Bandwidth in Mbps'"`
 	VLANID        int
 	Description   string    `gorm:"type:text"`
 	CreatedAt     time.Time

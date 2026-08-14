@@ -27,11 +27,11 @@ type OLT struct {
 	SSHPort           int         `gorm:"default:22"`
 	TelnetPort        int         `gorm:"default:23"`
 	SNMPPort          int         `gorm:"default:161"`
-	SNMPCommunity     string      `gorm:"type:varchar(100);default:'public'"`
-	PreferredProtocol OLTProtocol `gorm:"type:varchar(20);default:'ssh'"`
+	SNMPCommunity     string      `gorm:"type:varchar(100);default:public"`
+	PreferredProtocol OLTProtocol `gorm:"type:varchar(20);default:ssh"`
 	Username          string      `gorm:"type:varchar(100);not null"`
 	Password          string      `gorm:"type:varchar(255);not null"` // encrypted
-	Status            OLTStatus   `gorm:"type:varchar(20);default:'offline'"`
+	Status            OLTStatus   `gorm:"type:varchar(20);default:offline"`
 	LastSeen          *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
