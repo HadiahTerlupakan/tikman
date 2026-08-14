@@ -4,6 +4,7 @@ import { AppLayout } from '../components/layout';
 import LoginPage from '../pages/Login';
 import DashboardPage from '../pages/Dashboard';
 import UsersPage from '../pages/Users';
+import SitesPage from '../pages/Sites';
 import NotFoundPage from '../pages/NotFound';
 
 export const router = createBrowserRouter([
@@ -28,7 +29,7 @@ export const router = createBrowserRouter([
           },
           {
             path: 'sites',
-            element: <div>Sites Page (placeholder)</div>,
+            element: <SitesPage />,
           },
           {
             path: 'olts',
