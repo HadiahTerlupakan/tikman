@@ -3,6 +3,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 import { AppLayout } from '../components/layout';
 import LoginPage from '../pages/Login';
 import DashboardPage from '../pages/Dashboard';
+import UsersPage from '../pages/Users';
 import NotFoundPage from '../pages/NotFound';
 
 export const router = createBrowserRouter([
@@ -23,7 +24,7 @@ export const router = createBrowserRouter([
           },
           {
             path: 'users',
-            element: <div>Users Page (placeholder)</div>,
+            element: <UsersPage />,
           },
           {
             path: 'sites',
