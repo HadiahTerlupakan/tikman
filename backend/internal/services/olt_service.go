@@ -33,6 +33,12 @@ func (s *OLTService) DecryptPassword(ciphertext string) (string, error) {
 func (s *OLTService) Create(siteID uuid.UUID, name, ipAddress, username, password string,
 	sshPort, telnetPort, snmpPort int, snmpCommunity string, preferredProtocol models.OLTProtocol) (*models.OLT, error) {
 
+	// Validate site exists
+	var site models.Site
+	if err := s.db.First(&site, "id = ?", siteID).Error; err != nil {
+		return nil, fmt.Errorf("site not found: %w", err)
+	}
+
 	encryptedPassword, err := s.encryptPassword(password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt password: %w", err)
@@ -99,7 +105,7 @@ func (s *OLTService) Delete(id uuid.UUID) error {
 }
 
 func (s *OLTService) UpdateStatus(id uuid.UUID, status models.OLTStatus) error {
-	now := time.Now()
+	now := time.Now().UTC()
 	return s.db.Model(&models.OLT{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":    status,
 		"last_seen": &now,

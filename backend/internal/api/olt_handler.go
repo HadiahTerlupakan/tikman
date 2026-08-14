@@ -57,6 +57,14 @@ func (h *OLTHandler) Create(c *gin.Context) {
 		req.PreferredProtocol,
 	)
 	if err != nil {
+		// Check if error is due to site not found
+		if err.Error() == "site not found: record not found" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "Site not found",
+				Code:  "INVALID_SITE_ID",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to create OLT",
 			Code:  "CREATE_FAILED",
@@ -164,7 +172,14 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		return
 	}
 
-	olt, _ := h.service.GetByID(id)
+	olt, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: "OLT updated but failed to retrieve",
+			Code:  "RETRIEVAL_FAILED",
+		})
+		return
+	}
 	c.JSON(http.StatusOK, ToOLTResponse(olt))
 }
 

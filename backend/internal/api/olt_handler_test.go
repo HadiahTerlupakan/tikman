@@ -157,6 +157,34 @@ func TestOLTHandler_Create(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("invalid request - invalid site ID", func(t *testing.T) {
+		invalidSiteID := uuid.New()
+
+		reqBody := CreateOLTRequest{
+			SiteID:            invalidSiteID,
+			Name:              "Test OLT",
+			IPAddress:         "192.168.1.1",
+			PreferredProtocol: models.OLTProtocolSSH,
+			Username:          "admin",
+			Password:          "password123",
+		}
+		body, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/olts", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		handler.Create(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response ErrorResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "INVALID_SITE_ID", response.Code)
+	})
 }
 
 func TestOLTHandler_List(t *testing.T) {

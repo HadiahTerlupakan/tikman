@@ -48,6 +48,29 @@ func TestOLTService_Create(t *testing.T) {
 	assert.Equal(t, models.OLTProtocolSSH, olt.PreferredProtocol)
 }
 
+func TestOLTService_Create_InvalidSiteID(t *testing.T) {
+	db := setupTestDB(t)
+	oltService := NewOLTService(db, testEncryptionKey)
+
+	// Try to create OLT with non-existent site ID
+	invalidSiteID := uuid.New()
+	_, err := oltService.Create(
+		invalidSiteID,
+		"Test OLT",
+		"192.168.1.1",
+		"admin",
+		"password123",
+		22,
+		23,
+		161,
+		"public",
+		models.OLTProtocolSSH,
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "site not found")
+}
+
 func TestOLTService_GetByID(t *testing.T) {
 	db := setupTestDB(t)
 	siteService := NewSiteService(db)
