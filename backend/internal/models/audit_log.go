@@ -11,6 +11,7 @@ import (
 type AuditLog struct {
 	ID           uuid.UUID      `gorm:"type:uuid;primary_key"`
 	UserID       *uuid.UUID     `gorm:"type:uuid;index:idx_user_created"`
+	User         *User          `gorm:"foreignKey:UserID;constraint:OnDelete:SET NULL"`
 	Action       string         `gorm:"type:varchar(100);not null"`
 	ResourceType string         `gorm:"type:varchar(50);not null;index:idx_resource"`
 	ResourceID   *uuid.UUID     `gorm:"type:uuid;index:idx_resource"`
