@@ -10,7 +10,6 @@ import (
 type ServiceProfile struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key"`
 	OLTID       uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_olt_profile_id"`
-	OLT         *OLT      `gorm:"foreignKey:OLTID;constraint:OnDelete:CASCADE"`
 	ProfileName string    `gorm:"type:varchar(255);not null"`
 	ProfileID   int       `gorm:"not null;uniqueIndex:idx_olt_profile_id"`
 	Description string    `gorm:"type:text"`
@@ -32,7 +31,6 @@ func (sp *ServiceProfile) TableName() string {
 type LineProfile struct {
 	ID            uuid.UUID `gorm:"type:uuid;primary_key"`
 	OLTID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_olt_line_profile_id"`
-	OLT           *OLT      `gorm:"foreignKey:OLTID;constraint:OnDelete:CASCADE"`
 	ProfileName   string    `gorm:"type:varchar(255);not null"`
 	ProfileID     int       `gorm:"not null;uniqueIndex:idx_olt_line_profile_id"`
 	BandwidthDown int       `gorm:"comment:'Bandwidth in Mbps'"`

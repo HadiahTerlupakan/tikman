@@ -19,22 +19,19 @@ const (
 )
 
 type ONT struct {
-	ID               uuid.UUID       `gorm:"type:uuid;primary_key"`
-	OLTID            uuid.UUID       `gorm:"type:uuid;not null;uniqueIndex:idx_olt_pon_ont"`
-	OLT              *OLT            `gorm:"foreignKey:OLTID;constraint:OnDelete:CASCADE"`
-	SerialNumber     string          `gorm:"type:varchar(100);not null;index"`
-	PONPort          string          `gorm:"type:varchar(50);not null;uniqueIndex:idx_olt_pon_ont"`
-	ONTID            int             `gorm:"not null;uniqueIndex:idx_olt_pon_ont"`
-	ServiceProfileID *uuid.UUID      `gorm:"type:uuid"`
-	ServiceProfile   *ServiceProfile `gorm:"foreignKey:ServiceProfileID;constraint:OnDelete:SET NULL"`
-	LineProfileID    *uuid.UUID      `gorm:"type:uuid"`
-	LineProfile      *LineProfile    `gorm:"foreignKey:LineProfileID;constraint:OnDelete:SET NULL"`
-	CustomerName     string          `gorm:"type:varchar(255)"`
-	Description      string          `gorm:"type:text"`
-	Status           ONTStatus       `gorm:"type:varchar(20);default:pending;index:idx_olt_status"`
-	SignalRX         *float64        `gorm:"comment:'Signal in dBm'"`
-	SignalTX         *float64        `gorm:"comment:'Signal in dBm'"`
-	Distance         *int            `gorm:"comment:'Distance in meter'"`
+	ID               uuid.UUID  `gorm:"type:uuid;primary_key"`
+	OLTID            uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_olt_pon_ont"`
+	SerialNumber     string     `gorm:"type:varchar(100);not null;index"`
+	PONPort          string     `gorm:"type:varchar(50);not null;uniqueIndex:idx_olt_pon_ont"`
+	ONTID            int        `gorm:"not null;uniqueIndex:idx_olt_pon_ont"`
+	ServiceProfileID *uuid.UUID `gorm:"type:uuid"`
+	LineProfileID    *uuid.UUID `gorm:"type:uuid"`
+	CustomerName     string     `gorm:"type:varchar(255)"`
+	Description      string     `gorm:"type:text"`
+	Status           ONTStatus  `gorm:"type:varchar(20);default:pending;index:idx_olt_status"`
+	SignalRX         *float64   `gorm:"comment:'Signal in dBm'"`
+	SignalTX         *float64   `gorm:"comment:'Signal in dBm'"`
+	Distance         *int       `gorm:"comment:'Distance in meter'"`
 	LastOnline       *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time

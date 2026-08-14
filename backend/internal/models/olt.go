@@ -22,7 +22,6 @@ const (
 type OLT struct {
 	ID                uuid.UUID   `gorm:"type:uuid;primary_key"`
 	SiteID            uuid.UUID   `gorm:"type:uuid;not null;index"`
-	Site              *Site       `gorm:"foreignKey:SiteID;constraint:OnDelete:CASCADE"`
 	Name              string      `gorm:"type:varchar(255);not null"`
 	IPAddress         string      `gorm:"type:varchar(45);not null"`
 	SSHPort           int         `gorm:"default:22"`
