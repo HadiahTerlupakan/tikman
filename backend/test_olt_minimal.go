@@ -1,10 +1,13 @@
-package models
+package main
 
 import (
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"github.com/tikman/olt-provisioning/internal/config"
+	"github.com/tikman/olt-provisioning/internal/database"
 )
 
 type OLTStatus string
@@ -19,7 +22,8 @@ const (
 	OLTProtocolTelnet OLTProtocol = "telnet"
 )
 
-type OLT struct {
+// Minimal OLT without foreign keys
+type OLTMinimal struct {
 	ID                uuid.UUID   `gorm:"type:uuid;primary_key"`
 	SiteID            uuid.UUID   `gorm:"type:uuid;not null;index"`
 	Name              string      `gorm:"type:varchar(255);not null"`
@@ -30,20 +34,32 @@ type OLT struct {
 	SNMPCommunity     string      `gorm:"type:varchar(100);default:public"`
 	PreferredProtocol OLTProtocol `gorm:"type:varchar(20);default:ssh"`
 	Username          string      `gorm:"type:varchar(100);not null"`
-	Password          string      `gorm:"type:varchar(255);not null"` // encrypted
+	Password          string      `gorm:"type:varchar(255);not null"`
 	Status            OLTStatus   `gorm:"type:varchar(20);default:offline"`
 	LastSeen          *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
-func (o *OLT) BeforeCreate(tx *gorm.DB) error {
-	if o.ID == uuid.Nil {
-		o.ID = uuid.New()
-	}
-	return nil
+func (OLTMinimal) TableName() string {
+	return "olts_test"
 }
 
-func (o *OLT) TableName() string {
-	return "olts"
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("Failed to load config:", err)
+	}
+
+	db, err := database.Connect(cfg)
+	if err != nil {
+		log.Fatal("Failed to connect:", err)
+	}
+
+	fmt.Println("Testing OLT migration without foreign keys...")
+	if err := db.AutoMigrate(&OLTMinimal{}); err != nil {
+		fmt.Printf("FAILED: %v\n", err)
+	} else {
+		fmt.Println("OK!")
+	}
 }

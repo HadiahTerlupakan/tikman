@@ -14,8 +14,6 @@ type Site struct {
 	Description string    `gorm:"type:text"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-
-	OLTs []OLT `gorm:"foreignKey:SiteID"`
 }
 
 func (s *Site) BeforeCreate(tx *gorm.DB) error {

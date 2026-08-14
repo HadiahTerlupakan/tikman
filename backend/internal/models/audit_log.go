@@ -19,8 +19,6 @@ type AuditLog struct {
 	IPAddress    string         `gorm:"type:varchar(45)"`
 	UserAgent    string         `gorm:"type:text"`
 	CreatedAt    time.Time      `gorm:"index:idx_user_created"`
-
-	User *User `gorm:"foreignKey:UserID"`
 }
 
 func (al *AuditLog) BeforeCreate(tx *gorm.DB) error {

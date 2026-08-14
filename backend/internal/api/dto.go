@@ -84,7 +84,7 @@ func ToSiteResponse(site *models.Site) SiteResponse {
 		Name:        site.Name,
 		Location:    site.Location,
 		Description: site.Description,
-		OLTCount:    len(site.OLTs),
+		OLTCount:    0, // TODO: query count separately if needed
 		CreatedAt:   site.CreatedAt,
 		UpdatedAt:   site.UpdatedAt,
 	}
@@ -135,15 +135,10 @@ type OLTResponse struct {
 }
 
 func ToOLTResponse(olt *models.OLT) OLTResponse {
-	siteName := ""
-	if olt.Site.ID != uuid.Nil {
-		siteName = olt.Site.Name
-	}
-
 	return OLTResponse{
 		ID:                olt.ID,
 		SiteID:            olt.SiteID,
-		SiteName:          siteName,
+		SiteName:          "", // TODO: join with Site table if needed
 		Name:              olt.Name,
 		IPAddress:         olt.IPAddress,
 		SSHPort:           olt.SSHPort,
@@ -154,7 +149,7 @@ func ToOLTResponse(olt *models.OLT) OLTResponse {
 		Username:          olt.Username,
 		Status:            olt.Status,
 		LastSeen:          olt.LastSeen,
-		ONTCount:          len(olt.ONTs),
+		ONTCount:          0, // TODO: query count separately if needed
 		CreatedAt:         olt.CreatedAt,
 		UpdatedAt:         olt.UpdatedAt,
 	}

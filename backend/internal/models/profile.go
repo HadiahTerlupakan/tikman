@@ -15,9 +15,6 @@ type ServiceProfile struct {
 	Description string    `gorm:"type:text"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-
-	OLT  OLT   `gorm:"foreignKey:OLTID"`
-	ONTs []ONT `gorm:"foreignKey:ServiceProfileID"`
 }
 
 func (sp *ServiceProfile) BeforeCreate(tx *gorm.DB) error {
@@ -42,9 +39,6 @@ type LineProfile struct {
 	Description   string    `gorm:"type:text"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-
-	OLT  OLT   `gorm:"foreignKey:OLTID"`
-	ONTs []ONT `gorm:"foreignKey:LineProfileID"`
 }
 
 func (lp *LineProfile) BeforeCreate(tx *gorm.DB) error {

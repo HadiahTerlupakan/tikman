@@ -35,10 +35,6 @@ type ONT struct {
 	LastOnline       *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
-
-	OLT            OLT             `gorm:"foreignKey:OLTID"`
-	ServiceProfile *ServiceProfile `gorm:"foreignKey:ServiceProfileID"`
-	LineProfile    *LineProfile    `gorm:"foreignKey:LineProfileID"`
 }
 
 func (o *ONT) BeforeCreate(tx *gorm.DB) error {
