@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,19 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 	"go.uber.org/zap"
 )
+
+func setupTestRedis(t *testing.T) *redis.Client {
+	client := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	ctx := context.Background()
+	if err := client.Ping(ctx).Err(); err != nil {
+		t.Skip("Redis not available, skipping test")
+	}
+
+	return client
+}
 
 func setupTestRouter(middleware gin.HandlerFunc) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -32,7 +46,7 @@ func setupTestRouter(middleware gin.HandlerFunc) *gin.Engine {
 }
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	client := setupTestRedis(t)
 	defer client.Close()
 
 	store := auth.NewStore(client, 24*time.Hour)
@@ -56,7 +70,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_NoToken(t *testing.T) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	client := setupTestRedis(t)
 	defer client.Close()
 
 	store := auth.NewStore(client, 24*time.Hour)
@@ -71,7 +85,7 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	client := setupTestRedis(t)
 	defer client.Close()
 
 	store := auth.NewStore(client, 24*time.Hour)
