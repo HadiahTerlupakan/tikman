@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { camelizeKeys, decamelizeKeys } from 'humps';
 import { env } from '@/shared/config/env';
 import { mapApiError } from './errorMapper';
 
@@ -16,6 +17,12 @@ apiClient.interceptors.request.use(
   (config) => {
     // Add correlation ID for logging
     config.headers['X-Request-ID'] = crypto.randomUUID();
+
+    // Transform request data from camelCase to snake_case
+    if (config.data) {
+      config.data = decamelizeKeys(config.data);
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -23,7 +30,13 @@ apiClient.interceptors.request.use(
 
 // Response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Transform response data from snake_case to camelCase
+    if (response.data) {
+      response.data = camelizeKeys(response.data);
+    }
+    return response;
+  },
   async (error) => {
     const mappedError = mapApiError(error);
 
