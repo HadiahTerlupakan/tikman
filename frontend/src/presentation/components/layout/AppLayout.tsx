@@ -133,16 +133,30 @@ export function AppLayout() {
         )}
       >
         <div style={{
+          position: 'relative',
           padding: 24,
           minHeight: 'calc(100vh - 56px)',
-          background: '#0a0a0a',
-          backgroundImage: `
-            linear-gradient(rgba(39, 39, 42, 0.5) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(39, 39, 42, 0.5) 1px, transparent 1px)
-          `,
-          backgroundSize: '50px 50px'
+          background: '#0a0a0a'
         }}>
-          <Outlet />
+          {/* Grid mesh background layer - behind all content */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundImage: `
+              linear-gradient(rgba(39, 39, 42, 0.5) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(39, 39, 42, 0.5) 1px, transparent 1px)
+            `,
+            backgroundSize: '50px 50px',
+            pointerEvents: 'none',
+            zIndex: 0
+          }} />
+          {/* Content layer - above grid */}
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <Outlet />
+          </div>
         </div>
       </ProLayout>
     </div>
