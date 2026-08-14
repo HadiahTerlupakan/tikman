@@ -6,15 +6,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/auth"
+	"github.com/tikman/olt-provisioning/internal/models"
+	"go.uber.org/zap"
 )
 
-func AuthMiddleware(store *auth.Store) gin.HandlerFunc {
+func AuthMiddleware(store *auth.Store, logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie("session_token")
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "No session token provided",
-				"code":  "UNAUTHORIZED",
+				"error":   "No session token provided",
+				"code":    "UNAUTHORIZED",
+				"details": gin.H{},
 			})
 			c.Abort()
 			return
@@ -23,15 +26,19 @@ func AuthMiddleware(store *auth.Store) gin.HandlerFunc {
 		sessionData, err := store.Get(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid or expired session",
-				"code":  "UNAUTHORIZED",
+				"error":   "Invalid or expired session",
+				"code":    "UNAUTHORIZED",
+				"details": gin.H{},
 			})
 			c.Abort()
 			return
 		}
 
 		if err := store.Refresh(token); err != nil {
-			// Log error but don't fail request
+			logger.Error("Failed to refresh session TTL",
+				zap.String("token", token),
+				zap.Error(err),
+			)
 		}
 
 		c.Set("user_id", sessionData.UserID)
@@ -51,11 +58,11 @@ func GetUserID(c *gin.Context) (uuid.UUID, bool) {
 	return uid, ok
 }
 
-func GetUserRole(c *gin.Context) (string, bool) {
+func GetUserRole(c *gin.Context) (models.UserRole, bool) {
 	role, exists := c.Get("user_role")
 	if !exists {
 		return "", false
 	}
-	r, ok := role.(string)
+	r, ok := role.(models.UserRole)
 	return r, ok
 }

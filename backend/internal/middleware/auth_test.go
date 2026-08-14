@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"go.uber.org/zap"
 )
 
 func setupTestRouter(middleware gin.HandlerFunc) *gin.Engine {
@@ -35,11 +36,12 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	defer client.Close()
 
 	store := auth.NewStore(client, 24*time.Hour)
+	logger, _ := zap.NewDevelopment()
 	userID := uuid.New()
 	token, err := store.Create(userID, models.UserRoleAdmin)
 	require.NoError(t, err)
 
-	router := setupTestRouter(AuthMiddleware(store))
+	router := setupTestRouter(AuthMiddleware(store, logger))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.AddCookie(&http.Cookie{
@@ -58,7 +60,8 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 	defer client.Close()
 
 	store := auth.NewStore(client, 24*time.Hour)
-	router := setupTestRouter(AuthMiddleware(store))
+	logger, _ := zap.NewDevelopment()
+	router := setupTestRouter(AuthMiddleware(store, logger))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
@@ -72,7 +75,8 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	defer client.Close()
 
 	store := auth.NewStore(client, 24*time.Hour)
-	router := setupTestRouter(AuthMiddleware(store))
+	logger, _ := zap.NewDevelopment()
+	router := setupTestRouter(AuthMiddleware(store, logger))
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.AddCookie(&http.Cookie{
