@@ -20,58 +20,58 @@ export default function DashboardPage() {
     <div>
       {/* Page Header */}
       <div style={{ marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0, marginBottom: 8 }}>Dashboard Overview</Title>
-        <Text type="secondary">Monitor your OLT provisioning system in real-time</Text>
+        <Title level={4} style={{ margin: 0, marginBottom: 8, color: '#ffffff' }}>Dashboard Overview</Title>
+        <Text style={{ color: '#a1a1aa' }}>Monitor your OLT provisioning system in real-time</Text>
       </div>
 
       {/* Stats Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {user?.role === UserRole.ADMIN && (
           <Col xs={24} sm={12} xl={6}>
-            <Card bordered={false}>
+            <Card bordered={false} style={{ background: '#18181b', border: '1px solid #27272a' }}>
               <Statistic
-                title="Total Users"
+                title={<span style={{ color: '#a1a1aa' }}>Total Users</span>}
                 value={users?.length || 0}
                 loading={usersLoading}
                 prefix={<UserOutlined />}
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: '#3ecf8e' }}
               />
             </Card>
           </Col>
         )}
         <Col xs={24} sm={12} xl={user?.role === UserRole.ADMIN ? 6 : 8}>
-          <Card bordered={false}>
+          <Card bordered={false} style={{ background: '#18181b', border: '1px solid #27272a' }}>
             <Statistic
-              title="Total Sites"
+              title={<span style={{ color: '#a1a1aa' }}>Total Sites</span>}
               value={sites?.length || 0}
               loading={sitesLoading}
               prefix={<EnvironmentOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: '#3ecf8e' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={user?.role === UserRole.ADMIN ? 6 : 8}>
-          <Card bordered={false}>
+          <Card bordered={false} style={{ background: '#18181b', border: '1px solid #27272a' }}>
             <Statistic
-              title="Total OLTs"
+              title={<span style={{ color: '#a1a1aa' }}>Total OLTs</span>}
               value={olts?.length || 0}
               loading={oltsLoading}
               prefix={<ApiOutlined />}
-              valueStyle={{ color: '#722ed1' }}
+              valueStyle={{ color: '#3ecf8e' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} xl={user?.role === UserRole.ADMIN ? 6 : 8}>
-          <Card bordered={false}>
+          <Card bordered={false} style={{ background: '#18181b', border: '1px solid #27272a' }}>
             <Statistic
-              title="Online OLTs"
+              title={<span style={{ color: '#a1a1aa' }}>Online OLTs</span>}
               value={activeOlts}
               loading={oltsLoading}
               suffix={`/ ${olts?.length || 0}`}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: '#3ecf8e' }}
               prefix={<ArrowUpOutlined />}
             />
-            <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+            <Text style={{ fontSize: 12, marginTop: 8, display: 'block', color: '#71717a' }}>
               {olts?.length ? `${Math.round((activeOlts / olts.length) * 100)}% uptime` : 'No data'}
             </Text>
           </Card>
@@ -82,38 +82,39 @@ export default function DashboardPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={16}>
           <Card
-            title="OLT Status Distribution"
+            title={<span style={{ color: '#ffffff' }}>OLT Status Distribution</span>}
             bordered={false}
+            style={{ background: '#18181b', border: '1px solid #27272a' }}
           >
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={8}>
-                <Card style={{ textAlign: 'center', backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
+                <Card style={{ textAlign: 'center', background: '#14532d', border: '1px solid #15803d' }}>
                   <Statistic
                     value={activeOlts}
-                    valueStyle={{ color: '#52c41a', fontSize: 32 }}
+                    valueStyle={{ color: '#3ecf8e', fontSize: 32 }}
                   />
-                  <Text style={{ color: '#52c41a', fontWeight: 500 }}>Online</Text>
-                  <div style={{ fontSize: 12, color: '#52c41a', marginTop: 4 }}>Operating normally</div>
+                  <Text style={{ color: '#3ecf8e', fontWeight: 500 }}>Online</Text>
+                  <div style={{ fontSize: 12, color: '#4ade80', marginTop: 4 }}>Operating normally</div>
                 </Card>
               </Col>
               <Col xs={24} sm={8}>
-                <Card style={{ textAlign: 'center', backgroundColor: '#fafafa', border: '1px solid #d9d9d9' }}>
+                <Card style={{ textAlign: 'center', background: '#18181b', border: '1px solid #27272a' }}>
                   <Statistic
                     value={offlineOlts}
-                    valueStyle={{ color: '#8c8c8c', fontSize: 32 }}
+                    valueStyle={{ color: '#a1a1aa', fontSize: 32 }}
                   />
-                  <Text style={{ color: '#8c8c8c', fontWeight: 500 }}>Offline</Text>
-                  <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>Not responding</div>
+                  <Text style={{ color: '#a1a1aa', fontWeight: 500 }}>Offline</Text>
+                  <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>Not responding</div>
                 </Card>
               </Col>
               <Col xs={24} sm={8}>
-                <Card style={{ textAlign: 'center', backgroundColor: '#fff1f0', border: '1px solid #ffccc7' }}>
+                <Card style={{ textAlign: 'center', background: '#450a0a', border: '1px solid #dc2626' }}>
                   <Statistic
                     value={errorOlts}
-                    valueStyle={{ color: '#ff4d4f', fontSize: 32 }}
+                    valueStyle={{ color: '#ef4444', fontSize: 32 }}
                   />
-                  <Text style={{ color: '#ff4d4f', fontWeight: 500 }}>Error</Text>
-                  <div style={{ fontSize: 12, color: '#ff4d4f', marginTop: 4 }}>Needs attention</div>
+                  <Text style={{ color: '#ef4444', fontWeight: 500 }}>Error</Text>
+                  <div style={{ fontSize: 12, color: '#f87171', marginTop: 4 }}>Needs attention</div>
                 </Card>
               </Col>
             </Row>
@@ -122,30 +123,31 @@ export default function DashboardPage() {
 
         <Col xs={24} lg={8}>
           <Card
-            title="System Health"
+            title={<span style={{ color: '#ffffff' }}>System Health</span>}
             bordered={false}
+            style={{ background: '#18181b', border: '1px solid #27272a' }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ padding: 12, backgroundColor: '#f6ffed', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: 12, background: '#14532d', border: '1px solid #15803d', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
-                  <Text>API Server</Text>
+                  <div style={{ width: 8, height: 8, backgroundColor: '#3ecf8e', borderRadius: '50%' }}></div>
+                  <Text style={{ color: '#e5e5e5' }}>API Server</Text>
                 </div>
-                <Text style={{ color: '#52c41a', fontWeight: 500 }}>Healthy</Text>
+                <Text style={{ color: '#3ecf8e', fontWeight: 500 }}>Healthy</Text>
               </div>
-              <div style={{ padding: 12, backgroundColor: '#f6ffed', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: 12, background: '#14532d', border: '1px solid #15803d', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
-                  <Text>Database</Text>
+                  <div style={{ width: 8, height: 8, backgroundColor: '#3ecf8e', borderRadius: '50%' }}></div>
+                  <Text style={{ color: '#e5e5e5' }}>Database</Text>
                 </div>
-                <Text style={{ color: '#52c41a', fontWeight: 500 }}>Connected</Text>
+                <Text style={{ color: '#3ecf8e', fontWeight: 500 }}>Connected</Text>
               </div>
-              <div style={{ padding: 12, backgroundColor: '#f6ffed', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: 12, background: '#14532d', border: '1px solid #15803d', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, backgroundColor: '#52c41a', borderRadius: '50%' }}></div>
-                  <Text>Redis Cache</Text>
+                  <div style={{ width: 8, height: 8, backgroundColor: '#3ecf8e', borderRadius: '50%' }}></div>
+                  <Text style={{ color: '#e5e5e5' }}>Redis Cache</Text>
                 </div>
-                <Text style={{ color: '#52c41a', fontWeight: 500 }}>Active</Text>
+                <Text style={{ color: '#3ecf8e', fontWeight: 500 }}>Active</Text>
               </div>
             </div>
           </Card>
