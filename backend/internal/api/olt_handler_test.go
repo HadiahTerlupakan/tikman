@@ -30,8 +30,8 @@ func setupOLTHandlerTest(t *testing.T) (*OLTHandler, *services.SiteService, *gor
 
 	siteService := services.NewSiteService(db)
 	oltService := services.NewOLTService(db, testEncryptionKey)
-	auditService := services.NewAuditService(db, nil)
-	handler := NewOLTHandler(oltService, auditService)
+	// Use nil auditService to skip audit logging in tests
+	handler := NewOLTHandler(oltService, nil)
 
 	return handler, siteService, db
 }

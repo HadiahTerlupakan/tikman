@@ -78,22 +78,24 @@ func (h *OLTHandler) Create(c *gin.Context) {
 	}
 
 	// Audit log
-	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
-		actorID,
-		"create",
-		"olt",
-		olt.ID,
-		nil,
-		map[string]interface{}{
-			"site_id":           olt.SiteID,
-			"name":              olt.Name,
-			"ip_address":        olt.IPAddress,
-			"preferred_protocol": olt.PreferredProtocol,
-		},
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	if h.auditService != nil {
+		actorID, _ := middleware.GetUserID(c)
+		h.auditService.Log(
+			actorID,
+			"create",
+			"olt",
+			olt.ID,
+			nil,
+			map[string]interface{}{
+				"site_id":            olt.SiteID,
+				"name":               olt.Name,
+				"ip_address":         olt.IPAddress,
+				"preferred_protocol": olt.PreferredProtocol,
+			},
+			c.ClientIP(),
+			c.Request.UserAgent(),
+		)
+	}
 
 	c.JSON(http.StatusCreated, ToOLTResponse(olt))
 }
@@ -226,16 +228,18 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		"ip_address":         olt.IPAddress,
 		"preferred_protocol": olt.PreferredProtocol,
 	}
-	h.auditService.Log(
-		actorID,
-		"update",
-		"olt",
-		olt.ID,
-		oldState,
-		newState,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	if h.auditService != nil {
+		h.auditService.Log(
+			actorID,
+			"update",
+			"olt",
+			olt.ID,
+			oldState,
+			newState,
+			c.ClientIP(),
+			c.Request.UserAgent(),
+		)
+	}
 
 	c.JSON(http.StatusOK, ToOLTResponse(olt))
 }
@@ -259,17 +263,19 @@ func (h *OLTHandler) Delete(c *gin.Context) {
 	}
 
 	// Audit log
-	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
-		actorID,
-		"delete",
-		"olt",
-		id,
-		nil,
-		nil,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	if h.auditService != nil {
+		actorID, _ := middleware.GetUserID(c)
+		h.auditService.Log(
+			actorID,
+			"delete",
+			"olt",
+			id,
+			nil,
+			nil,
+			c.ClientIP(),
+			c.Request.UserAgent(),
+		)
+	}
 
 	c.JSON(http.StatusNoContent, nil)
 }
