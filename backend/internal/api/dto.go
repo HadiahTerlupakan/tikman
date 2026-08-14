@@ -89,3 +89,73 @@ func ToSiteResponse(site *models.Site) SiteResponse {
 		UpdatedAt:   site.UpdatedAt,
 	}
 }
+
+type CreateOLTRequest struct {
+	SiteID            uuid.UUID          `json:"site_id" binding:"required"`
+	Name              string             `json:"name" binding:"required,min=2,max=255"`
+	IPAddress         string             `json:"ip_address" binding:"required,ip"`
+	SSHPort           int                `json:"ssh_port" binding:"omitempty,min=1,max=65535"`
+	TelnetPort        int                `json:"telnet_port" binding:"omitempty,min=1,max=65535"`
+	SNMPPort          int                `json:"snmp_port" binding:"omitempty,min=1,max=65535"`
+	SNMPCommunity     string             `json:"snmp_community" binding:"omitempty,max=100"`
+	PreferredProtocol models.OLTProtocol `json:"preferred_protocol" binding:"required,oneof=ssh telnet"`
+	Username          string             `json:"username" binding:"required,min=1,max=100"`
+	Password          string             `json:"password" binding:"required,min=1"`
+}
+
+type UpdateOLTRequest struct {
+	Name              *string             `json:"name" binding:"omitempty,min=2,max=255"`
+	IPAddress         *string             `json:"ip_address" binding:"omitempty,ip"`
+	SSHPort           *int                `json:"ssh_port" binding:"omitempty,min=1,max=65535"`
+	TelnetPort        *int                `json:"telnet_port" binding:"omitempty,min=1,max=65535"`
+	SNMPPort          *int                `json:"snmp_port" binding:"omitempty,min=1,max=65535"`
+	SNMPCommunity     *string             `json:"snmp_community" binding:"omitempty,max=100"`
+	PreferredProtocol *models.OLTProtocol `json:"preferred_protocol" binding:"omitempty,oneof=ssh telnet"`
+	Username          *string             `json:"username" binding:"omitempty,min=1,max=100"`
+	Password          *string             `json:"password" binding:"omitempty,min=1"`
+}
+
+type OLTResponse struct {
+	ID                uuid.UUID          `json:"id"`
+	SiteID            uuid.UUID          `json:"site_id"`
+	SiteName          string             `json:"site_name"`
+	Name              string             `json:"name"`
+	IPAddress         string             `json:"ip_address"`
+	SSHPort           int                `json:"ssh_port"`
+	TelnetPort        int                `json:"telnet_port"`
+	SNMPPort          int                `json:"snmp_port"`
+	SNMPCommunity     string             `json:"snmp_community"`
+	PreferredProtocol models.OLTProtocol `json:"preferred_protocol"`
+	Username          string             `json:"username"`
+	Status            models.OLTStatus   `json:"status"`
+	LastSeen          *time.Time         `json:"last_seen"`
+	ONTCount          int                `json:"ont_count"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+}
+
+func ToOLTResponse(olt *models.OLT) OLTResponse {
+	siteName := ""
+	if olt.Site.ID != uuid.Nil {
+		siteName = olt.Site.Name
+	}
+
+	return OLTResponse{
+		ID:                olt.ID,
+		SiteID:            olt.SiteID,
+		SiteName:          siteName,
+		Name:              olt.Name,
+		IPAddress:         olt.IPAddress,
+		SSHPort:           olt.SSHPort,
+		TelnetPort:        olt.TelnetPort,
+		SNMPPort:          olt.SNMPPort,
+		SNMPCommunity:     olt.SNMPCommunity,
+		PreferredProtocol: olt.PreferredProtocol,
+		Username:          olt.Username,
+		Status:            olt.Status,
+		LastSeen:          olt.LastSeen,
+		ONTCount:          len(olt.ONTs),
+		CreatedAt:         olt.CreatedAt,
+		UpdatedAt:         olt.UpdatedAt,
+	}
+}
