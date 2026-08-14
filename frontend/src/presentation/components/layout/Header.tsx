@@ -40,28 +40,43 @@ export function Header() {
   ];
 
   return (
-    <AntHeader className="!bg-white !px-6 flex justify-between items-center" style={{ height: 64, lineHeight: '64px', borderBottom: '1px solid #f0f0f0' }}>
-      <div className="flex items-center gap-4">
-        <Text className="text-gray-400 text-sm">
-          Welcome back, <span className="text-gray-900 font-medium">{user?.username}</span>
+    <AntHeader style={{
+      height: 64,
+      padding: '0 24px',
+      background: '#fff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderBottom: '1px solid #f0f0f0',
+      position: 'fixed',
+      top: 0,
+      right: 0,
+      left: 240,
+      zIndex: 1
+    }}>
+      <div>
+        <Text style={{ fontSize: 14, color: '#8c8c8c' }}>
+          Welcome back, <span style={{ color: '#262626', fontWeight: 500 }}>{user?.username}</span>
         </Text>
       </div>
-      <div className="flex items-center gap-4">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <Badge count={0} showZero={false}>
-          <div className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
-            <BellOutlined className="text-gray-600 text-lg" />
+          <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, cursor: 'pointer', transition: 'background 0.2s' }}
+               onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            <BellOutlined style={{ fontSize: 18, color: '#595959' }} />
           </div>
         </Badge>
         <Dropdown menu={{ items }} placement="bottomRight" trigger={['click']}>
-          <Space className="cursor-pointer hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors">
-            <Avatar className="!bg-blue-500" size={36}>
+          <Space style={{ cursor: 'pointer', padding: '8px 12px', borderRadius: 8, transition: 'background 0.2s' }}
+                 onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            <Avatar style={{ background: '#1890ff' }} size={36}>
               {user?.username?.charAt(0).toUpperCase()}
             </Avatar>
-            <div className="hidden sm:block">
-              <div className="flex flex-col items-start">
-                <Text className="!text-sm !text-gray-800 font-medium">{user?.username}</Text>
-                <Text className="!text-xs !text-gray-500 capitalize">{user?.role}</Text>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <Text style={{ fontSize: 14, color: '#262626', fontWeight: 500 }}>{user?.username}</Text>
+              <Text style={{ fontSize: 12, color: '#8c8c8c', textTransform: 'capitalize' }}>{user?.role}</Text>
             </div>
           </Space>
         </Dropdown>
