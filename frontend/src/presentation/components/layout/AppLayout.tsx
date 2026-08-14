@@ -132,7 +132,16 @@ export function AppLayout() {
           </div>
         )}
       >
-        <div style={{ padding: 24, minHeight: 'calc(100vh - 56px)', background: '#0a0a0a' }}>
+        <div style={{
+          padding: 24,
+          minHeight: 'calc(100vh - 56px)',
+          background: '#0a0a0a',
+          backgroundImage: `
+            linear-gradient(rgba(39, 39, 42, 0.5) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(39, 39, 42, 0.5) 1px, transparent 1px)
+          `,
+          backgroundSize: '50px 50px'
+        }}>
           <Outlet />
         </div>
       </ProLayout>
