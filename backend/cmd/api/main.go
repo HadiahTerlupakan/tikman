@@ -6,6 +6,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/database"
 	"github.com/tikman/olt-provisioning/internal/logger"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"go.uber.org/zap"
 )
 
@@ -29,6 +30,12 @@ func main() {
 	}
 
 	log.Info("Database connected successfully")
+
+	// Run migrations
+	if err := models.AutoMigrate(db); err != nil {
+		log.Fatal("Failed to run migrations", zap.Error(err))
+	}
+	log.Info("Database migrations completed")
 
 	// TODO: Start server
 	_ = db // Will be used when implementing server
