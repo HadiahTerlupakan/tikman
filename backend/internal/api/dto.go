@@ -55,3 +55,37 @@ type ErrorResponse struct {
 	Code    string      `json:"code"`
 	Details interface{} `json:"details,omitempty"`
 }
+
+type CreateSiteRequest struct {
+	Name        string `json:"name" binding:"required,min=2,max=255"`
+	Location    string `json:"location"`
+	Description string `json:"description"`
+}
+
+type UpdateSiteRequest struct {
+	Name        *string `json:"name" binding:"omitempty,min=2,max=255"`
+	Location    *string `json:"location"`
+	Description *string `json:"description"`
+}
+
+type SiteResponse struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Location    string    `json:"location"`
+	Description string    `json:"description"`
+	OLTCount    int       `json:"olt_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func ToSiteResponse(site *models.Site) SiteResponse {
+	return SiteResponse{
+		ID:          site.ID,
+		Name:        site.Name,
+		Location:    site.Location,
+		Description: site.Description,
+		OLTCount:    len(site.OLTs),
+		CreatedAt:   site.CreatedAt,
+		UpdatedAt:   site.UpdatedAt,
+	}
+}
