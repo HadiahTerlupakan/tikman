@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tikman-postgres-dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: tikman
+      POSTGRES_USER: tikman
+      POSTGRES_PASSWORD: dev-password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tikman"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tikman-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: tikman-redis-dev
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass dev-password
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tikman-network
+
+networks:
+  tikman-network:
+    driver: bridge
