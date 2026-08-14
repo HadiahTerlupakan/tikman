@@ -72,10 +72,10 @@ export function AppLayout() {
       background: '#0a0a0a',
       minHeight: '100vh',
       backgroundImage: `
-        linear-gradient(rgba(39, 39, 42, 0.5) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(39, 39, 42, 0.5) 1px, transparent 1px)
+        linear-gradient(rgba(39, 39, 42, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(39, 39, 42, 0.3) 1px, transparent 1px)
       `,
-      backgroundSize: '50px 50px'
+      backgroundSize: '20px 20px'
     }}>
       <ProLayout
         title="TikMan"
