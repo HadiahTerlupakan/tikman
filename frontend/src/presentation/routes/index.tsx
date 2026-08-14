@@ -5,6 +5,7 @@ import LoginPage from '../pages/Login';
 import DashboardPage from '../pages/Dashboard';
 import UsersPage from '../pages/Users';
 import SitesPage from '../pages/Sites';
+import OltsPage from '../pages/Olts';
 import NotFoundPage from '../pages/NotFound';
 
 export const router = createBrowserRouter([
@@ -33,7 +34,7 @@ export const router = createBrowserRouter([
           },
           {
             path: 'olts',
-            element: <div>OLTs Page (placeholder)</div>,
+            element: <OltsPage />,
           },
         ],
       },
