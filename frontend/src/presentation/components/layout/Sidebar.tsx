@@ -50,16 +50,25 @@ export function Sidebar() {
   const selectedKey = items.find((item) => location.pathname === item?.key)?.key as string || '/';
 
   return (
-    <Sider width={240} className="!bg-slate-900">
-      <div className="h-16 flex items-center px-5 border-b border-slate-800">
-        <span className="text-base font-semibold text-white">TikMan</span>
+    <Sider width={220} style={{ background: 'linear-gradient(180deg, #1c1c1c 0%, #151515 100%)' }}>
+      <div className="h-14 flex items-center px-4 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-md flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <span className="text-sm font-semibold text-white">TikMan</span>
+        </div>
       </div>
-      <Menu
-        mode="inline"
-        selectedKeys={[selectedKey]}
-        items={items}
-        className="!bg-transparent !border-none mt-2"
-      />
+      <div className="p-2 mt-2">
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          items={items}
+          className="!bg-transparent !border-none"
+        />
+      </div>
     </Sider>
   );
 }

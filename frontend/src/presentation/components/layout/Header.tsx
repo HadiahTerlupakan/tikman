@@ -21,9 +21,9 @@ export function Header() {
       icon: <UserOutlined />,
       label: (
         <div>
-          <Text strong className="!text-slate-700">{user?.username}</Text>
+          <Text strong className="!text-gray-900">{user?.username}</Text>
           <br />
-          <Text className="!text-xs !text-slate-500 capitalize">
+          <Text className="!text-xs !text-gray-500 capitalize">
             {user?.role}
           </Text>
         </div>
@@ -40,16 +40,20 @@ export function Header() {
   ];
 
   return (
-    <AntHeader className="!bg-white !px-6 flex justify-between items-center border-b border-slate-200">
-      <Typography.Title level={5} className="!mb-0 !text-slate-800">
-        ZTE OLT Provisioning
-      </Typography.Title>
+    <AntHeader className="!bg-white !px-5 flex justify-between items-center border-b border-gray-200 shadow-sm" style={{ height: 56, lineHeight: '56px' }}>
+      <div className="flex items-center gap-4">
+        <Typography.Title level={5} className="!mb-0 !text-gray-800" style={{ fontSize: 15, fontWeight: 600 }}>
+          ZTE OLT Provisioning
+        </Typography.Title>
+      </div>
       <Dropdown menu={{ items }} placement="bottomRight">
-        <Space className="cursor-pointer">
-          <Avatar className="!bg-emerald-500" size="default">
+        <Space className="cursor-pointer hover:bg-gray-50 px-2 py-1 rounded-md transition-colors">
+          <Avatar className="!bg-emerald-500" size={32}>
             {user?.username?.charAt(0).toUpperCase()}
           </Avatar>
-          <Text className="!text-sm !text-slate-700">{user?.username}</Text>
+          <div className="hidden sm:block">
+            <Text className="!text-sm !text-gray-700">{user?.username}</Text>
+          </div>
         </Space>
       </Dropdown>
     </AntHeader>
