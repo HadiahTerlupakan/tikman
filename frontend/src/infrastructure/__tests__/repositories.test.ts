@@ -14,9 +14,9 @@ describe('UserRepository', () => {
       put: vi.fn(),
       delete: vi.fn(),
     };
-    // @ts-ignore - testing with mock
+    // @ts-expect-error - testing with mock
     repository = new UserRepository();
-    // @ts-ignore - inject mock
+    // @ts-expect-error - inject mock
     repository.client = mockClient;
   });
 
