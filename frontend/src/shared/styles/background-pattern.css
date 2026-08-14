@@ -12,30 +12,30 @@
     repeating-linear-gradient(
       45deg,
       transparent,
-      transparent 40px,
-      rgba(62, 207, 142, 0.03) 40px,
-      rgba(62, 207, 142, 0.03) 41px,
-      transparent 41px,
-      transparent 80px
+      transparent 50px,
+      rgba(62, 207, 142, 0.08) 50px,
+      rgba(62, 207, 142, 0.08) 52px,
+      transparent 52px,
+      transparent 100px
     ),
     repeating-linear-gradient(
       -45deg,
       transparent,
-      transparent 40px,
-      rgba(62, 207, 142, 0.03) 40px,
-      rgba(62, 207, 142, 0.03) 41px,
-      transparent 41px,
-      transparent 80px
+      transparent 50px,
+      rgba(62, 207, 142, 0.08) 50px,
+      rgba(62, 207, 142, 0.08) 52px,
+      transparent 52px,
+      transparent 100px
     ),
     radial-gradient(
-      circle at 20% 50%,
-      rgba(62, 207, 142, 0.05) 0%,
-      transparent 50%
+      circle at 10% 20%,
+      rgba(62, 207, 142, 0.08) 0%,
+      transparent 40%
     ),
     radial-gradient(
-      circle at 80% 80%,
-      rgba(62, 207, 142, 0.05) 0%,
-      transparent 50%
+      circle at 90% 80%,
+      rgba(62, 207, 142, 0.08) 0%,
+      transparent 40%
     );
 }
 

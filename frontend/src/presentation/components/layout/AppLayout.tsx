@@ -132,7 +132,41 @@ export function AppLayout() {
           </div>
         )}
       >
-        <div style={{ padding: 24, minHeight: 'calc(100vh - 56px)', background: '#0a0a0a' }}>
+        <div style={{
+          padding: 24,
+          minHeight: 'calc(100vh - 56px)',
+          background: '#0a0a0a',
+          backgroundImage: `
+            repeating-linear-gradient(
+              45deg,
+              transparent,
+              transparent 50px,
+              rgba(62, 207, 142, 0.08) 50px,
+              rgba(62, 207, 142, 0.08) 52px,
+              transparent 52px,
+              transparent 100px
+            ),
+            repeating-linear-gradient(
+              -45deg,
+              transparent,
+              transparent 50px,
+              rgba(62, 207, 142, 0.08) 50px,
+              rgba(62, 207, 142, 0.08) 52px,
+              transparent 52px,
+              transparent 100px
+            ),
+            radial-gradient(
+              circle at 10% 20%,
+              rgba(62, 207, 142, 0.08) 0%,
+              transparent 40%
+            ),
+            radial-gradient(
+              circle at 90% 80%,
+              rgba(62, 207, 142, 0.08) 0%,
+              transparent 40%
+            )
+          `
+        }}>
           <Outlet />
         </div>
       </ProLayout>
