@@ -23,7 +23,7 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 	_ = username // Explicitly mark as unused to prevent accidental future use
 	_ = password // Explicitly mark as unused to prevent accidental logging
 
-	address := fmt.Sprintf("%s:%d", ipAddress, port)
+	address := net.JoinHostPort(ipAddress, fmt.Sprintf("%d", port))
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {

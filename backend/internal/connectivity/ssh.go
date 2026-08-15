@@ -20,7 +20,7 @@ func SSHTest(ipAddress string, port int, username, password string, timeout time
 		Timeout:         timeout,
 	}
 
-	address := fmt.Sprintf("%s:%d", ipAddress, port)
+	address := net.JoinHostPort(ipAddress, fmt.Sprintf("%d", port))
 	client, err := ssh.Dial("tcp", address, config)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
