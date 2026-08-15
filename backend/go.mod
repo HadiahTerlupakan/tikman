@@ -5,7 +5,9 @@ go 1.25.0
 require (
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
+	github.com/go-ping/ping v1.2.0
 	github.com/google/uuid v1.6.0
+	github.com/gosnmp/gosnmp v1.44.0
 	github.com/redis/go-redis/v9 v9.5.0
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.11.1
