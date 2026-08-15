@@ -47,8 +47,8 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
     },
     {
       title: "Protocol",
-      dataIndex: "protocol",
-      key: "protocol",
+      dataIndex: "preferredProtocol",
+      key: "preferredProtocol",
       width: 100,
       responsive: ["lg"],
       render: (protocol: string) => protocol.toUpperCase(),

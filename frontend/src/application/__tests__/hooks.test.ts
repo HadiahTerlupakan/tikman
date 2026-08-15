@@ -246,7 +246,7 @@ describe("Query Invalidation", () => {
       name: "OLT1",
       siteId: "site1",
       ipAddress: "192.168.1.1",
-      protocol: OltProtocol.SSH,
+      preferredProtocol: OltProtocol.SSH,
       username: "admin",
       password: "password",
     };

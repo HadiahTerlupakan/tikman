@@ -42,7 +42,7 @@ export function OltModal({
         siteId: olt.siteId,
         name: olt.name,
         ipAddress: olt.ipAddress,
-        protocol: olt.protocol,
+        preferredProtocol: olt.preferredProtocol,
         username: olt.username,
         snmpCommunity: olt.snmpCommunity,
         sshPort: olt.sshPort,
@@ -52,7 +52,7 @@ export function OltModal({
     } else {
       form.resetFields();
       form.setFieldsValue({
-        protocol: OltProtocol.SSH,
+        preferredProtocol: OltProtocol.SSH,
         sshPort: 22,
         telnetPort: 23,
         snmpPort: 161,
@@ -67,7 +67,7 @@ export function OltModal({
         "ipAddress",
         "username",
         "password",
-        "protocol",
+        "preferredProtocol",
         "sshPort",
         "telnetPort",
         "snmpPort",
@@ -81,7 +81,7 @@ export function OltModal({
         ipAddress: values.ipAddress,
         username: values.username,
         password: values.password,
-        preferredProtocol: values.protocol,
+        preferredProtocol: values.preferredProtocol,
         sshPort: values.sshPort || 22,
         telnetPort: values.telnetPort || 23,
         snmpPort: values.snmpPort || 161,
@@ -197,7 +197,7 @@ export function OltModal({
         </Form.Item>
 
         <Form.Item
-          name="protocol"
+          name="preferredProtocol"
           label="Protocol"
           rules={[{ required: true, message: "Please select protocol" }]}
         >

@@ -15,7 +15,7 @@ export interface Olt {
   siteName: string;
   name: string;
   ipAddress: string;
-  protocol: OltProtocol;
+  preferredProtocol: OltProtocol;
   username: string;
   snmpCommunity: string;
   sshPort: number;
@@ -31,7 +31,7 @@ export interface CreateOltDto {
   siteId: string;
   name: string;
   ipAddress: string;
-  protocol: OltProtocol;
+  preferredProtocol: OltProtocol;
   username: string;
   password: string;
   snmpCommunity?: string;
@@ -44,7 +44,7 @@ export interface UpdateOltDto {
   siteId?: string;
   name?: string;
   ipAddress?: string;
-  protocol?: OltProtocol;
+  preferredProtocol?: OltProtocol;
   username?: string;
   password?: string;
   snmpCommunity?: string;
