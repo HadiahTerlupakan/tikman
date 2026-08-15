@@ -33,7 +33,12 @@ apiClient.interceptors.response.use(
   (response) => {
     // Transform response data from snake_case to camelCase
     if (response.data) {
-      response.data = camelizeKeys(response.data);
+      try {
+        response.data = camelizeKeys(response.data);
+      } catch (error) {
+        console.error('Failed to camelize response:', error);
+        // Return original data if transformation fails
+      }
     }
     return response;
   },
