@@ -37,7 +37,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    continue-on-error: true  # TEMPORARY: Go 1.24 has covdata issues with go.mod targeting 1.25
 
     steps:
       - name: Checkout code
@@ -46,7 +45,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
           cache-dependency-path: backend/go.sum
 
       - name: Install dependencies
@@ -69,7 +68,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    continue-on-error: true  # TEMPORARY: golangci-lint v1.64.8 doesn't support Go 1.25 yet
 
     steps:
       - name: Checkout code
@@ -78,7 +76,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
           cache-dependency-path: backend/go.sum
 
       - name: Run golangci-lint
@@ -87,6 +85,7 @@ jobs:
           version: latest
           working-directory: backend
           args: --timeout=5m
+        continue-on-error: true  # Allow failure until golangci-lint supports Go 1.25
 
   backend-build:
     name: Backend Build
@@ -101,7 +100,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: '1.25.x'
           cache-dependency-path: backend/go.sum
 
       - name: Build binary
