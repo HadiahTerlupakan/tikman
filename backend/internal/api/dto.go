@@ -8,15 +8,15 @@ import (
 )
 
 type CreateUserRequest struct {
-	Username string          `json:"username" binding:"required,min=3,max=50"`
-	Email    string          `json:"email" binding:"required,email"`
-	Password string          `json:"password" binding:"required,min=8"`
+	Username string          `json:"username" binding:"required,min=3,max=50,alphanum"`
+	Email    string          `json:"email" binding:"required,email,max=255"`
+	Password string          `json:"password" binding:"required,min=12,max=100"`
 	Role     models.UserRole `json:"role" binding:"required,oneof=admin technician viewer"`
 }
 
 type UpdateUserRequest struct {
-	Email    *string          `json:"email" binding:"omitempty,email"`
-	Password *string          `json:"password" binding:"omitempty,min=8"`
+	Email    *string          `json:"email" binding:"omitempty,email,max=255"`
+	Password *string          `json:"password" binding:"omitempty,min=12,max=100"`
 	Role     *models.UserRole `json:"role" binding:"omitempty,oneof=admin technician viewer"`
 }
 
@@ -41,8 +41,8 @@ func ToUserResponse(user *models.User) UserResponse {
 }
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username string `json:"username" binding:"required,min=3,max=50,alphanum"`
+	Password string `json:"password" binding:"required,min=8,max=100"`
 }
 
 type LoginResponse struct {

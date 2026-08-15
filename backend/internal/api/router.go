@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -25,10 +26,21 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	router := gin.New()
 
 	router.Use(gin.Recovery())
+
+	// Security headers
+	router.Use(middleware.SecureHeaders(cfg.Environment))
+
+	// HTTPS redirect for production
+	if cfg.Environment == "production" {
+		router.Use(middleware.HTTPSRedirect())
+	}
+
 	router.Use(middleware.RateLimitMiddleware(100))
 
+	// CORS with environment-based origins
+	origins := strings.Split(cfg.AllowedOrigins, ",")
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
 		AllowCredentials: true,
