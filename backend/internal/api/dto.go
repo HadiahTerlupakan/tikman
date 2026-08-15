@@ -103,6 +103,24 @@ type CreateOLTRequest struct {
 	Password          string             `json:"password" binding:"required,min=1"`
 }
 
+type TestConnectionRequest struct {
+	IPAddress         string             `json:"ip_address" binding:"required,ip"`
+	SSHPort           int                `json:"ssh_port" binding:"omitempty,min=1,max=65535"`
+	TelnetPort        int                `json:"telnet_port" binding:"omitempty,min=1,max=65535"`
+	SNMPPort          int                `json:"snmp_port" binding:"omitempty,min=1,max=65535"`
+	SNMPCommunity     string             `json:"snmp_community" binding:"omitempty,max=100"`
+	PreferredProtocol models.OLTProtocol `json:"preferred_protocol" binding:"required,oneof=ssh telnet"`
+	Username          string             `json:"username" binding:"required,min=1,max=100"`
+	Password          string             `json:"password" binding:"required,min=1"`
+}
+
+type TestConnectionResponse struct {
+	Success      bool     `json:"success"`
+	PassedTests  []string `json:"passed_tests"`
+	FailedTest   string   `json:"failed_test,omitempty"`
+	FailedReason string   `json:"failed_reason,omitempty"`
+}
+
 type UpdateOLTRequest struct {
 	Name              *string             `json:"name" binding:"omitempty,min=2,max=255"`
 	IPAddress         *string             `json:"ip_address" binding:"omitempty,ip"`

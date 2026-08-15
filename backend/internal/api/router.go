@@ -72,12 +72,13 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	userService := services.NewUserService(db)
 	siteService := services.NewSiteService(db)
 	oltService := services.NewOLTService(db, cfg.EncryptionKey)
+	oltValidatorService := services.NewOLTValidatorService(db)
 	auditService := services.NewAuditService(db, logger)
 
 	authHandler := NewAuthHandler(userService, sessionStore)
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
-	oltHandler := NewOLTHandler(oltService, auditService)
+	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService)
 
 	api := router.Group("/api/v1")
 	{
@@ -113,6 +114,7 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 		{
 			olts.GET("", oltHandler.List)
 			olts.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Create)
+			olts.POST("/test-connection", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.TestConnection)
 			olts.GET("/:id", oltHandler.GetByID)
 			olts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Update)
 			olts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Delete)
