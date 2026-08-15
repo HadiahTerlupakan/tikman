@@ -6,8 +6,23 @@ import (
 	"time"
 )
 
-// TelnetTest performs Telnet connection test
+// TelnetTest performs TCP connectivity test to a Telnet port.
+//
+// IMPORTANT: This function only tests TCP connectivity (port reachability).
+// It does NOT perform authentication or validate credentials.
+//
+// The username and password parameters are accepted for API consistency with
+// other connection test functions (SSHTest, etc.) but are intentionally unused.
+// Authentication testing would require full Telnet protocol implementation.
+//
+// Returns:
+//   - nil if TCP connection succeeds (port is open and accepting connections)
+//   - error if connection fails or times out
 func TelnetTest(ipAddress string, port int, username, password string, timeout time.Duration) error {
+	// Note: username and password parameters are unused - this is TCP connectivity only
+	_ = username // Explicitly mark as unused to prevent accidental future use
+	_ = password // Explicitly mark as unused to prevent accidental logging
+
 	address := fmt.Sprintf("%s:%d", ipAddress, port)
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
@@ -21,7 +36,5 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 	// Set deadline for read/write operations
 	conn.SetDeadline(time.Now().Add(timeout))
 
-	// Basic connection test - we can't easily test auth without full telnet protocol implementation
-	// This verifies the port is open and accepting connections
 	return nil
 }
