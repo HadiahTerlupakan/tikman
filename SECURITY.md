@@ -177,6 +177,136 @@ Default credentials (development only):
 - [ ] Test backup restoration (monthly)
 - [ ] Security audit (annually)
 - [ ] Penetration testing (annually)
+- [ ] Review GitHub Security Alerts (daily)
+- [ ] Test after dependency updates (always)
+
+## Dependency Management
+
+### Keeping Dependencies Updated
+
+Regular dependency updates are critical for security. We maintain up-to-date dependencies to patch known vulnerabilities.
+
+**Backend (Go):**
+```bash
+cd backend
+
+# Update specific package
+go get -u github.com/package/name@latest
+
+# Update all dependencies
+go get -u ./...
+
+# Clean up and verify
+go mod tidy
+go test ./...
+```
+
+**Critical packages to monitor:**
+- `github.com/jackc/pgx/v5` - PostgreSQL driver
+- `golang.org/x/crypto` - Cryptography (SSH, bcrypt, AES)
+- `golang.org/x/net` - Network libraries (HTTP/2, HTML)
+- `golang.org/x/text` - Text processing (UTF-8)
+- `github.com/gin-gonic/gin` - Web framework
+
+**Frontend (React):**
+```bash
+cd frontend
+
+# Check for vulnerabilities
+npm audit
+
+# Update specific package
+npm update package-name
+
+# Update all dependencies
+npm update
+
+# Fix vulnerabilities automatically
+npm audit fix
+```
+
+**Critical packages to monitor:**
+- `react` & `react-dom` - Core framework
+- `react-router-dom` - Routing (XSS risks)
+- `axios` - HTTP client
+- `antd` - UI components
+
+### GitHub Security Alerts
+
+Our repository is configured with GitHub Security Alerts (Dependabot):
+- Automatically scans dependencies daily
+- Creates alerts for known vulnerabilities
+- Provides automated pull requests for fixes
+
+**Responding to alerts:**
+1. Review the vulnerability details and severity
+2. Check if the vulnerable code path is actually used
+3. Update the dependency to the patched version
+4. Test thoroughly before merging
+5. Deploy the fix promptly for Critical/High severity
+
+### Monitoring Commands
+
+**Check for outdated Go packages:**
+```bash
+cd backend
+go list -u -m all
+```
+
+**Check for vulnerable npm packages:**
+```bash
+cd frontend
+npm audit
+npm outdated
+```
+
+**Security scan with Trivy:**
+```bash
+# Scan backend dependencies
+trivy fs backend/
+
+# Scan frontend dependencies
+trivy fs frontend/
+
+# Scan Docker images
+trivy image tikman-backend:latest
+trivy image tikman-frontend:latest
+```
+
+### Update Schedule
+
+- **Critical vulnerabilities:** Immediate update
+- **High severity:** Within 7 days
+- **Medium severity:** Within 30 days
+- **Low severity:** Next scheduled maintenance
+- **Regular updates:** Monthly dependency review
+
+### Version Pinning Strategy
+
+**Backend (go.mod):**
+- We use semantic versioning with `go.mod`
+- Major versions are pinned (e.g., `v5`, `/v9`)
+- Minor/patch versions auto-update with `go get -u`
+
+**Frontend (package.json):**
+- Use `^` for minor updates (e.g., `^5.15.4` → `5.x.x`)
+- Use exact versions for security-critical packages
+- Use `overrides` for transitive dependency fixes
+
+### Testing After Updates
+
+Always run full test suite after dependency updates:
+
+```bash
+# Backend tests
+cd backend
+go test ./... -v -race -cover
+
+# Frontend tests
+cd frontend
+npm test
+npm run build  # Ensure build still works
+```
 
 ## Vulnerability Disclosure Timeline
 
