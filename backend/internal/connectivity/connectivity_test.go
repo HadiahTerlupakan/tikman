@@ -36,3 +36,14 @@ func TestSSHTest_InvalidPort(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
 }
+
+func TestTelnetTest_InvalidHost(t *testing.T) {
+	err := TelnetTest("192.0.2.1", 23, "testuser", "testpass", 1*time.Second)
+	assert.Error(t, err)
+}
+
+func TestTelnetTest_InvalidPort(t *testing.T) {
+	err := TelnetTest("127.0.0.1", 9999, "testuser", "testpass", 1*time.Second)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
+}
