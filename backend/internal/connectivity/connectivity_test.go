@@ -47,3 +47,18 @@ func TestTelnetTest_InvalidPort(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
 }
+
+func TestSNMPTest_InvalidHost(t *testing.T) {
+	err := SNMPTest("192.0.2.1", 161, "public", 1*time.Second)
+	assert.Error(t, err)
+	// Accept either timeout or no route to host (both indicate unreachable)
+	errMsg := err.Error()
+	hasTimeout := strings.Contains(errMsg, "timeout")
+	hasNoRoute := strings.Contains(errMsg, "no route to host")
+	assert.True(t, hasTimeout || hasNoRoute, "expected timeout or no route to host error, got: %s", errMsg)
+}
+
+func TestSNMPTest_InvalidPort(t *testing.T) {
+	err := SNMPTest("127.0.0.1", 9999, "public", 1*time.Second)
+	assert.Error(t, err)
+}
