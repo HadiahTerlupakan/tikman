@@ -34,6 +34,7 @@ export function OltModal({
     failedTest?: string;
     failedReason?: string;
   } | null>(null);
+  const [selectedProtocol, setSelectedProtocol] = useState<OltProtocol>(OltProtocol.SSH);
   const oltRepository = new OltRepository();
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function OltModal({
         telnetPort: olt.telnetPort,
         snmpPort: olt.snmpPort,
       });
+      setSelectedProtocol(olt.preferredProtocol);
     } else {
       form.resetFields();
       form.setFieldsValue({
@@ -57,6 +59,7 @@ export function OltModal({
         telnetPort: 23,
         snmpPort: 161,
       });
+      setSelectedProtocol(OltProtocol.SSH);
     }
     setTestResult(null);
   }, [olt, form]);
@@ -201,7 +204,7 @@ export function OltModal({
           label="Protocol"
           rules={[{ required: true, message: "Please select protocol" }]}
         >
-          <Select>
+          <Select onChange={(value) => setSelectedProtocol(value as OltProtocol)}>
             <Select.Option value={OltProtocol.SSH}>SSH</Select.Option>
             <Select.Option value={OltProtocol.TELNET}>Telnet</Select.Option>
           </Select>
@@ -229,13 +232,17 @@ export function OltModal({
           <Input placeholder="public" />
         </Form.Item>
 
-        <Form.Item name="sshPort" label="SSH Port">
-          <InputNumber min={1} max={65535} style={{ width: "100%" }} />
-        </Form.Item>
+        {selectedProtocol === OltProtocol.SSH && (
+          <Form.Item name="sshPort" label="SSH Port">
+            <InputNumber min={1} max={65535} style={{ width: "100%" }} />
+          </Form.Item>
+        )}
 
-        <Form.Item name="telnetPort" label="Telnet Port">
-          <InputNumber min={1} max={65535} style={{ width: "100%" }} />
-        </Form.Item>
+        {selectedProtocol === OltProtocol.TELNET && (
+          <Form.Item name="telnetPort" label="Telnet Port">
+            <InputNumber min={1} max={65535} style={{ width: "100%" }} />
+          </Form.Item>
+        )}
 
         <Form.Item name="snmpPort" label="SNMP Port">
           <InputNumber min={1} max={65535} style={{ width: "100%" }} />
