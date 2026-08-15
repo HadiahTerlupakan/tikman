@@ -62,14 +62,41 @@ func (h *OLTHandler) Create(c *gin.Context) {
 		req.PreferredProtocol,
 	)
 	if err != nil {
-		// Check if error is due to site not found
-		if err.Error() == "site not found: record not found" {
+		// Check for specific error types
+		errMsg := err.Error()
+
+		// Site not found
+		if errMsg == "site not found: record not found" {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error: "Site not found",
 				Code:  "INVALID_SITE_ID",
 			})
 			return
 		}
+
+		// Duplicate IP
+		if errMsg == "IP address already exists" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "IP address already exists",
+				Code:  "DUPLICATE_IP",
+				Details: map[string]interface{}{
+					"ip_address": req.IPAddress,
+				},
+			})
+			return
+		}
+
+		// Validation failure
+		if len(errMsg) > 21 && errMsg[:21] == "OLT validation failed" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "OLT validation failed",
+				Code:  "VALIDATION_FAILED",
+				Details: errMsg,
+			})
+			return
+		}
+
+		// Generic error
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to create OLT",
 			Code:  "CREATE_FAILED",
