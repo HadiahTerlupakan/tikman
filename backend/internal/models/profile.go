@@ -36,7 +36,7 @@ type LineProfile struct {
 	BandwidthDown int       `gorm:"comment:'Bandwidth in Mbps'"`
 	BandwidthUp   int       `gorm:"comment:'Bandwidth in Mbps'"`
 	VLANID        int
-	Description   string    `gorm:"type:text"`
+	Description   string `gorm:"type:text"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
