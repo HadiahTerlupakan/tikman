@@ -11,14 +11,16 @@ import (
 )
 
 type OLTService struct {
-	db            *gorm.DB
-	encryptionKey string
+	db               *gorm.DB
+	encryptionKey    string
+	validatorService *OLTValidatorService
 }
 
 func NewOLTService(db *gorm.DB, encryptionKey string) *OLTService {
 	return &OLTService{
-		db:            db,
-		encryptionKey: encryptionKey,
+		db:               db,
+		encryptionKey:    encryptionKey,
+		validatorService: NewOLTValidatorService(db),
 	}
 }
 
@@ -39,11 +41,41 @@ func (s *OLTService) Create(siteID uuid.UUID, name, ipAddress, username, passwor
 		return nil, fmt.Errorf("site not found: %w", err)
 	}
 
+	// Validate IP not duplicate
+	if err := s.validatorService.ValidateIPNotDuplicate(ipAddress); err != nil {
+		return nil, err
+	}
+
+	// Run connection tests
+	validationResult, err := s.validatorService.ValidateCreate(
+		ipAddress,
+		username,
+		password,
+		sshPort,
+		telnetPort,
+		snmpPort,
+		snmpCommunity,
+		preferredProtocol,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("validation error: %w", err)
+	}
+
+	if !validationResult.Success {
+		return nil, fmt.Errorf("OLT validation failed - Passed: %v, Failed: %s (%s)",
+			validationResult.PassedTests,
+			validationResult.FailedTest,
+			validationResult.FailedReason,
+		)
+	}
+
+	// Encrypt password
 	encryptedPassword, err := s.encryptPassword(password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt password: %w", err)
 	}
 
+	// Create OLT with status "online" since validation passed
 	olt := &models.OLT{
 		SiteID:            siteID,
 		Name:              name,
@@ -55,7 +87,7 @@ func (s *OLTService) Create(siteID uuid.UUID, name, ipAddress, username, passwor
 		PreferredProtocol: preferredProtocol,
 		Username:          username,
 		Password:          encryptedPassword,
-		Status:            models.OLTStatusOffline,
+		Status:            models.OLTStatusOnline, // Changed from Offline to Online
 	}
 
 	if err := s.db.Create(olt).Error; err != nil {
