@@ -84,8 +84,15 @@ func TestValidateCreate_LocalhostSSH(t *testing.T) {
 		models.OLTProtocolSSH,
 	)
 
-	// We expect this to fail in test environment, but validates the flow works
+	// Validate method executes without error
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	// Result may be success=false due to no actual OLT available
+
+	// Validate ValidationResult structure - expect failure in test environment
+	assert.False(t, result.Success, "validation should fail in test environment without actual OLT")
+	assert.NotEmpty(t, result.FailedTest, "failed test name should be populated (Ping, SSH, or SNMP)")
+	assert.NotEmpty(t, result.FailedReason, "failed reason should contain error message")
+
+	// Verify FailedTest is one of the expected test types
+	assert.Contains(t, []string{"Ping", "SSH", "SNMP"}, result.FailedTest, "failed test should be one of the connectivity tests")
 }
