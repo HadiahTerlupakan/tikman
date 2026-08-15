@@ -8,7 +8,7 @@ import (
 )
 
 type Site struct {
-	ID          uuid.UUID `gorm:"type:uuid;primary_key"`
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
 	Name        string    `gorm:"type:varchar(255);not null"`
 	Location    string    `gorm:"type:text"`
 	Description string    `gorm:"type:text"`

@@ -13,31 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
-const testEncryptionKey = "12345678901234567890123456789012" // 32 bytes
-
-func setupOLTHandlerTest(t *testing.T) (*OLTHandler, *services.SiteService, *gorm.DB) {
-	gin.SetMode(gin.TestMode)
-
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	err = models.AutoMigrate(db)
-	require.NoError(t, err)
-
-	siteService := services.NewSiteService(db)
-	oltService := services.NewOLTService(db, testEncryptionKey)
-	// Use nil auditService to skip audit logging in tests
-	handler := NewOLTHandler(oltService, nil)
-
-	return handler, siteService, db
-}
-
 func TestOLTHandler_Create(t *testing.T) {
-	handler, siteService, _ := setupOLTHandlerTest(t)
+	handler, siteService, _ := SetupOLTHandlerTest(t)
 
 	t.Run("success with default ports", func(t *testing.T) {
 		site, err := siteService.Create("Test Site", "Test Location", "Test Desc")
@@ -189,7 +168,7 @@ func TestOLTHandler_Create(t *testing.T) {
 }
 
 func TestOLTHandler_List(t *testing.T) {
-	handler, siteService, db := setupOLTHandlerTest(t)
+	handler, siteService, db := SetupOLTHandlerTest(t)
 
 	t.Run("empty list", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -232,7 +211,7 @@ func TestOLTHandler_List(t *testing.T) {
 }
 
 func TestOLTHandler_GetByID(t *testing.T) {
-	handler, siteService, db := setupOLTHandlerTest(t)
+	handler, siteService, db := SetupOLTHandlerTest(t)
 
 	t.Run("success", func(t *testing.T) {
 		site, err := siteService.Create("Test Site", "Test Location", "Test Desc")
@@ -296,7 +275,7 @@ func TestOLTHandler_GetByID(t *testing.T) {
 }
 
 func TestOLTHandler_Update(t *testing.T) {
-	handler, siteService, db := setupOLTHandlerTest(t)
+	handler, siteService, db := SetupOLTHandlerTest(t)
 
 	t.Run("success - update name", func(t *testing.T) {
 		site, err := siteService.Create("Test Site", "Test Location", "Test Desc")
@@ -415,7 +394,7 @@ func TestOLTHandler_Update(t *testing.T) {
 }
 
 func TestOLTHandler_Delete(t *testing.T) {
-	handler, siteService, db := setupOLTHandlerTest(t)
+	handler, siteService, db := SetupOLTHandlerTest(t)
 
 	t.Run("success", func(t *testing.T) {
 		site, err := siteService.Create("Test Site", "Test Location", "Test Desc")

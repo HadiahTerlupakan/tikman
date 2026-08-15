@@ -21,16 +21,21 @@ export function UserTable({
       title: "Username",
       dataIndex: "username",
       key: "username",
+      fixed: "left",
+      width: 150,
     },
     {
       title: "Email",
       dataIndex: "email",
       key: "email",
+      width: 200,
+      responsive: ["md"],
     },
     {
       title: "Role",
       dataIndex: "role",
       key: "role",
+      width: 120,
       render: (role: UserRole) => {
         const color =
           role === UserRole.ADMIN
@@ -45,11 +50,15 @@ export function UserTable({
       title: "Created At",
       dataIndex: "createdAt",
       key: "createdAt",
+      width: 150,
+      responsive: ["lg"],
       render: (date: string) => new Date(date).toLocaleDateString("id-ID"),
     },
     {
       title: "Actions",
       key: "actions",
+      fixed: "right",
+      width: 180,
       render: (_, record) => (
         <Space>
           <Button
@@ -81,6 +90,7 @@ export function UserTable({
       loading={loading}
       rowKey="id"
       pagination={{ pageSize: 10 }}
+      scroll={{ x: 800 }}
     />
   );
 }

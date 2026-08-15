@@ -20,7 +20,7 @@ const (
 )
 
 type OLT struct {
-	ID                uuid.UUID   `gorm:"type:uuid;primary_key"`
+	ID                uuid.UUID   `gorm:"type:uuid;primaryKey"`
 	SiteID            uuid.UUID   `gorm:"type:uuid;not null;index"`
 	Name              string      `gorm:"type:varchar(255);not null"`
 	IPAddress         string      `gorm:"type:varchar(45);not null"`

@@ -11,30 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
-func setupSiteHandlerTest(t *testing.T) (*SiteHandler, *gorm.DB) {
-	gin.SetMode(gin.TestMode)
-
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-
-	err = db.AutoMigrate(&models.Site{}, &models.OLT{}, &models.AuditLog{})
-	require.NoError(t, err)
-
-	service := services.NewSiteService(db)
-	auditService := services.NewAuditService(db, nil)
-	handler := NewSiteHandler(service, auditService)
-
-	return handler, db
-}
-
 func TestSiteHandler_Create(t *testing.T) {
-	handler, _ := setupSiteHandlerTest(t)
+	handler, _ := SetupSiteHandlerTest(t)
 
 	t.Run("success", func(t *testing.T) {
 		reqBody := CreateSiteRequest{
@@ -101,7 +82,7 @@ func TestSiteHandler_Create(t *testing.T) {
 }
 
 func TestSiteHandler_List(t *testing.T) {
-	handler, db := setupSiteHandlerTest(t)
+	handler, db := SetupSiteHandlerTest(t)
 
 	t.Run("empty list", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -142,7 +123,7 @@ func TestSiteHandler_List(t *testing.T) {
 }
 
 func TestSiteHandler_GetByID(t *testing.T) {
-	handler, db := setupSiteHandlerTest(t)
+	handler, db := SetupSiteHandlerTest(t)
 
 	t.Run("success", func(t *testing.T) {
 		service := services.NewSiteService(db)
@@ -201,7 +182,7 @@ func TestSiteHandler_GetByID(t *testing.T) {
 }
 
 func TestSiteHandler_Update(t *testing.T) {
-	handler, db := setupSiteHandlerTest(t)
+	handler, db := SetupSiteHandlerTest(t)
 
 	t.Run("success", func(t *testing.T) {
 		service := services.NewSiteService(db)
@@ -273,7 +254,7 @@ func TestSiteHandler_Update(t *testing.T) {
 }
 
 func TestSiteHandler_Delete(t *testing.T) {
-	handler, db := setupSiteHandlerTest(t)
+	handler, db := SetupSiteHandlerTest(t)
 
 	t.Run("success", func(t *testing.T) {
 		service := services.NewSiteService(db)

@@ -210,6 +210,55 @@ Use React Query hooks from `src/application/hooks/`:
 - Frontend tests use Vitest + Testing Library
 - Mock API calls in frontend tests
 
+## Code Quality Standards
+
+**IMPORTANT: Prevent Code Smell and God Objects**
+
+### File Size Limits
+- **Maximum lines per file: 300-350 lines**
+- Files exceeding 350 lines must be refactored into smaller modules
+- Test files should be split by functionality (e.g., `handler_create_test.go`, `handler_update_test.go`)
+
+### Anti-Patterns to Avoid
+1. **God Objects** - Classes/structs with too many responsibilities
+   - Split into focused, single-responsibility modules
+   - Example: Split large handlers into separate files by operation (CRUD)
+
+2. **Code Duplication**
+   - Extract common test setup into helper functions
+   - Use table-driven tests for similar test cases
+   - Create reusable test fixtures
+
+3. **Long Functions**
+   - Maximum 50 lines per function
+   - Extract helper functions for complex logic
+   - Use meaningful function names that describe intent
+
+4. **Deep Nesting**
+   - Maximum 3 levels of indentation
+   - Use early returns to reduce nesting
+   - Extract nested logic into separate functions
+
+5. **Magic Numbers/Strings**
+   - Define constants for all magic values
+   - Use enums/constants instead of raw strings
+
+### Refactoring Guidelines
+When a file exceeds 300 lines:
+- **Test files**: Split by test type (create, update, delete, list, errors)
+- **Handlers**: Split by HTTP method or resource operation
+- **Services**: Split by business domain or use case
+- **Components**: Split by feature or extract sub-components
+
+### Code Review Checklist
+Before committing, verify:
+- [ ] No file exceeds 350 lines
+- [ ] No function exceeds 50 lines
+- [ ] No code duplication
+- [ ] All magic values are constants
+- [ ] Maximum 3 levels of nesting
+- [ ] Single responsibility per file/function
+
 ## Default Credentials
 
 - Username: `admin`

@@ -44,20 +44,22 @@ func (h *SiteHandler) Create(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
-		actorID,
-		"create",
-		"site",
-		site.ID,
-		nil,
-		map[string]interface{}{
-			"name":        site.Name,
-			"location":    site.Location,
-			"description": site.Description,
-		},
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	if h.auditService != nil {
+		h.auditService.Log(
+			actorID,
+			"create",
+			"site",
+			site.ID,
+			nil,
+			map[string]interface{}{
+				"name":        site.Name,
+				"location":    site.Location,
+				"description": site.Description,
+			},
+			c.ClientIP(),
+			c.Request.UserAgent(),
+		)
+	}
 
 	c.JSON(http.StatusCreated, ToSiteResponse(site))
 }
@@ -179,16 +181,18 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		"location":    site.Location,
 		"description": site.Description,
 	}
-	h.auditService.Log(
-		actorID,
-		"update",
-		"site",
-		site.ID,
-		oldState,
-		newState,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	if h.auditService != nil {
+		h.auditService.Log(
+			actorID,
+			"update",
+			"site",
+			site.ID,
+			oldState,
+			newState,
+			c.ClientIP(),
+			c.Request.UserAgent(),
+		)
+	}
 
 	c.JSON(http.StatusOK, ToSiteResponse(site))
 }
@@ -213,16 +217,18 @@ func (h *SiteHandler) Delete(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
-		actorID,
-		"delete",
-		"site",
-		id,
-		nil,
-		nil,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
+	if h.auditService != nil {
+		h.auditService.Log(
+			actorID,
+			"delete",
+			"site",
+			id,
+			nil,
+			nil,
+			c.ClientIP(),
+			c.Request.UserAgent(),
+		)
+	}
 
 	c.JSON(http.StatusNoContent, nil)
 }

@@ -29,27 +29,35 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       title: "OLT Name",
       dataIndex: "name",
       key: "name",
+      fixed: "left",
+      width: 180,
     },
     {
       title: "Site",
       dataIndex: "siteName",
       key: "siteName",
+      width: 150,
+      responsive: ["md"],
     },
     {
       title: "IP Address",
       dataIndex: "ipAddress",
       key: "ipAddress",
+      width: 150,
     },
     {
       title: "Protocol",
       dataIndex: "protocol",
       key: "protocol",
+      width: 100,
+      responsive: ["lg"],
       render: (protocol: string) => protocol.toUpperCase(),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
+      width: 120,
       render: (status: OltStatus) => (
         <Tag color={getStatusColor(status)}>{status.toUpperCase()}</Tag>
       ),
@@ -58,12 +66,16 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       title: "Last Seen",
       dataIndex: "lastSeen",
       key: "lastSeen",
+      width: 180,
+      responsive: ["xl"],
       render: (date: string | null) =>
         date ? new Date(date).toLocaleString("id-ID") : "-",
     },
     {
       title: "Actions",
       key: "actions",
+      fixed: "right",
+      width: 180,
       render: (_, record) => (
         <Space>
           <Button
@@ -95,6 +107,7 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       loading={loading}
       rowKey="id"
       pagination={{ pageSize: 10 }}
+      scroll={{ x: 1000 }}
     />
   );
 }
