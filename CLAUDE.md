@@ -210,6 +210,61 @@ Use React Query hooks from `src/application/hooks/`:
 - Frontend tests use Vitest + Testing Library
 - Mock API calls in frontend tests
 
+**CRITICAL: All Tests Must Pass Before Committing**
+
+Before any commit or deployment, ensure ALL tests are green:
+
+### Backend Testing Requirements
+```bash
+cd backend
+
+# All tests must pass
+go test ./... -v
+
+# Run with race detector (CI requirement)
+go test ./... -v -race
+
+# Check test coverage (aim for >80%)
+go test ./... -cover -coverprofile=coverage.out
+
+# Run linter (must have zero issues)
+golangci-lint run
+```
+
+### Frontend Testing Requirements
+```bash
+cd frontend
+
+# All tests must pass
+npm test
+
+# Build must succeed (catches TypeScript errors)
+npm run build
+
+# Linting must pass (zero errors)
+npm run lint
+
+# Code formatting check
+npm run format
+```
+
+### Pre-Commit Checklist
+- [ ] All backend tests pass (`go test ./...`)
+- [ ] All frontend tests pass (`npm test`)
+- [ ] No linting errors (`npm run lint`, `golangci-lint run`)
+- [ ] Code properly formatted (`npm run format`)
+- [ ] Build succeeds (`npm run build`, `go build`)
+- [ ] No race conditions (`go test -race`)
+- [ ] Test coverage maintained (>80%)
+
+### CI/CD Testing
+All GitHub Actions workflows MUST pass:
+- Backend CI (tests + lint + build)
+- Frontend CI (tests + lint + format + build)
+- Code Quality (security scan)
+
+**If CI fails, fix immediately before merging.**
+
 ## Code Quality Standards
 
 **IMPORTANT: Prevent Code Smell and God Objects**
@@ -258,6 +313,11 @@ Before committing, verify:
 - [ ] All magic values are constants
 - [ ] Maximum 3 levels of nesting
 - [ ] Single responsibility per file/function
+- [ ] All tests pass (backend + frontend)
+- [ ] No linting errors
+- [ ] Code properly formatted
+- [ ] Build succeeds without errors
+- [ ] No race conditions detected
 
 ## Default Credentials
 
