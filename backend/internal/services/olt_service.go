@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/utils"
 	"gorm.io/gorm"
@@ -142,4 +143,27 @@ func (s *OLTService) UpdateStatus(id uuid.UUID, status models.OLTStatus) error {
 		"status":    status,
 		"last_seen": &now,
 	}).Error
+}
+
+// DiscoverONTs performs SNMP discovery on an OLT and returns discovered ONTs
+func (s *OLTService) DiscoverONTs(oltID uuid.UUID) ([]connectivity.DiscoveredONT, error) {
+	// Get OLT details
+	olt, err := s.GetByID(oltID)
+	if err != nil {
+		return nil, fmt.Errorf("OLT not found: %w", err)
+	}
+
+	// Decrypt SNMP community
+	snmpCommunity := olt.SNMPCommunity
+	if snmpCommunity == "" {
+		return nil, fmt.Errorf("SNMP community not configured for this OLT")
+	}
+
+	// Perform discovery
+	discovered, err := connectivity.DiscoverONTs(olt.IPAddress, snmpCommunity, olt.SNMPPort)
+	if err != nil {
+		return nil, fmt.Errorf("discovery failed: %w", err)
+	}
+
+	return discovered, nil
 }

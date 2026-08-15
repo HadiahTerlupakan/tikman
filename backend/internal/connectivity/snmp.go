@@ -11,6 +11,11 @@ import (
 // ZTE C300 OLT SNMP OIDs for ONT metrics
 // Format: OID.{rack}.{shelf}.{slot}.{port}.{ont_id}
 const (
+	// Discovery OIDs
+	OID_ONT_SERIAL_NUMBER = ".1.3.6.1.4.1.3902.1012.3.28.1.1.1" // zxAnPonOnuSerialNo
+	OID_ONT_RUN_STATE     = ".1.3.6.1.4.1.3902.1012.3.28.1.1.2" // zxAnPonOnuRunState
+
+	// Metrics OIDs
 	OID_ONT_RX_POWER    = ".1.3.6.1.4.1.3902.1012.3.28.1.1.5" // × 0.01 dBm
 	OID_ONT_TX_POWER    = ".1.3.6.1.4.1.3902.1012.3.28.1.1.6" // × 0.01 dBm
 	OID_ONT_TEMPERATURE = ".1.3.6.1.4.1.3902.1012.3.28.1.1.7" // in Celsius
@@ -127,4 +132,87 @@ func QueryONTMetrics(ipAddress, community string, port, ontID int) (*ONTMetrics,
 	}
 
 	return metrics, nil
+}
+
+// DiscoveredONT represents an ONT discovered via SNMP
+type DiscoveredONT struct {
+	PortID       int
+	ONTID        int
+	SerialNumber string
+	RunState     int // 1=online, 2=offline
+}
+
+// DiscoverONTs performs SNMP walk to discover all ONTs on an OLT
+func DiscoverONTs(ipAddress, community string, port int) ([]DiscoveredONT, error) {
+	log.Printf("[Discovery] Starting ONT discovery on %s:%d", ipAddress, port)
+
+	client := &gosnmp.GoSNMP{
+		Target:    ipAddress,
+		Port:      uint16(port),
+		Community: community,
+		Version:   gosnmp.Version2c,
+		Timeout:   10 * time.Second,
+		Retries:   2,
+		MaxOids:   60,
+	}
+
+	err := client.Connect()
+	if err != nil {
+		return nil, fmt.Errorf("connection failed: %w", err)
+	}
+	defer client.Conn.Close()
+
+	// Walk serial numbers to discover all ONTs
+	discovered := make([]DiscoveredONT, 0)
+	err = client.Walk(OID_ONT_SERIAL_NUMBER, func(pdu gosnmp.SnmpPDU) error {
+		// Parse OID index from ZTE C300 format
+		// Format: .1.3.6.1.4.1.3902.1012.3.28.1.1.1.{ifindex}.{ont_id}
+		// Example: .1.3.6.1.4.1.3902.1012.3.28.1.1.1.268635648.22
+		// ifindex encodes: (rack << 25) | (shelf << 19) | (slot << 13) | (port << 8)
+
+		oidStr := pdu.Name
+
+		// Extract last 2 indices (ifindex.ont_id)
+		var ifindex, ontID int
+		n, _ := fmt.Sscanf(oidStr, OID_ONT_SERIAL_NUMBER+".%d.%d", &ifindex, &ontID)
+
+		if n != 2 {
+			log.Printf("[Discovery] Failed to parse OID: %s", oidStr)
+			return nil
+		}
+
+		// Decode ifindex to get port number
+		// port = (ifindex >> 8) & 0x1F  // Extract bits 8-12 (5 bits for port 0-31)
+		portID := (ifindex >> 8) & 0x1F
+
+		// Extract serial number
+		serialBytes, ok := pdu.Value.([]byte)
+		if !ok {
+			log.Printf("[Discovery] Invalid serial number type for ifindex %d ONT %d", ifindex, ontID)
+			return nil
+		}
+
+		serialNumber := string(serialBytes)
+		if len(serialNumber) == 0 || serialNumber == "ALL" {
+			return nil // Skip empty or placeholder serial numbers
+		}
+
+		log.Printf("[Discovery] Found ONT: ifindex=%d, Port %d, ONT ID %d, Serial: %s", ifindex, portID, ontID, serialNumber)
+
+		discovered = append(discovered, DiscoveredONT{
+			PortID:       portID,
+			ONTID:        ontID,
+			SerialNumber: serialNumber,
+			RunState:     1, // Assume online if discovered
+		})
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("SNMP walk failed: %w", err)
+	}
+
+	log.Printf("[Discovery] Completed: found %d ONTs", len(discovered))
+	return discovered, nil
 }

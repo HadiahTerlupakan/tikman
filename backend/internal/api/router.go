@@ -122,6 +122,7 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 			olts.GET("/:id", oltHandler.GetByID)
 			olts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Update)
 			olts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Delete)
+			olts.POST("/:id/discover", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverONTs)
 		}
 
 		onts := api.Group("/onts")

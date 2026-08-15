@@ -365,3 +365,42 @@ func (h *OLTHandler) TestConnection(c *gin.Context) {
 	})
 }
 
+// DiscoverONTs handles POST /api/v1/olts/:id/discover
+func (h *OLTHandler) DiscoverONTs(c *gin.Context) {
+	oltID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid OLT ID format",
+		})
+		return
+	}
+
+	// Perform discovery
+	discovered, err := h.service.DiscoverONTs(oltID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Code:  "DISCOVERY_FAILED",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Convert to response format
+	results := make([]gin.H, len(discovered))
+	for i, ont := range discovered {
+		results[i] = gin.H{
+			"port_id":       ont.PortID,
+			"ont_id":        ont.ONTID,
+			"serial_number": ont.SerialNumber,
+			"run_state":     ont.RunState,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"olt_id":        oltID,
+		"discovered":    len(discovered),
+		"onts":          results,
+	})
+}
+
