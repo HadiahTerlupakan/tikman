@@ -5,6 +5,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,6 +18,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"github.com/tikman/olt-provisioning/internal/worker"
 	"go.uber.org/zap"
 )
 
@@ -61,12 +65,35 @@ func main() {
 
 	sessionStore := auth.NewStore(redisClient, 24*time.Hour)
 
+	// Initialize services for monitoring worker
+	oltService := services.NewOLTService(db, cfg.EncryptionKey)
+	ontService := services.NewONTService(db)
+	metricsService := services.NewMetricsService(db)
+	_ = metricsService // Will be used in Task 3 worker and Task 4 API handler
+
+	// Start monitoring worker (30-second interval for real-time status)
+	monitoringWorker := worker.NewMonitoringWorker(db, oltService, ontService, 30*time.Second)
+	monitoringWorker.Start()
+	log.Info("Monitoring worker started", zap.Duration("interval", 30*time.Second))
+
 	router := api.Setup(cfg, db, sessionStore, log)
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))
 
-	if err := router.Run(addr); err != nil {
-		log.Fatal("Failed to start server", zap.Error(err))
-	}
+	// Graceful shutdown
+	go func() {
+		if err := router.Run(addr); err != nil {
+			log.Fatal("Failed to start server", zap.Error(err))
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Info("Shutting down server...")
+	monitoringWorker.Stop()
+	log.Info("Server stopped gracefully")
 }
