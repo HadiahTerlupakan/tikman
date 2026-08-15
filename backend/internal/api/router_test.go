@@ -26,8 +26,10 @@ func TestHealthEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 
 	cfg := &config.Config{
-		LogLevel:      "debug",
-		EncryptionKey: "0123456789abcdef0123456789abcdef",
+		LogLevel:       "debug",
+		EncryptionKey:  "0123456789abcdef0123456789abcdef",
+		Environment:    "development",
+		AllowedOrigins: "http://localhost:3000",
 	}
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
@@ -55,8 +57,10 @@ func TestRouterSetup(t *testing.T) {
 	assert.NoError(t, err)
 
 	cfg := &config.Config{
-		LogLevel:      "release",
-		EncryptionKey: "0123456789abcdef0123456789abcdef",
+		LogLevel:       "release",
+		EncryptionKey:  "0123456789abcdef0123456789abcdef",
+		Environment:    "development",
+		AllowedOrigins: "http://localhost:3000",
 	}
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
