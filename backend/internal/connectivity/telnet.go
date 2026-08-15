@@ -3,6 +3,7 @@ package connectivity
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -35,36 +36,57 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 
 	reader := bufio.NewReader(conn)
 
-	// Step 1: Read initial banner/prompt (wait for username prompt)
-	var buffer strings.Builder
-	readTimeout := time.Now().Add(2 * time.Second)
-	for time.Now().Before(readTimeout) {
-		conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			// Timeout or EOF is expected when waiting for prompt
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				// Check if we have any data
-				if buffer.Len() > 0 {
+	// Helper function to read until we see a specific pattern or timeout
+	readUntilPattern := func(patterns []string, maxWait time.Duration) (string, error) {
+		var buffer strings.Builder
+		deadline := time.Now().Add(maxWait)
+
+		for time.Now().Before(deadline) {
+			conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+
+			b, err := reader.ReadByte()
+			if err != nil {
+				if err == io.EOF {
 					break
 				}
-				continue
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					// Check current buffer for patterns
+					current := strings.ToLower(buffer.String())
+					for _, pattern := range patterns {
+						if strings.Contains(current, strings.ToLower(pattern)) {
+							return buffer.String(), nil
+						}
+					}
+					continue
+				}
+				return buffer.String(), err
 			}
-			// Non-timeout error
-			if buffer.Len() == 0 {
-				return fmt.Errorf("failed to read banner: %w", err)
-			}
-			break
-		}
-		buffer.WriteString(line)
 
-		// Check if we got a username prompt
-		lowerLine := strings.ToLower(buffer.String())
-		if strings.Contains(lowerLine, "login:") ||
-		   strings.Contains(lowerLine, "username:") ||
-		   strings.Contains(lowerLine, "user:") {
-			break
+			buffer.WriteByte(b)
+
+			// Check if we've seen any of the patterns
+			current := strings.ToLower(buffer.String())
+			for _, pattern := range patterns {
+				if strings.Contains(current, strings.ToLower(pattern)) {
+					return buffer.String(), nil
+				}
+			}
 		}
+
+		return buffer.String(), nil
+	}
+
+	// Step 1: Read initial banner and wait for username prompt
+	banner, err := readUntilPattern([]string{"username:", "login:", "user:"}, 3*time.Second)
+	if err != nil {
+		return fmt.Errorf("failed to read banner: %w", err)
+	}
+
+	bannerLower := strings.ToLower(banner)
+	if !strings.Contains(bannerLower, "username") &&
+	   !strings.Contains(bannerLower, "login") &&
+	   !strings.Contains(bannerLower, "user") {
+		return fmt.Errorf("expected username prompt, got: %s", banner)
 	}
 
 	// Step 2: Send username
@@ -74,35 +96,13 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 	}
 
 	// Step 3: Wait for password prompt
-	buffer.Reset()
-	readTimeout = time.Now().Add(2 * time.Second)
-	for time.Now().Before(readTimeout) {
-		conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				if buffer.Len() > 0 {
-					break
-				}
-				continue
-			}
-			if buffer.Len() == 0 {
-				return fmt.Errorf("failed to read password prompt: %w", err)
-			}
-			break
-		}
-		buffer.WriteString(line)
-
-		// Check for password prompt
-		lowerLine := strings.ToLower(buffer.String())
-		if strings.Contains(lowerLine, "password:") {
-			break
-		}
+	passwordPrompt, err := readUntilPattern([]string{"password:"}, 2*time.Second)
+	if err != nil {
+		return fmt.Errorf("failed to read password prompt: %w", err)
 	}
 
-	// Verify we got password prompt
-	if !strings.Contains(strings.ToLower(buffer.String()), "password") {
-		return fmt.Errorf("expected password prompt, got: %s", buffer.String())
+	if !strings.Contains(strings.ToLower(passwordPrompt), "password") {
+		return fmt.Errorf("expected password prompt, got: %s", passwordPrompt)
 	}
 
 	// Step 4: Send password
@@ -112,57 +112,32 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 	}
 
 	// Step 5: Read response and verify login success
-	buffer.Reset()
-	readTimeout = time.Now().Add(3 * time.Second)
-	for time.Now().Before(readTimeout) {
-		conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				if buffer.Len() > 0 {
-					// We have some data, check it
-					break
-				}
-				continue
-			}
-			// EOF or other error
-			if buffer.Len() > 0 {
-				break
-			}
-			return fmt.Errorf("failed to read login response: %w", err)
-		}
-		buffer.WriteString(line)
-
-		// Check for successful login indicators (prompt symbols)
-		response := buffer.String()
-		if strings.Contains(response, ">") ||
-		   strings.Contains(response, "#") ||
-		   strings.Contains(response, "$") {
-			// Looks like a shell prompt, login successful
-			break
-		}
+	response, err := readUntilPattern([]string{">", "#", "$", "error", "incorrect", "failed", "denied"}, 3*time.Second)
+	if err != nil && err != io.EOF {
+		return fmt.Errorf("failed to read login response: %w", err)
 	}
 
 	// Check for authentication failure indicators
-	response := strings.ToLower(buffer.String())
-	if strings.Contains(response, "login incorrect") ||
-	   strings.Contains(response, "authentication failed") ||
-	   strings.Contains(response, "access denied") ||
-	   strings.Contains(response, "invalid password") ||
-	   strings.Contains(response, "login failed") {
+	responseLower := strings.ToLower(response)
+	if strings.Contains(responseLower, "login incorrect") ||
+	   strings.Contains(responseLower, "authentication failed") ||
+	   strings.Contains(responseLower, "access denied") ||
+	   strings.Contains(responseLower, "invalid password") ||
+	   strings.Contains(responseLower, "login failed") ||
+	   strings.Contains(responseLower, "error") ||
+	   strings.Contains(responseLower, "bad password") {
 		return fmt.Errorf("authentication failed")
 	}
 
 	// Check if we got a prompt (successful login indicator)
-	if strings.Contains(buffer.String(), ">") ||
-	   strings.Contains(buffer.String(), "#") ||
-	   strings.Contains(buffer.String(), "$") {
+	if strings.Contains(response, ">") ||
+	   strings.Contains(response, "#") ||
+	   strings.Contains(response, "$") {
 		return nil
 	}
 
-	// If we reach here and have some response, assume success
-	// (some devices may not show standard prompts)
-	if buffer.Len() > 0 {
+	// If we have some response but no clear indicator, assume success
+	if len(response) > 0 {
 		return nil
 	}
 
