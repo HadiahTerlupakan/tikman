@@ -34,4 +34,26 @@ export class OltRepository implements IOltRepository {
   async delete(id: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.OLT_BY_ID(id));
   }
+
+  async testConnection(data: {
+    ipAddress: string;
+    username: string;
+    password: string;
+    preferredProtocol: string;
+    sshPort?: number;
+    telnetPort?: number;
+    snmpPort?: number;
+    snmpCommunity?: string;
+  }): Promise<{
+    success: boolean;
+    passedTests: string[];
+    failedTest?: string;
+    failedReason?: string;
+  }> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.TEST_OLT_CONNECTION,
+      data
+    );
+    return response.data;
+  }
 }

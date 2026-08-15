@@ -1,4 +1,4 @@
-import { Modal, Form, Input, Select, InputNumber } from "antd";
+import { Modal, Form, Input, Select, InputNumber, Button, Alert } from "antd";
 import {
   type Olt,
   type CreateOltDto,
@@ -6,7 +6,9 @@ import {
   OltProtocol,
 } from "@/domain/entities";
 import { useSites } from "@/application/hooks";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
+import { OltRepository } from "@/infrastructure/repositories/OltRepository";
 
 interface OltModalProps {
   open: boolean;
@@ -25,6 +27,14 @@ export function OltModal({
 }: OltModalProps) {
   const [form] = Form.useForm();
   const { data: sites } = useSites();
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    passedTests: string[];
+    failedTest?: string;
+    failedReason?: string;
+  } | null>(null);
+  const oltRepository = new OltRepository();
 
   useEffect(() => {
     if (olt) {
@@ -48,7 +58,43 @@ export function OltModal({
         snmpPort: 161,
       });
     }
+    setTestResult(null);
   }, [olt, form]);
+
+  const handleTestConnection = async () => {
+    try {
+      const values = await form.validateFields([
+        "ipAddress",
+        "username",
+        "password",
+        "protocol",
+        "sshPort",
+        "telnetPort",
+        "snmpPort",
+        "snmpCommunity",
+      ]);
+
+      setTestLoading(true);
+      setTestResult(null);
+
+      const result = await oltRepository.testConnection({
+        ipAddress: values.ipAddress,
+        username: values.username,
+        password: values.password,
+        preferredProtocol: values.protocol,
+        sshPort: values.sshPort || 22,
+        telnetPort: values.telnetPort || 23,
+        snmpPort: values.snmpPort || 161,
+        snmpCommunity: values.snmpCommunity || "public",
+      });
+
+      setTestResult(result);
+    } catch (error) {
+      console.error("Test connection error:", error);
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const handleSubmit = () => {
     form.validateFields().then((values) => {
@@ -60,13 +106,60 @@ export function OltModal({
     <Modal
       title={olt ? "Edit OLT" : "Create OLT"}
       open={open}
-      onOk={handleSubmit}
       onCancel={onClose}
-      confirmLoading={loading}
       destroyOnClose
       width={600}
+      footer={[
+        <Button key="cancel" onClick={onClose}>
+          Cancel
+        </Button>,
+        !olt && (
+          <Button
+            key="test"
+            onClick={handleTestConnection}
+            loading={testLoading}
+          >
+            Test Connection
+          </Button>
+        ),
+        <Button
+          key="submit"
+          type="primary"
+          onClick={handleSubmit}
+          loading={loading}
+          disabled={!olt && !!testResult && !testResult.success}
+        >
+          {olt ? "Update" : "OK"}
+        </Button>,
+      ]}
     >
       <Form form={form} layout="vertical">
+        {testResult && (
+          <Alert
+            message={
+              testResult.success
+                ? "Connection Test Successful"
+                : "Connection Test Failed"
+            }
+            description={
+              testResult.success ? (
+                <div>
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} /> Passed
+                  tests: {testResult.passedTests.join(", ")}
+                </div>
+              ) : (
+                <div>
+                  <CloseCircleOutlined style={{ color: "#ff4d4f" }} /> Passed:{" "}
+                  {testResult.passedTests.join(", ") || "None"} | Failed:{" "}
+                  {testResult.failedTest} - {testResult.failedReason}
+                </div>
+              )
+            }
+            type={testResult.success ? "success" : "error"}
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Form.Item
           name="siteId"
           label="Site"
