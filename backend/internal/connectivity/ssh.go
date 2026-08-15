@@ -3,6 +3,7 @@ package connectivity
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -25,7 +26,7 @@ func SSHTest(ipAddress string, port int, username, password string, timeout time
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			return fmt.Errorf("timeout after %s", timeout)
 		}
-		if err.Error() == "ssh: handshake failed: ssh: unable to authenticate, attempted methods [none password], no supported methods remain" {
+		if strings.Contains(err.Error(), "unable to authenticate") {
 			return fmt.Errorf("authentication failed")
 		}
 		return fmt.Errorf("connection failed: %w", err)
