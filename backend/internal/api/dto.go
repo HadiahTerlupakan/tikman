@@ -5,8 +5,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 )
 
+// User DTOs
 type CreateUserRequest struct {
 	Username string          `json:"username" binding:"required,min=3,max=50,alphanum"`
 	Email    string          `json:"email" binding:"required,email,max=255"`
@@ -40,6 +42,7 @@ func ToUserResponse(user *models.User) UserResponse {
 	}
 }
 
+// Auth DTOs
 type LoginRequest struct {
 	Username string `json:"username" binding:"required,min=3,max=50,alphanum"`
 	Password string `json:"password" binding:"required,min=8,max=100"`
@@ -170,5 +173,75 @@ func ToOLTResponse(olt *models.OLT) OLTResponse {
 		ONTCount:          0, // TODO: query count separately if needed
 		CreatedAt:         olt.CreatedAt,
 		UpdatedAt:         olt.UpdatedAt,
+	}
+}
+
+// ONT DTOs
+type CreateONTRequest struct {
+	OLTID        uuid.UUID         `json:"olt_id" binding:"required"`
+	PortID       int               `json:"port_id" binding:"required,min=0,max=15"`
+	ONTID        int               `json:"ont_id" binding:"required,min=0,max=127"`
+	SerialNumber string            `json:"serial_number" binding:"required,min=1,max=20"`
+	Description  string            `json:"description" binding:"omitempty,max=255"`
+	Status       models.ONTStatus  `json:"status" binding:"omitempty,oneof=online offline los unknown"`
+}
+
+type UpdateONTRequest struct {
+	Description *string           `json:"description" binding:"omitempty,max=255"`
+	Status      *models.ONTStatus `json:"status" binding:"omitempty,oneof=online offline los unknown"`
+}
+
+type ONTResponse struct {
+	ID           uuid.UUID         `json:"id"`
+	OLTID        uuid.UUID         `json:"olt_id"`
+	OLTName      string            `json:"olt_name"`
+	PortID       int               `json:"port_id"`
+	ONTID        int               `json:"ont_id"`
+	SerialNumber string            `json:"serial_number"`
+	Description  string            `json:"description"`
+	Status       models.ONTStatus  `json:"status"`
+	LastSeenAt   *time.Time        `json:"last_seen_at"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
+}
+
+func ToONTResponse(ont *models.ONT) ONTResponse {
+	return ONTResponse{
+		ID:           ont.ID,
+		OLTID:        ont.OLTID,
+		OLTName:      "", // TODO: join with OLT table if needed
+		PortID:       ont.PortID,
+		ONTID:        ont.ONTID,
+		SerialNumber: ont.SerialNumber,
+		Description:  ont.Description,
+		Status:       ont.Status,
+		LastSeenAt:   ont.LastSeenAt,
+		CreatedAt:    ont.CreatedAt,
+		UpdatedAt:    ont.UpdatedAt,
+	}
+}
+
+// ONT Metrics DTOs
+type ONTMetricsResponse struct {
+	Time        time.Time `json:"time"`
+	RxPower     float64   `json:"rx_power"`
+	TxPower     float64   `json:"tx_power"`
+	Temperature float64   `json:"temperature"`
+	Voltage     float64   `json:"voltage"`
+	Distance    int       `json:"distance"`
+	RxBytes     uint64    `json:"rx_bytes"`
+	TxBytes     uint64    `json:"tx_bytes"`
+}
+
+func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
+	return ONTMetricsResponse{
+		Time:        metrics.Time,
+		RxPower:     metrics.RxPower,
+		TxPower:     metrics.TxPower,
+		Temperature: metrics.Temperature,
+		Voltage:     metrics.Voltage,
+		Distance:    metrics.Distance,
+		RxBytes:     metrics.RxBytes,
+		TxBytes:     metrics.TxBytes,
 	}
 }

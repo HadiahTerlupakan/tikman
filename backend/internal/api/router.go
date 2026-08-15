@@ -73,12 +73,16 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	siteService := services.NewSiteService(db)
 	oltService := services.NewOLTService(db, cfg.EncryptionKey)
 	oltValidatorService := services.NewOLTValidatorService(db)
+	ontService := services.NewONTService(db)
+	metricsService := services.NewMetricsService(db)
 	auditService := services.NewAuditService(db, logger)
 
 	authHandler := NewAuthHandler(userService, sessionStore)
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
 	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService)
+	ontHandler := NewONTHandler(ontService, auditService)
+	metricsHandler := NewMetricsHandler(metricsService)
 
 	api := router.Group("/api/v1")
 	{
@@ -118,6 +122,20 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 			olts.GET("/:id", oltHandler.GetByID)
 			olts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Update)
 			olts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Delete)
+		}
+
+		onts := api.Group("/onts")
+		onts.Use(middleware.AuthMiddleware(sessionStore, logger))
+		{
+			onts.GET("", ontHandler.List)
+			onts.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Create)
+			onts.GET("/:id", ontHandler.GetByID)
+			onts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Update)
+			onts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Delete)
+
+			// Metrics routes
+			onts.GET("/:id/metrics", metricsHandler.GetLatest)
+			onts.GET("/:id/metrics/history", metricsHandler.GetHistory)
 		}
 	}
 
