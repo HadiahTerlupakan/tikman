@@ -69,12 +69,20 @@ func main() {
 	oltService := services.NewOLTService(db, cfg.EncryptionKey)
 	ontService := services.NewONTService(db)
 	metricsService := services.NewMetricsService(db)
-	_ = metricsService // Will be used in Task 3 worker and Task 4 API handler
 
-	// Start monitoring worker (30-second interval for real-time status)
-	monitoringWorker := worker.NewMonitoringWorker(db, oltService, ontService, 30*time.Second)
+	// Start monitoring worker (30s status, 5min metrics)
+	monitoringWorker := worker.NewMonitoringWorker(
+		db,
+		oltService,
+		ontService,
+		metricsService,
+		30*time.Second,  // Status polling
+		5*time.Minute,   // Metrics polling
+	)
 	monitoringWorker.Start()
-	log.Info("Monitoring worker started", zap.Duration("interval", 30*time.Second))
+	log.Info("Monitoring worker started",
+		zap.Duration("statusInterval", 30*time.Second),
+		zap.Duration("metricsInterval", 5*time.Minute))
 
 	router := api.Setup(cfg, db, sessionStore, log)
 
