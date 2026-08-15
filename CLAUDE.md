@@ -106,11 +106,13 @@ The backend uses a **layered architecture** with clear separation of concerns:
 - Handlers call services, never access database directly
 
 **`internal/services/`** - Business logic layer
-- One service per domain entity (UserService, SiteService, OLTService, AuditService)
+- One service per domain entity (UserService, SiteService, OLTService, AuditService, OLTValidatorService)
 - Services contain all business rules and validations
 - Services directly use GORM to query the database
 - Password encryption happens in UserService
 - OLT credential encryption happens in OLTService
+- OLT creation includes real-time validation (Ping, SSH/Telnet, SNMP connectivity tests)
+- OLTValidatorService performs network connectivity validation with strict timeouts (Ping: 2s, SSH/Telnet: 2s, SNMP: 1s)
 
 **`internal/models/`** - GORM models
 - Database schema definitions
@@ -133,6 +135,11 @@ The backend uses a **layered architecture** with clear separation of concerns:
 **`internal/logger/`** - Structured logging with zap
 
 **`internal/utils/`** - Encryption helpers (AES-256-GCM for OLT credentials)
+
+**`internal/connectivity/`** - Network connectivity testing
+- Ping, SSH, Telnet, SNMP connectivity tests
+- Used by OLTValidatorService for OLT validation
+- All operations have strict timeouts to prevent blocking
 
 ### Frontend Structure (React + TypeScript)
 
