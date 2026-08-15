@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -403,4 +404,56 @@ func (h *OLTHandler) DiscoverONTs(c *gin.Context) {
 		"onts":          results,
 	})
 }
+
+// DiscoverAndRegisterONTs handles POST /api/v1/olts/:id/discover-and-register
+func (h *OLTHandler) DiscoverAndRegisterONTs(c *gin.Context) {
+	oltID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid OLT ID format",
+		})
+		return
+	}
+
+	// Perform discovery
+	discovered, err := h.service.DiscoverONTs(oltID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Code:  "DISCOVERY_FAILED",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Get ONT service
+	ontService := services.NewONTService(h.service.GetDB())
+
+	// Bulk register
+	result := ontService.BulkRegisterFromDiscovery(oltID, discovered)
+
+	// Audit log
+	if h.auditService != nil && result.Registered > 0 {
+		actorID, _ := middleware.GetUserID(c)
+		h.auditService.Log(
+			actorID,
+			"bulk_create",
+			"ont",
+			oltID,
+			map[string]interface{}{"registered": result.Registered},
+			nil,
+			fmt.Sprintf("Registered %d ONTs from discovery", result.Registered),
+			"",
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"olt_id":     oltID,
+		"discovered": len(discovered),
+		"registered": result.Registered,
+		"skipped":    result.Skipped,
+		"errors":     result.Errors,
+	})
+}
+
 

@@ -25,6 +25,11 @@ func NewOLTService(db *gorm.DB, encryptionKey string) *OLTService {
 	}
 }
 
+// GetDB returns the database instance
+func (s *OLTService) GetDB() *gorm.DB {
+	return s.db
+}
+
 func (s *OLTService) encryptPassword(plaintext string) (string, error) {
 	return utils.Encrypt(plaintext, s.encryptionKey)
 }
