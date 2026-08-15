@@ -1,6 +1,7 @@
 package connectivity
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -18,4 +19,20 @@ func TestPingTest_Timeout(t *testing.T) {
 	err := PingTest("192.0.2.1", 100*time.Millisecond)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
+}
+
+func TestSSHTest_InvalidHost(t *testing.T) {
+	err := SSHTest("192.0.2.1", 22, "testuser", "testpass", 1*time.Second)
+	assert.Error(t, err)
+	// Accept either timeout or no route to host (both indicate unreachable)
+	errMsg := err.Error()
+	hasTimeout := strings.Contains(errMsg, "timeout")
+	hasNoRoute := strings.Contains(errMsg, "no route to host")
+	assert.True(t, hasTimeout || hasNoRoute, "expected timeout or no route to host error, got: %s", errMsg)
+}
+
+func TestSSHTest_InvalidPort(t *testing.T) {
+	err := SSHTest("127.0.0.1", 9999, "testuser", "testpass", 1*time.Second)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
 }
