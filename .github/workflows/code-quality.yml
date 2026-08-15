@@ -1,0 +1,26 @@
+# This workflow has been merged into ci.yml
+# Security scanning is now part of the main CI/CD pipeline
+# See .github/workflows/ci.yml - security-scan job
+
+name: Code Quality (Deprecated)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  security-events: write
+  contents: read
+
+jobs:
+  redirect:
+    name: Redirecting to CI Pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify
+        run: |
+          echo "This workflow has been deprecated."
+          echo "Security scanning is now part of ci.yml"
+          echo "See: https://github.com/${{ github.repository }}/actions/workflows/ci.yml"
