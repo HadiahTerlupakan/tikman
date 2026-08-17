@@ -151,8 +151,8 @@ type OLTResponse struct {
 	Status            models.OLTStatus   `json:"status"`
 	LastSeen          *time.Time         `json:"last_seen"`
 	ONTCount          int                `json:"ont_count"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
 }
 
 func ToOLTResponse(olt *models.OLT) OLTResponse {
@@ -178,17 +178,17 @@ func ToOLTResponse(olt *models.OLT) OLTResponse {
 
 // ONT DTOs
 type CreateONTRequest struct {
-	OLTID        uuid.UUID         `json:"olt_id" binding:"required"`
-	PortID       int               `json:"port_id" binding:"required,min=0,max=15"`
-	ONTID        int               `json:"ont_id" binding:"required,min=0,max=127"`
-	SerialNumber string            `json:"serial_number" binding:"required,min=1,max=20"`
-	Description  string            `json:"description" binding:"omitempty,max=255"`
-	Status       models.ONTStatus  `json:"status" binding:"omitempty,oneof=online offline los unknown"`
+	OLTID        uuid.UUID        `json:"olt_id" binding:"required"`
+	PortID       int              `json:"port_id" binding:"required,min=0,max=15"`
+	ONTID        int              `json:"ont_id" binding:"required,min=0,max=127"`
+	SerialNumber string           `json:"serial_number" binding:"required,min=1,max=20"`
+	Description  string           `json:"description" binding:"omitempty,max=255"`
+	Status       models.ONTStatus `json:"status" binding:"omitempty,oneof=online offline los dying_gasp unknown"`
 }
 
 type UpdateONTRequest struct {
 	Description *string           `json:"description" binding:"omitempty,max=255"`
-	Status      *models.ONTStatus `json:"status" binding:"omitempty,oneof=online offline los unknown"`
+	Status      *models.ONTStatus `json:"status" binding:"omitempty,oneof=online offline los dying_gasp unknown"`
 }
 
 type ONTResponse struct {
@@ -203,6 +203,9 @@ type ONTResponse struct {
 	LastSeenAt   *time.Time        `json:"last_seen_at"`
 	CreatedAt    time.Time         `json:"created_at"`
 	UpdatedAt    time.Time         `json:"updated_at"`
+	Distance     *int              `json:"distance,omitempty"`
+	RxPower      *float64          `json:"rx_power,omitempty"`
+	TxPower      *float64          `json:"tx_power,omitempty"`
 }
 
 func ToONTResponse(ont *models.ONT) ONTResponse {
@@ -221,11 +224,23 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 	}
 }
 
+func ToONTResponseWithMetrics(ont *models.ONT, metrics *services.ONTMetricsRow) ONTResponse {
+	resp := ToONTResponse(ont)
+	if metrics != nil {
+		resp.Distance = &metrics.Distance
+		resp.RxPower = metrics.RxPower
+		resp.TxPower = metrics.TxPower
+	}
+	return resp
+}
+
 // ONT Metrics DTOs
+// RxPower/TxPower are nullable: null means the ONT reported no optical signal,
+// which is different from a real 0.00 dBm reading.
 type ONTMetricsResponse struct {
 	Time        time.Time `json:"time"`
-	RxPower     float64   `json:"rx_power"`
-	TxPower     float64   `json:"tx_power"`
+	RxPower     *float64  `json:"rx_power"`
+	TxPower     *float64  `json:"tx_power"`
 	Temperature float64   `json:"temperature"`
 	Voltage     float64   `json:"voltage"`
 	Distance    int       `json:"distance"`

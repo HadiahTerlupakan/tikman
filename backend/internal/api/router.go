@@ -81,7 +81,7 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
 	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService)
-	ontHandler := NewONTHandler(ontService, auditService)
+	ontHandler := NewONTHandler(ontService, metricsService, auditService)
 	metricsHandler := NewMetricsHandler(metricsService)
 
 	api := router.Group("/api/v1")
@@ -124,6 +124,7 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 			olts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Delete)
 			olts.POST("/:id/discover", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverONTs)
 			olts.POST("/:id/discover-and-register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverAndRegisterONTs)
+			olts.POST("/:id/topology", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverOLTTopology)
 		}
 
 		onts := api.Group("/onts")

@@ -2,6 +2,7 @@ export enum OntStatus {
   ONLINE = "online",
   OFFLINE = "offline",
   LOS = "los",
+  DYING_GASP = "dying_gasp",
   UNKNOWN = "unknown",
 }
 
@@ -17,6 +18,9 @@ export interface Ont {
   lastSeenAt: string | null;
   createdAt: string;
   updatedAt: string;
+  distance?: number;
+  rxPower?: number | null;
+  txPower?: number | null;
 }
 
 export interface CreateOntDto {
@@ -35,8 +39,10 @@ export interface UpdateOntDto {
 
 export interface OntMetrics {
   time: string;
-  rxPower: number;
-  txPower: number;
+  /** null when the ONT reported no optical signal (distinct from a real 0 dBm) */
+  rxPower: number | null;
+  /** null when the ONT reported no optical signal (distinct from a real 0 dBm) */
+  txPower: number | null;
   temperature: number;
   voltage: number;
   distance: number;
