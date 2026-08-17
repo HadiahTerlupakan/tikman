@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   Table,
@@ -10,7 +10,7 @@ import {
   Modal,
   Form,
   InputNumber,
-  message,
+  App,
 } from "antd";
 import {
   PlusOutlined,
@@ -23,14 +23,44 @@ import {
 import { useOnts, useCreateOnt, useUpdateOnt, useDeleteOnt } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import { OntDetailModal } from "@/presentation/components/OntDetailModal";
+import axios from "axios";
+import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import type { Ont, CreateOntDto, UpdateOntDto, OntStatus } from "@/domain/entities";
 
 const { Option } = Select;
 
+// GPONSlot interface matches backend topology response (after camelizeKeys)
+interface GponPortEntity {
+  portId: number;
+  onts: Array<{
+    portId: number;
+    ontId: number;
+    serialNumber: string;
+    runState: number;
+    name?: string;
+    description?: string;
+    rxPower?: number | null;
+    txPower?: number | null;
+    distance?: number;
+  }>;
+}
+
+interface GPONSlot {
+  slot: number;
+  ports: GponPortEntity[];
+}
+
 export default function OntListPage() {
+  const { message } = App.useApp();
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<OntStatus | undefined>();
-  const [oltFilter, setOltFilter] = useState<string | undefined>();
+
+  // Hierarchy state for OLT topology discovery
+  const [selectedOltId, setSelectedOltId] = useState<string | undefined>();
+  const [selectedSlotId, setSelectedSlotId] = useState<number | undefined>();
+  const [selectedPortId, setSelectedPortId] = useState<number | undefined>();
+  const [topologyData, setTopologyData] = useState<GPONSlot[]>([]);
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -38,14 +68,179 @@ export default function OntListPage() {
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
 
+  // Fetch database ONTs - only when NOT in topology discovery mode
   const { data: ontsData, isLoading, refetch } = useOnts({
-    oltId: oltFilter,
+    oltId: undefined,
     status: statusFilter,
   });
   const { data: oltsData } = useOlts();
   const createMutation = useCreateOnt();
   const updateMutation = useUpdateOnt();
   const deleteMutation = useDeleteOnt();
+
+  // Get ONTs from discovered topology based on slot/port selection
+  const getDiscoveredOnTsForPort = (): GponPortEntity | undefined => {
+    if (!selectedSlotId || !selectedPortId) return undefined;
+
+    const currentSlot = topologyData.find(s => s.slot === selectedSlotId);
+    if (!currentSlot) return undefined;
+
+    return currentSlot.ports.find(p => p.portId === selectedPortId);
+  };
+
+  // Get currently filtered ONTs (either from discovery or database)
+  const currentViewOntData: (any[] | undefined) = (() => {
+    console.log('[currentViewOntData] State:', {
+      selectedPortId,
+      selectedSlotId,
+      topologyDataLength: topologyData.length
+    });
+
+    // If port is selected, show discovered ONTs only
+    if (selectedPortId !== undefined && selectedPortId !== null) {
+      const foundPort = getDiscoveredOnTsForPort();
+
+      console.log('[ONT Debug]', {
+        selectedSlotId,
+        selectedPortId,
+        foundPort: foundPort ? {
+          portId: foundPort.portId,
+          ontsCount: foundPort.onts.length,
+          firstOnt: foundPort.onts[0]
+        } : null
+      });
+
+      if (foundPort) {
+        return foundPort.onts.map((ont) => {
+          const mappedOnt: Ont & { name?: string; description?: string; distance?: number; rxPower?: number; txPower?: number } = {
+            id: `discovered-${ont.portId}-${ont.ontId}`,
+            serialNumber: ont.serialNumber || `Unknown`,
+            oltName: String(oltsData?.find((o: any) => o.id === selectedOltId)?.name || ''),
+            oltId: selectedOltId!,
+            portId: ont.portId,
+            ontId: ont.ontId,
+            status: 'online' as any, // Will be set below
+            description: '',
+            lastSeenAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Set status correctly
+          if (ont.runState === 3) {
+            mappedOnt.status = 'online' as any;
+          } else if (ont.runState === 4) {
+            mappedOnt.status = 'dying_gasp' as any;
+          } else if (ont.runState === 6) {
+            mappedOnt.status = 'offline' as any;
+          } else if (ont.runState === 1) {
+            mappedOnt.status = 'los' as any;
+          } else {
+            mappedOnt.status = 'unknown' as any;
+          }
+
+          // Add optional fields from discovered ONT (after camelizeKeys conversion)
+          if (ont.name) {
+            mappedOnt.name = ont.name;
+          }
+          if (ont.description) {
+            mappedOnt.description = ont.description;
+          }
+          if (ont.distance !== undefined && ont.distance > 0) {
+            (mappedOnt as any).distance = ont.distance;
+          }
+          if (ont.rxPower !== undefined && ont.rxPower !== null) {
+            (mappedOnt as any).rxPower = ont.rxPower;
+          }
+          if (ont.txPower !== undefined && ont.txPower !== null) {
+            (mappedOnt as any).txPower = ont.txPower;
+          }
+
+          return mappedOnt;
+        });
+      }
+      return [];
+    }
+
+    // If OLT is selected but no port selected yet, show empty (waiting for port selection)
+    if (selectedOltId) {
+      return [];
+    }
+
+    // Default view - show database ONTs with filters
+    if (!ontsData?.data) return [];
+    let filtered = [...ontsData.data];
+
+    // Search filter
+    if (searchText) {
+      filtered = filtered.filter((ont: Ont) =>
+        ont.serialNumber.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+
+    // Status filter
+    if (statusFilter) {
+      filtered = filtered.filter((ont: Ont) => ont.status === statusFilter);
+    }
+
+    return filtered;
+  })();
+
+  // Fetch topology when OLT is selected for hierarchy view
+  useEffect(() => {
+    if (!selectedOltId) {
+      setTopologyData([]);
+      setSelectedSlotId(undefined);
+      setSelectedPortId(undefined);
+      return;
+    }
+
+    const fetchTopology = async () => {
+      try {
+        const response = await axios.post(`${API_ENDPOINTS.OLTS}/${selectedOltId}/topology`);
+        console.log('[Topology Response]', response.data);
+
+        // Manual deep conversion for nested arrays
+        const topology = response.data.topology?.map((slot: any) => ({
+          slot: slot.slot,
+          ports: slot.ports?.map((port: any) => ({
+            portId: port.port_id || port.portId,
+            onts: port.onts?.map((ont: any) => ({
+              portId: ont.port_id ?? ont.portId,
+              ontId: ont.ont_id ?? ont.ontId,
+              serialNumber: ont.serial_number ?? ont.serialNumber,
+              runState: ont.run_state ?? ont.runState,
+              name: ont.name,
+              description: ont.description,
+              rxPower: ont.rx_power !== undefined ? ont.rx_power : ont.rxPower,
+              txPower: ont.tx_power !== undefined ? ont.tx_power : ont.txPower,
+              distance: ont.distance,
+              status: ont.status,
+              lastSeenAt: ont.last_seen_at ?? ont.lastSeenAt,
+            })) || []
+          })) || []
+        })) || [];
+
+        setTopologyData(topology);
+        message.success(`Discovered ${topology.length} slot(s)`);
+      } catch (error) {
+        console.error("Failed to fetch topology:", error);
+        message.error("Failed to discover ONT topology");
+      }
+    };
+
+    fetchTopology();
+  }, [selectedOltId]);
+
+  // Get active slots and ports from topology
+  const activeSlots = topologyData.filter(slot =>
+    slot.ports.some(port => port.onts.length > 0)
+  );
+
+  // Get all ports from selected slot
+  const getPortsForSlot = (slot: GPONSlot): GponPortEntity[] => {
+    return slot.ports.filter(port => port.onts.length > 0);
+  };
 
   const getStatusColor = (status: OntStatus) => {
     switch (status) {
@@ -55,8 +250,10 @@ export default function OntListPage() {
         return "default";
       case "los":
         return "warning";
-      case "unknown":
+      case "dying_gasp":
         return "error";
+      case "unknown":
+        return "default";
       default:
         return "default";
     }
@@ -90,47 +287,89 @@ export default function OntListPage() {
       ),
     },
     {
+      title: "Name",
+      dataIndex: "name",
+      key: "name",
+      ellipsis: true,
+    },
+    {
       title: "Description",
       dataIndex: "description",
       key: "description",
       ellipsis: true,
     },
     {
-      title: "Last Seen",
-      dataIndex: "lastSeenAt",
-      key: "lastSeenAt",
-      render: (date: string | null) =>
-        date ? new Date(date).toLocaleString() : "-",
+      title: "Distance (m)",
+      key: "distance",
+      render: (_: unknown, record: Ont) => {
+        const recordAny = record as any;
+        const distance = recordAny.distance;
+        return distance > 0 ? distance.toLocaleString() : "-";
+      },
+    },
+    {
+      title: "RX Power (dBm)",
+      key: "rxPower",
+      render: (_: unknown, record: Ont) => {
+        const recordAny = record as any;
+        const rxPower = recordAny.rxPower ?? recordAny.metrics?.rxPower;
+        return rxPower !== null && rxPower !== undefined ? parseFloat(rxPower).toFixed(2) : "-";
+      },
+    },
+    {
+      title: "TX Power (dBm)",
+      key: "txPower",
+      render: (_: unknown, record: Ont) => {
+        const recordAny = record as any;
+        const txPower = recordAny.txPower ?? recordAny.metrics?.txPower;
+        return txPower !== null && txPower !== undefined ? parseFloat(txPower).toFixed(2) : "-";
+      },
     },
     {
       title: "Actions",
       key: "actions",
-      render: (_: unknown, record: Ont) => (
-        <Space>
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            onClick={() => handleViewDetail(record)}
-          >
-            View
-          </Button>
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            Edit
-          </Button>
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record)}
-          >
-            Delete
-          </Button>
-        </Space>
-      ),
+      render: (_: unknown, record: Ont) => {
+        // Check if this is a discovered ONT (has fake ID format) - only allow View
+        if (record.id && record.id.startsWith('discovered-')) {
+          return (
+            <Button
+              type="link"
+              icon={<EyeOutlined />}
+              disabled
+              title="Real-time view only"
+            >
+              View
+            </Button>
+          );
+        }
+        // Regular database ONT - allow all actions
+        return (
+          <Space>
+            <Button
+              type="link"
+              icon={<EyeOutlined />}
+              onClick={() => handleViewDetail(record)}
+            >
+              View
+            </Button>
+            <Button
+              type="link"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
+              Edit
+            </Button>
+            <Button
+              type="link"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
+            >
+              Delete
+            </Button>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -191,6 +430,120 @@ export default function OntListPage() {
 
   return (
     <div style={{ padding: "24px" }}>
+      <Card style={{ marginBottom: 16 }}>
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          {/* Clean 3-dropdown hierarchy in one row */}
+          <Space wrap>
+            <Select
+              placeholder="Select OLT"
+              style={{ width: 240 }}
+              value={selectedOltId}
+              onChange={(value) => {
+                setSelectedOltId(value);
+                setSelectedSlotId(undefined);
+                setSelectedPortId(undefined);
+              }}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+            >
+              {oltsData?.map((olt) => (
+                <Option key={olt.id} value={olt.id} label={`${olt.name}`}>
+                  {olt.name} ({olt.ipAddress})
+                </Option>
+              ))}
+            </Select>
+
+            <Select
+              placeholder="Select Card/Slot"
+              style={{ width: 200 }}
+              value={selectedSlotId}
+              onChange={(value) => {
+                setSelectedSlotId(value);
+                setSelectedPortId(undefined);
+              }}
+              allowClear
+              disabled={!selectedOltId || activeSlots.length === 0}
+            >
+              {activeSlots.map((slot: GPONSlot) => {
+                const totalOnus = slot.ports.reduce((acc: number, p: GponPortEntity) => acc + p.onts.length, 0);
+                return (
+                  <Option key={slot.slot} value={slot.slot}>
+                    Card {slot.slot} ({totalOnus} ONTs)
+                  </Option>
+                );
+              })}
+            </Select>
+
+            <Select
+              placeholder="Select PON Port"
+              style={{ width: 200 }}
+              value={selectedPortId}
+              onChange={(value) => {
+                console.log('[Port Selected]', value);
+                setSelectedPortId(value);
+              }}
+              allowClear
+              disabled={!selectedSlotId}
+            >
+              {(() => {
+                if (!selectedSlotId) return [];
+                const currentSlot = topologyData.find(s => s.slot === selectedSlotId);
+                if (!currentSlot) return [];
+                return getPortsForSlot(currentSlot).map((port: GponPortEntity) => {
+                  const onlineCount = port.onts.filter((ont: any) => ont.runState === 3).length;
+                  return (
+                    <Option key={port.portId} value={port.portId}>
+                      Port {port.portId} ({port.onts.length} ONTs, {onlineCount} online)
+                    </Option>
+                  );
+                });
+              })()}
+            </Select>
+
+            {(selectedOltId || selectedSlotId || selectedPortId) && (
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  setSelectedOltId(undefined);
+                  setSelectedSlotId(undefined);
+                  setSelectedPortId(undefined);
+                  setSearchText('');
+                  setStatusFilter(undefined);
+                }}
+              >
+                Reset
+              </Button>
+            )}
+          </Space>
+
+          {/* Search & Status filters */}
+          <Space wrap>
+            <Input
+              placeholder="Search serial number"
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: 200 }}
+              allowClear
+            />
+            <Select
+              placeholder="Filter status"
+              style={{ width: 150 }}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              allowClear
+            >
+              <Option value="online">Online</Option>
+              <Option value="offline">Offline</Option>
+              <Option value="los">LOS</Option>
+              <Option value="dying_gasp">Dying Gasp</Option>
+              <Option value="unknown">Unknown</Option>
+            </Select>
+          </Space>
+        </Space>
+      </Card>
+
       <Card
         title="ONT Monitoring"
         extra={
@@ -208,50 +561,14 @@ export default function OntListPage() {
           </Space>
         }
       >
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Input
-            placeholder="Search by serial number"
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-            allowClear
-          />
-          <Select
-            placeholder="Filter by OLT"
-            style={{ width: 200 }}
-            value={oltFilter}
-            onChange={setOltFilter}
-            allowClear
-          >
-            {oltsData?.map((olt) => (
-              <Option key={olt.id} value={olt.id}>
-                {olt.name}
-              </Option>
-            ))}
-          </Select>
-          <Select
-            placeholder="Filter by status"
-            style={{ width: 150 }}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            allowClear
-          >
-            <Option value="online">Online</Option>
-            <Option value="offline">Offline</Option>
-            <Option value="los">LOS</Option>
-            <Option value="unknown">Unknown</Option>
-          </Select>
-        </Space>
-
         <Table
           columns={columns}
-          dataSource={ontsData?.data || []}
+          dataSource={currentViewOntData}
           rowKey="id"
-          loading={isLoading}
+          loading={isLoading || !ontsData && currentViewOntData.length === 0}
           pagination={{
-            total: ontsData?.total || 0,
-            pageSize: ontsData?.limit || 20,
+            total: currentViewOntData.length,
+            pageSize: 20,
             showTotal: (total) => `Total ${total} ONTs`,
           }}
         />
@@ -276,7 +593,7 @@ export default function OntListPage() {
           >
             <Select placeholder="Select OLT">
               {oltsData?.map((olt) => (
-                <Option key={olt.id} value={olt.id}>
+                <Option key={olt.id} value={olt.id} label={olt.name}>
                   {olt.name}
                 </Option>
               ))}
@@ -339,6 +656,7 @@ export default function OntListPage() {
               <Option value="online">Online</Option>
               <Option value="offline">Offline</Option>
               <Option value="los">LOS</Option>
+              <Option value="dying_gasp">Dying Gasp</Option>
               <Option value="unknown">Unknown</Option>
             </Select>
           </Form.Item>
