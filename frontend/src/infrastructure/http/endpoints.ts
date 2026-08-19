@@ -22,4 +22,6 @@ export const API_ENDPOINTS = {
   ONT_BY_ID: (id: string) => `/api/v1/onts/${id}`,
   ONT_LATEST_METRICS: (id: string) => `/api/v1/onts/${id}/metrics`,
   ONT_METRICS_HISTORY: (id: string) => `/api/v1/onts/${id}/metrics/history`,
+  ONT_EVENTS: (id: string) => `/api/v1/onts/${id}/events`,
+  ONT_AVAILABILITY: (id: string) => `/api/v1/onts/${id}/availability`,
 } as const;

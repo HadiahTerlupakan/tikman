@@ -20,6 +20,11 @@ func NewONTService(db *gorm.DB) *ONTService {
 	return &ONTService{db: db}
 }
 
+// GetDB returns the database instance
+func (s *ONTService) GetDB() *gorm.DB {
+	return s.db
+}
+
 // List returns paginated list of ONTs with filters
 func (s *ONTService) List(oltID *uuid.UUID, status *models.ONTStatus, limit, offset int) ([]models.ONT, int64, error) {
 	var onts []models.ONT
@@ -153,17 +158,53 @@ func (s *ONTService) Delete(id uuid.UUID) error {
 	return nil
 }
 
-// UpdateStatus updates ONT status and last_seen_at
+// UpdateStatus updates ONT status. last_seen_at is only refreshed when the ONT
+// is actually reachable (online), so it keeps meaning "last time seen up".
 func (s *ONTService) UpdateStatus(id uuid.UUID, status models.ONTStatus) error {
 	now := time.Now()
 	updates := map[string]interface{}{
-		"status":       status,
-		"last_seen_at": now,
-		"updated_at":   now,
+		"status":     status,
+		"updated_at": now,
+	}
+	if status == models.ONTStatusOnline {
+		updates["last_seen_at"] = now
+		updates["last_online"] = now
+	} else {
+		updates["last_offline"] = now
+		updates["last_offline_reason"] = string(status)
 	}
 
 	if err := s.db.Model(&models.ONT{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return fmt.Errorf("failed to update ONT status: %w", err)
+	}
+
+	return nil
+}
+
+func (s *ONTService) UpdateUptimeMetrics(id uuid.UUID) error {
+	ont, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	updates := make(map[string]interface{})
+
+	if ont.Status == models.ONTStatusOnline && ont.LastOnline != nil {
+		uptime := int64(now.Sub(*ont.LastOnline).Seconds())
+		updates["uptime"] = uptime
+	}
+
+	if ont.Status != models.ONTStatusOnline && ont.LastOffline != nil {
+		downtime := int64(now.Sub(*ont.LastOffline).Seconds())
+		updates["last_down_time_duration"] = downtime
+	}
+
+	if len(updates) > 0 {
+		updates["updated_at"] = now
+		if err := s.db.Model(&models.ONT{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			return fmt.Errorf("failed to update uptime metrics: %w", err)
+		}
 	}
 
 	return nil
@@ -195,24 +236,66 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 	}
 
 	for _, ont := range discovered {
-		// Check if already exists
 		existing, _ := s.GetByOLTAndPosition(oltID, ont.PortID, ont.ONTID)
 		if existing != nil {
-			result.Skipped++
+			updates := map[string]interface{}{}
+			needsUpdate := false
+
+			if ont.Name != "" && existing.Name != ont.Name {
+				updates["name"] = ont.Name
+				needsUpdate = true
+			}
+			if ont.Description != "" && existing.Description != ont.Description {
+				updates["description"] = ont.Description
+				needsUpdate = true
+			}
+			if ont.DeviceType != "" && existing.DeviceType == "" {
+				updates["device_type"] = ont.DeviceType
+				needsUpdate = true
+			}
+			if ont.HardwareVersion != "" && existing.HardwareVersion == "" {
+				updates["hardware_version"] = ont.HardwareVersion
+				needsUpdate = true
+			}
+			if ont.SoftwareVersion != "" && existing.SoftwareVersion == "" {
+				updates["software_version"] = ont.SoftwareVersion
+				needsUpdate = true
+			}
+			if ont.IPAddress != "" && existing.IPAddress == "" {
+				updates["ip_address"] = ont.IPAddress
+				needsUpdate = true
+			}
+			if ont.MACAddress != "" && existing.MACAddress == "" {
+				updates["mac_address"] = ont.MACAddress
+				needsUpdate = true
+			}
+
+			if needsUpdate {
+				updates["updated_at"] = time.Now()
+				if err := s.db.Model(existing).Updates(updates).Error; err == nil {
+					result.Registered++
+				}
+			} else {
+				result.Skipped++
+			}
 			continue
 		}
 
-		// Create new ONT model
 		newONT := &models.ONT{
-			OLTID:        oltID,
-			PortID:       ont.PortID,
-			ONTID:        ont.ONTID,
-			SerialNumber: ont.SerialNumber,
-			Description:  "",
-			Status:       models.ONTStatusUnknown,
+			OLTID:           oltID,
+			PortID:          ont.PortID,
+			ONTID:           ont.ONTID,
+			SerialNumber:    ont.SerialNumber,
+			Name:            ont.Name,
+			Description:     ont.Description,
+			DeviceType:      ont.DeviceType,
+			HardwareVersion: ont.HardwareVersion,
+			SoftwareVersion: ont.SoftwareVersion,
+			IPAddress:       ont.IPAddress,
+			MACAddress:      ont.MACAddress,
+			Status:          models.ONTStatusUnknown,
 		}
 
-		// Register new ONT
 		err := s.Create(newONT)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("Port %d ONT %d: %v", ont.PortID, ont.ONTID, err))

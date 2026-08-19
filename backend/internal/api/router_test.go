@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
@@ -34,7 +35,7 @@ func TestHealthEndpoint(t *testing.T) {
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 
-	router := Setup(cfg, db, sessionStore, logger)
+	router := Setup(gin.New(), cfg, db, sessionStore, logger)
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -65,7 +66,7 @@ func TestRouterSetup(t *testing.T) {
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 
-	router := Setup(cfg, db, sessionStore, logger)
+	router := Setup(gin.New(), cfg, db, sessionStore, logger)
 
 	assert.NotNil(t, router)
 }

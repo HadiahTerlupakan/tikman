@@ -31,7 +31,7 @@ func SSHTest(ipAddress string, port int, username, password string, timeout time
 		}
 		return fmt.Errorf("connection failed: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	return nil
 }

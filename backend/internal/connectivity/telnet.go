@@ -29,10 +29,10 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 		}
 		return fmt.Errorf("connection failed: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set overall deadline
-	conn.SetDeadline(time.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	reader := bufio.NewReader(conn)
 
@@ -42,7 +42,7 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 		deadline := time.Now().Add(maxWait)
 
 		for time.Now().Before(deadline) {
-			conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+			_ = conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
 
 			b, err := reader.ReadByte()
 			if err != nil {

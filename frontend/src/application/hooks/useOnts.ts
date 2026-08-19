@@ -13,7 +13,11 @@ export function useOnts(params?: {
   return useQuery({
     queryKey: ["onts", params],
     queryFn: () => ontRepository.getAll(params),
-    refetchInterval: 30000, // Auto-refresh every 30 seconds for real-time status
+    refetchInterval: 15000, // Refresh every 15 seconds for real-time status
+    refetchIntervalInBackground: true, // Always refetch even when tab is not focused
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 5000, // Consider data stale after 5 seconds
+    retry: 3,
   });
 }
 

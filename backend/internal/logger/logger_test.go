@@ -20,7 +20,7 @@ func TestNew_ValidLogLevels(t *testing.T) {
 			log, err := New(level)
 			require.NoError(t, err)
 			require.NotNil(t, log)
-			defer log.Sync()
+			defer func() { _ = log.Sync() }()
 		})
 	}
 }
@@ -52,7 +52,7 @@ func TestNew_TimestampFormatUTC(t *testing.T) {
 	// Build logger
 	log, err := config.Build()
 	require.NoError(t, err)
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 
 	// Capture log output
 	var buf strings.Builder

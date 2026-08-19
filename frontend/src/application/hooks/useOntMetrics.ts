@@ -3,13 +3,16 @@ import { OntRepository } from "@/infrastructure/repositories";
 
 const ontRepository = new OntRepository();
 
-export function useOntMetrics(id: string, enabled = true) {
+export function useOntMetrics(id: string, enabled = true, pollingInterval?: number) {
+  const interval = pollingInterval || 300000;
+  
   return useQuery({
-    queryKey: ["onts", id, "metrics"],
+    queryKey: ["onts", id, "metrics", interval],
     queryFn: () => ontRepository.getLatestMetrics(id),
     enabled: enabled && !!id,
-    refetchInterval: 300000, // 5 minutes
-    retry: false, // Don't retry if no metrics available yet
+    refetchInterval: interval,
+    refetchIntervalInBackground: true,
+    retry: false,
   });
 }
 

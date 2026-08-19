@@ -28,7 +28,7 @@ func setupTestRedis(t *testing.T) *redis.Client {
 
 func TestSessionStore_CreateAndGet(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := NewStore(client, 24*time.Hour)
 	userID := uuid.New()
@@ -45,7 +45,7 @@ func TestSessionStore_CreateAndGet(t *testing.T) {
 
 func TestSessionStore_GetInvalidToken(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := NewStore(client, 24*time.Hour)
 
@@ -56,7 +56,7 @@ func TestSessionStore_GetInvalidToken(t *testing.T) {
 
 func TestSessionStore_Delete(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := NewStore(client, 24*time.Hour)
 	userID := uuid.New()
@@ -74,7 +74,7 @@ func TestSessionStore_Delete(t *testing.T) {
 
 func TestSessionStore_Refresh(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := NewStore(client, 1*time.Second)
 	userID := uuid.New()

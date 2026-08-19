@@ -77,7 +77,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	token, err := c.Cookie("session_token")
 	if err == nil {
-		h.sessionStore.Delete(token)
+		_ = h.sessionStore.Delete(token)
 	}
 
 	c.SetSameSite(http.SameSiteStrictMode)

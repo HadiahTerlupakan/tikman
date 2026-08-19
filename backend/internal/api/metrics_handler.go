@@ -92,3 +92,24 @@ func (h *MetricsHandler) GetHistory(c *gin.Context) {
 		"count": len(responses),
 	})
 }
+
+// GetPollingStats handles GET /api/v1/polling/stats - returns current polling statistics
+func (h *MetricsHandler) GetPollingStats(c *gin.Context) {
+	stats := h.metricsService.GetPollingStats()
+	c.JSON(http.StatusOK, stats)
+}
+
+// GetOltsStats handles GET /api/v1/olts/:id/stats - returns polling stats for a specific OLT
+func (h *MetricsHandler) GetOltsStats(c *gin.Context) {
+	oltID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid OLT ID format",
+		})
+		return
+	}
+
+	stats := h.metricsService.GetOLTPollingStats(oltID)
+	c.JSON(http.StatusOK, stats)
+}

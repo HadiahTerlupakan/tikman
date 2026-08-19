@@ -45,7 +45,7 @@ func (h *SiteHandler) Create(c *gin.Context) {
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
 	if h.auditService != nil {
-		h.auditService.Log(
+		_ = h.auditService.Log(
 			actorID,
 			"create",
 			"site",
@@ -182,7 +182,7 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		"description": site.Description,
 	}
 	if h.auditService != nil {
-		h.auditService.Log(
+		_ = h.auditService.Log(
 			actorID,
 			"update",
 			"site",
@@ -218,7 +218,7 @@ func (h *SiteHandler) Delete(c *gin.Context) {
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
 	if h.auditService != nil {
-		h.auditService.Log(
+		_ = h.auditService.Log(
 			actorID,
 			"delete",
 			"site",

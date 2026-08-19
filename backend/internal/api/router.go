@@ -1,11 +1,6 @@
 package api
 
 import (
-	"net/http"
-	"strings"
-	"time"
-
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
@@ -14,58 +9,31 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"net/http"
 )
 
-func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *zap.Logger) *gin.Engine {
-	if cfg.LogLevel == "debug" {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
-	}
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger) *gin.Engine {
+	router := ginEngine
 
-	router := gin.New()
-
-	router.Use(gin.Recovery())
-
-	// Security headers
-	router.Use(middleware.SecureHeaders(cfg.Environment))
-
-	// HTTPS redirect for production
-	if cfg.Environment == "production" {
-		router.Use(middleware.HTTPSRedirect())
-	}
-
-	router.Use(middleware.RateLimitMiddleware(100))
-
-	// CORS with environment-based origins
-	origins := strings.Split(cfg.AllowedOrigins, ",")
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     origins,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
-
+	// CORS Configuration - allow requests from frontend
 	router.Use(func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		c.Next()
-		duration := time.Since(start)
+		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, Cookie, X-CSRF-Token, X-Request-ID")
+		c.Header("Access-Control-Allow-Credentials", "true")
 
-		logger.Info("Request",
-			zap.String("method", c.Request.Method),
-			zap.String("path", path),
-			zap.Int("status", c.Writer.Status()),
-			zap.Duration("duration", duration),
-			zap.String("ip", c.ClientIP()),
-		)
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
 	})
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy",
-			"time":   time.Now().UTC(),
+			"time":   c.GetHeader("Date"),
 		})
 	})
 
@@ -75,14 +43,17 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 	oltValidatorService := services.NewOLTValidatorService(db)
 	ontService := services.NewONTService(db)
 	metricsService := services.NewMetricsService(db)
+	eventService := services.NewEventService(db)
 	auditService := services.NewAuditService(db, logger)
 
-	authHandler := NewAuthHandler(userService, sessionStore)
+	authHandler := NewAuthHandler(userService, authStore)
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
 	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService)
 	ontHandler := NewONTHandler(ontService, metricsService, auditService)
 	metricsHandler := NewMetricsHandler(metricsService)
+	eventHandler := NewEventHandler(eventService)
+	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
 
 	api := router.Group("/api/v1")
 	{
@@ -90,55 +61,63 @@ func Setup(cfg *config.Config, db *gorm.DB, sessionStore *auth.Store, logger *za
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/logout", authHandler.Logout)
-			auth.GET("/me", middleware.AuthMiddleware(sessionStore, logger), authHandler.Me)
+			auth.GET("/me", middleware.AuthMiddleware(authStore, logger), authHandler.Me)
 		}
 
 		users := api.Group("/users")
-		users.Use(middleware.AuthMiddleware(sessionStore, logger))
+		users.Use(middleware.AuthMiddleware(authStore, logger))
 		{
 			users.GET("", userHandler.List)
 			users.POST("", middleware.RequireRole(models.UserRoleAdmin), userHandler.Create)
-			users.GET("/:id", userHandler.GetByID)
-			users.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin), userHandler.Update)
+			users.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), userHandler.Update)
 			users.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), userHandler.Delete)
 		}
 
 		sites := api.Group("/sites")
-		sites.Use(middleware.AuthMiddleware(sessionStore, logger))
+		sites.Use(middleware.AuthMiddleware(authStore, logger))
 		{
 			sites.GET("", siteHandler.List)
-			sites.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), siteHandler.Create)
-			sites.GET("/:id", siteHandler.GetByID)
+			sites.POST("", middleware.RequireRole(models.UserRoleAdmin), siteHandler.Create)
 			sites.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), siteHandler.Update)
 			sites.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), siteHandler.Delete)
 		}
 
 		olts := api.Group("/olts")
-		olts.Use(middleware.AuthMiddleware(sessionStore, logger))
+		olts.Use(middleware.AuthMiddleware(authStore, logger))
 		{
 			olts.GET("", oltHandler.List)
-			olts.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Create)
-			olts.POST("/test-connection", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.TestConnection)
 			olts.GET("/:id", oltHandler.GetByID)
+			olts.POST("", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Create)
 			olts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Update)
 			olts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Delete)
-			olts.POST("/:id/discover", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverONTs)
-			olts.POST("/:id/discover-and-register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverAndRegisterONTs)
-			olts.POST("/:id/topology", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverOLTTopology)
+			olts.POST("/:id/test", middleware.RequireRole(models.UserRoleAdmin), oltHandler.TestConnection)
+			olts.GET("/:id/topology/cached", oltHandler.GetCachedTopology)
+			olts.POST("/:id/topology", oltHandler.DiscoverOLTTopology)
+			olts.POST("/:id/discover", oltHandler.DiscoverONTs)
+			olts.POST("/:id/discover-and-register", oltHandler.DiscoverAndRegisterONTs)
+			olts.GET("/:id/stats", metricsHandler.GetOltsStats)
 		}
 
 		onts := api.Group("/onts")
-		onts.Use(middleware.AuthMiddleware(sessionStore, logger))
+		onts.Use(middleware.AuthMiddleware(authStore, logger))
 		{
 			onts.GET("", ontHandler.List)
-			onts.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Create)
 			onts.GET("/:id", ontHandler.GetByID)
+			onts.POST("", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Create)
 			onts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Update)
 			onts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Delete)
 
-			// Metrics routes
 			onts.GET("/:id/metrics", metricsHandler.GetLatest)
 			onts.GET("/:id/metrics/history", metricsHandler.GetHistory)
+			onts.GET("/:id/events", eventHandler.GetEvents)
+			onts.GET("/:id/availability", eventHandler.GetAvailability)
+		}
+
+		admin := api.Group("/admin")
+		admin.Use(middleware.AuthMiddleware(authStore, logger))
+		admin.Use(middleware.RequireRole(models.UserRoleAdmin))
+		{
+			admin.POST("/seed-events", seedHandler.SeedEventHistory)
 		}
 	}
 

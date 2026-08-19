@@ -34,6 +34,7 @@ apiClient.interceptors.response.use(
     // Transform response data from snake_case to camelCase
     if (response.data) {
       try {
+        // humps.camelizeKeys recursively processes nested objects and arrays by default
         response.data = camelizeKeys(response.data);
       } catch (error) {
         console.error('Failed to camelize response:', error);

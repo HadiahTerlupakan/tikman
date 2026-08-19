@@ -2,14 +2,17 @@ version: '3.9'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:latest-pg15
     container_name: tikman-postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_DB: tikman
       POSTGRES_USER: tikman
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TIMESCALEDB_TELEMETRY: 'off'
+    command: postgres -c shared_preload_libraries=timescaledb
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tikman"]
       interval: 10s
@@ -85,6 +88,32 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - tikman-network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: tikman-worker
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=tikman
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=tikman
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - tikman-network
     restart: unless-stopped

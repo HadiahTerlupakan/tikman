@@ -1,7 +1,7 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import type { IOntRepository } from "@/domain/repositories";
-import type { Ont, CreateOntDto, UpdateOntDto, OntMetrics } from "@/domain/entities";
+import type { Ont, CreateOntDto, UpdateOntDto, OntMetrics, ONTEventsResponse, AvailabilityStats } from "@/domain/entities";
 
 export class OntRepository implements IOntRepository {
   async getAll(params?: {
@@ -9,8 +9,14 @@ export class OntRepository implements IOntRepository {
     status?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ data: Ont[]; total: number; limit: number; offset: number }> {
-    const response = await apiClient.get(API_ENDPOINTS.ONTS, { params });
+  }): Promise<{ data: Ont[]; total: number }> {
+    const response = await apiClient.get(API_ENDPOINTS.ONTS, {
+      params: {
+        ...params,
+        limit: params?.limit || 200,  // Get maximum for client-side pagination
+        offset: params?.offset || 0,
+      }
+    });
     return response.data;
   }
 
@@ -47,6 +53,20 @@ export class OntRepository implements IOntRepository {
   ): Promise<{ data: OntMetrics[]; start: string; end: string; count: number }> {
     const response = await apiClient.get(API_ENDPOINTS.ONT_METRICS_HISTORY(id), {
       params: { start, end },
+    });
+    return response.data;
+  }
+
+  async getEvents(id: string, limit = 50, offset = 0): Promise<ONTEventsResponse> {
+    const response = await apiClient.get(API_ENDPOINTS.ONT_EVENTS(id), {
+      params: { limit, offset },
+    });
+    return response.data;
+  }
+
+  async getAvailability(id: string, days = 7): Promise<AvailabilityStats> {
+    const response = await apiClient.get(API_ENDPOINTS.ONT_AVAILABILITY(id), {
+      params: { days },
     });
     return response.data;
   }

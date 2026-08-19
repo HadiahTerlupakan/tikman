@@ -51,12 +51,15 @@ func (h *ONTHandler) List(c *gin.Context) {
 		status = &s
 	}
 
-	// Parse pagination
+	// Parse pagination - Allow up to 500 items per request for frontend display
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	if limit < 1 || limit > 100 {
-		limit = 20
+	// Validate limit (max 500 to prevent performance issues)
+	if limit < 1 {
+		limit = 500  // Default to showing max items at once
+	} else if limit > 500 {
+		limit = 500  // Cap at 500 for safety
 	}
 
 	onts, total, err := h.ontService.List(oltID, status, limit, offset)
@@ -68,33 +71,35 @@ func (h *ONTHandler) List(c *gin.Context) {
 		return
 	}
 
-	// Build map of OLT ID -> OLT name for efficient lookup
 	oltMap := make(map[uuid.UUID]string)
+	var metricsMap map[uuid.UUID]*services.ONTMetricsRow
+	
 	if len(onts) > 0 {
-		// Get unique OLT IDs
 		oltIDs := make([]uuid.UUID, 0)
-		seen := make(map[uuid.UUID]bool)
-		for _, ont := range onts {
-			if !seen[ont.OLTID] {
+		ontIDs := make([]uuid.UUID, len(onts))
+		seenOLT := make(map[uuid.UUID]bool)
+		
+		for i, ont := range onts {
+			ontIDs[i] = ont.ID
+			if !seenOLT[ont.OLTID] {
 				oltIDs = append(oltIDs, ont.OLTID)
-				seen[ont.OLTID] = true
+				seenOLT[ont.OLTID] = true
 			}
 		}
 
-		// Query OLTs
 		var olts []models.OLT
 		if err := h.ontService.GetDB().Select("id, name").Where("id IN ?", oltIDs).Find(&olts).Error; err == nil {
 			for _, olt := range olts {
 				oltMap[olt.ID] = olt.Name
 			}
 		}
+
+		metricsMap, _ = h.metricsService.GetLatestMetricsBatch(ontIDs)
 	}
 
 	responses := make([]ONTResponse, len(onts))
 	for i, ont := range onts {
-		// Fetch latest metrics for each ONT
-		metrics, _ := h.metricsService.GetLatestMetrics(ont.ID)
-
+		metrics := metricsMap[ont.ID]
 		resp := ToONTResponseWithMetrics(&ont, metrics)
 		resp.OLTName = oltMap[ont.OLTID]
 		responses[i] = resp
@@ -128,7 +133,9 @@ func (h *ONTHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, ToONTResponse(ont))
+	metrics, _ := h.metricsService.GetLatestMetrics(ont.ID)
+	
+	c.JSON(http.StatusOK, ToONTResponseWithMetrics(ont, metrics))
 }
 
 // Create handles POST /api/v1/onts
@@ -161,7 +168,7 @@ func (h *ONTHandler) Create(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
+	_ = h.auditService.Log(
 		actorID,
 		"create",
 		"ont",
@@ -222,7 +229,7 @@ func (h *ONTHandler) Update(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
+	_ = h.auditService.Log(
 		actorID,
 		"update",
 		"ont",
@@ -273,7 +280,7 @@ func (h *ONTHandler) Delete(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
+	_ = h.auditService.Log(
 		actorID,
 		"delete",
 		"ont",

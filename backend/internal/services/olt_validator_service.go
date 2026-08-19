@@ -76,8 +76,8 @@ func (s *OLTValidatorService) ValidateCreate(ipAddress, username, password strin
 		result.PassedTests = append(result.PassedTests, "Telnet")
 	}
 
-	// Test 3: SNMP
-	if err := connectivity.SNMPTest(ipAddress, snmpPort, snmpCommunity, 1*time.Second); err != nil {
+	// Test 3: SNMP (longer timeout for UDP)
+	if err := connectivity.SNMPTest(ipAddress, snmpPort, snmpCommunity, 3*time.Second); err != nil {
 		result.Success = false
 		result.FailedTest = "SNMP"
 		result.FailedReason = err.Error()

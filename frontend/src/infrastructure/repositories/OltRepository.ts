@@ -44,6 +44,9 @@ export class OltRepository implements IOltRepository {
     telnetPort?: number;
     snmpPort?: number;
     snmpCommunity?: string;
+    rack?: number;
+    shelf?: number;
+    slot?: number;
   }): Promise<{
     success: boolean;
     passedTests: string[];

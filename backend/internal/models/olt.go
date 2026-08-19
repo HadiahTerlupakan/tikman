@@ -32,6 +32,9 @@ type OLT struct {
 	Username          string      `gorm:"type:varchar(100);not null"`
 	Password          string      `gorm:"type:varchar(255);not null"` // encrypted
 	Status            OLTStatus   `gorm:"type:varchar(20);default:offline"`
+	Rack              int         `gorm:"default:0"`
+	Shelf             int         `gorm:"default:0"`
+	Slot              int         `gorm:"default:0"`
 	LastSeen          *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time

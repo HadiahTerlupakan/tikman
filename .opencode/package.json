@@ -1,0 +1,11 @@
+{
+  "name": "opencode-plugins",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@opencode-ai/plugin": "1.18.18"
+  },
+  "devDependencies": {
+    "unique-names-generator": "4.7.1"
+  }
+}

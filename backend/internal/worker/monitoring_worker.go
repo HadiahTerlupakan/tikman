@@ -7,10 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tikman/olt-provisioning/internal/connectivity"
-	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"gorm.io/gorm"
+)
+
+// Polling intervals for ONT status and metrics collection
+const (
 )
 
 // MonitoringWorker handles periodic ONT status and metrics polling
@@ -19,6 +21,7 @@ type MonitoringWorker struct {
 	oltService      *services.OLTService
 	ontService      *services.ONTService
 	metricsService  *services.MetricsService
+	eventService    *services.EventService
 	statusInterval  time.Duration
 	metricsInterval time.Duration
 	ctx             context.Context
@@ -32,6 +35,7 @@ func NewMonitoringWorker(
 	oltService *services.OLTService,
 	ontService *services.ONTService,
 	metricsService *services.MetricsService,
+	eventService *services.EventService,
 	statusInterval time.Duration,
 	metricsInterval time.Duration,
 ) *MonitoringWorker {
@@ -41,6 +45,7 @@ func NewMonitoringWorker(
 		oltService:      oltService,
 		ontService:      ontService,
 		metricsService:  metricsService,
+		eventService:    eventService,
 		statusInterval:  statusInterval,
 		metricsInterval: metricsInterval,
 		ctx:             ctx,
@@ -107,142 +112,47 @@ func (w *MonitoringWorker) metricsPollLoop() {
 	}
 }
 
-// pollAllONTsStatus polls status for all ONTs
-func (w *MonitoringWorker) pollAllONTsStatus() {
-	start := time.Now()
+// pollONTStatus polls ONT status via SNMP ZXGPON-MIB phase state
+// OID: 1.3.6.1.4.1.3902.1012.3.28.2.1.4.{ifIndex}.{onuIndex}
+// Status mapping per NetManeger verified values (C300 V2.1.0):
+//   3 = working/online - ONU registered and passing traffic
+//   4 = dying_gasp     - ONU just lost power
+//   6 = offline        - ONU powered off or cable disconnected
+//   1 = los            - Loss of Signal
+//   other = unknown    - unrecognized value
+// pollONTStatus is retained for targeted single-ONT checks.
+// Note: Slot parameter is now 0 (discovered dynamically from ifIndex).
+// UNUSED: func (w *MonitoringWorker) pollONTStatus(olt *models.OLT, ont *models.ONT) error {
+// UNUSED: 	phaseState, err := connectivity.PollOntStatus(
+// UNUSED: 		olt.IPAddress,
+// UNUSED: 		olt.SNMPCommunity,
+// UNUSED: 		olt.SNMPPort,
+// UNUSED: 		0, // Slot - no longer used, discovered from device via SNMP walk
+// UNUSED: 		ont.PortID,
+// UNUSED: 		ont.ONTID,
+// UNUSED: 	)
+// UNUSED: 	if err != nil {
+// UNUSED: 		return fmt.Errorf("SNMP poll failed: %w", err)
+// UNUSED: 	}
+// UNUSED: 
+// UNUSED: 	newStatus := models.ONTStatus(utils.StatusMap(phaseState))
+// UNUSED: 
+// UNUSED: 	if ont.Status != newStatus {
+// UNUSED: 		log.Printf("[Worker] ONT %s status changed: %s -> %s (phase state: %d)",
+// UNUSED: 			ont.SerialNumber, ont.Status, newStatus, phaseState)
+// UNUSED: 		if err := w.ontService.UpdateStatus(ont.ID, newStatus); err != nil {
+// UNUSED: 			return fmt.Errorf("failed to update status: %w", err)
+// UNUSED: 		}
+// UNUSED: 	}
+// UNUSED: 
+// UNUSED: 	return nil
+// UNUSED: }
 
-	// Get all OLTs
-	olts, err := w.oltService.List()
-	if err != nil {
-		log.Printf("[Worker] Failed to list OLTs: %v", err)
-		return
+// formatPower renders an optical power reading for logs, showing "no-signal"
+// when the ONT returned the sentinel value instead of a real measurement.
+func formatPower(dbm *float64) string {
+	if dbm == nil {
+		return "no-signal"
 	}
-
-	if len(olts) == 0 {
-		return
-	}
-
-	log.Printf("[Worker] Polling %d OLTs...", len(olts))
-
-	var totalONTs int
-	var successCount int
-
-	for _, olt := range olts {
-		// Get all ONTs for this OLT
-		onts, _, err := w.ontService.List(&olt.ID, nil, 1000, 0)
-		if err != nil {
-			log.Printf("[Worker] Failed to list ONTs for OLT %s: %v", olt.Name, err)
-			continue
-		}
-
-		totalONTs += len(onts)
-
-		for _, ont := range onts {
-			if err := w.pollONTStatus(&olt, &ont); err != nil {
-				log.Printf("[Worker] Failed to poll ONT %s: %v", ont.SerialNumber, err)
-			} else {
-				successCount++
-			}
-		}
-	}
-
-	duration := time.Since(start)
-	log.Printf("[Worker] Poll completed: %d/%d ONTs successful (duration: %v)", successCount, totalONTs, duration)
-}
-
-// pollONTStatus polls a single ONT status via SNMP
-func (w *MonitoringWorker) pollONTStatus(olt *models.OLT, ont *models.ONT) error {
-	// Build SNMP OID for ONT status
-	// ZTE C300 OID format: .1.3.6.1.4.1.3902.1012.3.28.1.1.3.{rack}.{shelf}.{slot}.{port}.{ont_id}
-	// Simplified: assuming rack=1, shelf=1, slot=1
-	// TODO: Use gosnmp library to query this OID
-	// oid := fmt.Sprintf(".1.3.6.1.4.1.3902.1012.3.28.1.1.3.1.1.1.%d.%d", ont.PortID, ont.ONTID)
-
-	// For now, simulate with ping test as basic connectivity check
-	err := connectivity.PingTest(olt.IPAddress, 2*time.Second)
-
-	var newStatus models.ONTStatus
-	if err != nil {
-		// Ping failed - ONT likely offline
-		newStatus = models.ONTStatusOffline
-	} else {
-		// Ping success - ONT online (simplified, real implementation would parse SNMP response)
-		newStatus = models.ONTStatusOnline
-	}
-
-	// Only update if status changed
-	if ont.Status != newStatus {
-		log.Printf("[Worker] ONT %s status changed: %s -> %s", ont.SerialNumber, ont.Status, newStatus)
-		if err := w.ontService.UpdateStatus(ont.ID, newStatus); err != nil {
-			return fmt.Errorf("failed to update status: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// pollAllONTsMetrics collects metrics for all online ONTs
-func (w *MonitoringWorker) pollAllONTsMetrics() {
-	start := time.Now()
-
-	olts, err := w.oltService.List()
-	if err != nil {
-		log.Printf("[Worker] Failed to list OLTs for metrics: %v", err)
-		return
-	}
-
-	if len(olts) == 0 {
-		return
-	}
-
-	log.Printf("[Worker] Collecting metrics from %d OLTs...", len(olts))
-
-	var totalONTs int
-	var successCount int
-
-	for _, olt := range olts {
-		onts, _, err := w.ontService.List(&olt.ID, nil, 1000, 0)
-		if err != nil {
-			log.Printf("[Worker] Failed to list ONTs for metrics on OLT %s: %v", olt.Name, err)
-			continue
-		}
-
-		totalONTs += len(onts)
-
-		for _, ont := range onts {
-			// Only collect metrics from online ONTs
-			if ont.Status != models.ONTStatusOnline {
-				continue
-			}
-
-			if err := w.collectONTMetrics(&olt, &ont); err != nil {
-				log.Printf("[Worker] Failed to collect metrics for ONT %s: %v", ont.SerialNumber, err)
-			} else {
-				successCount++
-			}
-		}
-	}
-
-	duration := time.Since(start)
-	log.Printf("[Worker] Metrics collection completed: %d/%d ONTs successful (duration: %v)",
-		successCount, totalONTs, duration)
-}
-
-// collectONTMetrics collects and stores metrics for a single ONT
-func (w *MonitoringWorker) collectONTMetrics(olt *models.OLT, ont *models.ONT) error {
-	metrics, err := connectivity.QueryONTMetrics(
-		olt.IPAddress,
-		olt.SNMPCommunity,
-		ont.PortID,
-		ont.ONTID,
-	)
-	if err != nil {
-		return fmt.Errorf("SNMP query failed: %w", err)
-	}
-
-	if err := w.metricsService.StoreMetrics(ont.ID, metrics); err != nil {
-		return fmt.Errorf("store metrics failed: %w", err)
-	}
-
-	return nil
+	return fmt.Sprintf("%.2f", *dbm)
 }

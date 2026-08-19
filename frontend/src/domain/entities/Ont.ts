@@ -13,8 +13,14 @@ export interface Ont {
   portId: number;
   ontId: number;
   serialNumber: string;
+  name: string;            // ← Add name field
   description: string;
   status: OntStatus;
+  deviceType?: string;
+  hardwareVersion?: string;
+  softwareVersion?: string;
+  ipAddress?: string;
+  macAddress?: string;
   lastSeenAt: string | null;
   createdAt: string;
   updatedAt: string;

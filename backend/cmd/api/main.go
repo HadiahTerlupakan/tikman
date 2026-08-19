@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/tikman/olt-provisioning/internal/api"
 	"github.com/tikman/olt-provisioning/internal/auth"
@@ -18,7 +19,6 @@ import (
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
-	"github.com/tikman/olt-provisioning/internal/worker"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +32,9 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create logger: %v", err))
 	}
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync()
+	}()
 
 	log.Info("Starting API server", zap.Int("port", cfg.APIPort))
 
@@ -65,26 +67,7 @@ func main() {
 
 	sessionStore := auth.NewStore(redisClient, 24*time.Hour)
 
-	// Initialize services for monitoring worker
-	oltService := services.NewOLTService(db, cfg.EncryptionKey)
-	ontService := services.NewONTService(db)
-	metricsService := services.NewMetricsService(db)
-
-	// Start monitoring worker (30s status, 5min metrics)
-	monitoringWorker := worker.NewMonitoringWorker(
-		db,
-		oltService,
-		ontService,
-		metricsService,
-		30*time.Second,  // Status polling
-		5*time.Minute,   // Metrics polling
-	)
-	monitoringWorker.Start()
-	log.Info("Monitoring worker started",
-		zap.Duration("statusInterval", 30*time.Second),
-		zap.Duration("metricsInterval", 5*time.Minute))
-
-	router := api.Setup(cfg, db, sessionStore, log)
+	router := api.Setup(gin.Default(), cfg, db, sessionStore, log)
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))
@@ -102,6 +85,5 @@ func main() {
 	<-quit
 
 	log.Info("Shutting down server...")
-	monitoringWorker.Stop()
 	log.Info("Server stopped gracefully")
 }

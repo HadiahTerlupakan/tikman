@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-ping/ping"
+	"github.com/go-ping/ping" //nolint:staticcheck // No maintained alternative available
 )
 
 // PingTest performs an ICMP ping test to verify host reachability

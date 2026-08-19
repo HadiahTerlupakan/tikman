@@ -163,7 +163,7 @@ export default function DashboardPage() {
           </DarkCard>
         </Col>
 
-        <Col xs={24} lg={8}>
+        <Col xs={24} lg={12}>
           <DarkCard title="System Health">
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[

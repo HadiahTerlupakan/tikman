@@ -23,6 +23,10 @@ export interface Olt {
   snmpPort: number;
   status: OltStatus;
   lastSeen: string | null;
+  // Physical location for SNMP OID calculation (ZTE C300)
+  rack: number;
+  shelf: number;
+  slot: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +42,10 @@ export interface CreateOltDto {
   sshPort?: number;
   telnetPort?: number;
   snmpPort?: number;
+  // Physical location for SNMP OID calculation (ZTE C300)
+  rack?: number;
+  shelf?: number;
+  slot?: number;
 }
 
 export interface UpdateOltDto {
@@ -51,4 +59,8 @@ export interface UpdateOltDto {
   sshPort?: number;
   telnetPort?: number;
   snmpPort?: number;
+  // Physical location for SNMP OID calculation (ZTE C300)
+  rack?: number;
+  shelf?: number;
+  slot?: number;
 }

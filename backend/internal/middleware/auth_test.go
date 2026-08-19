@@ -47,7 +47,7 @@ func setupTestRouter(middleware gin.HandlerFunc) *gin.Engine {
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := auth.NewStore(client, 24*time.Hour)
 	logger, _ := zap.NewDevelopment()
@@ -71,7 +71,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 
 func TestAuthMiddleware_NoToken(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := auth.NewStore(client, 24*time.Hour)
 	logger, _ := zap.NewDevelopment()
@@ -86,7 +86,7 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	client := setupTestRedis(t)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	store := auth.NewStore(client, 24*time.Hour)
 	logger, _ := zap.NewDevelopment()

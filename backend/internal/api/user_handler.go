@@ -67,7 +67,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
+	_ = h.auditService.Log(
 		actorID,
 		"create",
 		"user",
@@ -193,7 +193,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		"email": user.Email,
 		"role":  user.Role,
 	}
-	h.auditService.Log(
+	_ = h.auditService.Log(
 		actorID,
 		"update",
 		"user",
@@ -236,7 +236,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 
 	// Audit log
 	actorID, _ := middleware.GetUserID(c)
-	h.auditService.Log(
+	_ = h.auditService.Log(
 		actorID,
 		"delete",
 		"user",

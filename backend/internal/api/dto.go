@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
@@ -155,11 +156,41 @@ type OLTResponse struct {
 	UpdatedAt time.Time          `json:"updated_at"`
 }
 
-func ToOLTResponse(olt *models.OLT) OLTResponse {
+func ToOLTResponse(db *gorm.DB, olt *models.OLT) OLTResponse {
+	// Fetch site name via join - skip if site_id is zero value
+	if olt.SiteID == uuid.Nil {
+		return OLTResponse{
+			ID:                olt.ID,
+			SiteID:            olt.SiteID,
+			SiteName:          "",
+			Name:              olt.Name,
+			IPAddress:         olt.IPAddress,
+			SSHPort:           olt.SSHPort,
+			TelnetPort:        olt.TelnetPort,
+			SNMPPort:          olt.SNMPPort,
+			SNMPCommunity:     olt.SNMPCommunity,
+			PreferredProtocol: olt.PreferredProtocol,
+			Username:          olt.Username,
+			Status:            olt.Status,
+			LastSeen:          olt.LastSeen,
+			ONTCount:          0,
+			CreatedAt:         olt.CreatedAt,
+			UpdatedAt:         olt.UpdatedAt,
+		}
+	}
+
+	// Fetch site name
+	var site models.Site
+	err := db.Where("id = ?", olt.SiteID).First(&site).Error
+	siteName := ""
+	if err == nil {
+		siteName = site.Name
+	}
+
 	return OLTResponse{
 		ID:                olt.ID,
 		SiteID:            olt.SiteID,
-		SiteName:          "", // TODO: join with Site table if needed
+		SiteName:          siteName,
 		Name:              olt.Name,
 		IPAddress:         olt.IPAddress,
 		SSHPort:           olt.SSHPort,
@@ -170,7 +201,7 @@ func ToOLTResponse(olt *models.OLT) OLTResponse {
 		Username:          olt.Username,
 		Status:            olt.Status,
 		LastSeen:          olt.LastSeen,
-		ONTCount:          0, // TODO: query count separately if needed
+		ONTCount:          0,
 		CreatedAt:         olt.CreatedAt,
 		UpdatedAt:         olt.UpdatedAt,
 	}
@@ -192,35 +223,74 @@ type UpdateONTRequest struct {
 }
 
 type ONTResponse struct {
-	ID           uuid.UUID         `json:"id"`
-	OLTID        uuid.UUID         `json:"olt_id"`
-	OLTName      string            `json:"olt_name"`
-	PortID       int               `json:"port_id"`
-	ONTID        int               `json:"ont_id"`
-	SerialNumber string            `json:"serial_number"`
-	Description  string            `json:"description"`
-	Status       models.ONTStatus  `json:"status"`
-	LastSeenAt   *time.Time        `json:"last_seen_at"`
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
-	Distance     *int              `json:"distance,omitempty"`
-	RxPower      *float64          `json:"rx_power,omitempty"`
-	TxPower      *float64          `json:"tx_power,omitempty"`
+	ID                   uuid.UUID        `json:"id"`
+	OLTID                uuid.UUID        `json:"olt_id"`
+	OLTName              string           `json:"olt_name"`
+	PortID               int              `json:"port_id"`
+	ONTID                int              `json:"ont_id"`
+	SerialNumber         string           `json:"serial_number"`
+	Name                 string           `json:"name"`
+	Description          string           `json:"description"`
+	DeviceType           string           `json:"device_type,omitempty"`
+	HardwareVersion      string           `json:"hardware_version,omitempty"`
+	SoftwareVersion      string           `json:"software_version,omitempty"`
+	IPAddress            string           `json:"ip_address,omitempty"`
+	MACAddress           string           `json:"mac_address,omitempty"`
+	Status               models.ONTStatus `json:"status"`
+	LastSeenAt           *time.Time       `json:"last_seen_at"`
+	CreatedAt            time.Time        `json:"created_at"`
+	UpdatedAt            time.Time        `json:"updated_at"`
+	Distance             *int             `json:"distance,omitempty"`
+	RxPower              *float64         `json:"rx_power,omitempty"`
+	TxPower              *float64         `json:"tx_power,omitempty"`
+	LastOnline           *time.Time       `json:"last_online,omitempty"`
+	LastOffline          *time.Time       `json:"last_offline,omitempty"`
+	LastOfflineReason    string           `json:"last_offline_reason,omitempty"`
+	Uptime               int64            `json:"uptime,omitempty"`
+	LastDownTimeDuration int64            `json:"last_down_time_duration,omitempty"`
+	Temperature          *float64         `json:"temperature,omitempty"`
+	Voltage              *float64         `json:"voltage,omitempty"`
+	TxBiasCurrent        *float64         `json:"tx_bias_current,omitempty"`
+	RxBytes              *uint64          `json:"rx_bytes,omitempty"`
+	TxBytes              *uint64          `json:"tx_bytes,omitempty"`
+	RxPackets            *uint64          `json:"rx_packets,omitempty"`
+	TxPackets            *uint64          `json:"tx_packets,omitempty"`
+	RxErrors             *uint64          `json:"rx_errors,omitempty"`
+	TxErrors             *uint64          `json:"tx_errors,omitempty"`
 }
 
 func ToONTResponse(ont *models.ONT) ONTResponse {
+	var distance *int
+	if ont.Distance != 0 {
+		distance = &ont.Distance
+	}
+	
 	return ONTResponse{
-		ID:           ont.ID,
-		OLTID:        ont.OLTID,
-		OLTName:      "", // TODO: join with OLT table if needed
-		PortID:       ont.PortID,
-		ONTID:        ont.ONTID,
-		SerialNumber: ont.SerialNumber,
-		Description:  ont.Description,
-		Status:       ont.Status,
-		LastSeenAt:   ont.LastSeenAt,
-		CreatedAt:    ont.CreatedAt,
-		UpdatedAt:    ont.UpdatedAt,
+		ID:                   ont.ID,
+		OLTID:                ont.OLTID,
+		OLTName:              "",
+		PortID:               ont.PortID,
+		ONTID:                ont.ONTID,
+		SerialNumber:         ont.SerialNumber,
+		Name:                 ont.Name,
+		Description:          ont.Description,
+		DeviceType:           ont.DeviceType,
+		HardwareVersion:      ont.HardwareVersion,
+		SoftwareVersion:      ont.SoftwareVersion,
+		IPAddress:            ont.IPAddress,
+		MACAddress:           ont.MACAddress,
+		Status:               ont.Status,
+		LastSeenAt:           ont.LastSeenAt,
+		CreatedAt:            ont.CreatedAt,
+		UpdatedAt:            ont.UpdatedAt,
+		Distance:             distance,
+		RxPower:              ont.RxPower,
+		TxPower:              ont.TxPower,
+		LastOnline:           ont.LastOnline,
+		LastOffline:          ont.LastOffline,
+		LastOfflineReason:    ont.LastOfflineReason,
+		Uptime:               ont.Uptime,
+		LastDownTimeDuration: ont.LastDownTimeDuration,
 	}
 }
 
@@ -230,6 +300,33 @@ func ToONTResponseWithMetrics(ont *models.ONT, metrics *services.ONTMetricsRow) 
 		resp.Distance = &metrics.Distance
 		resp.RxPower = metrics.RxPower
 		resp.TxPower = metrics.TxPower
+		if metrics.Temperature != 0 {
+			resp.Temperature = &metrics.Temperature
+		}
+		if metrics.Voltage != 0 {
+			resp.Voltage = &metrics.Voltage
+		}
+		if metrics.TxBiasCurrent != 0 {
+			resp.TxBiasCurrent = &metrics.TxBiasCurrent
+		}
+		if metrics.RxBytes != 0 {
+			resp.RxBytes = &metrics.RxBytes
+		}
+		if metrics.TxBytes != 0 {
+			resp.TxBytes = &metrics.TxBytes
+		}
+		if metrics.RxPackets != 0 {
+			resp.RxPackets = &metrics.RxPackets
+		}
+		if metrics.TxPackets != 0 {
+			resp.TxPackets = &metrics.TxPackets
+		}
+		if metrics.RxErrors != 0 {
+			resp.RxErrors = &metrics.RxErrors
+		}
+		if metrics.TxErrors != 0 {
+			resp.TxErrors = &metrics.TxErrors
+		}
 	}
 	return resp
 }
@@ -246,6 +343,10 @@ type ONTMetricsResponse struct {
 	Distance    int       `json:"distance"`
 	RxBytes     uint64    `json:"rx_bytes"`
 	TxBytes     uint64    `json:"tx_bytes"`
+	RxPackets   uint64    `json:"rx_packets"`
+	TxPackets   uint64    `json:"tx_packets"`
+	RxErrors    uint64    `json:"rx_errors"`
+	TxErrors    uint64    `json:"tx_errors"`
 }
 
 func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
@@ -258,5 +359,9 @@ func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
 		Distance:    metrics.Distance,
 		RxBytes:     metrics.RxBytes,
 		TxBytes:     metrics.TxBytes,
+		RxPackets:   metrics.RxPackets,
+		TxPackets:   metrics.TxPackets,
+		RxErrors:    metrics.RxErrors,
+		TxErrors:    metrics.TxErrors,
 	}
 }

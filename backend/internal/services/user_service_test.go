@@ -48,8 +48,8 @@ func TestUserService_List(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	service.Create("user1", "user1@example.com", "pass", models.UserRoleAdmin)
-	service.Create("user2", "user2@example.com", "pass", models.UserRoleTechnician)
+	_, _ = service.Create("user1", "user1@example.com", "pass", models.UserRoleAdmin)
+	_, _ = service.Create("user2", "user2@example.com", "pass", models.UserRoleTechnician)
 
 	users, err := service.List()
 	require.NoError(t, err)

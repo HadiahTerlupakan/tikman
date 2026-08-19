@@ -6,6 +6,7 @@ import DashboardPage from "../pages/Dashboard";
 import UsersPage from "../pages/Users";
 import SitesPage from "../pages/Sites";
 import OltsPage from "../pages/Olts";
+import OntsPage from "../pages/OntListPage";
 import NotFoundPage from "../pages/NotFound";
 
 export const router = createBrowserRouter([
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
           {
             path: "olts",
             element: <OltsPage />,
+          },
+          {
+            path: "onts",
+            element: <OntsPage />,
           },
         ],
       },

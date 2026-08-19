@@ -326,6 +326,72 @@ Before committing, verify:
 - [ ] Build succeeds without errors
 - [ ] No race conditions detected
 
+## AI-Generated Code Standards
+
+**IMPORTANT: No AI Slop. Solve the problem that was asked, nothing more.**
+
+These rules exist because AI-generated code tends to pass every check above while still
+being bloated, over-abstracted, and full of noise. Volume is not value.
+
+### Scope Discipline
+- Implement **only** what was requested. No extra features, endpoints, config options,
+  or "while I was in there" changes.
+- A bug fix fixes the bug. Do **not** refactor surrounding code, rename variables, or
+  reformat untouched lines in the same change.
+- No speculative abstraction. Do not add interfaces, wrappers, factories, or generic
+  helpers for a single caller "in case we need it later". Add them when the second
+  caller actually exists.
+- No defensive code for impossible states. Validate real inputs (user input, network,
+  DB); do not nil-check values the compiler already guarantees.
+
+### Comments
+- Comments explain **why**, never **what**. If the code needs a comment to say what it
+  does, rename it instead.
+- Banned: restating the line below (`// increment counter`), section banners
+  (`// ===== HANDLERS =====`), narration of obvious steps (`// Step 1: get the user`).
+- Keep: non-obvious constraints, ZTE OLT quirks, timeout rationale, links to issues,
+  and explanations of why a simpler approach does not work.
+- Go doc comments on exported identifiers are required and are not "noise" - keep them
+  short and factual.
+
+### No Leftovers
+- No dead code, commented-out blocks, unused imports/variables, or unreachable branches.
+- No `TODO`, `FIXME`, or placeholder stubs left behind. Either implement it, or state it
+  in the PR description as explicitly out of scope.
+- No debug output shipped: no stray `fmt.Println`, `console.log`, or `.only()` /
+  `t.Skip()` left in tests.
+- Delete replaced code. Do not keep the old version alongside the new one.
+
+### Follow What Exists
+- Use the libraries, patterns, and naming already in the repo. Do not introduce a new
+  dependency, HTTP client, state manager, or test helper when an existing one works.
+- Match the surrounding file's style before applying any general "best practice".
+- New dependencies require explicit approval and a pinned version.
+
+### Tests, Not Test Theatre
+- Tests must assert real behaviour. No tests that only check a mock was called, assert
+  `err == nil` and nothing else, or restate the implementation.
+- Do not pad coverage with trivial getter/setter tests to hit the 80% number.
+- Every bug fix gets a test that fails before the fix and passes after.
+
+### Documentation & Reporting
+- Do **not** create new `.md` files (README, SUMMARY, CHANGELOG, MIGRATION_NOTES, etc.)
+  unless explicitly requested. Update existing docs instead.
+- Do not generate progress-report or hand-off documents as a side effect of finishing work.
+- Keep completion summaries to a few sentences: what changed, what was verified, what
+  is still open. No emoji headers, no celebration, no restating the whole diff.
+
+### AI Slop Review Checklist
+Before committing, verify:
+- [ ] Nothing added beyond the stated scope
+- [ ] No speculative abstractions or single-use indirection
+- [ ] Every comment explains why, not what
+- [ ] No dead code, commented-out blocks, or leftover `TODO`s
+- [ ] No debug logging or skipped/focused tests
+- [ ] No new dependencies or patterns without a reason
+- [ ] Tests assert behaviour, not mock bookkeeping
+- [ ] No unrequested markdown files created
+
 ## Default Credentials
 
 - Username: `admin`
@@ -390,3 +456,13 @@ Configure these in GitHub repository settings → Secrets:
 - `DEPLOY_SSH_KEY` - Private SSH key
 - `DEPLOY_PORT` - SSH port (default: 22)
 - `DEPLOY_URL` - Application URL for health check
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

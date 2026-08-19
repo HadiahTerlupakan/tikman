@@ -3,7 +3,6 @@ module github.com/tikman/olt-provisioning
 go 1.25.0
 
 require (
-	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-ping/ping v1.2.0
 	github.com/google/uuid v1.6.0
