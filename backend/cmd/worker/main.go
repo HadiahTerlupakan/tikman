@@ -154,11 +154,6 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				logger.Warn("ONT sync registration error", zap.String("olt", olt.Name), zap.String("error", e))
 			}
 
-			onts, _, err = ontService.List(nil, nil, 1000, 0)
-			if err != nil {
-				logger.Error("Failed to reload ONTs after sync", zap.String("olt", olt.Name), zap.Error(err))
-				continue
-			}
 			oltPruned[oltKey] = true
 		}
 
@@ -325,7 +320,6 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 
 	logger.Info("Metrics collection cycle completed")
 }
-
 
 func updateOLTConnectionStatus(db *gorm.DB, oltID uuid.UUID, status models.OLTStatus, logger *zap.Logger) error {
 	updates := map[string]interface{}{"status": status}

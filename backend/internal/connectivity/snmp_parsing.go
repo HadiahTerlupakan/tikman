@@ -175,32 +175,6 @@ func parseZxGponSuffix(oid, base string) (ONTLocation, bool) {
 	return ONTLocation{Slot: slot, Port: port, ONTID: onuIndex}, true
 }
 
-// parseType3Suffix decodes Type 3 composite index OID suffix for vendor-specific traffic counters
-// OID format: baseOID.{type3Index} (single index, no trailing parts)
-// Type 3 index encodes: Type(3) | Shelf(0) | Slot | Port-1 | ONTID-1 | Reserved(0)
-func parseType3Suffix(oid, base string) (ONTLocation, bool) {
-	trimmed := strings.TrimPrefix(oid, ".")
-	baseTrimmed := strings.TrimPrefix(base, ".")
-	if !strings.HasPrefix(trimmed, baseTrimmed+".") {
-		return ONTLocation{}, false
-	}
-
-	suffix := strings.TrimPrefix(trimmed, baseTrimmed+".")
-	indexStr, _, _ := strings.Cut(suffix, ".")
-	
-	index, err := strconv.ParseUint(indexStr, 10, 32)
-	if err != nil {
-		return ONTLocation{}, false
-	}
-
-	slot, port, ontID, ok := decodeType3CompositeIndex(uint32(index))
-	if !ok {
-		return ONTLocation{}, false
-	}
-
-	return ONTLocation{Slot: slot, Port: port, ONTID: ontID}, true
-}
-
 // decodeZxGponIfIndex decodes ZXGPON ifIndex format (0xFFSSPP00)
 // Example: 0x10030100 (268632320) -> frame=1, slot=3, port=1
 func decodeZxGponIfIndex(ifIndex uint32) (slot, port int, ok bool) {

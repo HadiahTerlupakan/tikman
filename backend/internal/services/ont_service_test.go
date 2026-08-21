@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -242,7 +243,7 @@ func TestONTService_GetByID(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	found, err := ontService.GetByID(ont.ID)
 	require.NoError(t, err)
@@ -290,7 +291,7 @@ func TestONTService_GetBySerialNumber(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	found, err := ontService.GetBySerialNumber("SN123456")
 	require.NoError(t, err)
@@ -337,7 +338,7 @@ func TestONTService_Update(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	updates := map[string]interface{}{
 		"name": "Updated ONT",
@@ -390,7 +391,7 @@ func TestONTService_Update_SerialNumber_UniqueConstraint(t *testing.T) {
 		Name:         "ONT 1",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont1)
+	require.NoError(t, ontService.Create(ont1))
 
 	ont2 := &models.ONT{
 		OLTID:        olt.ID,
@@ -400,7 +401,7 @@ func TestONTService_Update_SerialNumber_UniqueConstraint(t *testing.T) {
 		Name:         "ONT 2",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont2)
+	require.NoError(t, ontService.Create(ont2))
 
 	updates := map[string]interface{}{
 		"serial_number": "SN111111",
@@ -441,7 +442,7 @@ func TestONTService_Update_SerialNumber_SameValue(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	updates := map[string]interface{}{
 		"serial_number": "SN123456",
@@ -482,7 +483,7 @@ func TestONTService_Delete(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	require.NoError(t, db.Exec(`
 		CREATE TABLE ont_metrics (
@@ -558,7 +559,7 @@ func TestONTService_List_WithData(t *testing.T) {
 			Name:         "ONT " + string(rune(48+i)),
 			Status:       models.ONTStatusUnknown,
 		}
-		ontService.Create(ont)
+		require.NoError(t, ontService.Create(ont))
 	}
 
 	onts, total, err := ontService.List(nil, nil, 10, 0)
@@ -599,7 +600,7 @@ func TestONTService_List_WithPagination(t *testing.T) {
 			Name:         "ONT " + string(rune(47+i)),
 			Status:       models.ONTStatusUnknown,
 		}
-		ontService.Create(ont)
+		require.NoError(t, ontService.Create(ont))
 	}
 
 	onts, total, err := ontService.List(nil, nil, 2, 0)
@@ -660,7 +661,7 @@ func TestONTService_List_FilterByOLT(t *testing.T) {
 		Name:         "ONT 1",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont1)
+	require.NoError(t, ontService.Create(ont1))
 
 	ont2 := &models.ONT{
 		OLTID:        olt2.ID,
@@ -670,7 +671,7 @@ func TestONTService_List_FilterByOLT(t *testing.T) {
 		Name:         "ONT 2",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont2)
+	require.NoError(t, ontService.Create(ont2))
 
 	onts, total, err := ontService.List(&olt1.ID, nil, 10, 0)
 	require.NoError(t, err)
@@ -710,7 +711,7 @@ func TestONTService_List_FilterByStatus(t *testing.T) {
 		Name:         "ONT 1",
 		Status:       models.ONTStatusOnline,
 	}
-	ontService.Create(ont1)
+	require.NoError(t, ontService.Create(ont1))
 
 	ont2 := &models.ONT{
 		OLTID:        olt.ID,
@@ -720,7 +721,7 @@ func TestONTService_List_FilterByStatus(t *testing.T) {
 		Name:         "ONT 2",
 		Status:       models.ONTStatusOffline,
 	}
-	ontService.Create(ont2)
+	require.NoError(t, ontService.Create(ont2))
 
 	status := models.ONTStatusOnline
 	onts, total, err := ontService.List(nil, &status, 10, 0)
@@ -761,7 +762,7 @@ func TestONTService_UpdateStatus(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	err := ontService.UpdateStatus(ont.ID, models.ONTStatusOnline)
 	require.NoError(t, err)
@@ -804,7 +805,7 @@ func TestONTService_UpdateStatus_Offline(t *testing.T) {
 		Status:       models.ONTStatusOnline,
 		LastSeenAt:   &lastSeenTime,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	err := ontService.UpdateStatus(ont.ID, models.ONTStatusOffline)
 	require.NoError(t, err)
@@ -845,7 +846,7 @@ func TestONTService_GetByOLTAndPosition(t *testing.T) {
 		Name:         "Test ONT",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	found, err := ontService.GetByOLTAndPosition(olt.ID, 1, 5)
 	require.NoError(t, err)
@@ -962,7 +963,7 @@ func TestONTService_BulkRegisterFromDiscovery_Update(t *testing.T) {
 		Name:         "Old Name",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(existing)
+	require.NoError(t, ontService.Create(existing))
 
 	discovered := []connectivity.DiscoveredONT{
 		{
@@ -1019,7 +1020,7 @@ func TestONTService_BulkRegisterFromDiscovery_Skip(t *testing.T) {
 		MACAddress:      "00:11:22:33:44:55",
 		Status:          models.ONTStatusUnknown,
 	}
-	ontService.Create(existing)
+	require.NoError(t, ontService.Create(existing))
 
 	discovered := []connectivity.DiscoveredONT{
 		{
@@ -1071,7 +1072,7 @@ func TestONTService_BulkRegisterFromDiscovery_DuplicateSerial(t *testing.T) {
 		SerialNumber: "SN111111",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(existing)
+	require.NoError(t, ontService.Create(existing))
 
 	discovered := []connectivity.DiscoveredONT{
 		{
@@ -1091,7 +1092,10 @@ func TestONTService_BulkRegisterFromDiscovery_DuplicateSerial(t *testing.T) {
 func TestONTService_GetByID_DatabaseError(t *testing.T) {
 	db := setupTestDB(t)
 
-	brokenService := NewONTService(db.WithContext(nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	brokenService := NewONTService(db.WithContext(ctx))
 	_, err := brokenService.GetByID(uuid.New())
 	assert.Error(t, err)
 }
@@ -1179,7 +1183,7 @@ func TestONTService_Update_MultipleFields(t *testing.T) {
 		Description:  "Original Description",
 		Status:       models.ONTStatusUnknown,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	updates := map[string]interface{}{
 		"name":        "Updated",
@@ -1225,7 +1229,7 @@ func TestONTService_BulkRegisterFromDiscovery_PartialUpdate(t *testing.T) {
 		HardwareVersion: "1.0",
 		Status:          models.ONTStatusUnknown,
 	}
-	ontService.Create(existing)
+	require.NoError(t, ontService.Create(existing))
 
 	discovered := []connectivity.DiscoveredONT{
 		{
@@ -1278,7 +1282,7 @@ func TestONTService_UpdateUptimeMetrics_Online(t *testing.T) {
 		Status:       models.ONTStatusOnline,
 		LastOnline:   &lastOnline,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	err := ontService.UpdateUptimeMetrics(ont.ID)
 	assert.NoError(t, err)
@@ -1319,7 +1323,7 @@ func TestONTService_UpdateUptimeMetrics_Offline(t *testing.T) {
 		Status:       models.ONTStatusOffline,
 		LastOffline:  &lastOffline,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	err := ontService.UpdateUptimeMetrics(ont.ID)
 	assert.NoError(t, err)
@@ -1358,7 +1362,7 @@ func TestONTService_UpdateUptimeMetrics_NoTimestamps(t *testing.T) {
 		SerialNumber: "SN123456",
 		Status:       models.ONTStatusOnline,
 	}
-	ontService.Create(ont)
+	require.NoError(t, ontService.Create(ont))
 
 	err := ontService.UpdateUptimeMetrics(ont.ID)
 	assert.NoError(t, err)

@@ -12,43 +12,14 @@ func encodeZxGponIfIndex(frame, slot, port int) uint32 {
 	return (uint32(frame&0xff) << 24) | (uint32(slot&0xff) << 16) | (uint32(port&0xff) << 8)
 }
 
-// encodeType3CompositeIndex encodes Type 3 composite index for vendor-specific OIDs
-// Format per ZTE MIB specs: Type 3 indicates ONU (for cumulative traffic counters)
-// bit31-28: Type (3)
-// bit27-24: Shelf (0)
-// bit23-19: Slot
-// bit18-16: OLT port (port - 1)
-// bit15-8:  ONU ID (ontID - 1)
-// bit7-0:   Reserved (0)
-// Example: slot=3, port=7, ontID=6 -> Type=3, Slot=3, Port=6, ONUID=5
-func encodeType3CompositeIndex(slot, port, ontID int) uint32 {
-	return (3 << 28) | (uint32(slot&0x1F) << 19) | (uint32((port-1)&0x07) << 16) | (uint32((ontID-1)&0xFF) << 8)
-}
-
-// decodeType3CompositeIndex reverses Type 3 composite index encoding
-func decodeType3CompositeIndex(index uint32) (slot, port, ontID int, ok bool) {
-	indexType := (index >> 28) & 0xF
-	if indexType != 3 {
-		return 0, 0, 0, false
-	}
-	
-	slot = int((index >> 19) & 0x1F)
-	port = int(((index >> 16) & 0x07) + 1)
-	ontID = int(((index >> 8) & 0xFF) + 1)
-	
-	if slot == 0 || port == 0 || ontID == 0 {
-		return 0, 0, 0, false
-	}
-	
-	return slot, port, ontID, true
-}
-
 // decodeOnuIDIfIndex reverses the ONU-ID space ifIndex encoding (BaseOID1)
 // ZTE C300 format: 0xFFSSPP00 where:
-//   FF = frame (0x10)
-//   SS = slot number (byte 2)
-//   PP = PON port number (byte 1)
-//   00 = reserved (byte 0)
+//
+//	FF = frame (0x10)
+//	SS = slot number (byte 2)
+//	PP = PON port number (byte 1)
+//	00 = reserved (byte 0)
+//
 // Example: 268632320 = 0x10030100 -> slot=3, port=1
 func decodeOnuIDIfIndex(ifIndex uint32) (slot, port int, ok bool) {
 	slot = int((ifIndex >> 16) & 0xFF)
@@ -82,11 +53,12 @@ func decodeOnuTypeIfIndex(ifIndex uint32) (slot, port int, ok bool) {
 
 // encodeOnuIDIfIndex encodes the ONU-ID space ifIndex (BaseOID1)
 // ZTE C300 format: 0x1101SSPP where:
-//   0x1101 = prefix for ONU-ID space
-//   SS = slot number
-//   PP = PON port number
+//
+//	0x1101 = prefix for ONU-ID space
+//	SS = slot number
+//	PP = PON port number
 func encodeOnuIDIfIndex(frame, slot, port int) uint32 {
-	return (uint32(frame)<<28) | (0x1101 << 16) | (uint32(slot&0xff) << 8) | uint32(port&0xff)
+	return (uint32(frame) << 28) | (0x1101 << 16) | (uint32(slot&0xff) << 8) | uint32(port&0xff)
 }
 
 // parseZteHexTimestamp converts ZTE hex timestamp to time.Time
@@ -121,7 +93,7 @@ func decodeZxGponPower(raw int64) *float64 {
 	if raw == 65535 {
 		return nil
 	}
-	
+
 	if raw >= 30000 && raw < 32768 {
 		return nil // no signal sentinel (for values 30000-32767)
 	}

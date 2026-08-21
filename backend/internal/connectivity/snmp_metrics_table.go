@@ -79,35 +79,3 @@ func walkONTStringTable(ipAddress, community string, snmpPort int, baseOID strin
 
 	return results, nil
 }
-
-// walkONTType3Table walks vendor-specific tables using Type 3 composite index encoding
-func walkONTType3Table[T any](ipAddress, community string, snmpPort int, baseOID string, mapper func(ONTLocation, int64) T) (map[ONTLocation]T, error) {
-	client, err := newSNMPClient(ipAddress, community, snmpPort)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = client.Conn.Close() }()
-
-	results := make(map[ONTLocation]T)
-
-	err = client.Walk(baseOID, func(pdu gosnmp.SnmpPDU) error {
-		loc, ok := parseType3Suffix(pdu.Name, baseOID)
-		if !ok {
-			return nil
-		}
-
-		value, ok := toInt64(pdu.Value)
-		if !ok {
-			return nil
-		}
-
-		results[loc] = mapper(loc, value)
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("walk failed: %w", err)
-	}
-
-	return results, nil
-}

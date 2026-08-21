@@ -11,7 +11,7 @@ func QuerySingleONTMetrics(ipAddress, community string, snmpPort int, slot, port
 	if err != nil {
 		return nil, err
 	}
-	defer client.Conn.Close()
+	defer func() { _ = client.Conn.Close() }()
 
 	ifIndex := int(encodeZxGponIfIndex(0x10, slot, port))
 	metrics := &ONTMetrics{}
@@ -69,7 +69,7 @@ func QuerySingleONTMetrics(ipAddress, community string, snmpPort int, slot, port
 	metrics.RxErrors = queryUint64(OID_ZXGPON_ONU_RX_ERRORS_TABLE)
 	metrics.TxErrors = queryUint64(OID_ZXGPON_ONU_TX_ERRORS_TABLE)
 
-	log.Printf("[Realtime] ONT %d/%d/%d (ifIndex=%d): RxBytes=%d TxBytes=%d RxPkts=%d TxPkts=%d", 
+	log.Printf("[Realtime] ONT %d/%d/%d (ifIndex=%d): RxBytes=%d TxBytes=%d RxPkts=%d TxPkts=%d",
 		slot, port, ontID, ifIndex, metrics.RxBytes, metrics.TxBytes, metrics.RxPackets, metrics.TxPackets)
 
 	return metrics, nil
