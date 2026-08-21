@@ -35,7 +35,9 @@ func setupMetricsTestDB(t *testing.T) *gorm.DB {
 			rx_packets INTEGER,
 			tx_packets INTEGER,
 			rx_errors INTEGER,
-			tx_errors INTEGER
+			tx_errors INTEGER,
+			rx_rate_mbps REAL,
+			tx_rate_mbps REAL
 		)
 	`).Error
 	require.NoError(t, err)
@@ -80,6 +82,9 @@ func TestMetricsService_GetPollingStats(t *testing.T) {
 	db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_power, tx_power, temperature, voltage, distance)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		oldTime, ont1ID.String(), -20.0, -5.5, 25.1, 3.3, 105)
+	db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_power, tx_power, temperature, voltage, distance)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		now, uuid.New().String(), -19.0, -4.0, 25.0, 3.3, 80)
 
 	stats := service.GetPollingStats()
 
@@ -208,12 +213,10 @@ func TestMetricsService_GetLatestMetrics_NotFound(t *testing.T) {
 	db := setupMetricsTestDB(t)
 	service := NewMetricsService(db)
 
-	ontID := uuid.New()
-	metrics, err := service.GetLatestMetrics(ontID)
+	metrics, err := service.GetLatestMetrics(uuid.New())
 
-	require.NoError(t, err)
-	assert.Nil(t, metrics.RxPower)
-	assert.Nil(t, metrics.TxPower)
+	require.Error(t, err)
+	assert.Nil(t, metrics)
 }
 
 func TestMetricsService_GetLatestMetrics_WithNullPowers(t *testing.T) {
@@ -438,7 +441,10 @@ func TestMetricsService_StoreMetrics_Integration(t *testing.T) {
 		TxErrors:    txErrs,
 	}
 
-	err := service.StoreMetrics(ontID, metrics)
+	err := service.StoreMetrics(ontID, metrics, &connectivity.ONUTrafficRates{
+		RxOctetBps: 125000,  // 1 Mbps upload
+		TxOctetBps: 2500000, // 20 Mbps download
+	})
 	require.NoError(t, err)
 
 	retrieved, err := service.GetLatestMetrics(ontID)
@@ -456,6 +462,10 @@ func TestMetricsService_StoreMetrics_Integration(t *testing.T) {
 	assert.Equal(t, txPkts, retrieved.TxPackets)
 	assert.Equal(t, rxErrs, retrieved.RxErrors)
 	assert.Equal(t, txErrs, retrieved.TxErrors)
+	require.NotNil(t, retrieved.RxRateMbps)
+	assert.InDelta(t, 1.0, *retrieved.RxRateMbps, 0.0001)
+	require.NotNil(t, retrieved.TxRateMbps)
+	assert.InDelta(t, 20.0, *retrieved.TxRateMbps, 0.0001)
 }
 
 func TestMetricsService_StoreMetrics_WithNullPowers(t *testing.T) {
@@ -481,7 +491,7 @@ func TestMetricsService_StoreMetrics_WithNullPowers(t *testing.T) {
 		Distance:    dist,
 	}
 
-	err := service.StoreMetrics(ontID, metrics)
+	err := service.StoreMetrics(ontID, metrics, nil)
 	require.NoError(t, err)
 
 	retrieved, err := service.GetLatestMetrics(ontID)
@@ -489,5 +499,7 @@ func TestMetricsService_StoreMetrics_WithNullPowers(t *testing.T) {
 	require.NotNil(t, retrieved)
 	assert.Nil(t, retrieved.RxPower)
 	assert.Nil(t, retrieved.TxPower)
+	assert.Nil(t, retrieved.RxRateMbps)
+	assert.Nil(t, retrieved.TxRateMbps)
 	assert.Equal(t, temp, retrieved.Temperature)
 }

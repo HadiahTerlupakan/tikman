@@ -128,7 +128,7 @@ export function OntFilters({
             const currentSlot = topologyData.find(s => s.slot === selectedSlotId);
             if (!currentSlot) return [];
             return getPortsForSlot(currentSlot).map((port: GponPortEntity) => {
-              const onlineCount = port.onts.filter((ont: any) => ont.runState === 3).length;
+              const onlineCount = port.onts.filter((ont) => ont.runState === 3).length;
               return (
                 <Option key={port.portId} value={port.portId}>
                   Port {port.portId} ({port.onts.length} ONTs, {onlineCount} online)

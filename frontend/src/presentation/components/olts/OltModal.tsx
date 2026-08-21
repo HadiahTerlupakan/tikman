@@ -38,6 +38,8 @@ export function OltModal({
   const oltRepository = new OltRepository();
 
   useEffect(() => {
+    if (!open) return; // Don't manipulate form before Modal opens
+    
     if (olt) {
       form.setFieldsValue({
         siteId: olt.siteId,
@@ -62,7 +64,7 @@ export function OltModal({
       setSelectedProtocol(OltProtocol.SSH);
     }
     setTestResult(null);
-  }, [olt, form]);
+  }, [olt, form, open]);
 
   const handleTestConnection = async () => {
     try {

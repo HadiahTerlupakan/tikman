@@ -57,6 +57,13 @@ export class OntRepository implements IOntRepository {
     return response.data;
   }
 
+  async getRealtimeMetrics(id: string): Promise<OntMetrics> {
+    const response = await apiClient.get<OntMetrics>(
+      API_ENDPOINTS.ONT_REALTIME_METRICS(id)
+    );
+    return response.data;
+  }
+
   async getEvents(id: string, limit = 50, offset = 0): Promise<ONTEventsResponse> {
     const response = await apiClient.get(API_ENDPOINTS.ONT_EVENTS(id), {
       params: { limit, offset },
@@ -67,6 +74,13 @@ export class OntRepository implements IOntRepository {
   async getAvailability(id: string, days = 7): Promise<AvailabilityStats> {
     const response = await apiClient.get(API_ENDPOINTS.ONT_AVAILABILITY(id), {
       params: { days },
+    });
+    return response.data;
+  }
+
+  async getTrafficTimeSeries(id: string, period: string): Promise<OntMetrics[]> {
+    const response = await apiClient.get(API_ENDPOINTS.ONT_TIMESERIES(id), {
+      params: { period },
     });
     return response.data;
   }

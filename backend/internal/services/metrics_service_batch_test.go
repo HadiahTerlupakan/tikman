@@ -31,7 +31,9 @@ func TestGetLatestMetricsBatch(t *testing.T) {
 			rx_packets BIGINT,
 			tx_packets BIGINT,
 			rx_errors BIGINT,
-			tx_errors BIGINT
+			tx_errors BIGINT,
+			rx_rate_mbps REAL,
+			tx_rate_mbps REAL
 		)
 	`).Error
 	assert.NoError(t, err)
@@ -59,7 +61,7 @@ func TestGetLatestMetricsBatch(t *testing.T) {
 		TxPackets:   5000,
 		RxErrors:    10,
 		TxErrors:    5,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	time.Sleep(10 * time.Millisecond)
@@ -76,7 +78,7 @@ func TestGetLatestMetricsBatch(t *testing.T) {
 		TxPackets:   10000,
 		RxErrors:    20,
 		TxErrors:    10,
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 	t.Run("fetch multiple ONTs", func(t *testing.T) {
@@ -113,7 +115,7 @@ func TestGetLatestMetricsBatch(t *testing.T) {
 			RxPower:  &newerRxPower,
 			TxPower:  &txPower1,
 			Distance: 1600,
-		})
+		}, nil)
 		assert.NoError(t, err)
 
 		metricsMap, err := metricsService.GetLatestMetricsBatch([]uuid.UUID{ontID1})
@@ -146,7 +148,9 @@ func TestONTListPerformance(t *testing.T) {
 			rx_packets BIGINT,
 			tx_packets BIGINT,
 			rx_errors BIGINT,
-			tx_errors BIGINT
+			tx_errors BIGINT,
+			rx_rate_mbps REAL,
+			tx_rate_mbps REAL
 		)
 	`).Error
 	assert.NoError(t, err)
@@ -178,7 +182,7 @@ func TestONTListPerformance(t *testing.T) {
 			RxPower:  &rxPower,
 			TxPower:  &txPower,
 			Distance: 1000 + i*10,
-		})
+		}, nil)
 	}
 
 	start := time.Now()

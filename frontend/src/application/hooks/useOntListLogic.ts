@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { App } from "antd";
-import { useOnts, useCreateOnt } from "@/application/hooks/useOnts";
+import { useOnts, useCreateOnt, useDeleteOnt } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import axios from "axios";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
@@ -24,6 +24,38 @@ interface GponPortEntity {
 interface GPONSlot {
   slot: number;
   ports: GponPortEntity[];
+}
+
+interface TopologyOntResponse {
+  port_id?: number;
+  portId?: number;
+  ont_id?: number;
+  ontId?: number;
+  serial_number?: string;
+  serialNumber?: string;
+  run_state?: number;
+  runState?: number;
+  name?: string;
+  description?: string;
+  rx_power?: number | null;
+  rxPower?: number | null;
+  tx_power?: number | null;
+  txPower?: number | null;
+  distance?: number;
+  status?: string;
+  last_seen_at?: string | null;
+  lastSeenAt?: string | null;
+}
+
+interface TopologyPortResponse {
+  port_id?: number;
+  portId?: number;
+  onts?: TopologyOntResponse[];
+}
+
+interface TopologySlotResponse {
+  slot: number;
+  ports?: TopologyPortResponse[];
 }
 
 export function useOntListLogic() {
@@ -55,7 +87,7 @@ export function useOntListLogic() {
     if (ontsData && ontsData.total) {
       console.log(`[Data Loaded] Total ONTs: ${ontsData.total}`);
     }
-  }, [ontsData?.total]);
+  }, [ontsData]);
 
   // Only refetch when filter changes
   useEffect(() => {
@@ -63,10 +95,11 @@ export function useOntListLogic() {
       console.log('[Status Filter Changed] Refetching with status:', statusFilter);
       refetch();
     }
-  }, [statusFilter]);
+  }, [statusFilter, refetch]);
 
   const { data: oltsData } = useOlts();
   const createMutation = useCreateOnt();
+  const deleteMutation = useDeleteOnt();
 
   const filteredOnts = (ontsData?.data || []).filter((ont: Ont) => {
     if (selectedOltId && ont.oltId !== selectedOltId) {
@@ -102,7 +135,7 @@ export function useOntListLogic() {
       offset: 0,
       sample_ont: ontsData?.data?.[0]
     });
-  }, [ontsData, filteredOnts, selectedOltId, selectedPortId]);
+  }, [ontsData, filteredOnts, selectedOltId, selectedPortId, searchText, statusFilter]);
 
   // Fetch topology when OLT is selected
   useEffect(() => {
@@ -120,15 +153,15 @@ export function useOntListLogic() {
         const response = await axios.get(`${API_ENDPOINTS.OLTS}/${selectedOltId}/topology/cached`);
         console.log('[Topology Response]', response.data);
 
-        const topology = response.data.topology?.map((slot: any) => ({
+        const topology = (response.data.topology as TopologySlotResponse[] | undefined)?.map((slot) => ({
           slot: slot.slot,
-          ports: slot.ports?.map((port: any) => ({
-            portId: port.port_id || port.portId,
-            onts: port.onts?.map((ont: any) => ({
-              portId: ont.port_id ?? ont.portId,
-              ontId: ont.ont_id ?? ont.ontId,
-              serialNumber: ont.serial_number ?? ont.serialNumber,
-              runState: ont.run_state ?? ont.runState,
+          ports: slot.ports?.map((port) => ({
+            portId: port.port_id || port.portId || 0,
+            onts: port.onts?.map((ont) => ({
+              portId: ont.port_id ?? ont.portId ?? 0,
+              ontId: ont.ont_id ?? ont.ontId ?? 0,
+              serialNumber: ont.serial_number ?? ont.serialNumber ?? "",
+              runState: ont.run_state ?? ont.runState ?? 0,
               name: ont.name,
               description: ont.description,
               rxPower: ont.rx_power !== undefined ? ont.rx_power : ont.rxPower,
@@ -151,7 +184,7 @@ export function useOntListLogic() {
     };
 
     fetchTopology();
-  }, [selectedOltId]);
+  }, [selectedOltId, message]);
 
   const handleViewDetail = (ont: Ont) => {
     setSelectedOnt(ont);
@@ -165,6 +198,20 @@ export function useOntListLogic() {
       message.success("ONT created successfully");
     } catch (error) {
       console.error("Create failed:", error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      if (selectedOnt?.id === id) {
+        setIsDetailModalOpen(false);
+        setSelectedOnt(null);
+      }
+      message.success("ONT deleted successfully");
+    } catch (error) {
+      console.error("Delete failed:", error);
+      message.error("Failed to delete ONT");
     }
   };
 
@@ -202,10 +249,12 @@ export function useOntListLogic() {
     filteredOnts,
     isLoading,
     createMutation,
-    
+    deleteMutation,
+
     // Actions
     handleViewDetail,
     handleCreate,
+    handleDelete,
     handleReset,
     refetch,
   };

@@ -484,11 +484,27 @@ func TestONTService_Delete(t *testing.T) {
 	}
 	ontService.Create(ont)
 
+	require.NoError(t, db.Exec(`
+		CREATE TABLE ont_metrics (
+			time DATETIME NOT NULL,
+			ont_id TEXT NOT NULL,
+			rx_power REAL
+		)
+	`).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO ont_metrics (time, ont_id, rx_power) VALUES (?, ?, ?)",
+		time.Now(), ont.ID.String(), -20.5,
+	).Error)
+
 	err := ontService.Delete(ont.ID)
 	require.NoError(t, err)
 
 	_, err = ontService.GetByID(ont.ID)
 	assert.Error(t, err)
+
+	var metricsCount int64
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM ont_metrics WHERE ont_id = ?", ont.ID.String()).Scan(&metricsCount).Error)
+	assert.Equal(t, int64(0), metricsCount)
 }
 
 func TestONTService_Delete_NotFound(t *testing.T) {
@@ -1104,21 +1120,21 @@ func TestONTService_Create_AllFields(t *testing.T) {
 	db.Create(olt)
 
 	ont := &models.ONT{
-		OLTID:            olt.ID,
-		PortID:           1,
-		ONTID:            1,
-		SerialNumber:     "SN123456",
-		Name:             "Test ONT",
-		Description:      "Test Description",
-		DeviceType:       "HG6421",
-		HardwareVersion:  "1.0",
-		SoftwareVersion:  "2.0",
-		IPAddress:        "192.168.1.100",
-		MACAddress:       "00:11:22:33:44:55",
-		Status:           models.ONTStatusUnknown,
-		RxPower:          ptrFloat64(-20.5),
-		TxPower:          ptrFloat64(3.2),
-		Distance:         1200,
+		OLTID:           olt.ID,
+		PortID:          1,
+		ONTID:           1,
+		SerialNumber:    "SN123456",
+		Name:            "Test ONT",
+		Description:     "Test Description",
+		DeviceType:      "HG6421",
+		HardwareVersion: "1.0",
+		SoftwareVersion: "2.0",
+		IPAddress:       "192.168.1.100",
+		MACAddress:      "00:11:22:33:44:55",
+		Status:          models.ONTStatusUnknown,
+		RxPower:         ptrFloat64(-20.5),
+		TxPower:         ptrFloat64(3.2),
+		Distance:        1200,
 	}
 
 	err := ontService.Create(ont)
@@ -1346,4 +1362,53 @@ func TestONTService_UpdateUptimeMetrics_NoTimestamps(t *testing.T) {
 
 	err := ontService.UpdateUptimeMetrics(ont.ID)
 	assert.NoError(t, err)
+}
+
+func TestONTService_PruneMissingFromDiscoveryDeletesStaleONTs(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	siteService := NewSiteService(db)
+
+	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
+	require.NoError(t, err)
+
+	oltID := uuid.New()
+	otherOLTID := uuid.New()
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: site.ID, Name: "OLT 1", IPAddress: "192.168.1.1", SNMPCommunity: "public", PreferredProtocol: models.OLTProtocolSSH}).Error)
+	require.NoError(t, db.Create(&models.OLT{ID: otherOLTID, SiteID: site.ID, Name: "OLT 2", IPAddress: "192.168.1.2", SNMPCommunity: "public", PreferredProtocol: models.OLTProtocolSSH}).Error)
+
+	kept := &models.ONT{OLTID: oltID, PortID: 1, ONTID: 1, SerialNumber: "KEEP001", Status: models.ONTStatusOnline}
+	stale := &models.ONT{OLTID: oltID, PortID: 1, ONTID: 2, SerialNumber: "STALE001", Status: models.ONTStatusOnline}
+	otherOLTONT := &models.ONT{OLTID: otherOLTID, PortID: 1, ONTID: 2, SerialNumber: "OTHER001", Status: models.ONTStatusOnline}
+	require.NoError(t, ontService.Create(kept))
+	require.NoError(t, ontService.Create(stale))
+	require.NoError(t, ontService.Create(otherOLTONT))
+	require.NoError(t, db.Exec(`
+		CREATE TABLE ont_metrics (
+			time DATETIME NOT NULL,
+			ont_id TEXT NOT NULL,
+			rx_power REAL
+		)
+	`).Error)
+	require.NoError(t, db.Exec("INSERT INTO ont_metrics (time, ont_id, rx_power) VALUES (?, ?, ?)", time.Now(), stale.ID.String(), -20.5).Error)
+	require.NoError(t, db.Create(&models.ONTEvent{ONTID: stale.ID, EventType: models.EventTypeOffline, EventTime: time.Now(), Reason: "stale"}).Error)
+
+	deleted, err := ontService.PruneMissingFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		{PortID: 1, ONTID: 1, SerialNumber: "KEEP001"},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Where("id = ?", kept.ID).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+	require.NoError(t, db.Model(&models.ONT{}).Where("id = ?", stale.ID).Count(&count).Error)
+	assert.Equal(t, int64(0), count)
+	require.NoError(t, db.Model(&models.ONT{}).Where("id = ?", otherOLTONT.ID).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM ont_metrics WHERE ont_id = ?", stale.ID.String()).Scan(&count).Error)
+	assert.Equal(t, int64(0), count)
+	require.NoError(t, db.Model(&models.ONTEvent{}).Where("ont_id = ?", stale.ID).Count(&count).Error)
+	assert.Equal(t, int64(0), count)
 }

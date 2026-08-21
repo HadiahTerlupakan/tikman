@@ -24,6 +24,7 @@ type ONT struct {
 	OLTID                  uuid.UUID  `gorm:"type:uuid;not null;index" json:"olt_id"`
 	PortID                 int        `gorm:"not null" json:"port_id"`
 	ONTID                  int        `gorm:"not null" json:"ont_id"`
+	Slot                   *int       `gorm:"index" json:"slot,omitempty"`
 	SerialNumber           string     `gorm:"type:varchar(20);not null;uniqueIndex" json:"serial_number"`
 	Name                   string     `gorm:"type:varchar(255)" json:"name"`
 	Description            string     `gorm:"type:varchar(255)" json:"description"`

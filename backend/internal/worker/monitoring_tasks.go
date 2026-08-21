@@ -190,7 +190,7 @@ func (w *MonitoringWorker) pollAllONTsMetrics() {
 					continue
 				}
 
-				if err := w.metricsService.StoreMetrics(ont.ID, &metrics); err != nil {
+				if err := w.metricsService.StoreMetrics(ont.ID, &metrics, nil); err != nil {
 					log.Printf("[Worker] Failed to store metrics for ONT %s (port %d/%d): %v",
 						ont.SerialNumber, ont.PortID, ont.ONTID, err)
 					continue

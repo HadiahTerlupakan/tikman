@@ -27,3 +27,28 @@ export function useOntMetricsHistory(
     enabled: !!id,
   });
 }
+
+export function useOntMetricsRealtime(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["onts", id, "metrics-realtime"],
+    queryFn: () => ontRepository.getRealtimeMetrics(id),
+    enabled: enabled && !!id,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+export function useOntTrafficTimeSeries(id: string, period: string, enabled = true) {
+  return useQuery({
+    queryKey: ["onts", id, "traffic-timeseries", period],
+    queryFn: () => ontRepository.getTrafficTimeSeries(id, period),
+    enabled: enabled && !!id,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+    retry: false,
+  });
+}
+

@@ -37,12 +37,4 @@ func StatusMap(phaseState int) string {
 	}
 }
 
-// ToUint32 converts signed int to unsigned uint32 for SNMP encoding
-func ToUint32(i int) uint32 {
-	var bits [4]byte
-	bits[0] = byte(i >> 24)
-	bits[1] = byte(i >> 16)
-	bits[2] = byte(i >> 8)
-	bits[3] = byte(i)
-	return uint32(bits[0])<<24 | uint32(bits[1])<<16 | uint32(bits[2])<<8 | uint32(bits[3])
-}
+

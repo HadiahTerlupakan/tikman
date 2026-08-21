@@ -347,9 +347,19 @@ type ONTMetricsResponse struct {
 	TxPackets   uint64    `json:"tx_packets"`
 	RxErrors    uint64    `json:"rx_errors"`
 	TxErrors    uint64    `json:"tx_errors"`
+	RxMbps      float64   `json:"rx_mbps"`
+	TxMbps      float64   `json:"tx_mbps"`
 }
 
 func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
+	var rxMbps, txMbps float64
+	if metrics.RxRateMbps != nil {
+		rxMbps = *metrics.RxRateMbps
+	}
+	if metrics.TxRateMbps != nil {
+		txMbps = *metrics.TxRateMbps
+	}
+
 	return ONTMetricsResponse{
 		Time:        metrics.Time,
 		RxPower:     metrics.RxPower,
@@ -363,5 +373,17 @@ func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
 		TxPackets:   metrics.TxPackets,
 		RxErrors:    metrics.RxErrors,
 		TxErrors:    metrics.TxErrors,
+		RxMbps:      rxMbps,
+		TxMbps:      txMbps,
 	}
 }
+
+// ONTTrafficTimeSeriesResponse represents a single data point in traffic time series
+type ONTTrafficTimeSeriesResponse struct {
+	Time     time.Time `json:"time"`
+	RxBytes  uint64    `json:"rx_bytes"`
+	TxBytes  uint64    `json:"tx_bytes"`
+	RxMbps   float64   `json:"rx_mbps"`
+	TxMbps   float64   `json:"tx_mbps"`
+}
+

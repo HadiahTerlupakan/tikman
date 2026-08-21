@@ -317,6 +317,21 @@ func WalkONTMetrics(ipAddress, community string, snmpPort int) (map[ONTLocation]
 		}
 	}
 
+	equipmentIDs, err := walkONTStringTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_EQUIPMENT_ID_TABLE)
+	if err != nil {
+		log.Printf("[Metrics] Equipment ID walk failed: %v", err)
+	} else {
+		log.Printf("[Metrics] Walked %d equipment IDs", len(equipmentIDs))
+		for k, v := range equipmentIDs {
+			if m, found := metrics[k]; found {
+				m.SoftwareVersion = v
+				metrics[k] = m
+			} else {
+				metrics[k] = ONTMetrics{SoftwareVersion: v}
+			}
+		}
+	}
+
 	log.Printf("[Metrics] Walked %d ONTs", len(metrics))
 	return metrics, nil
 }

@@ -136,7 +136,7 @@ func autoDiscoverONTMetrics(db *gorm.DB, olt *models.OLT) {
 		}
 
 		if storeMetrics {
-			if err := metricsService.StoreMetrics(ont.ID, &metrics); err != nil {
+			if err := metricsService.StoreMetrics(ont.ID, &metrics, nil); err != nil {
 				log.Printf("[AutoDiscovery] Failed to store metrics for ONT %s: %v", ont.SerialNumber, err)
 				continue
 			}

@@ -29,6 +29,7 @@ const (
 	// BaseOIDS for two different index spaces
 	BaseOID1 = ".1.3.6.1.4.1.3902.1082" // ONU-ID space (serial/status/distance)
 	BaseOID2 = ".1.3.6.1.4.1.3902.1012" // TYPE space (type/txpower/ip/name/description)
+	BaseOID3 = ".1.3.6.1.4.1.3902.1015" // Vendor-specific cumulative counters (Type 3 index)
 
 	// Common OID prefixes (same for all board/PON combinations)
 	OnuIDNamePrefix              = ".3.28.1.1.2"        // ONU name (phone-customer)
@@ -46,6 +47,7 @@ const (
 	OnuTypePrefix            = ".3.28.1.1.5"      // ONU device type/model
 	OnuHardwareVersionPrefix = ".3.50.11.2.1.2"   // Hardware version (equipment version)
 	OnuSoftwareVersionPrefix = ".3.28.1.1.7"      // Software/firmware version (not available on C300)
+	OnuEquipmentIDPrefix     = ".3.50.11.2.1.9"   // Equipment ID (model+firmware, e.g. F660V9)
 	OnuIPAddressPrefix       = ".3.50.16.1.1.10"  // Management IP address (TYPE space, 2 indices)
 	OnuMACAddressPrefix      = ".3.50.16.1.1.3"   // MAC address (TYPE space, 2 indices)
 
@@ -55,12 +57,19 @@ const (
 	OnuTxBiasCurrentPrefix = ".3.50.12.1.1.3" // TX bias current in mA
 
 	// Traffic statistics OID prefixes
-	OnuRxBytesPrefix   = ".3.50.15.1.1.2" // RX bytes counter
-	OnuTxBytesPrefix   = ".3.50.15.1.1.3" // TX bytes counter
-	OnuRxPacketsPrefix = ".3.50.15.1.1.4" // RX packets counter
-	OnuTxPacketsPrefix = ".3.50.15.1.1.5" // TX packets counter
-	OnuRxErrorsPrefix  = ".3.50.15.1.1.6" // RX errors counter
-	OnuTxErrorsPrefix  = ".3.50.15.1.1.7" // TX errors counter
+	OnuRxBytesPrefix   = ".3.50.12.1.1.18" // RX bytes counter (fragment, oscillating)
+	OnuTxBytesPrefix   = ".3.50.12.1.1.19" // TX bytes counter (fragment, oscillating)
+	OnuRxPacketsPrefix = ".3.50.12.1.1.10" // RX packets counter
+	OnuTxPacketsPrefix = ".3.50.12.1.1.14" // TX packets counter
+	OnuRxErrorsPrefix  = ".3.50.12.1.1.20" // RX errors counter
+	OnuTxErrorsPrefix  = ".3.50.12.1.1.22" // TX errors counter
+
+	// Live traffic rate gauges (zxGponOntMgmt). These are Gauge32 values in
+	// bytes/second read directly from the OLT, not cumulative counters — the
+	// fragment counters above oscillate and their deltas are meaningless.
+	// Index space is ONU-ID (0x1101SSPP), same as the serial-number table.
+	OnuRxOctetRatePrefix = ".500.4.2.2.2.1.3"  // zxAnPonOnuIfRxOctetRate (upload, ONU→OLT)
+	OnuTxOctetRatePrefix = ".500.4.2.2.2.1.46" // zxAnPonOnuIfTxOctetRate (download, OLT→ONU)
 
 	// IfIndex encoding bases and per-slot strides (verified live against real hardware)
 	OnuIDIfIndexBase   = 285278208 // 0x11010000 — ONU-ID space prefix 0x11, shelf 1
@@ -90,6 +99,7 @@ const (
 	OID_ZXGPON_ONU_TYPE_TABLE             = BaseOID2 + OnuTypePrefix
 	OID_ZXGPON_ONU_HARDWARE_VERSION_TABLE = BaseOID2 + OnuHardwareVersionPrefix
 	OID_ZXGPON_ONU_SOFTWARE_VERSION_TABLE = BaseOID2 + OnuSoftwareVersionPrefix
+	OID_ZXGPON_ONU_EQUIPMENT_ID_TABLE     = BaseOID2 + OnuEquipmentIDPrefix
 	OID_ZXGPON_ONU_IP_ADDRESS_TABLE       = BaseOID2 + OnuIPAddressPrefix
 	OID_ZXGPON_ONU_MAC_ADDRESS_TABLE      = BaseOID2 + OnuMACAddressPrefix
 
@@ -105,6 +115,10 @@ const (
 	OID_ZXGPON_ONU_TX_PACKETS_TABLE = BaseOID2 + OnuTxPacketsPrefix
 	OID_ZXGPON_ONU_RX_ERRORS_TABLE  = BaseOID2 + OnuRxErrorsPrefix
 	OID_ZXGPON_ONU_TX_ERRORS_TABLE  = BaseOID2 + OnuTxErrorsPrefix
+
+	// Live traffic rate gauges
+	OID_ZXGPON_ONU_RX_OCTET_RATE_TABLE = BaseOID1 + OnuRxOctetRatePrefix
+	OID_ZXGPON_ONU_TX_OCTET_RATE_TABLE = BaseOID1 + OnuTxOctetRatePrefix
 )
 
 // ONTLocation identifies an ONT by its physical position on the OLT, decoded

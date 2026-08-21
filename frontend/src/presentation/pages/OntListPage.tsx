@@ -34,6 +34,7 @@ export default function OntListPage() {
     createMutation,
     handleViewDetail,
     handleCreate,
+    handleDelete,
     handleReset,
     refetch,
   } = useOntListLogic();
@@ -80,6 +81,7 @@ export default function OntListPage() {
           dataSource={filteredOnts}
           isLoading={isLoading}
           onViewDetail={handleViewDetail}
+          onDelete={handleDelete}
         />
       </Card>
 

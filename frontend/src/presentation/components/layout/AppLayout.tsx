@@ -8,6 +8,7 @@ import {
   LogoutOutlined,
   BellOutlined,
   MonitorOutlined,
+  BarChartOutlined,
 } from "@ant-design/icons";
 import { Dropdown, Avatar, Badge, App } from "antd";
 import type { MenuProps } from "antd";
@@ -61,6 +62,11 @@ export function AppLayout() {
       path: "/onts",
       name: "ONT Monitoring",
       icon: <MonitorOutlined />,
+    },
+    {
+      path: "/graphs",
+      name: "Graphs",
+      icon: <BarChartOutlined />,
     },
     ...(user?.role === UserRole.ADMIN
       ? [

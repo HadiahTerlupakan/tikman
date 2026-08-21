@@ -1,11 +1,20 @@
 import { Modal, Spin, Tag, Tabs, Descriptions } from "antd";
-import { useState } from "react";
-import { useOntMetrics } from "@/application/hooks/useOntMetrics";
+import { useMemo, useState } from "react";
+import { useOntMetrics, useOntMetricsRealtime } from "@/application/hooks/useOntMetrics";
 import { ONTEventTimeline } from "./ONTEventTimeline";
 import type { Ont } from "@/domain/entities";
 
+
+interface OntWithMetrics extends Ont {
+  metrics?: {
+    rxPower?: number | null;
+    txPower?: number | null;
+    distance?: number | null;
+  };
+}
+
 interface OntDetailModalProps {
-  ont: Ont;
+  ont: OntWithMetrics;
   visible: boolean;
   onClose: () => void;
 }
@@ -14,12 +23,28 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
   const [activeTab, setActiveTab] = useState("basic");
   
   const isTrafficTab = activeTab === "traffic";
-  const pollingInterval = isTrafficTab ? 3000 : 300000;
   
-  const { data: metrics, isLoading } = useOntMetrics(
+  const { data: dbMetrics, isLoading: isLoadingDb } = useOntMetrics(
     ont.id, 
-    ont.status === "online" && visible,
-    pollingInterval
+    ont.status === "online" && visible && !isTrafficTab,
+    300000
+  );
+
+  const {
+    data: realtimeMetrics,
+    isLoading: isLoadingRealtime,
+    isFetching: isFetchingRealtime,
+    dataUpdatedAt: realtimeUpdatedAt,
+  } = useOntMetricsRealtime(
+    ont.id,
+    ont.status === "online" && visible && isTrafficTab
+  );
+
+  const metrics = isTrafficTab ? realtimeMetrics : dbMetrics;
+  const isLoading = isTrafficTab ? isLoadingRealtime : isLoadingDb;
+  const lastPolled = useMemo(
+    () => (realtimeUpdatedAt ? new Date(realtimeUpdatedAt).toLocaleTimeString() : "-"),
+    [realtimeUpdatedAt]
   );
 
   const getRxColor = (power: number) => {
@@ -42,14 +67,6 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
     ) : (
       <Tag color={getColor(power)}>{power.toFixed(2)} dBm</Tag>
     );
-
-  const formatBytes = (bytes: number | undefined) => {
-    if (!bytes) return "0 B";
-    const mb = bytes / 1024 / 1024;
-    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
-    if (mb >= 1) return `${mb.toFixed(2)} MB`;
-    return `${(bytes / 1024).toFixed(2)} KB`;
-  };
 
   const tabItems = [
     {
@@ -86,19 +103,19 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
       children: (
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="Device Type">
-            {(ont as any).deviceType || "-"}
+            {ont.deviceType || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Hardware Version">
-            {(ont as any).hardwareVersion || "-"}
+            {ont.hardwareVersion || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Software Version">
-            {(ont as any).softwareVersion || "-"}
+            {ont.softwareVersion || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="IP Address">
-            {(ont as any).ipAddress || "-"}
+            {ont.ipAddress || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="MAC Address">
-            {(ont as any).macAddress || "-"}
+            {ont.macAddress || "-"}
           </Descriptions.Item>
         </Descriptions>
       ),
@@ -108,16 +125,16 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
       label: "Optical Metrics",
       children: isLoading ? (
         <Spin />
-      ) : metrics || (ont as any).rxPower !== undefined ? (
+      ) : metrics || ont.rxPower !== undefined ? (
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="RX Power (ONU)">
-            {renderPower((ont as any).rxPower || metrics?.rxPower, getRxColor)}
+            {renderPower(ont.rxPower || metrics?.rxPower, getRxColor)}
           </Descriptions.Item>
           <Descriptions.Item label="TX Power (ONU)">
-            {renderPower((ont as any).txPower || metrics?.txPower, getTxColor)}
+            {renderPower(ont.txPower || metrics?.txPower, getTxColor)}
           </Descriptions.Item>
           <Descriptions.Item label="Distance">
-            {(ont as any).distance || metrics?.distance || "-"} m
+            {ont.distance || metrics?.distance || "-"} m
           </Descriptions.Item>
           {metrics?.time && (
             <Descriptions.Item label="Last Updated">
@@ -132,54 +149,81 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
       ),
     },
     {
-      key: "health",
-      label: "Health Monitoring",
-      children: isLoading ? (
-        <Spin />
-      ) : metrics && (metrics.temperature || metrics.voltage || (ont as any).temperature) ? (
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label="Temperature">
-            {(metrics.temperature || (ont as any).temperature || 0).toFixed(1)} °C
-          </Descriptions.Item>
-          <Descriptions.Item label="Voltage">
-            {(metrics.voltage || (ont as any).voltage || 0).toFixed(2)} V
-          </Descriptions.Item>
-          <Descriptions.Item label="TX Bias Current">
-            {((ont as any).txBiasCurrent || 0).toFixed(2)} mA
-          </Descriptions.Item>
-        </Descriptions>
-      ) : (
-        <p style={{ color: "#999", padding: 16 }}>
-          No health monitoring data available yet.
-        </p>
-      ),
-    },
-    {
       key: "traffic",
       label: "Traffic Statistics",
       children: isLoading ? (
         <Spin />
-      ) : metrics || (ont as any).rxBytes ? (
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label="RX Bytes">
-            {formatBytes((ont as any).rxBytes || metrics?.rxBytes)}
-          </Descriptions.Item>
-          <Descriptions.Item label="TX Bytes">
-            {formatBytes((ont as any).txBytes || metrics?.txBytes)}
-          </Descriptions.Item>
-          <Descriptions.Item label="RX Packets">
-            {((ont as any).rxPackets || 0).toLocaleString()}
-          </Descriptions.Item>
-          <Descriptions.Item label="TX Packets">
-            {((ont as any).txPackets || 0).toLocaleString()}
-          </Descriptions.Item>
-          <Descriptions.Item label="RX Errors">
-            {((ont as any).rxErrors || 0).toLocaleString()}
-          </Descriptions.Item>
-          <Descriptions.Item label="TX Errors">
-            {((ont as any).txErrors || 0).toLocaleString()}
-          </Descriptions.Item>
-        </Descriptions>
+      ) : metrics ? (
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              marginBottom: 12,
+              padding: "10px 12px",
+              border: "1px solid rgba(22, 119, 255, 0.25)",
+              borderRadius: 8,
+              background: "rgba(22, 119, 255, 0.08)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: isFetchingRealtime ? "#faad14" : "#52c41a",
+                  boxShadow: `0 0 0 4px ${isFetchingRealtime ? "rgba(250, 173, 20, 0.18)" : "rgba(82, 196, 26, 0.18)"}`,
+                }}
+              />
+              <Tag color="processing" style={{ margin: 0 }}>Live SNMP</Tag>
+              <span style={{ color: "#8c8c8c", fontSize: 12 }}>
+                {isFetchingRealtime ? "Polling OLT…" : "OLT replied"}
+              </span>
+            </div>
+            <span style={{ color: "#8c8c8c", fontSize: 12 }}>
+              Last polled: {lastPolled}
+            </span>
+          </div>
+
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="Download Rate">
+              {metrics.txMbps !== undefined && metrics.txMbps !== null
+                ? metrics.txMbps < 1
+                  ? (metrics.txMbps * 1000) < 0.01
+                    ? `${(metrics.txMbps * 1000).toFixed(4)} Kbps`
+                    : `${(metrics.txMbps * 1000).toFixed(2)} Kbps`
+                  : `${metrics.txMbps.toFixed(2)} Mbps`
+                : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Upload Rate">
+              {metrics.rxMbps !== undefined && metrics.rxMbps !== null
+                ? metrics.rxMbps < 1
+                  ? (metrics.rxMbps * 1000) < 0.01
+                    ? `${(metrics.rxMbps * 1000).toFixed(4)} Kbps`
+                    : `${(metrics.rxMbps * 1000).toFixed(2)} Kbps`
+                  : `${metrics.rxMbps.toFixed(2)} Mbps`
+                : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="RX Packets (last snapshot)">
+              {(metrics.rxPackets ?? 0).toLocaleString()}
+            </Descriptions.Item>
+            <Descriptions.Item label="TX Packets (last snapshot)">
+              {(metrics.txPackets ?? 0).toLocaleString()}
+            </Descriptions.Item>
+            <Descriptions.Item label="RX Errors (last snapshot)">
+              {(metrics.rxErrors ?? 0).toLocaleString()}
+            </Descriptions.Item>
+            <Descriptions.Item label="TX Errors (last snapshot)">
+              {(metrics.txErrors ?? 0).toLocaleString()}
+            </Descriptions.Item>
+          </Descriptions>
+          <div style={{ marginTop: 10, color: "#8c8c8c", fontSize: 12 }}>
+            Rates are queried live from the OLT every 3 seconds. Packet/error counters are the latest device snapshot and may stay unchanged.
+          </div>
+        </div>
       ) : (
         <p style={{ color: "#999", padding: 16 }}>
           No traffic statistics available yet.

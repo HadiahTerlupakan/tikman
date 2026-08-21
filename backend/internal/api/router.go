@@ -105,12 +105,14 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.GET("/:id", ontHandler.GetByID)
 			onts.POST("", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Create)
 			onts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Update)
-			onts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Delete)
+		onts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Delete)
 
-			onts.GET("/:id/metrics", metricsHandler.GetLatest)
-			onts.GET("/:id/metrics/history", metricsHandler.GetHistory)
-			onts.GET("/:id/events", eventHandler.GetEvents)
-			onts.GET("/:id/availability", eventHandler.GetAvailability)
+		onts.GET("/:id/metrics/realtime", metricsHandler.GetRealtime)
+		onts.GET("/:id/metrics/timeseries", metricsHandler.GetTrafficTimeSeries)
+		onts.GET("/:id/metrics/history", metricsHandler.GetHistory)
+		onts.GET("/:id/metrics", metricsHandler.GetLatest)
+		onts.GET("/:id/events", eventHandler.GetEvents)
+		onts.GET("/:id/availability", eventHandler.GetAvailability)
 		}
 
 		admin := api.Group("/admin")

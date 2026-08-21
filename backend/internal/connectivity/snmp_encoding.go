@@ -9,7 +9,38 @@ import (
 // Format: 0xFFSSPP00 where FF=frame(0x10), SS=slot, PP=port
 // Example: frame=1, slot=3, port=1 -> 0x10030100 = 268632320
 func encodeZxGponIfIndex(frame, slot, port int) uint32 {
-	return (0x10 << 24) | (uint32(slot&0xff) << 16) | (uint32(port&0xff) << 8)
+	return (uint32(frame&0xff) << 24) | (uint32(slot&0xff) << 16) | (uint32(port&0xff) << 8)
+}
+
+// encodeType3CompositeIndex encodes Type 3 composite index for vendor-specific OIDs
+// Format per ZTE MIB specs: Type 3 indicates ONU (for cumulative traffic counters)
+// bit31-28: Type (3)
+// bit27-24: Shelf (0)
+// bit23-19: Slot
+// bit18-16: OLT port (port - 1)
+// bit15-8:  ONU ID (ontID - 1)
+// bit7-0:   Reserved (0)
+// Example: slot=3, port=7, ontID=6 -> Type=3, Slot=3, Port=6, ONUID=5
+func encodeType3CompositeIndex(slot, port, ontID int) uint32 {
+	return (3 << 28) | (uint32(slot&0x1F) << 19) | (uint32((port-1)&0x07) << 16) | (uint32((ontID-1)&0xFF) << 8)
+}
+
+// decodeType3CompositeIndex reverses Type 3 composite index encoding
+func decodeType3CompositeIndex(index uint32) (slot, port, ontID int, ok bool) {
+	indexType := (index >> 28) & 0xF
+	if indexType != 3 {
+		return 0, 0, 0, false
+	}
+	
+	slot = int((index >> 19) & 0x1F)
+	port = int(((index >> 16) & 0x07) + 1)
+	ontID = int(((index >> 8) & 0xFF) + 1)
+	
+	if slot == 0 || port == 0 || ontID == 0 {
+		return 0, 0, 0, false
+	}
+	
+	return slot, port, ontID, true
 }
 
 // decodeOnuIDIfIndex reverses the ONU-ID space ifIndex encoding (BaseOID1)

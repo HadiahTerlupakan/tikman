@@ -3,7 +3,7 @@ import { EditOutlined, DeleteOutlined, SyncOutlined } from "@ant-design/icons";
 import { type Olt, OltStatus } from "@/domain/entities";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import { apiClient } from "@/infrastructure/http/apiClient";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 
 interface OltTableProps {
@@ -14,38 +14,36 @@ interface OltTableProps {
 }
 
 interface OLTStats {
-  total_onts: number;
-  onts_with_metrics: number;
+  totalOnts: number;
+  ontsWithMetrics: number;
   percentage: number;
-  last_poll_time?: string;
-  olt_id?: string;
+  lastPollTime?: string;
+  oltId?: string;
 }
 
 export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
   const [oltStats, setOltStats] = useState<Record<string, OLTStats>>({});
 
-  // Fetch stats for all OLTs
-  const fetchOltsStats = async () => {
-    const stats: Record<string, OLTStats> = {};
-    for (const olt of olts) {
-      try {
-        const response = await axios.get(`${API_ENDPOINTS.OLTS}/${olt.id}/stats`);
-        stats[olt.id] = response.data;
-      } catch (error) {
-        console.error(`Failed to fetch stats for OLT ${olt.id}:`, error);
-        stats[olt.id] = { total_onts: 0, onts_with_metrics: 0, percentage: 0 };
-      }
-    }
-    setOltStats(stats);
-  };
-
   useEffect(() => {
-    // Initial fetch and auto-refresh every 15 seconds
-    if (olts.length > 0) {
-      fetchOltsStats();
-      const intervalId = setInterval(fetchOltsStats, 15000);
-      return () => clearInterval(intervalId);
-    }
+    if (olts.length === 0) return;
+
+    const fetchOltsStats = async () => {
+      const stats: Record<string, OLTStats> = {};
+      for (const olt of olts) {
+        try {
+          const response = await apiClient.get(`${API_ENDPOINTS.OLTS}/${olt.id}/stats`);
+          stats[olt.id] = response.data;
+        } catch (error) {
+          console.error(`Failed to fetch stats for OLT ${olt.id}:`, error);
+          stats[olt.id] = { totalOnts: 0, ontsWithMetrics: 0, percentage: 0 };
+        }
+      }
+      setOltStats(stats);
+    };
+
+    fetchOltsStats();
+    const intervalId = setInterval(fetchOltsStats, 15000);
+    return () => clearInterval(intervalId);
   }, [olts]);
 
   const getStatusColor = (status: OltStatus) => {
@@ -113,7 +111,7 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       key: "metrics",
       width: 250,
       render: (_, record) => {
-        const stats = oltStats[record.id] || { total_onts: 0, onts_with_metrics: 0, percentage: 0 };
+        const stats = oltStats[record.id] || { totalOnts: 0, ontsWithMetrics: 0, percentage: 0 };
 
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -125,15 +123,15 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
               showInfo={false}
             />
             <span style={{ fontSize: 11, color: "#94a3b8" }}>
-              {stats.onts_with_metrics}/{stats.total_onts} ONTs polled
+              {stats.ontsWithMetrics}/{stats.totalOnts} ONTs polled
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
               {stats.percentage < 100 && (
                 <SyncOutlined spin style={{ color: "#7dd3fc", fontSize: 12 }} />
               )}
-              {stats.last_poll_time && (
+              {stats.lastPollTime && (
                 <span style={{ fontSize: 11, color: "#4ade80" }}>
-                  Updated: {new Date(stats.last_poll_time).toLocaleTimeString()}
+                  Updated: {new Date(stats.lastPollTime).toLocaleTimeString()}
                 </span>
               )}
             </div>

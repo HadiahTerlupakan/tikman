@@ -1,4 +1,5 @@
 import { Modal, Form, Select, InputNumber, Input } from "antd";
+import type { FormInstance } from "antd";
 import type { CreateOntDto } from "@/domain/entities";
 
 const { Option } = Select;
@@ -7,7 +8,7 @@ interface OntCreateModalProps {
   open: boolean;
   onCancel: () => void;
   onSubmit: (values: CreateOntDto) => Promise<void>;
-  form: any;
+  form: FormInstance;
   oltsData: Array<{ id: string; name: string }>;
   isLoading: boolean;
 }

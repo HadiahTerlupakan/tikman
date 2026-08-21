@@ -146,16 +146,26 @@ func (s *ONTService) Update(id uuid.UUID, updates map[string]interface{}) (*mode
 	return ont, nil
 }
 
-// Delete deletes an ONT
+// Delete deletes an ONT and its collected data.
 func (s *ONTService) Delete(id uuid.UUID) error {
-	result := s.db.Delete(&models.ONT{}, "id = ?", id)
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete ONT: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("ONT not found")
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&models.ONT{}, "id = ?", id)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete ONT: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("ONT not found")
+		}
+
+		if err := tx.Exec("DELETE FROM ont_metrics WHERE ont_id = ?", id).Error; err != nil {
+			return fmt.Errorf("failed to delete ONT metrics: %w", err)
+		}
+		if err := tx.Delete(&models.ONTEvent{}, "ont_id = ?", id).Error; err != nil {
+			return fmt.Errorf("failed to delete ONT events: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // UpdateStatus updates ONT status. last_seen_at is only refreshed when the ONT

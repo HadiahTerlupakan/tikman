@@ -9,8 +9,5 @@ func AutoMigrate(db *gorm.DB) error {
 		&OLT{},
 		&ONT{},
 		&ONTEvent{},
-		&Alarm{},
-		&AlertRule{},
-		&NotificationSettings{},
 	)
 }

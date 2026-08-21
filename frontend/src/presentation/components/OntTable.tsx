@@ -1,11 +1,20 @@
-import { Table, Tag, Button } from "antd";
-import { EyeOutlined } from "@ant-design/icons";
+import { Table, Tag, Button, Popconfirm, Space } from "antd";
+import { DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import type { Ont, OntStatus } from "@/domain/entities";
+
+interface OntTableRow extends Ont {
+  metrics?: {
+    rxPower?: number | null;
+    txPower?: number | null;
+    distance?: number | null;
+  };
+}
 
 interface OntTableProps {
   dataSource: Ont[];
   isLoading: boolean;
   onViewDetail: (ont: Ont) => void;
+  onDelete: (id: string) => void;
 }
 
 const getStatusColor = (status: OntStatus) => {
@@ -25,7 +34,7 @@ const getStatusColor = (status: OntStatus) => {
   }
 };
 
-export function OntTable({ dataSource, isLoading, onViewDetail }: OntTableProps) {
+export function OntTable({ dataSource, isLoading, onViewDetail, onDelete }: OntTableProps) {
   const columns = [
     {
       title: "Serial Number",
@@ -71,40 +80,50 @@ export function OntTable({ dataSource, isLoading, onViewDetail }: OntTableProps)
       title: "Distance (m)",
       key: "distance",
       render: (_: unknown, record: Ont) => {
-        const recordAny = record as any;
-        const distance = recordAny.distance;
-        return distance > 0 ? distance.toLocaleString() : "-";
+        const distance = (record as OntTableRow).distance ?? (record as OntTableRow).metrics?.distance;
+        return distance !== null && distance !== undefined && distance > 0 ? distance.toLocaleString() : "-";
       },
     },
     {
       title: "RX Power (dBm)",
       key: "rxPower",
       render: (_: unknown, record: Ont) => {
-        const recordAny = record as any;
-        const rxPower = recordAny.rxPower ?? recordAny.metrics?.rxPower;
-        return rxPower !== null && rxPower !== undefined ? parseFloat(rxPower).toFixed(2) : "-";
+        const rxPower = (record as OntTableRow).rxPower ?? (record as OntTableRow).metrics?.rxPower;
+        return rxPower !== null && rxPower !== undefined ? Number(rxPower).toFixed(2) : "-";
       },
     },
     {
       title: "TX Power (dBm)",
       key: "txPower",
       render: (_: unknown, record: Ont) => {
-        const recordAny = record as any;
-        const txPower = recordAny.txPower ?? recordAny.metrics?.txPower;
-        return txPower !== null && txPower !== undefined ? parseFloat(txPower).toFixed(2) : "-";
+        const txPower = (record as OntTableRow).txPower ?? (record as OntTableRow).metrics?.txPower;
+        return txPower !== null && txPower !== undefined ? Number(txPower).toFixed(2) : "-";
       },
     },
     {
       title: "Actions",
       key: "actions",
       render: (_: unknown, record: Ont) => (
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => onViewDetail(record)}
-        >
-          View
-        </Button>
+        <Space>
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => onViewDetail(record)}
+          >
+            View
+          </Button>
+          <Popconfirm
+            title="Hapus ONT ini?"
+            description="Data metrics dan event ONT ini juga akan dihapus"
+            onConfirm={() => onDelete(record.id)}
+            okText="Ya"
+            cancelText="Tidak"
+          >
+            <Button type="link" danger icon={<DeleteOutlined />}>
+              Delete
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];

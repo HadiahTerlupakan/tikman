@@ -49,7 +49,7 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	collectMetrics(db, ontService, metricsService, zapLogger)
@@ -80,6 +80,9 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 
 	oltMetricsCache := make(map[string]map[connectivity.ONTLocation]connectivity.ONTMetrics)
 	oltStatusCache := make(map[string]map[connectivity.ONTLocation]int)
+	oltStatusWalkOK := make(map[string]bool)
+	oltPruned := make(map[string]bool)
+	oltRatesCache := make(map[string]map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
 
 	for _, ont := range onts {
 		var olt models.OLT
@@ -89,7 +92,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 		}
 
 		oltKey := olt.ID.String()
-		
+
 		if _, exists := oltMetricsCache[oltKey]; !exists {
 			metricsMap, err := connectivity.WalkONTMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 			if err != nil {
@@ -99,7 +102,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				logger.Info("Walked ONT metrics", zap.String("olt", olt.Name), zap.Int("count", len(metricsMap)))
 				oltMetricsCache[oltKey] = metricsMap
 			}
-			
+
 			statuses, err := connectivity.WalkONTStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 			if err != nil {
 				logger.Error("Failed to walk ONT statuses", zap.String("olt", olt.Name), zap.Error(err))
@@ -107,19 +110,74 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 			} else {
 				logger.Info("Walked ONT statuses", zap.String("olt", olt.Name), zap.Int("count", len(statuses)))
 				oltStatusCache[oltKey] = statuses
+				oltStatusWalkOK[oltKey] = true
+			}
+
+			rates, err := connectivity.WalkONUTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+			if err != nil {
+				logger.Error("Failed to walk ONT traffic rates", zap.String("olt", olt.Name), zap.Error(err))
+				oltRatesCache[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
+			} else {
+				logger.Info("Walked ONT traffic rates", zap.String("olt", olt.Name), zap.Int("count", len(rates)))
+				oltRatesCache[oltKey] = rates
+			}
+		}
+
+		if oltStatusWalkOK[oltKey] && !oltPruned[oltKey] {
+			discovered, err := discoverONTsForSync(olt)
+			if err != nil {
+				logger.Error("Failed to discover ONTs for sync", zap.String("olt", olt.Name), zap.Error(err))
+				continue
+			}
+
+			deleted, err := ontService.PruneMissingFromDiscovery(olt.ID, discovered)
+			if err != nil {
+				logger.Error("Failed to prune stale ONTs", zap.String("olt", olt.Name), zap.Error(err))
+				continue
+			}
+			if deleted > 0 {
+				logger.Info("Pruned stale ONTs", zap.String("olt", olt.Name), zap.Int64("deleted", deleted))
+			}
+
+			regResult := ontService.BulkRegisterFromDiscovery(olt.ID, discovered)
+			if regResult.Registered > 0 {
+				logger.Info("Synced ONTs from OLT", zap.String("olt", olt.Name), zap.Int("changed", regResult.Registered))
+			}
+			for _, e := range regResult.Errors {
+				logger.Warn("ONT sync registration error", zap.String("olt", olt.Name), zap.String("error", e))
+			}
+
+			onts, _, err = ontService.List(nil, nil, 1000, 0)
+			if err != nil {
+				logger.Error("Failed to reload ONTs after sync", zap.String("olt", olt.Name), zap.Error(err))
+				continue
+			}
+			oltPruned[oltKey] = true
+		}
+
+		if oltStatusWalkOK[oltKey] {
+			if _, found := lookupByPortAndONT(oltStatusCache[oltKey], ont.PortID, ont.ONTID); !found {
+				continue
 			}
 		}
 
 		var foundMetrics *connectivity.ONTMetrics
+		var discoveredSlot int
 		matchCount := 0
 		for loc, m := range oltMetricsCache[oltKey] {
-			if loc.Slot == olt.Slot && loc.Port == ont.PortID && loc.ONTID == ont.ONTID {
+			// Match by port and ontID, and slot if already known
+			portMatch := loc.Port == ont.PortID
+			ontIDMatch := loc.ONTID == ont.ONTID
+			slotMatch := ont.Slot == nil || loc.Slot == *ont.Slot
+
+			if portMatch && ontIDMatch && slotMatch {
 				foundMetrics = &m
+				discoveredSlot = loc.Slot
 				matchCount++
 				break
 			}
 		}
-		
+
 		// Log first ONT for debugging
 		if ont.PortID == 1 && ont.ONTID == 1 {
 			firstLoc := connectivity.ONTLocation{}
@@ -137,7 +195,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 					txVal = fmt.Sprintf("%.2f", *foundMetrics.TxPower)
 				}
 			}
-			logger.Info("DEBUG: First ONT matching", 
+			logger.Info("DEBUG: First ONT matching",
 				zap.String("serial", ont.SerialNumber),
 				zap.Int("ont_slot", olt.Slot), zap.Int("snmp_slot_sample", firstLoc.Slot),
 				zap.Int("ont_port", ont.PortID), zap.Int("snmp_port_sample", firstLoc.Port),
@@ -146,24 +204,44 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				zap.String("rx", rxVal), zap.String("tx", txVal))
 		}
 
+		// Rate lookup key: prefer the ONT's stored slot, fall back to the slot
+		// just discovered from the metrics walk (first cycles after discovery).
+		rateSlot := discoveredSlot
+		if ont.Slot != nil {
+			rateSlot = *ont.Slot
+		}
+		var ontRates *connectivity.ONUTrafficRates
+		if r, ok := oltRatesCache[oltKey][connectivity.ONTLocation{Slot: rateSlot, Port: ont.PortID, ONTID: ont.ONTID}]; ok {
+			ontRates = &r
+		}
+
 		if foundMetrics != nil {
-			if err := metricsService.StoreMetrics(ont.ID, foundMetrics); err != nil {
+			if err := metricsService.StoreMetrics(ont.ID, foundMetrics, ontRates); err != nil {
 				logger.Error("Failed to save metrics", zap.String("serial", ont.SerialNumber), zap.Error(err))
 				continue
+			}
+		} else {
+			emptyMetrics := &connectivity.ONTMetrics{}
+			if err := metricsService.StoreMetrics(ont.ID, emptyMetrics, ontRates); err != nil {
+				logger.Error("Failed to save empty metrics", zap.String("serial", ont.SerialNumber), zap.Error(err))
 			}
 		}
 
 		var newStatus models.ONTStatus
 		foundStatus := false
 		for loc, runState := range oltStatusCache[oltKey] {
-			if loc.Slot == olt.Slot && loc.Port == ont.PortID && loc.ONTID == ont.ONTID {
+			portMatch := loc.Port == ont.PortID
+			ontIDMatch := loc.ONTID == ont.ONTID
+			slotMatch := ont.Slot == nil || loc.Slot == *ont.Slot
+
+			if portMatch && ontIDMatch && slotMatch {
 				newStatus = mapRunStateToStatus(runState)
 				foundStatus = true
 				logger.Info("Status from SNMP", zap.String("serial", ont.SerialNumber), zap.Int("runState", runState), zap.String("status", string(newStatus)))
 				break
 			}
 		}
-		
+
 		if !foundStatus {
 			if foundMetrics != nil && foundMetrics.RxPower != nil {
 				newStatus = models.ONTStatusOnline
@@ -173,16 +251,16 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				logger.Info("Status defaulted to offline", zap.String("serial", ont.SerialNumber), zap.String("status", string(newStatus)))
 			}
 		}
-		
+
 		logger.Info("Status check", zap.String("serial", ont.SerialNumber), zap.String("newStatus", string(newStatus)), zap.String("currentStatus", string(ont.Status)))
-		
+
 		if newStatus != "" && newStatus != ont.Status {
 			now := time.Now()
 			statusUpdates := map[string]interface{}{
 				"status":     string(newStatus),
 				"updated_at": now,
 			}
-			
+
 			if newStatus == models.ONTStatusOnline {
 				statusUpdates["last_seen_at"] = now
 				statusUpdates["last_online"] = now
@@ -190,7 +268,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				statusUpdates["last_offline"] = now
 				statusUpdates["last_offline_reason"] = string(newStatus)
 			}
-			
+
 			result := db.Model(&models.ONT{}).Where("id = ?", ont.ID).Updates(statusUpdates)
 			if result.Error != nil {
 				logger.Error("Failed to update ONT status", zap.String("serial", ont.SerialNumber), zap.Error(result.Error))
@@ -207,7 +285,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 			rxPower = foundMetrics.RxPower
 			txPower = foundMetrics.TxPower
 			distance = foundMetrics.Distance
-			
+
 			updates := make(map[string]interface{})
 			if rxPower != nil {
 				updates["rx_power"] = *rxPower
@@ -218,7 +296,13 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 			if distance > 0 {
 				updates["distance"] = distance
 			}
-			
+			if foundMetrics.SoftwareVersion != "" {
+				updates["software_version"] = foundMetrics.SoftwareVersion
+			}
+			if discoveredSlot > 0 {
+				updates["slot"] = discoveredSlot
+			}
+
 			if len(updates) > 0 {
 				if err := db.Table("onts").Where("id = ?", ont.ID).Updates(updates).Error; err != nil {
 					logger.Error("Failed to update ONT fields", zap.String("serial", ont.SerialNumber), zap.Error(err))
@@ -233,6 +317,31 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 	}
 
 	logger.Info("Metrics collection cycle completed")
+}
+
+func lookupByPortAndONT[T any](entries map[connectivity.ONTLocation]T, portID, ontID int) (T, bool) {
+	for loc, value := range entries {
+		if loc.Port == portID && loc.ONTID == ontID {
+			return value, true
+		}
+	}
+	var zero T
+	return zero, false
+}
+
+func discoverONTsForSync(olt models.OLT) ([]connectivity.DiscoveredONT, error) {
+	topology, err := connectivity.DiscoverOLTTopology(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if err != nil {
+		return nil, err
+	}
+
+	discovered := make([]connectivity.DiscoveredONT, 0)
+	for _, slot := range topology {
+		for _, port := range slot.Ports {
+			discovered = append(discovered, port.ONTs...)
+		}
+	}
+	return discovered, nil
 }
 
 func mapRunStateToStatus(runState int) models.ONTStatus {

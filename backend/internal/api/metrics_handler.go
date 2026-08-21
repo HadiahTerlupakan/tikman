@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -113,3 +114,81 @@ func (h *MetricsHandler) GetOltsStats(c *gin.Context) {
 	stats := h.metricsService.GetOLTPollingStats(oltID)
 	c.JSON(http.StatusOK, stats)
 }
+
+// GetRealtime queries the OLT live via SNMP for the freshest metrics,
+// including the octet-rate gauges — so the UI's 3-second polling reflects
+// actual current traffic rather than the worker's last stored row.
+func (h *MetricsHandler) GetRealtime(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid ONT ID format",
+		})
+		return
+	}
+
+	metrics, err := h.metricsService.GetRealtimeMetrics(id)
+	if err != nil {
+		// Fall back to the latest stored row when live polling fails
+		// (e.g. slot not yet discovered).
+		if stored, storedErr := h.metricsService.GetLatestMetrics(id); storedErr == nil {
+			c.JSON(http.StatusOK, ToONTMetricsResponse(stored))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Code:  "QUERY_FAILED",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, ToONTMetricsResponse(metrics))
+}
+
+// GetTrafficTimeSeries returns bucketed traffic rates for a period. Rates are
+// the worker-collected octet-rate gauges averaged per bucket.
+func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid ONT ID format",
+		})
+		return
+	}
+
+	period := c.DefaultQuery("period", "3h")
+
+	timeSeries, err := h.metricsService.GetONTTrafficTimeSeries(id, period)
+	if err != nil {
+		log.Printf("[ERROR] GetTrafficTimeSeries failed for ONT %s: %v", id, err)
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Code:  "QUERY_FAILED",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	response := make([]ONTTrafficTimeSeriesResponse, len(timeSeries))
+	for i, point := range timeSeries {
+		var rxMbps, txMbps float64
+		if point.RxRateMbps != nil {
+			rxMbps = *point.RxRateMbps
+		}
+		if point.TxRateMbps != nil {
+			txMbps = *point.TxRateMbps
+		}
+		response[i] = ONTTrafficTimeSeriesResponse{
+			Time:    point.Time,
+			RxBytes: point.RxBytes,
+			TxBytes: point.TxBytes,
+			RxMbps:  rxMbps,
+			TxMbps:  txMbps,
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+

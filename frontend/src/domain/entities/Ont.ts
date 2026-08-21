@@ -10,6 +10,7 @@ export interface Ont {
   id: string;
   oltId: string;
   oltName: string;
+  slot?: number;
   portId: number;
   ontId: number;
   serialNumber: string;
@@ -51,7 +52,14 @@ export interface OntMetrics {
   txPower: number | null;
   temperature: number;
   voltage: number;
+  txBiasCurrent: number | null;
   distance: number;
   rxBytes: number;
   txBytes: number;
+  rxPackets: number;
+  txPackets: number;
+  rxErrors: number;
+  txErrors: number;
+  rxMbps?: number;
+  txMbps?: number;
 }

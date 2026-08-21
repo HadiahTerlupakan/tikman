@@ -95,8 +95,9 @@ func TestDecodeZxGponPower(t *testing.T) {
 }
 
 func TestEncodeZxGponIfIndexMatchesLiveDevice(t *testing.T) {
-	if got := encodeZxGponIfIndex(1, 3, 1); got != liveIfIndex {
-		t.Errorf("encodeZxGponIfIndex(1, 3, 1) = %d (0x%08x), want %d (0x%08x)",
+	// The ZXGPON frame marker is 0x10, not the rack/frame number.
+	if got := encodeZxGponIfIndex(0x10, 3, 1); got != liveIfIndex {
+		t.Errorf("encodeZxGponIfIndex(0x10, 3, 1) = %d (0x%08x), want %d (0x%08x)",
 			got, got, liveIfIndex, liveIfIndex)
 	}
 }

@@ -59,9 +59,11 @@ export function useDeleteOnt() {
 
   return useMutation({
     mutationFn: (id: string) => ontRepository.delete(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      queryClient.removeQueries({ queryKey: ["onts", id] });
       queryClient.invalidateQueries({ queryKey: ["onts"] });
       queryClient.invalidateQueries({ queryKey: ["olts"] });
+      queryClient.invalidateQueries({ queryKey: ["polling"] });
     },
   });
 }
