@@ -34,6 +34,7 @@ vi.mock("@/infrastructure/repositories", () => {
     getAll: vi.fn(),
     getById: vi.fn(),
     getBySite: vi.fn(),
+    getStats: vi.fn(),
   };
 
   return {
@@ -63,6 +64,7 @@ vi.mock("@/infrastructure/repositories", () => {
       getAll = mockOltRepo.getAll;
       getById = mockOltRepo.getById;
       getBySite = mockOltRepo.getBySite;
+      getStats = mockOltRepo.getStats;
     },
     __mocks: {
       mockAuthRepo,

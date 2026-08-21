@@ -64,3 +64,12 @@ export interface UpdateOltDto {
   shelf?: number;
   slot?: number;
 }
+
+
+export interface OltStats {
+  totalOnts: number;
+  ontsWithMetrics: number;
+  percentage: number;
+  lastPollTime?: string;
+  oltId?: string;
+}

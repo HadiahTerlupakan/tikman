@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/database"
@@ -107,10 +108,16 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 			if err != nil {
 				logger.Error("Failed to walk ONT statuses", zap.String("olt", olt.Name), zap.Error(err))
 				oltStatusCache[oltKey] = make(map[connectivity.ONTLocation]int)
+				if err := updateOLTConnectionStatus(db, olt.ID, models.OLTStatusOffline, logger); err != nil {
+					logger.Error("Failed to update OLT status", zap.String("olt", olt.Name), zap.Error(err))
+				}
 			} else {
 				logger.Info("Walked ONT statuses", zap.String("olt", olt.Name), zap.Int("count", len(statuses)))
 				oltStatusCache[oltKey] = statuses
 				oltStatusWalkOK[oltKey] = true
+				if err := updateOLTConnectionStatus(db, olt.ID, models.OLTStatusOnline, logger); err != nil {
+					logger.Error("Failed to update OLT status", zap.String("olt", olt.Name), zap.Error(err))
+				}
 			}
 
 			rates, err := connectivity.WalkONUTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
@@ -317,6 +324,23 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 	}
 
 	logger.Info("Metrics collection cycle completed")
+}
+
+
+func updateOLTConnectionStatus(db *gorm.DB, oltID uuid.UUID, status models.OLTStatus, logger *zap.Logger) error {
+	updates := map[string]interface{}{"status": status}
+	if status == models.OLTStatusOnline {
+		updates["last_seen"] = time.Now()
+	}
+
+	result := db.Model(&models.OLT{}).Where("id = ?", oltID).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		logger.Info("Updated OLT connection status", zap.String("olt_id", oltID.String()), zap.String("status", string(status)))
+	}
+	return nil
 }
 
 func lookupByPortAndONT[T any](entries map[connectivity.ONTLocation]T, portID, ontID int) (T, bool) {

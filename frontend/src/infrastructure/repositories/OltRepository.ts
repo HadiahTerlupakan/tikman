@@ -1,7 +1,7 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import type { IOltRepository } from "@/domain/repositories";
-import type { Olt, CreateOltDto, UpdateOltDto } from "@/domain/entities";
+import type { Olt, CreateOltDto, UpdateOltDto, OltStats } from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
   async getAll(): Promise<Olt[]> {
@@ -18,6 +18,11 @@ export class OltRepository implements IOltRepository {
 
   async getById(id: string): Promise<Olt> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_BY_ID(id));
+    return response.data;
+  }
+
+  async getStats(id: string): Promise<OltStats> {
+    const response = await apiClient.get(API_ENDPOINTS.OLT_STATS(id));
     return response.data;
   }
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, Select, Tabs, Pagination, Row, Col, Spin, Input, Space, DatePicker } from "antd";
 import { OntTrafficCard } from "@/presentation/components/OntTrafficCard";
 import type { Olt } from "@/domain/entities/Olt";
-import type { Ont } from "@/domain/entities/Ont";
+import { OntStatus, type Ont } from "@/domain/entities/Ont";
 import { useOnts } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import { filterOntsByQuery } from "./graphsFilter";
@@ -13,6 +13,7 @@ const { RangePicker } = DatePicker;
 export function GraphsPage() {
   const [selectedOlt, setSelectedOlt] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<OntStatus | undefined>(undefined);
   const [period, setPeriod] = useState("3h");
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -21,15 +22,16 @@ export function GraphsPage() {
   const { data: olts } = useOlts();
   const { data: ontsData, isLoading } = useOnts({ oltId: selectedOlt });
 
-  const filteredOnts = useMemo(
-    () => filterOntsByQuery(ontsData?.data || [], searchText),
-    [ontsData, searchText]
-  );
+  const filteredOnts = useMemo(() => {
+    const searchedOnts = filterOntsByQuery(ontsData?.data || [], searchText);
+    if (!selectedStatus) return searchedOnts;
+    return searchedOnts.filter((ont) => ont.status === selectedStatus);
+  }, [ontsData, searchText, selectedStatus]);
   const totalOnts = filteredOnts.length;
 
   useEffect(() => {
     setPage(1);
-  }, [selectedOlt, searchText]);
+  }, [selectedOlt, searchText, selectedStatus]);
 
   const paginatedOnts = filteredOnts.slice((page - 1) * pageSize, page * pageSize);
 
@@ -63,6 +65,19 @@ export function GraphsPage() {
               allowClear
               style={{ width: 260 }}
             />
+            <Select
+              style={{ width: 160 }}
+              placeholder="Select status"
+              allowClear
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+            >
+              {Object.values(OntStatus).map((status) => (
+                <Option key={status} value={status}>
+                  {status}
+                </Option>
+              ))}
+            </Select>
             <RangePicker
               placeholder={["Start date", "End date"]}
               onChange={(values) => {

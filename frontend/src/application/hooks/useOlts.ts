@@ -4,11 +4,16 @@ import type { CreateOltDto, UpdateOltDto } from "@/domain/entities";
 
 const oltRepository = new OltRepository();
 
+const OLT_LIST_POLL_INTERVAL = 60000;
+const OLT_STATS_POLL_INTERVAL = 60000;
+
 export function useOlts(siteId?: string) {
   return useQuery({
     queryKey: siteId ? ["olts", "site", siteId] : ["olts"],
     queryFn: () =>
       siteId ? oltRepository.getBySite(siteId) : oltRepository.getAll(),
+    refetchInterval: OLT_LIST_POLL_INTERVAL,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -17,6 +22,16 @@ export function useOlt(id: string) {
     queryKey: ["olts", id],
     queryFn: () => oltRepository.getById(id),
     enabled: !!id,
+  });
+}
+
+export function useOltStats(id: string) {
+  return useQuery({
+    queryKey: ["olts", id, "stats"],
+    queryFn: () => oltRepository.getStats(id),
+    enabled: !!id,
+    refetchInterval: OLT_STATS_POLL_INTERVAL,
+    refetchIntervalInBackground: true,
   });
 }
 

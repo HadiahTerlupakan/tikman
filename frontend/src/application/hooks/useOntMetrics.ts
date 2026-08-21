@@ -40,6 +40,10 @@ export function useOntMetricsRealtime(id: string, enabled = true) {
   });
 }
 
+// The worker collects metrics every 60s, so polling faster only re-reads the
+// same rows from ont_metrics.
+const TRAFFIC_TIMESERIES_POLL_INTERVAL = 60000;
+
 export function useOntTrafficTimeSeries(
   id: string,
   period: string,
@@ -50,7 +54,7 @@ export function useOntTrafficTimeSeries(
     queryKey: ["onts", id, "traffic-timeseries", period, range?.start, range?.end],
     queryFn: () => ontRepository.getTrafficTimeSeries(id, period, range),
     enabled: enabled && !!id,
-    refetchInterval: 30000,
+    refetchInterval: TRAFFIC_TIMESERIES_POLL_INTERVAL,
     refetchIntervalInBackground: true,
     staleTime: 0,
     retry: false,
