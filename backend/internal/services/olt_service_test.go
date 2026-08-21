@@ -106,15 +106,15 @@ func TestOLTService_GetByID(t *testing.T) {
 
 	// NOTE: Create() will fail due to validation - IP not reachable in test environment
 	created, err := oltService.Create(
-		"Test OLT",        // name
-		"192.168.1.1",     // ipAddress
-		"public",          // snmpCommunity
-		"admin",           // username
-		"password123",     // password
-		0, 0, 1,           // rack, shelf, slot
-		22,                // sshPort
-		23,                // telnetPort
-		161,               // snmpPort
+		"Test OLT",    // name
+		"192.168.1.1", // ipAddress
+		"public",      // snmpCommunity
+		"admin",       // username
+		"password123", // password
+		0, 0, 1,       // rack, shelf, slot
+		22,                    // sshPort
+		23,                    // telnetPort
+		161,                   // snmpPort
 		models.OLTProtocolSSH, // preferredProtocol
 	)
 	require.Error(t, err) // Expected to fail at validation

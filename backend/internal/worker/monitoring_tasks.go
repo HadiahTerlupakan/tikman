@@ -182,42 +182,42 @@ func (w *MonitoringWorker) pollAllONTsMetrics() {
 			continue
 		}
 
-			for _, ont := range onts {
-				totalONTs++
+		for _, ont := range onts {
+			totalONTs++
 
-				metrics, found := lookupByPortAndONT(allMetrics, ont.PortID, ont.ONTID)
-				if !found {
-					continue
-				}
-
-				if err := w.metricsService.StoreMetrics(ont.ID, &metrics, nil); err != nil {
-					log.Printf("[Worker] Failed to store metrics for ONT %s (port %d/%d): %v",
-						ont.SerialNumber, ont.PortID, ont.ONTID, err)
-					continue
-				}
-
-				latestMetricFields := make(map[string]interface{})
-				if metrics.RxPower != nil {
-					latestMetricFields["rx_power"] = *metrics.RxPower
-				}
-				if metrics.TxPower != nil {
-					latestMetricFields["tx_power"] = *metrics.TxPower
-				}
-				if metrics.Distance > 0 {
-					latestMetricFields["distance"] = metrics.Distance
-				}
-
-				if len(latestMetricFields) > 0 {
-					if _, err := w.ontService.Update(ont.ID, latestMetricFields); err != nil {
-						log.Printf("[Worker] Failed to update ONT %s metrics fields: %v", ont.SerialNumber, err)
-					}
-				}
-
-				log.Printf("[Worker] Metrics collected: serial=%s port=%d/%d rx_power=%s tx_power=%s distance=%dm",
-					ont.SerialNumber, ont.PortID, ont.ONTID,
-					formatPower(metrics.RxPower), formatPower(metrics.TxPower), metrics.Distance)
-				successCount++
+			metrics, found := lookupByPortAndONT(allMetrics, ont.PortID, ont.ONTID)
+			if !found {
+				continue
 			}
+
+			if err := w.metricsService.StoreMetrics(ont.ID, &metrics, nil); err != nil {
+				log.Printf("[Worker] Failed to store metrics for ONT %s (port %d/%d): %v",
+					ont.SerialNumber, ont.PortID, ont.ONTID, err)
+				continue
+			}
+
+			latestMetricFields := make(map[string]interface{})
+			if metrics.RxPower != nil {
+				latestMetricFields["rx_power"] = *metrics.RxPower
+			}
+			if metrics.TxPower != nil {
+				latestMetricFields["tx_power"] = *metrics.TxPower
+			}
+			if metrics.Distance > 0 {
+				latestMetricFields["distance"] = metrics.Distance
+			}
+
+			if len(latestMetricFields) > 0 {
+				if _, err := w.ontService.Update(ont.ID, latestMetricFields); err != nil {
+					log.Printf("[Worker] Failed to update ONT %s metrics fields: %v", ont.SerialNumber, err)
+				}
+			}
+
+			log.Printf("[Worker] Metrics collected: serial=%s port=%d/%d rx_power=%s tx_power=%s distance=%dm",
+				ont.SerialNumber, ont.PortID, ont.ONTID,
+				formatPower(metrics.RxPower), formatPower(metrics.TxPower), metrics.Distance)
+			successCount++
+		}
 	}
 
 	duration := time.Since(start)

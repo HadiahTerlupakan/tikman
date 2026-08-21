@@ -44,12 +44,12 @@ const (
 	OnuGponOpticalDistancePrefix = ".500.10.2.3.10.1.2" // Optical distance
 
 	// Device information OID prefixes
-	OnuTypePrefix            = ".3.28.1.1.5"      // ONU device type/model
-	OnuHardwareVersionPrefix = ".3.50.11.2.1.2"   // Hardware version (equipment version)
-	OnuSoftwareVersionPrefix = ".3.28.1.1.7"      // Software/firmware version (not available on C300)
-	OnuEquipmentIDPrefix     = ".3.50.11.2.1.9"   // Equipment ID (model+firmware, e.g. F660V9)
-	OnuIPAddressPrefix       = ".3.50.16.1.1.10"  // Management IP address (TYPE space, 2 indices)
-	OnuMACAddressPrefix      = ".3.50.16.1.1.3"   // MAC address (TYPE space, 2 indices)
+	OnuTypePrefix            = ".3.28.1.1.5"     // ONU device type/model
+	OnuHardwareVersionPrefix = ".3.50.11.2.1.2"  // Hardware version (equipment version)
+	OnuSoftwareVersionPrefix = ".3.28.1.1.7"     // Software/firmware version (not available on C300)
+	OnuEquipmentIDPrefix     = ".3.50.11.2.1.9"  // Equipment ID (model+firmware, e.g. F660V9)
+	OnuIPAddressPrefix       = ".3.50.16.1.1.10" // Management IP address (TYPE space, 2 indices)
+	OnuMACAddressPrefix      = ".3.50.16.1.1.3"  // MAC address (TYPE space, 2 indices)
 
 	// Health monitoring OID prefixes
 	OnuTemperaturePrefix   = ".3.50.12.1.1.1" // Temperature in Celsius

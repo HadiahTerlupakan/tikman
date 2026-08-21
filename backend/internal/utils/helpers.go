@@ -17,11 +17,12 @@ func DecodeZxGponIfIndex(ifIndex uint32) (slot, port int, ok bool) {
 
 // StatusMap maps SNMP phase state integer values to ONT status strings
 // Based on ZTE C300 V2.1.0 verified values from ZXGPON-MIB (.1012.3.28.2.1.4):
-//   3 = working/online - ONU teregistrasi dan lewat trafik
-//   4 = dying_gasp     - ONU baru kehilangan power
-//   6 = offline        - ONU mati atau kabel putus
-//   1 = los            - Loss of Signal
-//   other = unknown    - nilai tidak dikenali
+//
+//	3 = working/online - ONU teregistrasi dan lewat trafik
+//	4 = dying_gasp     - ONU baru kehilangan power
+//	6 = offline        - ONU mati atau kabel putus
+//	1 = los            - Loss of Signal
+//	other = unknown    - nilai tidak dikenali
 func StatusMap(phaseState int) string {
 	switch phaseState {
 	case 3:
@@ -36,5 +37,3 @@ func StatusMap(phaseState int) string {
 		return "unknown"
 	}
 }
-
-

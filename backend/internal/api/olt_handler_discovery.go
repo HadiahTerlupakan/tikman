@@ -204,13 +204,13 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 
 	// Assume slot 1 for all (since ONT model doesn't have slot_id yet)
 	slotMap := make(map[int]map[int][]map[string]interface{})
-	
+
 	for _, ont := range onts {
 		slot := 1
 		if slotMap[slot] == nil {
 			slotMap[slot] = make(map[int][]map[string]interface{})
 		}
-		
+
 		ontData := map[string]interface{}{
 			"ont_id":        ont.ONTID,
 			"port_id":       ont.PortID,
@@ -220,7 +220,7 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 			"description":   ont.Description,
 			"run_state":     mapStatusToRunState(ont.Status),
 		}
-		
+
 		slotMap[slot][ont.PortID] = append(slotMap[slot][ont.PortID], ontData)
 	}
 
@@ -233,7 +233,7 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 				"onts":    ontList,
 			})
 		}
-		
+
 		topology = append(topology, map[string]interface{}{
 			"slot":  slot,
 			"ports": portList,

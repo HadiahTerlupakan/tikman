@@ -82,8 +82,8 @@ func (h *OLTHandler) Create(c *gin.Context) {
 
 		if len(errMsg) > 21 && errMsg[:21] == "OLT validation failed" {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error: "OLT validation failed",
-				Code:  "VALIDATION_FAILED",
+				Error:   "OLT validation failed",
+				Code:    "VALIDATION_FAILED",
 				Details: errMsg,
 			})
 			return

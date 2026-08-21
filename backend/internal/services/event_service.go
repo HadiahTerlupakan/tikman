@@ -57,7 +57,7 @@ func (s *EventService) LogStatusChange(ontID uuid.UUID, newStatus string, reason
 
 	// Calculate duration for the previous event
 	duration := int64(now.Sub(lastEvent.EventTime).Seconds())
-	
+
 	// Update previous event with duration
 	if err := s.db.Model(&lastEvent).Update("duration_seconds", duration).Error; err != nil {
 		return err
@@ -109,18 +109,18 @@ func (s *EventService) GetEventsInTimeRange(ontID uuid.UUID, startTime, endTime 
 
 // AvailabilityStats represents availability metrics for an ONT
 type AvailabilityStats struct {
-	ONTID              uuid.UUID `json:"ont_id"`
-	StartTime          time.Time `json:"start_time"`
-	EndTime            time.Time `json:"end_time"`
-	TotalSeconds       int64     `json:"total_seconds"`
-	OnlineSeconds      int64     `json:"online_seconds"`
-	OfflineSeconds     int64     `json:"offline_seconds"`
+	ONTID               uuid.UUID `json:"ont_id"`
+	StartTime           time.Time `json:"start_time"`
+	EndTime             time.Time `json:"end_time"`
+	TotalSeconds        int64     `json:"total_seconds"`
+	OnlineSeconds       int64     `json:"online_seconds"`
+	OfflineSeconds      int64     `json:"offline_seconds"`
 	AvailabilityPercent float64   `json:"availability_percent"`
-	TotalEvents        int       `json:"total_events"`
-	OnlineEvents       int       `json:"online_events"`
-	OfflineEvents      int       `json:"offline_events"`
-	MTBF               float64   `json:"mtbf"` // Mean Time Between Failures (average online duration)
-	MTTR               float64   `json:"mttr"` // Mean Time To Repair (average offline duration)
+	TotalEvents         int       `json:"total_events"`
+	OnlineEvents        int       `json:"online_events"`
+	OfflineEvents       int       `json:"offline_events"`
+	MTBF                float64   `json:"mtbf"` // Mean Time Between Failures (average online duration)
+	MTTR                float64   `json:"mttr"` // Mean Time To Repair (average offline duration)
 }
 
 // CalculateAvailability computes availability metrics for a given time range

@@ -40,8 +40,8 @@ func (h *ONTHandler) List(c *gin.Context) {
 		id, err := uuid.Parse(oltIDStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:   "INVALID_OLT_ID",
-				Error:  "Invalid OLT ID format",
+				Code:    "INVALID_OLT_ID",
+				Error:   "Invalid OLT ID format",
 				Details: map[string]string{"olt_id": oltIDStr},
 			})
 			return
@@ -59,8 +59,8 @@ func (h *ONTHandler) List(c *gin.Context) {
 		t, err := time.Parse(time.RFC3339, startTimeStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:   "INVALID_TIME_RANGE",
-				Error:  fmt.Sprintf("Invalid start_time format: %v", err),
+				Code:  "INVALID_TIME_RANGE",
+				Error: fmt.Sprintf("Invalid start_time format: %v", err),
 			})
 			return
 		}
@@ -71,8 +71,8 @@ func (h *ONTHandler) List(c *gin.Context) {
 		t, err := time.Parse(time.RFC3339, endTimeStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:   "INVALID_TIME_RANGE",
-				Error:  fmt.Sprintf("Invalid end_time format: %v", err),
+				Code:  "INVALID_TIME_RANGE",
+				Error: fmt.Sprintf("Invalid end_time format: %v", err),
 			})
 			return
 		}
@@ -85,9 +85,9 @@ func (h *ONTHandler) List(c *gin.Context) {
 
 	// Validate limit (max 500 to prevent performance issues)
 	if limit < 1 {
-		limit = 500  // Default to showing max items at once
+		limit = 500 // Default to showing max items at once
 	} else if limit > 500 {
-		limit = 500  // Cap at 500 for safety
+		limit = 500 // Cap at 500 for safety
 	}
 
 	onts, total, err := h.ontService.ListWithMetricsFilter(oltID, status, startTime, endTime, limit, offset)
@@ -101,12 +101,12 @@ func (h *ONTHandler) List(c *gin.Context) {
 
 	oltMap := make(map[uuid.UUID]string)
 	var metricsMap map[uuid.UUID]*services.ONTMetricsRow
-	
+
 	if len(onts) > 0 {
 		oltIDs := make([]uuid.UUID, 0)
 		ontIDs := make([]uuid.UUID, len(onts))
 		seenOLT := make(map[uuid.UUID]bool)
-		
+
 		for i, ont := range onts {
 			ontIDs[i] = ont.ID
 			if !seenOLT[ont.OLTID] {
@@ -162,7 +162,7 @@ func (h *ONTHandler) GetByID(c *gin.Context) {
 	}
 
 	metrics, _ := h.metricsService.GetLatestMetrics(ont.ID)
-	
+
 	c.JSON(http.StatusOK, ToONTResponseWithMetrics(ont, metrics))
 }
 

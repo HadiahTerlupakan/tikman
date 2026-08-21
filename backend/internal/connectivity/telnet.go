@@ -84,8 +84,8 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 
 	bannerLower := strings.ToLower(banner)
 	if !strings.Contains(bannerLower, "username") &&
-	   !strings.Contains(bannerLower, "login") &&
-	   !strings.Contains(bannerLower, "user") {
+		!strings.Contains(bannerLower, "login") &&
+		!strings.Contains(bannerLower, "user") {
 		return fmt.Errorf("expected username prompt, got: %s", banner)
 	}
 
@@ -120,19 +120,19 @@ func TelnetTest(ipAddress string, port int, username, password string, timeout t
 	// Check for authentication failure indicators
 	responseLower := strings.ToLower(response)
 	if strings.Contains(responseLower, "login incorrect") ||
-	   strings.Contains(responseLower, "authentication failed") ||
-	   strings.Contains(responseLower, "access denied") ||
-	   strings.Contains(responseLower, "invalid password") ||
-	   strings.Contains(responseLower, "login failed") ||
-	   strings.Contains(responseLower, "error") ||
-	   strings.Contains(responseLower, "bad password") {
+		strings.Contains(responseLower, "authentication failed") ||
+		strings.Contains(responseLower, "access denied") ||
+		strings.Contains(responseLower, "invalid password") ||
+		strings.Contains(responseLower, "login failed") ||
+		strings.Contains(responseLower, "error") ||
+		strings.Contains(responseLower, "bad password") {
 		return fmt.Errorf("authentication failed")
 	}
 
 	// Check if we got a prompt (successful login indicator)
 	if strings.Contains(response, ">") ||
-	   strings.Contains(response, "#") ||
-	   strings.Contains(response, "$") {
+		strings.Contains(response, "#") ||
+		strings.Contains(response, "$") {
 		return nil
 	}
 

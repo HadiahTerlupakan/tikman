@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"gorm.io/gorm"
 )
 
 // User DTOs
@@ -152,8 +152,8 @@ type OLTResponse struct {
 	Status            models.OLTStatus   `json:"status"`
 	LastSeen          *time.Time         `json:"last_seen"`
 	ONTCount          int                `json:"ont_count"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
 }
 
 func ToOLTResponse(db *gorm.DB, olt *models.OLT) OLTResponse {
@@ -264,7 +264,7 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 	if ont.Distance != 0 {
 		distance = &ont.Distance
 	}
-	
+
 	return ONTResponse{
 		ID:                   ont.ID,
 		OLTID:                ont.OLTID,
@@ -380,10 +380,9 @@ func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
 
 // ONTTrafficTimeSeriesResponse represents a single data point in traffic time series
 type ONTTrafficTimeSeriesResponse struct {
-	Time     time.Time `json:"time"`
-	RxBytes  uint64    `json:"rx_bytes"`
-	TxBytes  uint64    `json:"tx_bytes"`
-	RxMbps   float64   `json:"rx_mbps"`
-	TxMbps   float64   `json:"tx_mbps"`
+	Time    time.Time `json:"time"`
+	RxBytes uint64    `json:"rx_bytes"`
+	TxBytes uint64    `json:"tx_bytes"`
+	RxMbps  float64   `json:"rx_mbps"`
+	TxMbps  float64   `json:"tx_mbps"`
 }
-

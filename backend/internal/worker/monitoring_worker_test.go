@@ -233,8 +233,6 @@ func TestPollAllONTsMetricsEmptyDatabase(t *testing.T) {
 	assert.True(t, true)
 }
 
-
-
 // TestMonitoringWorkerStopCancelsContext verifies Stop cancels the context
 func TestMonitoringWorkerStopCancelsContext(t *testing.T) {
 	db := setupTestDB(t)

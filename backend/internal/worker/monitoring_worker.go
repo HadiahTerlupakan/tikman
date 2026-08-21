@@ -12,8 +12,7 @@ import (
 )
 
 // Polling intervals for ONT status and metrics collection
-const (
-)
+const ()
 
 // MonitoringWorker handles periodic ONT status and metrics polling
 type MonitoringWorker struct {
@@ -134,9 +133,9 @@ func (w *MonitoringWorker) metricsPollLoop() {
 // UNUSED: 	if err != nil {
 // UNUSED: 		return fmt.Errorf("SNMP poll failed: %w", err)
 // UNUSED: 	}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 	newStatus := models.ONTStatus(utils.StatusMap(phaseState))
-// UNUSED: 
+// UNUSED:
 // UNUSED: 	if ont.Status != newStatus {
 // UNUSED: 		log.Printf("[Worker] ONT %s status changed: %s -> %s (phase state: %d)",
 // UNUSED: 			ont.SerialNumber, ont.Status, newStatus, phaseState)
@@ -144,7 +143,7 @@ func (w *MonitoringWorker) metricsPollLoop() {
 // UNUSED: 			return fmt.Errorf("failed to update status: %w", err)
 // UNUSED: 		}
 // UNUSED: 	}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 	return nil
 // UNUSED: }
 

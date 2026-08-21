@@ -14,11 +14,11 @@ import (
 )
 
 type SeedHandler struct {
-	db             *gorm.DB
-	oltService     *services.OLTService
-	ontService     *services.ONTService
-	eventService   *services.EventService
-	encryptionKey  string
+	db            *gorm.DB
+	oltService    *services.OLTService
+	ontService    *services.ONTService
+	eventService  *services.EventService
+	encryptionKey string
 }
 
 func NewSeedHandler(db *gorm.DB, encryptionKey string) *SeedHandler {

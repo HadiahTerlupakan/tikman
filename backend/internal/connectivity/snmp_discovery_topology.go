@@ -11,8 +11,8 @@ import (
 
 // GPONSlot represents a line-card slot with its PON ports
 type GPONSlot struct {
-	Slot  int         `json:"slot"`
-	Ports []GponPort  `json:"ports"`
+	Slot  int        `json:"slot"`
+	Ports []GponPort `json:"ports"`
 }
 
 // GponPort represents a PON port within a slot

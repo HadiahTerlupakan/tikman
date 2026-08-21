@@ -111,13 +111,13 @@ func WalkONTMetrics(ipAddress, community string, snmpPort int) (map[ONTLocation]
 			}
 			return nil
 		}
-		
+
 		rxDecodeOkCount++
 
 		loc := ONTLocation{Slot: slot, Port: port, ONTID: onuIndex}
-		
+
 		rxPowerPtr := decodeZxGponPower(value)
-		
+
 		rxValidCount++
 		if rxValidCount <= 3 {
 			rxVal := "nil"

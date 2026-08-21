@@ -89,7 +89,7 @@ func PollOntStatus(ipAddress string, community string, snmpPort int, slot, gponP
 
 	ifIndex := encodeOnuIDIfIndex(1, slot, gponPort)
 	phaseStateOID := fmt.Sprintf("%s.%d.%d", OID_ZXAN_ONU_PHASE_STATE_TABLE, ifIndex, ontID)
-	
+
 	result, err := client.Get([]string{phaseStateOID})
 	if err != nil {
 		return 0, fmt.Errorf("SNMP get failed: %w", err)
@@ -194,4 +194,3 @@ func GetLastOfflineReason(client *gosnmp.GoSNMP, slot, port, ontID int) (string,
 		return fmt.Sprintf("Unknown(%d)", reasonCode), nil
 	}
 }
-

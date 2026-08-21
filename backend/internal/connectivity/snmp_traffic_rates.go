@@ -9,7 +9,6 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-
 // ONUTrafficRates holds live traffic rates reported by the OLT as Gauge32
 // values in bytes per second. RxOctet is the ONU→OLT direction (upload),
 // TxOctet is OLT→ONU (download).

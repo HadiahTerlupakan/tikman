@@ -196,17 +196,17 @@ func WalkONTHardwareVersions(ipAddress, community string, snmpPort int) (map[ONT
 // walkONTMetricsForPort queries optical metrics for ONTs on a specific port
 // UNUSED: func walkONTMetricsForPort(client *gosnmp.GoSNMP, ipAddress, community string, snmpPort int,
 // UNUSED: 	slot, port int, ontLocations []ONTLocation) (map[ONTLocation]*ONTMetrics, error) {
-// UNUSED: 
+// UNUSED:
 // UNUSED: 	log.Printf("[Metrics] Querying metrics for slot %d port %d (%d ONTs)", slot, port, len(ontLocations))
 // UNUSED: 	metrics := make(map[ONTLocation]*ONTMetrics)
-// UNUSED: 
+// UNUSED:
 // UNUSED: 	for _, loc := range ontLocations {
 // UNUSED: 		onMetrics := &ONTMetrics{}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 		// Query RX power using ZXGPON-MIB table
 // UNUSED: 		zxIfIndex := encodeZxGponIfIndex(1, slot, port)
 // UNUSED: 		rxOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_RX_POWER_TABLE, zxIfIndex, loc.ONTID)
-// UNUSED: 
+// UNUSED:
 // UNUSED: 		result, err := client.Get([]string{rxOID})
 // UNUSED: 		if err == nil && len(result.Variables) > 0 {
 // UNUSED: 			if val, ok := toInt64(result.Variables[0].Value); ok {
@@ -222,7 +222,7 @@ func WalkONTHardwareVersions(ipAddress, community string, snmpPort int) (map[ONT
 // UNUSED: 		} else if err != nil {
 // UNUSED: 			log.Printf("[Metrics] RX power query failed for ONT %d: %v", loc.ONTID, err)
 // UNUSED: 		}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 		// Query TX power
 // UNUSED: 		txOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_TX_POWER_TABLE, zxIfIndex, loc.ONTID)
 // UNUSED: 		result, err = client.Get([]string{txOID})
@@ -234,7 +234,7 @@ func WalkONTHardwareVersions(ipAddress, community string, snmpPort int) (map[ONT
 // UNUSED: 		} else if err != nil {
 // UNUSED: 			log.Printf("[Metrics] TX power query failed for ONT %d: %v", loc.ONTID, err)
 // UNUSED: 		}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 		// Query distance
 // UNUSED: 		distOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_DISTANCE_TABLE, zxIfIndex, loc.ONTID)
 // UNUSED: 		result, err = client.Get([]string{distOID})
@@ -245,10 +245,10 @@ func WalkONTHardwareVersions(ipAddress, community string, snmpPort int) (map[ONT
 // UNUSED: 		} else if err != nil {
 // UNUSED: 			log.Printf("[Metrics] Distance query failed for ONT %d: %v", loc.ONTID, err)
 // UNUSED: 		}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 		metrics[loc] = onMetrics
 // UNUSED: 	}
-// UNUSED: 
+// UNUSED:
 // UNUSED: 	log.Printf("[Metrics] Retrieved metrics for %d ONTs on slot %d port %d", len(metrics), slot, port)
 // UNUSED: 	return metrics, nil
 // UNUSED: }
