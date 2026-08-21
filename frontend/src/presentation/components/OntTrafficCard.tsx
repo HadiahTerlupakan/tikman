@@ -33,9 +33,10 @@ function formatSpeed(mbps: number): string {
 
 export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
   const { data: timeSeries, isLoading } = useOntTrafficTimeSeries(ont.id, period, range);
+  const isCustomRange = !!range;
 
   const chartData = timeSeries?.map((point) => ({
-    time: new Date(point.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    time: point.time,
     download: point.txMbps || 0,
     upload: point.rxMbps || 0,
   })) || [];
@@ -56,6 +57,25 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
     },
   };
 
+  const formatXAxisTick = (time: string) => {
+    const date = new Date(time);
+    if (isCustomRange) {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const customRangeLabel = range
+    ? `${formatXAxisTick(range.start)} - ${formatXAxisTick(range.end)}`
+    : undefined;
+
+  const formatTooltipLabel = (label: unknown) => {
+    if (typeof label !== 'string' && typeof label !== 'number' && !(label instanceof Date)) {
+      return '';
+    }
+    return new Date(label).toLocaleString();
+  };
+
   return (
     <Card
       size="small"
@@ -73,6 +93,11 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
         <div style={{ fontSize: 10, color: '#999' }}>
           ONU-{ont.ontId}
         </div>
+        {isCustomRange && (
+          <div role="status" aria-label="Custom date range indicator" style={{ fontSize: 10, color: '#faad14', marginTop: 4 }}>
+            Custom range: {customRangeLabel}
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -94,37 +119,39 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="time" 
-                tick={{ fontSize: 10 }} 
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: 10 }}
                 tickLine={false}
+                tickFormatter={formatXAxisTick}
               />
-              <YAxis 
-                tick={{ fontSize: 10 }} 
+              <YAxis
+                tick={{ fontSize: 10 }}
                 tickLine={false}
                 tickFormatter={(value) => value < 1 ? `${(value * 1000).toFixed(0)}K` : value.toFixed(1)}
               />
-              <Tooltip 
+              <Tooltip
                 contentStyle={{ fontSize: 11 }}
                 formatter={(value) => formatSpeed(Number(value))}
+                labelFormatter={formatTooltipLabel}
               />
-              <Legend 
+              <Legend
                 wrapperStyle={{ fontSize: 11 }}
                 iconType="line"
               />
-              <Area 
-                type="monotone" 
-                dataKey="download" 
-                stroke="#ff69b4" 
+              <Area
+                type="monotone"
+                dataKey="download"
+                stroke="#ff69b4"
                 fillOpacity={1}
                 fill={`url(#colorDownload-${ont.id})`}
                 name="Download"
                 strokeWidth={2}
               />
-              <Area 
-                type="monotone" 
-                dataKey="upload" 
-                stroke="#4169e1" 
+              <Area
+                type="monotone"
+                dataKey="upload"
+                stroke="#4169e1"
                 fillOpacity={1}
                 fill={`url(#colorUpload-${ont.id})`}
                 name="Upload"

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,6 +33,7 @@ func NewONTHandler(ontService *services.ONTService, metricsService *services.Met
 func (h *ONTHandler) List(c *gin.Context) {
 	var oltID *uuid.UUID
 	var status *models.ONTStatus
+	var startTime, endTime *time.Time
 
 	// Parse filters
 	if oltIDStr := c.Query("olt_id"); oltIDStr != "" {
@@ -51,6 +54,31 @@ func (h *ONTHandler) List(c *gin.Context) {
 		status = &s
 	}
 
+	// Parse optional time range filter
+	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
+		t, err := time.Parse(time.RFC3339, startTimeStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:   "INVALID_TIME_RANGE",
+				Error:  fmt.Sprintf("Invalid start_time format: %v", err),
+			})
+			return
+		}
+		startTime = &t
+	}
+
+	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
+		t, err := time.Parse(time.RFC3339, endTimeStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:   "INVALID_TIME_RANGE",
+				Error:  fmt.Sprintf("Invalid end_time format: %v", err),
+			})
+			return
+		}
+		endTime = &t
+	}
+
 	// Parse pagination - Allow up to 500 items per request for frontend display
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -62,7 +90,7 @@ func (h *ONTHandler) List(c *gin.Context) {
 		limit = 500  // Cap at 500 for safety
 	}
 
-	onts, total, err := h.ontService.List(oltID, status, limit, offset)
+	onts, total, err := h.ontService.ListWithMetricsFilter(oltID, status, startTime, endTime, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "LIST_FAILED",

@@ -27,6 +27,11 @@ func (s *ONTService) GetDB() *gorm.DB {
 
 // List returns paginated list of ONTs with filters
 func (s *ONTService) List(oltID *uuid.UUID, status *models.ONTStatus, limit, offset int) ([]models.ONT, int64, error) {
+	return s.ListWithMetricsFilter(oltID, status, nil, nil, limit, offset)
+}
+
+// ListWithMetricsFilter returns ONTs that match entity filters and optional metrics time range.
+func (s *ONTService) ListWithMetricsFilter(oltID *uuid.UUID, status *models.ONTStatus, startTime, endTime *time.Time, limit, offset int) ([]models.ONT, int64, error) {
 	var onts []models.ONT
 	var total int64
 
@@ -38,6 +43,14 @@ func (s *ONTService) List(oltID *uuid.UUID, status *models.ONTStatus, limit, off
 	}
 	if status != nil {
 		query = query.Where("status = ?", *status)
+	}
+	if startTime != nil && endTime != nil {
+		query = query.Where(`EXISTS (
+			SELECT 1 FROM ont_metrics
+			WHERE ont_metrics.ont_id = onts.id
+			AND ont_metrics.time >= ?
+			AND ont_metrics.time <= ?
+		)`, *startTime, *endTime)
 	}
 
 	// Get total count

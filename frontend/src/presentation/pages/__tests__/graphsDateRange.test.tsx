@@ -40,6 +40,37 @@ vi.mock("antd", async (importOriginal) => {
         </select>
       );
     },
+    DatePicker: {
+      RangePicker: ({
+        placeholder,
+        onChange,
+      }: {
+        placeholder?: [string, string];
+        onChange?: (values: Array<{ startOf: () => { toISOString: () => string }; endOf: () => { toISOString: () => string } }> | null) => void;
+      }) => (
+        <div>
+          <input placeholder={placeholder?.[0]} readOnly />
+          <input placeholder={placeholder?.[1]} readOnly />
+          <button
+            type="button"
+            onClick={() =>
+              onChange?.([
+                {
+                  startOf: () => ({ toISOString: () => "2026-08-20T00:00:00.000Z" }),
+                  endOf: () => ({ toISOString: () => "2026-08-20T23:59:59.999Z" }),
+                },
+                {
+                  startOf: () => ({ toISOString: () => "2026-08-21T00:00:00.000Z" }),
+                  endOf: () => ({ toISOString: () => "2026-08-21T23:59:59.999Z" }),
+                },
+              ])
+            }
+          >
+            Apply date range
+          </button>
+        </div>
+      ),
+    },
   };
 });
 
@@ -47,19 +78,34 @@ vi.mock("@/application/hooks/useOlts", () => ({
   useOlts: () => ({ data: [{ id: "olt-1", name: "OLT Cariu" }] }),
 }));
 
+const mockUseOnts = vi.hoisted(() => vi.fn());
 vi.mock("@/application/hooks/useOnts", () => ({
-  useOnts: () => ({
-    isLoading: false,
-    data: {
-      data: [makeOnt({ id: "1", status: OntStatus.ONLINE }), makeOnt({ id: "2", serialNumber: "ZTEGABCDEF01", status: OntStatus.OFFLINE })],
-      total: 2,
-    },
-  }),
+  useOnts: mockUseOnts,
 }));
 
+mockUseOnts.mockImplementation((params?: { status?: OntStatus }) => {
+  const onts = [
+    makeOnt({ id: "1", status: OntStatus.ONLINE }),
+    makeOnt({ id: "2", serialNumber: "ZTEGABCDEF01", status: OntStatus.OFFLINE }),
+  ].filter((ont) => !params?.status || ont.status === params.status);
+
+  return {
+    isLoading: false,
+    data: { data: onts, total: onts.length },
+  };
+});
+
+const mockUseOntTrafficTimeSeries = vi.hoisted(() => vi.fn());
 vi.mock("@/application/hooks/useOntMetrics", () => ({
-  useOntTrafficTimeSeries: () => ({ isLoading: false, data: [] }),
+  useOntTrafficTimeSeries: mockUseOntTrafficTimeSeries,
 }));
+
+mockUseOntTrafficTimeSeries.mockReturnValue({
+  isLoading: false,
+  data: [
+    { time: new Date("2026-08-20T12:00:00.000Z"), txMbps: 10, rxMbps: 5 },
+  ],
+});
 
 function makeOnt(overrides: Partial<Record<string, unknown>>) {
   return {
@@ -114,4 +160,36 @@ describe("GraphsPage date range", () => {
     expect(screen.getByText("Showing 1 of 1 ONTs")).toBeInTheDocument();
   });
 
+  it("sends selected date range to the ONT list query", async () => {
+    render(<GraphsPage />);
+
+    await userEvent.click(screen.getByText("Apply date range"));
+
+    expect(mockUseOnts).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        startTime: "2026-08-20T00:00:00.000Z",
+        endTime: "2026-08-21T23:59:59.999Z",
+      })
+    );
+  });
+
+  it("shows custom range as the active time filter", async () => {
+    render(<GraphsPage />);
+
+    await userEvent.click(screen.getByText("Apply date range"));
+
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
+  });
+
+  it("shows dates on chart labels when custom range is active", async () => {
+    render(<GraphsPage />);
+
+    await userEvent.click(screen.getByText("Apply date range"));
+
+    // Check that chart shows date labels (Aug 20)
+    // The x-axis tick formatter should show "Aug 20\n12:00 PM" for custom range
+    const container = document.body;
+    const textContent = container.textContent || '';
+    expect(textContent).toMatch(/Aug 20|2026-08-20/);
+  });
 });

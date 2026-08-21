@@ -4,6 +4,8 @@ export interface IOntRepository {
   getAll(params?: {
     oltId?: string;
     status?: string;
+    startTime?: string;
+    endTime?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ data: Ont[]; total: number }>;

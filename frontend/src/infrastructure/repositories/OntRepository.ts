@@ -7,15 +7,22 @@ export class OntRepository implements IOntRepository {
   async getAll(params?: {
     oltId?: string;
     status?: string;
+    startTime?: string;
+    endTime?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ data: Ont[]; total: number }> {
+    const queryParams = {
+      olt_id: params?.oltId,
+      status: params?.status,
+      start_time: params?.startTime,
+      end_time: params?.endTime,
+      limit: params?.limit || 200,
+      offset: params?.offset || 0,
+    };
+
     const response = await apiClient.get(API_ENDPOINTS.ONTS, {
-      params: {
-        ...params,
-        limit: params?.limit || 200,  // Get maximum for client-side pagination
-        offset: params?.offset || 0,
-      }
+      params: queryParams,
     });
     return response.data;
   }

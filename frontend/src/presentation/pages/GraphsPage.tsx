@@ -20,18 +20,21 @@ export function GraphsPage() {
   const pageSize = 9;
 
   const { data: olts } = useOlts();
-  const { data: ontsData, isLoading } = useOnts({ oltId: selectedOlt });
+  const { data: ontsData, isLoading } = useOnts({
+    oltId: selectedOlt,
+    status: selectedStatus,
+    startTime: dateRange?.start,
+    endTime: dateRange?.end,
+  });
 
   const filteredOnts = useMemo(() => {
-    const searchedOnts = filterOntsByQuery(ontsData?.data || [], searchText);
-    if (!selectedStatus) return searchedOnts;
-    return searchedOnts.filter((ont) => ont.status === selectedStatus);
-  }, [ontsData, searchText, selectedStatus]);
+    return filterOntsByQuery(ontsData?.data || [], searchText);
+  }, [ontsData, searchText]);
   const totalOnts = filteredOnts.length;
 
   useEffect(() => {
     setPage(1);
-  }, [selectedOlt, searchText, selectedStatus]);
+  }, [selectedOlt, searchText, selectedStatus, dateRange?.start, dateRange?.end]);
 
   const paginatedOnts = filteredOnts.slice((page - 1) * pageSize, page * pageSize);
 
