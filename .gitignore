@@ -45,3 +45,13 @@ backend/build-errors.log
 # Tool-generated files
 .omo/
 graphify-out/
+
+# Playwright MCP snapshots
+.playwright-mcp/
+
+# Local build artifacts
+backend/tikman-api
+
+# Ad-hoc screenshots
+*.png
+!frontend/public/**/*.png
