@@ -78,9 +78,13 @@ export class OntRepository implements IOntRepository {
     return response.data;
   }
 
-  async getTrafficTimeSeries(id: string, period: string): Promise<OntMetrics[]> {
+  async getTrafficTimeSeries(
+    id: string,
+    period: string,
+    range?: { start: string; end: string }
+  ): Promise<OntMetrics[]> {
     const response = await apiClient.get(API_ENDPOINTS.ONT_TIMESERIES(id), {
-      params: { period },
+      params: range ? { start: range.start, end: range.end } : { period },
     });
     return response.data;
   }

@@ -503,3 +503,59 @@ func TestMetricsService_StoreMetrics_WithNullPowers(t *testing.T) {
 	assert.Nil(t, retrieved.TxRateMbps)
 	assert.Equal(t, temp, retrieved.Temperature)
 }
+
+func TestMetricsService_GetONTTrafficTimeSeriesCustomRange(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	ontID := uuid.New()
+
+	db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt1", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"})
+	db.Create(&models.ONT{ID: ontID, OLTID: oltID, SerialNumber: "ont1"})
+
+	base := time.Now()
+	insert := func(offsetHours float64) {
+		db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+			VALUES (?, ?, ?, ?)`,
+			base.Add(time.Duration(-offsetHours*float64(time.Hour))), ontID.String(), 1.5, 2.5)
+	}
+	insert(1)
+	insert(10)
+	insert(50)
+
+	start := base.Add(-24 * time.Hour)
+	end := base.Add(-time.Hour)
+
+	rows, err := service.GetONTTrafficTimeSeriesRange(ontID, start, end)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, rows)
+	for _, r := range rows {
+		assert.False(t, r.Time.After(end), "point %v should not be after end", r.Time)
+		assert.False(t, r.Time.Before(start), "point %v should not be before start", r.Time)
+	}
+}
+
+func TestMetricsService_GetONTTrafficTimeSeriesCustomRange_NoDataInRange(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	ontID := uuid.New()
+
+	db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt1", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"})
+	db.Create(&models.ONT{ID: ontID, OLTID: oltID, SerialNumber: "ont1"})
+
+	base := time.Now()
+	db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, ?)`,
+		base.Add(-100*time.Hour), ontID.String(), 1.5, 2.5)
+
+	rows, err := service.GetONTTrafficTimeSeriesRange(ontID, base.Add(-24*time.Hour), base)
+
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}

@@ -1,4 +1,4 @@
-import { Card, Spin } from "antd";
+import { Card, Spin, Tag } from "antd";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Ont } from "@/domain/entities/Ont";
 import { useOntTrafficTimeSeries } from "@/application/hooks/useOntMetrics";
@@ -6,6 +6,19 @@ import { useOntTrafficTimeSeries } from "@/application/hooks/useOntMetrics";
 interface OntTrafficCardProps {
   ont: Ont;
   period: string;
+  range?: { start: string; end: string };
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  online: "green",
+  offline: "red",
+  los: "volcano",
+  dying_gasp: "purple",
+  unknown: "default",
+};
+
+function StatusTag({ status }: { status: string }) {
+  return <Tag color={STATUS_COLORS[status] || "default"}>{status}</Tag>;
 }
 
 function formatSpeed(mbps: number): string {
@@ -18,8 +31,8 @@ function formatSpeed(mbps: number): string {
   return `${(mbps * 1000).toFixed(2)} Kbps`;
 }
 
-export function OntTrafficCard({ ont, period }: OntTrafficCardProps) {
-  const { data: timeSeries, isLoading } = useOntTrafficTimeSeries(ont.id, period);
+export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
+  const { data: timeSeries, isLoading } = useOntTrafficTimeSeries(ont.id, period, range);
 
   const chartData = timeSeries?.map((point) => ({
     time: new Date(point.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
@@ -50,8 +63,9 @@ export function OntTrafficCard({ ont, period }: OntTrafficCardProps) {
       bodyStyle={{ padding: '12px' }}
     >
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 500 }}>
-          gpon_{ont.slot || 1}/{ont.portId}:{ont.ontId} - {ont.serialNumber} ({ont.deviceType || 'F680V9'})
+        <div style={{ fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>gpon_{ont.slot || 1}/{ont.portId}:{ont.ontId} - {ont.serialNumber} ({ont.deviceType || 'F680V9'})</span>
+          <StatusTag status={ont.status} />
         </div>
         <div style={{ fontSize: 11, color: '#666' }}>
           {ont.name}

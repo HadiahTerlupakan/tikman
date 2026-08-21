@@ -367,3 +367,37 @@ func (s *MetricsService) GetONTTrafficTimeSeries(ontID uuid.UUID, period string)
 
 	return results, nil
 }
+
+// GetONTTrafficTimeSeriesRange retrieves traffic rates for an ONT within an explicit time range.
+func (s *MetricsService) GetONTTrafficTimeSeriesRange(ontID uuid.UUID, startTime, endTime time.Time) ([]ONTMetricsRow, error) {
+	var results []ONTMetricsRow
+	query := `
+		SELECT
+			time,
+			ont_id,
+			rx_power,
+			tx_power,
+			temperature,
+			voltage,
+			distance,
+			rx_bytes,
+			tx_bytes,
+			rx_packets,
+			tx_packets,
+			rx_errors,
+			tx_errors,
+			rx_rate_mbps,
+			tx_rate_mbps
+		FROM ont_metrics
+		WHERE ont_id = ?
+		  AND time >= ?
+		  AND time <= ?
+		ORDER BY time ASC
+	`
+
+	if err := s.db.Raw(query, ontID, startTime, endTime).Scan(&results).Error; err != nil {
+		return nil, fmt.Errorf("failed to query time series range: %w", err)
+	}
+
+	return results, nil
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Select, Tabs, Pagination, Row, Col, Spin, Input, Space } from "antd";
+import { Card, Select, Tabs, Pagination, Row, Col, Spin, Input, Space, DatePicker } from "antd";
 import { OntTrafficCard } from "@/presentation/components/OntTrafficCard";
 import type { Olt } from "@/domain/entities/Olt";
 import type { Ont } from "@/domain/entities/Ont";
@@ -8,11 +8,13 @@ import { useOlts } from "@/application/hooks/useOlts";
 import { filterOntsByQuery } from "./graphsFilter";
 
 const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 export function GraphsPage() {
   const [selectedOlt, setSelectedOlt] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState("");
   const [period, setPeriod] = useState("3h");
+  const [dateRange, setDateRange] = useState<{ start: string; end: string } | undefined>(undefined);
   const [page, setPage] = useState(1);
   const pageSize = 9;
 
@@ -61,6 +63,20 @@ export function GraphsPage() {
               allowClear
               style={{ width: 260 }}
             />
+            <RangePicker
+              placeholder={["Start date", "End date"]}
+              onChange={(values) => {
+                if (values?.[0] && values[1]) {
+                  setDateRange({
+                    start: values[0].startOf("day").toISOString(),
+                    end: values[1].endOf("day").toISOString(),
+                  });
+                } else {
+                  setDateRange(undefined);
+                }
+              }}
+              allowEmpty={[false, false]}
+            />
             <div>
               <span style={{ marginRight: 8, fontSize: 13 }}>Period:</span>
               <Tabs
@@ -95,7 +111,7 @@ export function GraphsPage() {
           <Row gutter={[16, 16]}>
             {paginatedOnts.map((ont: Ont) => (
               <Col key={ont.id} xs={24} sm={24} md={12} lg={8} xl={8}>
-                <OntTrafficCard ont={ont} period={period} />
+                <OntTrafficCard ont={ont} period={period} range={dateRange} />
               </Col>
             ))}
           </Row>

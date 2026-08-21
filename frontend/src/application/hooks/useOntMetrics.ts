@@ -40,10 +40,15 @@ export function useOntMetricsRealtime(id: string, enabled = true) {
   });
 }
 
-export function useOntTrafficTimeSeries(id: string, period: string, enabled = true) {
+export function useOntTrafficTimeSeries(
+  id: string,
+  period: string,
+  range?: { start: string; end: string },
+  enabled = true
+) {
   return useQuery({
-    queryKey: ["onts", id, "traffic-timeseries", period],
-    queryFn: () => ontRepository.getTrafficTimeSeries(id, period),
+    queryKey: ["onts", id, "traffic-timeseries", period, range?.start, range?.end],
+    queryFn: () => ontRepository.getTrafficTimeSeries(id, period, range),
     enabled: enabled && !!id,
     refetchInterval: 30000,
     refetchIntervalInBackground: true,

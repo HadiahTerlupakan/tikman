@@ -161,7 +161,29 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 
 	period := c.DefaultQuery("period", "3h")
 
-	timeSeries, err := h.metricsService.GetONTTrafficTimeSeries(id, period)
+	startStr, endStr := c.Query("start"), c.Query("end")
+	var timeSeries []services.ONTMetricsRow
+	if startStr != "" && endStr != "" {
+		startTime, errStart := time.Parse(time.RFC3339, startStr)
+		endTime, errEnd := time.Parse(time.RFC3339, endStr)
+		if errStart != nil || errEnd != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:  "INVALID_RANGE",
+				Error: "start and end must be RFC3339 timestamps",
+			})
+			return
+		}
+		if !startTime.Before(endTime) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:  "INVALID_RANGE",
+				Error: "start must be before end",
+			})
+			return
+		}
+		timeSeries, err = h.metricsService.GetONTTrafficTimeSeriesRange(id, startTime, endTime)
+	} else {
+		timeSeries, err = h.metricsService.GetONTTrafficTimeSeries(id, period)
+	}
 	if err != nil {
 		log.Printf("[ERROR] GetTrafficTimeSeries failed for ONT %s: %v", id, err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
