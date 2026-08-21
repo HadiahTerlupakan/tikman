@@ -55,3 +55,6 @@ backend/tikman-api
 # Ad-hoc screenshots
 *.png
 !frontend/public/**/*.png
+
+# Local Claude Code settings
+.claude/settings.json
