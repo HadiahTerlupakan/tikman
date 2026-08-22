@@ -82,13 +82,16 @@ type SiteResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-func ToSiteResponse(site *models.Site) SiteResponse {
+func ToSiteResponse(db *gorm.DB, site *models.Site) SiteResponse {
+	var oltCount int64
+	db.Model(&models.OLT{}).Where("site_id = ?", site.ID).Count(&oltCount)
+
 	return SiteResponse{
 		ID:          site.ID,
 		Name:        site.Name,
 		Location:    site.Location,
 		Description: site.Description,
-		OLTCount:    0, // TODO: query count separately if needed
+		OLTCount:    int(oltCount),
 		CreatedAt:   site.CreatedAt,
 		UpdatedAt:   site.UpdatedAt,
 	}

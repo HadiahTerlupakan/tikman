@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -17,11 +18,16 @@ func NewSiteService(db *gorm.DB) *SiteService {
 	return &SiteService{db: db}
 }
 
+// GetDB returns the database instance
+func (s *SiteService) GetDB() *gorm.DB {
+	return s.db
+}
+
 func (s *SiteService) Create(name, location, description string) (*models.Site, error) {
 	site := &models.Site{
-		Name:        name,
-		Location:    location,
-		Description: description,
+		Name:        strings.TrimSpace(name),
+		Location:    strings.TrimSpace(location),
+		Description: strings.TrimSpace(description),
 	}
 
 	if err := s.db.Create(site).Error; err != nil {
@@ -51,6 +57,12 @@ func (s *SiteService) List() ([]models.Site, error) {
 }
 
 func (s *SiteService) Update(id uuid.UUID, updates map[string]interface{}) error {
+	for _, field := range []string{"name", "location", "description"} {
+		if value, ok := updates[field].(string); ok {
+			updates[field] = strings.TrimSpace(value)
+		}
+	}
+
 	if err := s.db.Model(&models.Site{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return fmt.Errorf("failed to update site: %w", err)
 	}

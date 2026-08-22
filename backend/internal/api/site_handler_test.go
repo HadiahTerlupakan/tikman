@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
@@ -120,6 +121,37 @@ func TestSiteHandler_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, response, 2)
 	})
+}
+
+func TestSiteHandler_List_ReportsOLTCount(t *testing.T) {
+	handler, db := SetupSiteHandlerTest(t)
+
+	service := services.NewSiteService(db)
+	withOLTs, err := service.Create("Site With OLTs", "Location 1", "Desc 1")
+	require.NoError(t, err)
+	empty, err := service.Create("Empty Site", "Location 2", "Desc 2")
+	require.NoError(t, err)
+
+	CreateTestOLT(t, db, withOLTs.ID, "olt-1", "192.168.1.1", "admin", "pass", 22, 23, 161, "public", models.OLTProtocolSSH)
+	CreateTestOLT(t, db, withOLTs.ID, "olt-2", "192.168.1.2", "admin", "pass", 22, 23, 161, "public", models.OLTProtocolSSH)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/sites", nil)
+
+	handler.List(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []SiteResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+	counts := make(map[uuid.UUID]int, len(response))
+	for _, site := range response {
+		counts[site.ID] = site.OLTCount
+	}
+	assert.Equal(t, 2, counts[withOLTs.ID])
+	assert.Equal(t, 0, counts[empty.ID])
 }
 
 func TestSiteHandler_GetByID(t *testing.T) {

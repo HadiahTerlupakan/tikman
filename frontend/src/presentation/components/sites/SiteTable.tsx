@@ -1,4 +1,4 @@
-import { Table, Button, Space, Badge, Popconfirm } from "antd";
+import { Table, Button, Space, Popconfirm } from "antd";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { Site } from "@/domain/entities";
 import type { ColumnsType } from "antd/es/table";
@@ -44,7 +44,10 @@ export function SiteTable({
       dataIndex: "oltCount",
       key: "oltCount",
       width: 120,
-      render: (count: number) => <Badge count={count} showZero color="blue" />,
+      align: "right",
+      // A Badge renders the number as a floating <sup>, which reads as a
+      // notification dot rather than a table value and breaks copy/paste.
+      render: (count: number) => count ?? 0,
     },
     {
       title: "Created At",

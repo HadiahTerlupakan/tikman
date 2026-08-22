@@ -42,6 +42,32 @@ func TestSiteService_Create(t *testing.T) {
 		assert.Equal(t, "Branch Office", site.Name)
 		assert.Equal(t, "", site.Description)
 	})
+
+	t.Run("trims surrounding whitespace", func(t *testing.T) {
+		site, err := service.Create("  Cariu  ", "  Cariu ", " Cariu ")
+		require.NoError(t, err)
+		assert.Equal(t, "Cariu", site.Name)
+		assert.Equal(t, "Cariu", site.Location)
+		assert.Equal(t, "Cariu", site.Description)
+	})
+}
+
+func TestSiteService_Update_TrimsWhitespace(t *testing.T) {
+	db := setupSiteTestDB(t)
+	service := NewSiteService(db)
+
+	site, err := service.Create("Original", "Original Loc", "Original Desc")
+	require.NoError(t, err)
+
+	require.NoError(t, service.Update(site.ID, map[string]interface{}{
+		"name":     " Renamed ",
+		"location": "  New Loc  ",
+	}))
+
+	updated, err := service.GetByID(site.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Renamed", updated.Name)
+	assert.Equal(t, "New Loc", updated.Location)
 }
 
 func TestSiteService_GetByID(t *testing.T) {
