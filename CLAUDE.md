@@ -251,15 +251,15 @@ npm run build
 # Linting must pass (zero errors)
 npm run lint
 
-# Code formatting check
-npm run format
+# Code formatting check (same gate as CI; `npm run format` rewrites files)
+npm run format:check
 ```
 
 ### Pre-Commit Checklist
 - [ ] All backend tests pass (`go test ./...`)
 - [ ] All frontend tests pass (`npm test`)
 - [ ] No linting errors (`npm run lint`, `golangci-lint run`)
-- [ ] Code properly formatted (`npm run format`)
+- [ ] Code properly formatted (`npm run format:check`)
 - [ ] Build succeeds (`npm run build`, `go build`)
 - [ ] No race conditions (`go test -race`)
 - [ ] Test coverage maintained (>80%)
