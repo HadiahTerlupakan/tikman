@@ -1,7 +1,12 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import type { IOltRepository } from "@/domain/repositories";
-import type { Olt, CreateOltDto, UpdateOltDto, OltStats } from "@/domain/entities";
+import type {
+  Olt,
+  CreateOltDto,
+  UpdateOltDto,
+  OltStats,
+} from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
   async getAll(): Promise<Olt[]> {
@@ -60,7 +65,7 @@ export class OltRepository implements IOltRepository {
   }> {
     const response = await apiClient.post(
       API_ENDPOINTS.TEST_OLT_CONNECTION,
-      data
+      data,
     );
     return response.data;
   }

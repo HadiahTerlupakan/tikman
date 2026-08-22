@@ -8,7 +8,7 @@ import { useOntListLogic } from "@/application/hooks/useOntListLogic";
 
 export default function OntListPage() {
   const [createForm] = Form.useForm();
-  
+
   const {
     searchText,
     setSearchText,

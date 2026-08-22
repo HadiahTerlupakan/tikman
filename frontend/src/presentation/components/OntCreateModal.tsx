@@ -48,7 +48,12 @@ export function OntCreateModal({
           label="Port ID"
           rules={[
             { required: true, message: "Please enter port ID" },
-            { type: "number", min: 0, max: 15, message: "Port ID must be 0-15" },
+            {
+              type: "number",
+              min: 0,
+              max: 15,
+              message: "Port ID must be 0-15",
+            },
           ]}
         >
           <InputNumber style={{ width: "100%" }} min={0} max={15} />
@@ -58,7 +63,12 @@ export function OntCreateModal({
           label="ONT ID"
           rules={[
             { required: true, message: "Please enter ONT ID" },
-            { type: "number", min: 0, max: 127, message: "ONT ID must be 0-127" },
+            {
+              type: "number",
+              min: 0,
+              max: 127,
+              message: "ONT ID must be 0-127",
+            },
           ]}
         >
           <InputNumber style={{ width: "100%" }} min={0} max={127} />

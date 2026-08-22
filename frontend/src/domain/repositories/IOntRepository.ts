@@ -17,7 +17,7 @@ export interface IOntRepository {
   getMetricsHistory(
     id: string,
     start?: string,
-    end?: string
+    end?: string,
   ): Promise<{
     data: OntMetrics[];
     start: string;

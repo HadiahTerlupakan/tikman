@@ -34,7 +34,12 @@ const getStatusColor = (status: OntStatus) => {
   }
 };
 
-export function OntTable({ dataSource, isLoading, onViewDetail, onDelete }: OntTableProps) {
+export function OntTable({
+  dataSource,
+  isLoading,
+  onViewDetail,
+  onDelete,
+}: OntTableProps) {
   const columns = [
     {
       title: "Serial Number",
@@ -63,8 +68,12 @@ export function OntTable({ dataSource, isLoading, onViewDetail, onDelete }: OntT
       key: "position",
       render: (_: unknown, record: Ont) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span>PON Port: <strong>{record.portId}</strong></span>
-          <span>ONT ID: <strong>{record.ontId}</strong></span>
+          <span>
+            PON Port: <strong>{record.portId}</strong>
+          </span>
+          <span>
+            ONT ID: <strong>{record.ontId}</strong>
+          </span>
         </div>
       ),
     },
@@ -73,31 +82,45 @@ export function OntTable({ dataSource, isLoading, onViewDetail, onDelete }: OntT
       dataIndex: "status",
       key: "status",
       render: (status: OntStatus) => (
-        <Tag color={getStatusColor(status)}>{status ? status.toUpperCase() : 'UNKNOWN'}</Tag>
+        <Tag color={getStatusColor(status)}>
+          {status ? status.toUpperCase() : "UNKNOWN"}
+        </Tag>
       ),
     },
     {
       title: "Distance (m)",
       key: "distance",
       render: (_: unknown, record: Ont) => {
-        const distance = (record as OntTableRow).distance ?? (record as OntTableRow).metrics?.distance;
-        return distance !== null && distance !== undefined && distance > 0 ? distance.toLocaleString() : "-";
+        const distance =
+          (record as OntTableRow).distance ??
+          (record as OntTableRow).metrics?.distance;
+        return distance !== null && distance !== undefined && distance > 0
+          ? distance.toLocaleString()
+          : "-";
       },
     },
     {
       title: "RX Power (dBm)",
       key: "rxPower",
       render: (_: unknown, record: Ont) => {
-        const rxPower = (record as OntTableRow).rxPower ?? (record as OntTableRow).metrics?.rxPower;
-        return rxPower !== null && rxPower !== undefined ? Number(rxPower).toFixed(2) : "-";
+        const rxPower =
+          (record as OntTableRow).rxPower ??
+          (record as OntTableRow).metrics?.rxPower;
+        return rxPower !== null && rxPower !== undefined
+          ? Number(rxPower).toFixed(2)
+          : "-";
       },
     },
     {
       title: "TX Power (dBm)",
       key: "txPower",
       render: (_: unknown, record: Ont) => {
-        const txPower = (record as OntTableRow).txPower ?? (record as OntTableRow).metrics?.txPower;
-        return txPower !== null && txPower !== undefined ? Number(txPower).toFixed(2) : "-";
+        const txPower =
+          (record as OntTableRow).txPower ??
+          (record as OntTableRow).metrics?.txPower;
+        return txPower !== null && txPower !== undefined
+          ? Number(txPower).toFixed(2)
+          : "-";
       },
     },
     {

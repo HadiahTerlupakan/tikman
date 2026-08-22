@@ -57,12 +57,12 @@ export function OntFilters({
   setStatusFilter,
   onReset,
 }: OntFiltersProps) {
-  const activeSlots = topologyData.filter(slot =>
-    slot.ports.some(port => port.onts.length > 0)
+  const activeSlots = topologyData.filter((slot) =>
+    slot.ports.some((port) => port.onts.length > 0),
   );
 
   const getPortsForSlot = (slot: GPONSlot): GponPortEntity[] => {
-    return slot.ports.filter(port => port.onts.length > 0);
+    return slot.ports.filter((port) => port.onts.length > 0);
   };
 
   return (
@@ -100,10 +100,15 @@ export function OntFilters({
           allowClear
           disabled={!selectedOltId || activeSlots.length === 0}
           loading={isLoadingTopology}
-          notFoundContent={isLoadingTopology ? "Loading topology..." : "No slots found"}
+          notFoundContent={
+            isLoadingTopology ? "Loading topology..." : "No slots found"
+          }
         >
           {activeSlots.map((slot: GPONSlot) => {
-            const totalOnus = slot.ports.reduce((acc: number, p: GponPortEntity) => acc + p.onts.length, 0);
+            const totalOnus = slot.ports.reduce(
+              (acc: number, p: GponPortEntity) => acc + p.onts.length,
+              0,
+            );
             return (
               <Option key={slot.slot} value={slot.slot}>
                 Card {slot.slot} ({totalOnus} ONTs)
@@ -117,7 +122,7 @@ export function OntFilters({
           style={{ width: 200 }}
           value={selectedPortId}
           onChange={(value) => {
-            console.log('[Port Selected]', value);
+            console.log("[Port Selected]", value);
             setSelectedPortId(value);
           }}
           allowClear
@@ -125,13 +130,18 @@ export function OntFilters({
         >
           {(() => {
             if (!selectedSlotId) return [];
-            const currentSlot = topologyData.find(s => s.slot === selectedSlotId);
+            const currentSlot = topologyData.find(
+              (s) => s.slot === selectedSlotId,
+            );
             if (!currentSlot) return [];
             return getPortsForSlot(currentSlot).map((port: GponPortEntity) => {
-              const onlineCount = port.onts.filter((ont) => ont.runState === 3).length;
+              const onlineCount = port.onts.filter(
+                (ont) => ont.runState === 3,
+              ).length;
               return (
                 <Option key={port.portId} value={port.portId}>
-                  Port {port.portId} ({port.onts.length} ONTs, {onlineCount} online)
+                  Port {port.portId} ({port.onts.length} ONTs, {onlineCount}{" "}
+                  online)
                 </Option>
               );
             });

@@ -65,7 +65,6 @@ export interface UpdateOltDto {
   slot?: number;
 }
 
-
 export interface OltStats {
   totalOnts: number;
   ontsWithMetrics: number;

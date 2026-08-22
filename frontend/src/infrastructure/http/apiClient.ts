@@ -37,7 +37,7 @@ apiClient.interceptors.response.use(
         // humps.camelizeKeys recursively processes nested objects and arrays by default
         response.data = camelizeKeys(response.data);
       } catch (error) {
-        console.error('Failed to camelize response:', error);
+        console.error("Failed to camelize response:", error);
         // Return original data if transformation fails
       }
     }

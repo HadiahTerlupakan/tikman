@@ -26,7 +26,7 @@ describe("useOltStats", () => {
         enabled: true,
         refetchInterval: 60000,
         refetchIntervalInBackground: true,
-      })
+      }),
     );
   });
 });

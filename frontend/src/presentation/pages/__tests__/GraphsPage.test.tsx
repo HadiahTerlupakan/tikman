@@ -21,7 +21,11 @@ vi.mock("@/application/hooks/useOnts", () => ({
     isLoading: false,
     data: {
       data: [
-        makeOnt({ id: "1", serialNumber: "RTEGC609D6CF", name: "Budi Santoso" }),
+        makeOnt({
+          id: "1",
+          serialNumber: "RTEGC609D6CF",
+          name: "Budi Santoso",
+        }),
         makeOnt({ id: "2", serialNumber: "ZTEGC1234567", name: "Warnet Maju" }),
       ],
       total: 2,
@@ -58,7 +62,10 @@ describe("GraphsPage", () => {
     expect(screen.getByText(/RTEGC609D6CF/)).toBeInTheDocument();
     expect(screen.getByText(/ZTEGC1234567/)).toBeInTheDocument();
 
-    await userEvent.type(screen.getByPlaceholderText("Search serial number or ONT name"), "warnet");
+    await userEvent.type(
+      screen.getByPlaceholderText("Search serial number or ONT name"),
+      "warnet",
+    );
 
     expect(screen.queryByText(/RTEGC609D6CF/)).not.toBeInTheDocument();
     expect(screen.getByText(/ZTEGC1234567/)).toBeInTheDocument();

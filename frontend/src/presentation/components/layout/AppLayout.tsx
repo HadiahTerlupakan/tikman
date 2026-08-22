@@ -155,7 +155,10 @@ export function AppLayout() {
             title: user?.username,
             render: () => {
               return (
-                <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+                <Dropdown
+                  menu={{ items: userMenuItems }}
+                  placement="bottomRight"
+                >
                   <div
                     style={{
                       display: "flex",
@@ -165,7 +168,9 @@ export function AppLayout() {
                     }}
                   >
                     <Badge count={0}>
-                      <BellOutlined style={{ fontSize: 18, color: "#a1a1aa" }} />
+                      <BellOutlined
+                        style={{ fontSize: 18, color: "#a1a1aa" }}
+                      />
                     </Badge>
                     <Avatar style={{ backgroundColor: "#3ecf8e" }}>
                       {user?.username?.charAt(0).toUpperCase()}

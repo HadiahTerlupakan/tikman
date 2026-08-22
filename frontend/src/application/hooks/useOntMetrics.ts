@@ -3,9 +3,13 @@ import { OntRepository } from "@/infrastructure/repositories";
 
 const ontRepository = new OntRepository();
 
-export function useOntMetrics(id: string, enabled = true, pollingInterval?: number) {
+export function useOntMetrics(
+  id: string,
+  enabled = true,
+  pollingInterval?: number,
+) {
   const interval = pollingInterval || 300000;
-  
+
   return useQuery({
     queryKey: ["onts", id, "metrics", interval],
     queryFn: () => ontRepository.getLatestMetrics(id),
@@ -16,11 +20,7 @@ export function useOntMetrics(id: string, enabled = true, pollingInterval?: numb
   });
 }
 
-export function useOntMetricsHistory(
-  id: string,
-  start?: string,
-  end?: string
-) {
+export function useOntMetricsHistory(id: string, start?: string, end?: string) {
   return useQuery({
     queryKey: ["onts", id, "metrics-history", start, end],
     queryFn: () => ontRepository.getMetricsHistory(id, start, end),
@@ -48,10 +48,17 @@ export function useOntTrafficTimeSeries(
   id: string,
   period: string,
   range?: { start: string; end: string },
-  enabled = true
+  enabled = true,
 ) {
   return useQuery({
-    queryKey: ["onts", id, "traffic-timeseries", period, range?.start, range?.end],
+    queryKey: [
+      "onts",
+      id,
+      "traffic-timeseries",
+      period,
+      range?.start,
+      range?.end,
+    ],
     queryFn: () => ontRepository.getTrafficTimeSeries(id, period, range),
     enabled: enabled && !!id,
     refetchInterval: TRAFFIC_TIMESERIES_POLL_INTERVAL,
@@ -60,4 +67,3 @@ export function useOntTrafficTimeSeries(
     retry: false,
   });
 }
-

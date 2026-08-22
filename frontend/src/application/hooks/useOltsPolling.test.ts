@@ -27,7 +27,7 @@ describe("useOlts", () => {
         queryKey: ["olts"],
         refetchInterval: 60000,
         refetchIntervalInBackground: true,
-      })
+      }),
     );
   });
 });

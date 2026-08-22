@@ -11,7 +11,11 @@ interface OltTableProps {
   onDelete: (id: string) => void;
 }
 
-const emptyStats: OltStats = { totalOnts: 0, ontsWithMetrics: 0, percentage: 0 };
+const emptyStats: OltStats = {
+  totalOnts: 0,
+  ontsWithMetrics: 0,
+  percentage: 0,
+};
 
 function OltMetricsCell({ oltId }: { oltId: string }) {
   const { data: stats = emptyStats } = useOltStats(oltId);
@@ -28,8 +32,12 @@ function OltMetricsCell({ oltId }: { oltId: string }) {
       <span style={{ fontSize: 11, color: "#94a3b8" }}>
         {stats.ontsWithMetrics}/{stats.totalOnts} ONTs polled
       </span>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-        {stats.percentage < 100 && <SyncOutlined spin style={{ color: "#7dd3fc", fontSize: 12 }} />}
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}
+      >
+        {stats.percentage < 100 && (
+          <SyncOutlined spin style={{ color: "#7dd3fc", fontSize: 12 }} />
+        )}
         {stats.lastPollTime && (
           <span style={{ fontSize: 11, color: "#4ade80" }}>
             Updated: {new Date(stats.lastPollTime).toLocaleTimeString()}
@@ -89,7 +97,9 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       key: "status",
       width: 120,
       render: (status: OltStatus) => (
-        <Tag color={getStatusColor(status)}>{status ? status.toUpperCase() : 'UNKNOWN'}</Tag>
+        <Tag color={getStatusColor(status)}>
+          {status ? status.toUpperCase() : "UNKNOWN"}
+        </Tag>
       ),
     },
     {

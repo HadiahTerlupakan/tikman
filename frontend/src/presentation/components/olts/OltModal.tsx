@@ -34,12 +34,14 @@ export function OltModal({
     failedTest?: string;
     failedReason?: string;
   } | null>(null);
-  const [selectedProtocol, setSelectedProtocol] = useState<OltProtocol>(OltProtocol.SSH);
+  const [selectedProtocol, setSelectedProtocol] = useState<OltProtocol>(
+    OltProtocol.SSH,
+  );
   const oltRepository = new OltRepository();
 
   useEffect(() => {
     if (!open) return; // Don't manipulate form before Modal opens
-    
+
     if (olt) {
       form.setFieldsValue({
         siteId: olt.siteId,
@@ -206,7 +208,9 @@ export function OltModal({
           label="Protocol"
           rules={[{ required: true, message: "Please select protocol" }]}
         >
-          <Select onChange={(value) => setSelectedProtocol(value as OltProtocol)}>
+          <Select
+            onChange={(value) => setSelectedProtocol(value as OltProtocol)}
+          >
             <Select.Option value={OltProtocol.SSH}>SSH</Select.Option>
             <Select.Option value={OltProtocol.TELNET}>Telnet</Select.Option>
           </Select>

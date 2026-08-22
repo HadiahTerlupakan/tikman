@@ -20,7 +20,7 @@ describe("useOntTrafficTimeSeries", () => {
       expect.objectContaining({
         refetchInterval: 60000,
         refetchIntervalInBackground: true,
-      })
+      }),
     );
   });
 });

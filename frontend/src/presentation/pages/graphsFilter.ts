@@ -7,6 +7,6 @@ export function filterOntsByQuery(onts: Ont[], query: string): Ont[] {
   return onts.filter(
     (ont) =>
       ont.serialNumber.toLowerCase().includes(q) ||
-      ont.name.toLowerCase().includes(q)
+      ont.name.toLowerCase().includes(q),
   );
 }

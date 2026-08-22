@@ -1,7 +1,7 @@
 export interface ONTEvent {
   id: number;
   ontId: string;
-  eventType: 'online' | 'offline';
+  eventType: "online" | "offline";
   eventTime: string;
   reason?: string;
   durationSeconds?: number;
