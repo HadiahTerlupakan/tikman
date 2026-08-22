@@ -180,7 +180,8 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 			})
 			return
 		}
-		timeSeries, err = h.metricsService.GetONTTrafficTimeSeriesRange(id, startTime, endTime)
+		bucket := c.DefaultQuery("bucket", "day")
+		timeSeries, err = h.metricsService.GetONTTrafficTimeSeriesRangeBucket(id, startTime, endTime, bucket)
 	} else {
 		timeSeries, err = h.metricsService.GetONTTrafficTimeSeries(id, period)
 	}
@@ -195,12 +196,18 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 
 	response := make([]ONTTrafficTimeSeriesResponse, len(timeSeries))
 	for i, point := range timeSeries {
-		var rxMbps, txMbps float64
+		var rxMbps, txMbps, rxMax, txMax float64
 		if point.RxRateMbps != nil {
 			rxMbps = *point.RxRateMbps
 		}
 		if point.TxRateMbps != nil {
 			txMbps = *point.TxRateMbps
+		}
+		if point.RxMaxMbps != nil {
+			rxMax = *point.RxMaxMbps
+		}
+		if point.TxMaxMbps != nil {
+			txMax = *point.TxMaxMbps
 		}
 		response[i] = ONTTrafficTimeSeriesResponse{
 			Time:    point.Time,
@@ -208,6 +215,8 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 			TxBytes: point.TxBytes,
 			RxMbps:  rxMbps,
 			TxMbps:  txMbps,
+			RxMax:   rxMax,
+			TxMax:   txMax,
 		}
 	}
 

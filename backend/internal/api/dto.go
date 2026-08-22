@@ -385,4 +385,6 @@ type ONTTrafficTimeSeriesResponse struct {
 	TxBytes uint64    `json:"tx_bytes"`
 	RxMbps  float64   `json:"rx_mbps"`
 	TxMbps  float64   `json:"tx_mbps"`
+	RxMax   float64   `json:"rx_max_mbps"`
+	TxMax   float64   `json:"tx_max_mbps"`
 }

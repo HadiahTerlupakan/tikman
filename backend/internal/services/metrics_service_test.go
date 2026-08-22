@@ -504,6 +504,34 @@ func TestMetricsService_StoreMetrics_WithNullPowers(t *testing.T) {
 	assert.Equal(t, temp, retrieved.Temperature)
 }
 
+func TestMetricsService_GetONTTrafficTimeSeries_FillsDefaultPeriodBuckets(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	ontID := uuid.New()
+
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt1", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"}).Error)
+	require.NoError(t, db.Create(&models.ONT{ID: ontID, OLTID: oltID, SerialNumber: "ont1"}).Error)
+
+	now := time.Now().UTC()
+	pointTime := now.Add(-5 * time.Minute).Truncate(5 * time.Minute).Add(55 * time.Second)
+	require.NoError(t, db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, ?)`,
+		pointTime, ontID.String(), 1.0, 2.0,
+	).Error)
+
+	rows, err := service.GetONTTrafficTimeSeries(ontID, "3h")
+	require.NoError(t, err)
+	// Empty buckets are skipped, so we only get 1 row (the one with data)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].RxRateMbps)
+	require.NotNil(t, rows[0].TxRateMbps)
+	assert.Equal(t, 1.0, *rows[0].RxRateMbps)
+	assert.Equal(t, 2.0, *rows[0].TxRateMbps)
+}
+
 func TestMetricsService_GetONTTrafficTimeSeriesCustomRange(t *testing.T) {
 	db := setupMetricsTestDB(t)
 	service := NewMetricsService(db)
@@ -558,4 +586,130 @@ func TestMetricsService_GetONTTrafficTimeSeriesCustomRange_NoDataInRange(t *test
 
 	require.NoError(t, err)
 	assert.Empty(t, rows)
+}
+
+func TestTrafficBucketKeysUseUTC(t *testing.T) {
+	wib := time.FixedZone("WIB", 7*60*60)
+	value := time.Date(2026, time.August, 21, 6, 30, 0, 0, wib)
+
+	assert.Equal(t, time.Date(2026, time.August, 20, 0, 0, 0, 0, time.UTC), truncateTrafficBucket(value, "day"))
+	assert.Equal(t, time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC), truncateTrafficBucket(value, "month"))
+	assert.Equal(t, time.Date(2026, time.August, 20, 23, 0, 0, 0, time.UTC), truncateTrafficBucket(value, "hour"))
+
+	_, startBucket, endBucket, err := trafficBucketBounds(value, value.Add(48*time.Hour), "day")
+	require.NoError(t, err)
+	assert.Equal(t, time.UTC, startBucket.Location())
+	assert.Equal(t, time.Date(2026, time.August, 20, 0, 0, 0, 0, time.UTC), startBucket)
+	assert.Equal(t, time.Date(2026, time.August, 22, 0, 0, 0, 0, time.UTC), endBucket)
+}
+
+func TestMetricsService_GetONTTrafficTimeSeriesRangeBucket_MonthlyFillsEmptyMonths(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	ontID := uuid.New()
+
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt1", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"}).Error)
+	require.NoError(t, db.Create(&models.ONT{ID: ontID, OLTID: oltID, SerialNumber: "ont1"}).Error)
+
+	january := time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC)
+	march := time.Date(2026, time.March, 20, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, ?), (?, ?, ?, ?)`,
+		january, ontID.String(), 1.0, 2.0,
+		march, ontID.String(), 3.0, 4.0,
+	).Error)
+
+	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC)
+
+	rows, err := service.GetONTTrafficTimeSeriesRangeBucket(ontID, start, end, "month")
+
+	require.NoError(t, err)
+	// Only 2 months have data - empty buckets are skipped
+	require.Len(t, rows, 2)
+	assert.Equal(t, time.January, rows[0].Time.Month())
+	assert.Equal(t, time.March, rows[1].Time.Month())
+	require.NotNil(t, rows[0].RxRateMbps)
+	require.NotNil(t, rows[0].TxRateMbps)
+	require.NotNil(t, rows[1].RxRateMbps)
+	require.NotNil(t, rows[1].TxRateMbps)
+	assert.Equal(t, 1.0, *rows[0].RxRateMbps)
+	assert.Equal(t, 2.0, *rows[0].TxRateMbps)
+	assert.Equal(t, 3.0, *rows[1].RxRateMbps)
+	assert.Equal(t, 4.0, *rows[1].TxRateMbps)
+}
+
+func TestMetricsService_GetONTTrafficTimeSeriesRangeBucket_SkipsRowsWithoutRates(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	ontID := uuid.New()
+
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt1", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"}).Error)
+	require.NoError(t, db.Create(&models.ONT{ID: ontID, OLTID: oltID, SerialNumber: "ont1"}).Error)
+
+	// Aug 18 predates the rate columns being collected: power is recorded but
+	// rates are NULL. Aug 20 has real rates.
+	require.NoError(t, db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_power, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, NULL, NULL)`,
+		time.Date(2026, time.August, 18, 10, 0, 0, 0, time.UTC), ontID.String(), -20.5,
+	).Error)
+	require.NoError(t, db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, ?)`,
+		time.Date(2026, time.August, 20, 10, 0, 0, 0, time.UTC), ontID.String(), 1.0, 4.0,
+	).Error)
+
+	start := time.Date(2026, time.August, 17, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, time.August, 21, 0, 0, 0, 0, time.UTC)
+
+	rows, err := service.GetONTTrafficTimeSeriesRangeBucket(ontID, start, end, "day")
+
+	require.NoError(t, err)
+	// The NULL-rate row must not become a 0 Mbps point.
+	require.Len(t, rows, 1)
+	assert.Equal(t, time.Date(2026, time.August, 20, 0, 0, 0, 0, time.UTC), rows[0].Time)
+	assert.Equal(t, 1.0, *rows[0].RxRateMbps)
+	assert.Equal(t, 4.0, *rows[0].TxRateMbps)
+}
+
+func TestMetricsService_GetONTTrafficTimeSeriesRangeBucket_TracksPeakPerBucket(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	ontID := uuid.New()
+
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt1", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"}).Error)
+	require.NoError(t, db.Create(&models.ONT{ID: ontID, OLTID: oltID, SerialNumber: "ont1"}).Error)
+
+	// Two samples in the same day bucket: a low sample and a spike.
+	morning := time.Date(2026, time.August, 20, 1, 0, 0, 0, time.UTC)
+	noon := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, ?), (?, ?, ?, ?)`,
+		morning, ontID.String(), 1.0, 2.0,
+		noon, ontID.String(), 3.0, 12.0,
+	).Error)
+
+	start := time.Date(2026, time.August, 20, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, time.August, 20, 23, 59, 59, 0, time.UTC)
+
+	rows, err := service.GetONTTrafficTimeSeriesRangeBucket(ontID, start, end, "day")
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	// Average stays the mean of the two samples.
+	assert.Equal(t, 2.0, *rows[0].RxRateMbps)
+	assert.Equal(t, 7.0, *rows[0].TxRateMbps)
+	// Peak reflects the raw spike, not the average.
+	require.NotNil(t, rows[0].RxMaxMbps)
+	require.NotNil(t, rows[0].TxMaxMbps)
+	assert.Equal(t, 3.0, *rows[0].RxMaxMbps)
+	assert.Equal(t, 12.0, *rows[0].TxMaxMbps)
 }

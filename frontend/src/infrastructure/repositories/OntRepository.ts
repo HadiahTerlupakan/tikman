@@ -1,7 +1,14 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import type { IOntRepository } from "@/domain/repositories";
-import type { Ont, CreateOntDto, UpdateOntDto, OntMetrics, ONTEventsResponse, AvailabilityStats } from "@/domain/entities";
+import type {
+  Ont,
+  CreateOntDto,
+  UpdateOntDto,
+  OntMetrics,
+  ONTEventsResponse,
+  AvailabilityStats,
+} from "@/domain/entities";
 
 export class OntRepository implements IOntRepository {
   async getAll(params?: {
@@ -48,7 +55,7 @@ export class OntRepository implements IOntRepository {
 
   async getLatestMetrics(id: string): Promise<OntMetrics> {
     const response = await apiClient.get<OntMetrics>(
-      API_ENDPOINTS.ONT_LATEST_METRICS(id)
+      API_ENDPOINTS.ONT_LATEST_METRICS(id),
     );
     return response.data;
   }
@@ -56,22 +63,34 @@ export class OntRepository implements IOntRepository {
   async getMetricsHistory(
     id: string,
     start?: string,
-    end?: string
-  ): Promise<{ data: OntMetrics[]; start: string; end: string; count: number }> {
-    const response = await apiClient.get(API_ENDPOINTS.ONT_METRICS_HISTORY(id), {
-      params: { start, end },
-    });
+    end?: string,
+  ): Promise<{
+    data: OntMetrics[];
+    start: string;
+    end: string;
+    count: number;
+  }> {
+    const response = await apiClient.get(
+      API_ENDPOINTS.ONT_METRICS_HISTORY(id),
+      {
+        params: { start, end },
+      },
+    );
     return response.data;
   }
 
   async getRealtimeMetrics(id: string): Promise<OntMetrics> {
     const response = await apiClient.get<OntMetrics>(
-      API_ENDPOINTS.ONT_REALTIME_METRICS(id)
+      API_ENDPOINTS.ONT_REALTIME_METRICS(id),
     );
     return response.data;
   }
 
-  async getEvents(id: string, limit = 50, offset = 0): Promise<ONTEventsResponse> {
+  async getEvents(
+    id: string,
+    limit = 50,
+    offset = 0,
+  ): Promise<ONTEventsResponse> {
     const response = await apiClient.get(API_ENDPOINTS.ONT_EVENTS(id), {
       params: { limit, offset },
     });
@@ -88,10 +107,13 @@ export class OntRepository implements IOntRepository {
   async getTrafficTimeSeries(
     id: string,
     period: string,
-    range?: { start: string; end: string }
+    range?: { start: string; end: string; bucket?: "hour" | "day" | "month" },
   ): Promise<OntMetrics[]> {
+    const params: Record<string, string> = range
+      ? { start: range.start, end: range.end, bucket: range.bucket || "hour" }
+      : { period };
     const response = await apiClient.get(API_ENDPOINTS.ONT_TIMESERIES(id), {
-      params: range ? { start: range.start, end: range.end } : { period },
+      params,
     });
     return response.data;
   }

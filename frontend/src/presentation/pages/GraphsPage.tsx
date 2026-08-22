@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Select, Tabs, Pagination, Row, Col, Spin, Input, Space, DatePicker } from "antd";
+import {
+  Card,
+  Select,
+  Tabs,
+  Pagination,
+  Row,
+  Col,
+  Spin,
+  Input,
+  Space,
+  DatePicker,
+} from "antd";
 import { OntTrafficCard } from "@/presentation/components/OntTrafficCard";
 import type { Olt } from "@/domain/entities/Olt";
 import { OntStatus, type Ont } from "@/domain/entities/Ont";
@@ -10,12 +21,24 @@ import { filterOntsByQuery } from "./graphsFilter";
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
+type TrafficBucket = "hour" | "day" | "month";
+
+function getTrafficBucket(): TrafficBucket {
+  // Always use "hour" (5-minute buckets) for custom ranges to match period views
+  // and preserve traffic detail. Frontend filters empty buckets when calculating stats.
+  return "hour";
+}
+
 export function GraphsPage() {
   const [selectedOlt, setSelectedOlt] = useState<string | undefined>(undefined);
   const [searchText, setSearchText] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<OntStatus | undefined>(undefined);
+  const [selectedStatus, setSelectedStatus] = useState<OntStatus | undefined>(
+    undefined,
+  );
   const [period, setPeriod] = useState("3h");
-  const [dateRange, setDateRange] = useState<{ start: string; end: string } | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<
+    { start: string; end: string; bucket: TrafficBucket } | undefined
+  >(undefined);
   const [page, setPage] = useState(1);
   const pageSize = 9;
 
@@ -23,8 +46,6 @@ export function GraphsPage() {
   const { data: ontsData, isLoading } = useOnts({
     oltId: selectedOlt,
     status: selectedStatus,
-    startTime: dateRange?.start,
-    endTime: dateRange?.end,
   });
 
   const filteredOnts = useMemo(() => {
@@ -34,9 +55,18 @@ export function GraphsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedOlt, searchText, selectedStatus, dateRange?.start, dateRange?.end]);
+  }, [
+    selectedOlt,
+    searchText,
+    selectedStatus,
+    dateRange?.start,
+    dateRange?.end,
+  ]);
 
-  const paginatedOnts = filteredOnts.slice((page - 1) * pageSize, page * pageSize);
+  const paginatedOnts = filteredOnts.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
 
   return (
     <div style={{ padding: 24 }}>
@@ -85,9 +115,12 @@ export function GraphsPage() {
               placeholder={["Start date", "End date"]}
               onChange={(values) => {
                 if (values?.[0] && values[1]) {
+                  const start = values[0].startOf("day").toISOString();
+                  const end = values[1].endOf("day").toISOString();
                   setDateRange({
-                    start: values[0].startOf("day").toISOString(),
-                    end: values[1].endOf("day").toISOString(),
+                    start,
+                    end,
+                    bucket: getTrafficBucket(),
                   });
                 } else {
                   setDateRange(undefined);
@@ -98,11 +131,15 @@ export function GraphsPage() {
             <div>
               <span style={{ marginRight: 8, fontSize: 13 }}>Period:</span>
               <Tabs
-                activeKey={period}
-                onChange={setPeriod}
+                activeKey={dateRange ? "custom" : period}
+                onChange={(key) => {
+                  setDateRange(undefined);
+                  setPeriod(key);
+                }}
                 size="small"
                 style={{ marginBottom: -16 }}
                 items={[
+                  ...(dateRange ? [{ key: "custom", label: "Custom" }] : []),
                   { key: "3h", label: "3H" },
                   { key: "6h", label: "6H" },
                   { key: "1d", label: "1D" },
@@ -115,13 +152,13 @@ export function GraphsPage() {
           </Space>
         }
       >
-        <div style={{ fontSize: 12, color: '#666' }}>
+        <div style={{ fontSize: 12, color: "#666" }}>
           Showing {paginatedOnts.length} of {totalOnts} ONTs
         </div>
       </Card>
 
       {isLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+        <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
           <Spin size="large" />
         </div>
       ) : (
@@ -135,7 +172,7 @@ export function GraphsPage() {
           </Row>
 
           {totalOnts > pageSize && (
-            <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <div style={{ marginTop: 24, textAlign: "center" }}>
               <Pagination
                 current={page}
                 pageSize={pageSize}

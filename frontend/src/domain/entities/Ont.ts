@@ -14,7 +14,7 @@ export interface Ont {
   portId: number;
   ontId: number;
   serialNumber: string;
-  name: string;            // ← Add name field
+  name: string; // ← Add name field
   description: string;
   status: OntStatus;
   deviceType?: string;
@@ -62,4 +62,6 @@ export interface OntMetrics {
   txErrors: number;
   rxMbps?: number;
   txMbps?: number;
+  rxMaxMbps?: number;
+  txMaxMbps?: number;
 }
