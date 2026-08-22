@@ -60,4 +60,43 @@ describe("Error Mapper", () => {
     expect(result.statusCode).toBe(500);
     expect(result.code).toBe("SERVER_ERROR");
   });
+
+  it("should use the server error text as the message", () => {
+    const axiosError = {
+      response: {
+        status: 500,
+        data: {
+          code: "SCAN_FAILED",
+          error: "SNMP community not configured for this OLT",
+        },
+      },
+    } as AxiosError;
+
+    const result = mapApiError(axiosError);
+
+    expect(result.message).toBe("SNMP community not configured for this OLT");
+    expect(result.code).toBe("SCAN_FAILED");
+  });
+
+  it("should use the server error text on 404 instead of the resource name", () => {
+    const axiosError = {
+      response: {
+        status: 404,
+        data: { code: "NOT_FOUND", error: "OLT not found" },
+      },
+    } as AxiosError;
+
+    const result = mapApiError(axiosError);
+
+    expect(result).toBeInstanceOf(NotFoundError);
+    expect(result.message).toBe("OLT not found");
+  });
+
+  it("should fall back to the code when the server sends no error text", () => {
+    const axiosError = {
+      response: { status: 500, data: { code: "SCAN_FAILED" } },
+    } as AxiosError;
+
+    expect(mapApiError(axiosError).message).toBe("SCAN_FAILED");
+  });
 });

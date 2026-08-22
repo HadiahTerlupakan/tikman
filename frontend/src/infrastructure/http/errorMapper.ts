@@ -2,6 +2,7 @@ import type { AxiosError } from "axios";
 
 interface ApiErrorResponse {
   code?: string;
+  error?: string;
   resource?: string;
   details?: Record<string, string>;
 }
@@ -11,10 +12,11 @@ export class ApiError extends Error {
     public statusCode: number,
     public code: string,
     public details?: Record<string, unknown>,
+    message?: string,
   ) {
     super();
     this.name = "ApiError";
-    this.message = code;
+    this.message = message || code;
   }
 }
 
@@ -34,10 +36,9 @@ export class UnauthorizedError extends ApiError {
 }
 
 export class NotFoundError extends ApiError {
-  constructor(resource: string) {
-    super(404, "NOT_FOUND", { resource });
+  constructor(resource: string, message?: string) {
+    super(404, "NOT_FOUND", { resource }, message || `${resource} not found`);
     this.name = "NotFoundError";
-    this.message = `${resource} not found`;
   }
 }
 
@@ -49,7 +50,7 @@ export function mapApiError(error: AxiosError): ApiError {
   }
 
   if (error.response?.status === 404) {
-    return new NotFoundError(response?.resource || "Resource");
+    return new NotFoundError(response?.resource || "Resource", response?.error);
   }
 
   if (error.response?.status === 400 && response?.details) {
@@ -60,5 +61,6 @@ export function mapApiError(error: AxiosError): ApiError {
     error.response?.status || 500,
     response?.code || "UNKNOWN_ERROR",
     response?.details,
+    response?.error,
   );
 }
