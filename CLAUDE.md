@@ -74,6 +74,21 @@ npm run lint
 npm run format
 ```
 
+### Git Hooks
+
+Run once per clone (hooks live in `.git/hooks/`, which git does not track):
+```bash
+./scripts/install-hooks.sh
+```
+
+This installs a `pre-commit` hook that runs prettier over staged
+`frontend/src/**` files, so the CI formatting gate cannot fail on drift that was
+avoidable locally. Set `SKIP_FORMAT_HOOK=1` to bypass it for one commit.
+
+Husky is deliberately not used: it works by setting `core.hooksPath`, which stops
+`.git/hooks/` from running and would silently disable the graphify hooks
+installed there.
+
 ### Infrastructure
 
 **Start development dependencies (PostgreSQL + Redis):**

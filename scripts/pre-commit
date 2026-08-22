@@ -1,0 +1,25 @@
+#!/bin/sh
+# Formats staged frontend files with prettier so the CI "Check formatting" gate
+# cannot fail on drift that was avoidable locally.
+#
+# Deliberately NOT husky: husky works by setting core.hooksPath, which stops
+# .git/hooks/ from running entirely and would silently kill the graphify
+# post-commit and post-checkout hooks installed there.
+#
+# Install with: ./scripts/install-hooks.sh
+
+[ "${SKIP_FORMAT_HOOK:-0}" = "1" ] && exit 0
+
+# Nothing to do for backend-only commits.
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- 'frontend/src/*')
+[ -z "$staged" ] && exit 0
+
+if [ ! -d frontend/node_modules/lint-staged ]; then
+    echo "pre-commit: lint-staged not installed; run 'npm ci' in frontend/ (skipping format)" >&2
+    exit 0
+fi
+
+# lint-staged re-stages what it rewrites, so a reformatted file lands in this
+# same commit rather than as a surprise dirty tree afterwards.
+cd frontend || exit 1
+npx --no-install lint-staged
