@@ -33,6 +33,11 @@ export default defineConfig({
         target: "http://localhost:8080",
         changeOrigin: true,
       },
+      // Outside /api, so it needs its own entry or dev serves index.html for it.
+      "/health": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
     },
   },
 });
