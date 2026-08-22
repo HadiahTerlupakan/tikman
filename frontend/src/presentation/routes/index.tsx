@@ -1,4 +1,6 @@
+import { Suspense, lazy } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import { Spin } from "antd";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { AppLayout } from "../components/layout";
 import LoginPage from "../pages/Login";
@@ -8,8 +10,13 @@ import SitesPage from "../pages/Sites";
 import OltsPage from "../pages/Olts";
 import OntsPage from "../pages/OntListPage";
 import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
-import { GraphsPage } from "../pages/GraphsPage";
 import NotFoundPage from "../pages/NotFound";
+
+// Graphs is the only route that pulls in recharts, so it loads on demand to keep
+// the charting library out of the initial bundle.
+const GraphsPage = lazy(() =>
+  import("../pages/GraphsPage").then((m) => ({ default: m.GraphsPage })),
+);
 
 export const router = createBrowserRouter([
   {
@@ -49,7 +56,17 @@ export const router = createBrowserRouter([
           },
           {
             path: "graphs",
-            element: <GraphsPage />,
+            element: (
+              <Suspense
+                fallback={
+                  <div style={{ padding: 24, textAlign: "center" }}>
+                    <Spin />
+                  </div>
+                }
+              >
+                <GraphsPage />
+              </Suspense>
+            ),
           },
         ],
       },
