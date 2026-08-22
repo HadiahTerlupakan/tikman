@@ -1,6 +1,7 @@
 package connectivity
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -54,7 +55,15 @@ func SNMPTest(ipAddress string, port int, community string, timeout time.Duratio
 
 // newSNMPClient builds a connected gosnmp client for walk operations.
 func newSNMPClient(ipAddress, community string, snmpPort int) (*gosnmp.GoSNMP, error) {
+	return newSNMPClientWithContext(context.Background(), ipAddress, community, snmpPort)
+}
+
+// newSNMPClientWithContext builds a connected client whose requests stop at the
+// context deadline. gosnmp clamps each request to the earlier of its own Timeout
+// and the context deadline, so ctx bounds a multi-walk scan as a whole.
+func newSNMPClientWithContext(ctx context.Context, ipAddress, community string, snmpPort int) (*gosnmp.GoSNMP, error) {
 	client := &gosnmp.GoSNMP{
+		Context:   ctx,
 		Target:    ipAddress,
 		Port:      uint16(snmpPort),
 		Community: community,

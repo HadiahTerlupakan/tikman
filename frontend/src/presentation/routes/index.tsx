@@ -7,6 +7,7 @@ import UsersPage from "../pages/Users";
 import SitesPage from "../pages/Sites";
 import OltsPage from "../pages/Olts";
 import OntsPage from "../pages/OntListPage";
+import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
 import { GraphsPage } from "../pages/GraphsPage";
 import NotFoundPage from "../pages/NotFound";
 
@@ -41,6 +42,10 @@ export const router = createBrowserRouter([
           {
             path: "onts",
             element: <OntsPage />,
+          },
+          {
+            path: "unconfigured-onus",
+            element: <UnconfiguredOnusPage />,
           },
           {
             path: "graphs",

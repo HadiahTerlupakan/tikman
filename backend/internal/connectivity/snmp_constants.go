@@ -43,6 +43,14 @@ const (
 	OnuLastOfflineReasonPrefix   = ".500.10.2.3.8.1.7"  // Last offline reason
 	OnuGponOpticalDistancePrefix = ".500.10.2.3.10.1.2" // Optical distance
 
+	// Unconfigured (autofind) ONU OID prefixes. This table lists ONUs the OLT has
+	// detected optically but which have no `onu <id> type ... sn ...` config yet,
+	// so their entries disappear once the ONU is provisioned. Verified against
+	// C300 V2.1.0: only columns .2, .10 and .11 carry usable values.
+	OnuUncfgSerialNumberPrefix = ".3.13.3.1.2"  // Autofind serial (8 raw bytes)
+	OnuUncfgDeviceTypePrefix   = ".3.13.3.1.10" // Autofind model, e.g. HG8245H5
+	OnuUncfgSoftwareVerPrefix  = ".3.13.3.1.11" // Autofind firmware version
+
 	// Device information OID prefixes
 	OnuTypePrefix            = ".3.28.1.1.5"     // ONU device type/model
 	OnuHardwareVersionPrefix = ".3.50.11.2.1.2"  // Hardware version (equipment version)

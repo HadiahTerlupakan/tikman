@@ -6,6 +6,7 @@ import type {
   CreateOltDto,
   UpdateOltDto,
   OltStats,
+  UnconfiguredOnu,
 } from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
@@ -29,6 +30,13 @@ export class OltRepository implements IOltRepository {
   async getStats(id: string): Promise<OltStats> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_STATS(id));
     return response.data;
+  }
+
+  async getUnconfiguredOnus(id: string): Promise<UnconfiguredOnu[]> {
+    const response = await apiClient.get(
+      API_ENDPOINTS.OLT_UNCONFIGURED_ONUS(id),
+    );
+    return response.data.data ?? [];
   }
 
   async create(data: CreateOltDto): Promise<Olt> {

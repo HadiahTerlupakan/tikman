@@ -45,6 +45,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	metricsService := services.NewMetricsService(db)
 	eventService := services.NewEventService(db)
 	auditService := services.NewAuditService(db, logger)
+	unconfiguredONUService := services.NewUnconfiguredONUService(db)
 
 	authHandler := NewAuthHandler(userService, authStore)
 	userHandler := NewUserHandler(userService, auditService)
@@ -53,6 +54,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	ontHandler := NewONTHandler(ontService, metricsService, auditService)
 	metricsHandler := NewMetricsHandler(metricsService)
 	eventHandler := NewEventHandler(eventService)
+	unconfiguredONUHandler := NewUnconfiguredONUHandler(unconfiguredONUService)
 	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
 
 	api := router.Group("/api/v1")
@@ -96,6 +98,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.POST("/:id/discover", oltHandler.DiscoverONTs)
 			olts.POST("/:id/discover-and-register", oltHandler.DiscoverAndRegisterONTs)
 			olts.GET("/:id/stats", metricsHandler.GetOltsStats)
+			olts.GET("/:id/unconfigured-onus", unconfiguredONUHandler.ListByOLT)
 		}
 
 		onts := api.Group("/onts")

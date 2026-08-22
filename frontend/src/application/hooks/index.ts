@@ -5,3 +5,4 @@ export * from "./useOlts";
 export * from "./useOnts";
 export * from "./useOntMetrics";
 export * from "./useOntEvents";
+export * from "./useUnconfiguredOnus";

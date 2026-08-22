@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
   OLTS: "/api/v1/olts",
   OLT_BY_ID: (id: string) => `/api/v1/olts/${id}`,
   OLT_STATS: (id: string) => `/api/v1/olts/${id}/stats`,
+  OLT_UNCONFIGURED_ONUS: (id: string) => `/api/v1/olts/${id}/unconfigured-onus`,
   TEST_OLT_CONNECTION: "/api/v1/olts/test-connection",
 
   // ONTs

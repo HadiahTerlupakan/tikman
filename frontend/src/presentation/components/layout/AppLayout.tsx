@@ -9,6 +9,7 @@ import {
   BellOutlined,
   MonitorOutlined,
   BarChartOutlined,
+  QuestionCircleOutlined,
 } from "@ant-design/icons";
 import { Dropdown, Avatar, Badge, App } from "antd";
 import type { MenuProps } from "antd";
@@ -62,6 +63,11 @@ export function AppLayout() {
       path: "/onts",
       name: "ONT Monitoring",
       icon: <MonitorOutlined />,
+    },
+    {
+      path: "/unconfigured-onus",
+      name: "Unconfigured ONU",
+      icon: <QuestionCircleOutlined />,
     },
     {
       path: "/graphs",
