@@ -112,3 +112,4 @@ export const theme: ThemeConfig = {
     },
   },
 };
+export * from "./colors";
