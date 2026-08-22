@@ -30,12 +30,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		c.Next()
 	})
 
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "healthy",
-			"time":   c.GetHeader("Date"),
-		})
-	})
+	router.GET("/health", NewHealthHandler(db, authStore).Check)
 
 	userService := services.NewUserService(db)
 	siteService := services.NewSiteService(db)

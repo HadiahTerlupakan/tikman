@@ -31,6 +31,30 @@ func NewStore(client *redis.Client, ttl time.Duration) *Store {
 	}
 }
 
+// BackendStatus describes where sessions are actually stored, for health checks.
+type BackendStatus string
+
+const (
+	// BackendUp means Redis answered a ping.
+	BackendUp BackendStatus = "up"
+	// BackendDown means Redis is configured but unreachable.
+	BackendDown BackendStatus = "down"
+	// BackendDisabled means no Redis was configured and sessions live in memory,
+	// which is a deployment choice rather than a failure.
+	BackendDisabled BackendStatus = "disabled"
+)
+
+// Backend reports whether the session backend is reachable.
+func (s *Store) Backend(ctx context.Context) BackendStatus {
+	if s.memory != nil || s.client == nil {
+		return BackendDisabled
+	}
+	if err := s.client.Ping(ctx).Err(); err != nil {
+		return BackendDown
+	}
+	return BackendUp
+}
+
 func (s *Store) Create(userID uuid.UUID, role models.UserRole) (string, error) {
 	if s.memory != nil {
 		return s.memory.create(userID, role)

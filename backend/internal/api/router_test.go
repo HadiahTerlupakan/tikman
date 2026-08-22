@@ -49,6 +49,51 @@ func TestHealthEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "healthy", response["status"])
 	assert.NotNil(t, response["time"])
+
+	// The dashboard renders one row per dependency, so each has to report its own
+	// state. A memory-backed session store means Redis was never configured,
+	// which is not the same as Redis being unreachable.
+	deps, ok := response["dependencies"].(map[string]interface{})
+	assert.True(t, ok, "expected a dependencies object, got %v", response["dependencies"])
+	assert.Equal(t, "up", deps["database"])
+	assert.Equal(t, "disabled", deps["redis"])
+}
+
+func TestHealthEndpoint_ReportsDatabaseDown(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	cfg := &config.Config{
+		LogLevel:       "debug",
+		EncryptionKey:  "0123456789abcdef0123456789abcdef",
+		Environment:    "development",
+		AllowedOrigins: "http://localhost:3000",
+	}
+
+	router := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger)
+
+	// Closing the pool makes every query fail, standing in for an unreachable
+	// Postgres without needing one in the test environment.
+	sqlDB, err := db.DB()
+	assert.NoError(t, err)
+	assert.NoError(t, sqlDB.Close())
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// A failing dependency must not read as healthy to an uptime checker.
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	var response map[string]interface{}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "degraded", response["status"])
+
+	deps, ok := response["dependencies"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "down", deps["database"])
 }
 
 func TestRouterSetup(t *testing.T) {
