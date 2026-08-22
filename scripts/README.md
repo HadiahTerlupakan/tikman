@@ -21,7 +21,20 @@ Test scripts and utilities:
 ### `/maintenance`
 Reserved for future maintenance scripts.
 
+### Git hooks
+- `install-hooks.sh` - Installs the repo's hooks into `.git/hooks/`. Run once per clone.
+- `pre-commit` - Source for the hook; runs prettier over staged `frontend/src` files.
+
 ## Usage
+
+### Installing Git Hooks
+
+```bash
+./scripts/install-hooks.sh
+```
+
+Formats staged frontend files on commit so the CI formatting gate cannot fail on
+avoidable drift. `SKIP_FORMAT_HOOK=1 git commit` bypasses it.
 
 ### Running Fix Scripts
 
