@@ -61,7 +61,8 @@ func (h *SiteHandler) Create(c *gin.Context) {
 		)
 	}
 
-	c.JSON(http.StatusCreated, ToSiteResponse(h.service.GetDB(), site))
+	oltCount, _ := h.service.CountOLTsBySite(site.ID)
+	c.JSON(http.StatusCreated, ToSiteResponse(oltCount, site))
 }
 
 func (h *SiteHandler) List(c *gin.Context) {
@@ -74,10 +75,10 @@ func (h *SiteHandler) List(c *gin.Context) {
 		return
 	}
 
-	db := h.service.GetDB()
 	responses := make([]SiteResponse, len(sites))
 	for i, site := range sites {
-		responses[i] = ToSiteResponse(db, &site)
+		oltCount, _ := h.service.CountOLTsBySite(site.ID)
+		responses[i] = ToSiteResponse(oltCount, &site)
 	}
 
 	c.JSON(http.StatusOK, responses)
@@ -109,7 +110,8 @@ func (h *SiteHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, ToSiteResponse(h.service.GetDB(), site))
+	oltCount, _ := h.service.CountOLTsBySite(site.ID)
+	c.JSON(http.StatusOK, ToSiteResponse(oltCount, site))
 }
 
 func (h *SiteHandler) Update(c *gin.Context) {
@@ -195,7 +197,8 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		)
 	}
 
-	c.JSON(http.StatusOK, ToSiteResponse(h.service.GetDB(), site))
+	oltCount, _ := h.service.CountOLTsBySite(site.ID)
+	c.JSON(http.StatusOK, ToSiteResponse(oltCount, site))
 }
 
 func (h *SiteHandler) Delete(c *gin.Context) {

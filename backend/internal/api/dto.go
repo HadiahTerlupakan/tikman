@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
-	"gorm.io/gorm"
 )
 
 // User DTOs
@@ -82,10 +81,7 @@ type SiteResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-func ToSiteResponse(db *gorm.DB, site *models.Site) SiteResponse {
-	var oltCount int64
-	db.Model(&models.OLT{}).Where("site_id = ?", site.ID).Count(&oltCount)
-
+func ToSiteResponse(oltCount int64, site *models.Site) SiteResponse {
 	return SiteResponse{
 		ID:          site.ID,
 		Name:        site.Name,
@@ -162,17 +158,10 @@ type OLTResponse struct {
 	UpdatedAt         time.Time          `json:"updated_at"`
 }
 
-// ToOLTResponse renders an OLT row for the API. The site name is looked up
-// here; a row whose site is missing or unset simply renders an empty name.
-func ToOLTResponse(db *gorm.DB, olt *models.OLT) OLTResponse {
-	siteName := ""
-	if olt.SiteID != uuid.Nil {
-		var site models.Site
-		if err := db.Where("id = ?", olt.SiteID).First(&site).Error; err == nil {
-			siteName = site.Name
-		}
-	}
-
+// ToOLTResponse renders an OLT row for the API. The site name is resolved by
+// the caller via the OLT service; a row whose site is missing or unset simply
+// renders an empty name.
+func ToOLTResponse(siteName string, olt *models.OLT) OLTResponse {
 	return OLTResponse{
 		ID:                olt.ID,
 		SiteID:            olt.SiteID,

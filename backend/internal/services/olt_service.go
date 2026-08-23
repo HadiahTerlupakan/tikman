@@ -193,3 +193,17 @@ func (s *OLTService) DiscoverONTs(oltID uuid.UUID) ([]connectivity.DiscoveredONT
 
 	return result, nil
 }
+
+// SiteNameForOLT resolves the site name for an OLT row. A missing or unset
+// site yields an empty string rather than an error, mirroring the previous
+// in-DTO behaviour.
+func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
+	if siteID == uuid.Nil {
+		return ""
+	}
+	var site models.Site
+	if err := s.db.Where("id = ?", siteID).First(&site).Error; err == nil {
+		return site.Name
+	}
+	return ""
+}

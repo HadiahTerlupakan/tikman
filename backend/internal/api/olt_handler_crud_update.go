@@ -80,6 +80,7 @@ func (h *OLTHandler) Update(c *gin.Context) {
 
 	go autoDiscoverONTMetrics(h.service.GetDB(), olt)
 
-	response := ToOLTResponse(h.service.GetDB(), olt)
+	siteName := h.service.SiteNameForOLT(olt.SiteID)
+	response := ToOLTResponse(siteName, olt)
 	c.JSON(http.StatusOK, response)
 }

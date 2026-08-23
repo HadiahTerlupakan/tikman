@@ -75,3 +75,12 @@ func (s *SiteService) Delete(id uuid.UUID) error {
 	}
 	return nil
 }
+
+// CountOLTsBySite returns how many OLTs are attached to a site. The DTO layer
+// renders this count, but the query itself belongs to the service so the API
+// layer never touches the database directly.
+func (s *SiteService) CountOLTsBySite(siteID uuid.UUID) (int64, error) {
+	var count int64
+	err := s.db.Model(&models.OLT{}).Where("site_id = ?", siteID).Count(&count).Error
+	return count, err
+}
