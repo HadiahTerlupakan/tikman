@@ -45,7 +45,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	authHandler := NewAuthHandler(userService, authStore)
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
-	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService)
+	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService, ontService)
 	ontHandler := NewONTHandler(ontService, metricsService, auditService)
 	metricsHandler := NewMetricsHandler(metricsService)
 	eventHandler := NewEventHandler(eventService)

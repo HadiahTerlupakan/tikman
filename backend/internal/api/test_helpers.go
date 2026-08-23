@@ -50,7 +50,8 @@ func SetupOLTHandlerTest(t *testing.T) (*OLTHandler, *services.SiteService, *gor
 	siteService := services.NewSiteService(db)
 	oltService := services.NewOLTService(db, testEncryptionKey)
 	oltValidatorService := services.NewOLTValidatorService(db)
-	handler := NewOLTHandler(oltService, oltValidatorService, nil)
+	ontService := services.NewONTService(db)
+	handler := NewOLTHandler(oltService, oltValidatorService, nil, ontService)
 	return handler, siteService, db
 }
 

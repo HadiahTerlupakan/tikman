@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/google/uuid"
@@ -206,4 +207,68 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 		return site.Name
 	}
 	return ""
+}
+
+// AutoDiscoverONTMetrics polls ONT metrics from this OLT via SNMP and stores
+// them asynchronously. The handler spawns the goroutine; the actual query
+// logic lives here, not in the handler.
+func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
+	log.Printf("[AutoDiscovery] Starting immediate ONT metrics polling for OLT %s (%s)", olt.Name, olt.IPAddress)
+
+	metricsService := NewMetricsService(s.db)
+
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		log.Printf("[AutoDiscovery] Cannot poll OLT %s: %v", olt.Name, err)
+		return
+	}
+
+	allMetrics, err := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if err != nil {
+		log.Printf("[AutoDiscovery] Failed to walk metrics from OLT %s: %v", olt.Name, err)
+		return
+	}
+
+	log.Printf("[AutoDiscovery] Discovered %d ONT devices via SNMP walk", len(allMetrics))
+
+	var successCount int
+
+	for loc, metrics := range allMetrics {
+		var onts []models.ONT
+		if err := s.db.Where("olt_id = ? AND port_id = ? AND ont_id = ?", olt.ID, loc.Port, loc.ONTID).Find(&onts).Error; err != nil {
+			continue
+		}
+
+		if len(onts) == 0 {
+			log.Printf("[AutoDiscovery] Skipping unregistered ONT at port=%d ont=%d", loc.Port, loc.ONTID)
+			continue
+		}
+
+		ont := onts[0]
+
+		storeMetrics := false
+		if metrics.RxPower != nil || metrics.TxPower != nil || metrics.Distance > 0 {
+			storeMetrics = true
+		}
+
+		if storeMetrics {
+			if err := metricsService.StoreMetrics(ont.ID, &metrics, nil); err != nil {
+				log.Printf("[AutoDiscovery] Failed to store metrics for ONT %s: %v", ont.SerialNumber, err)
+				continue
+			}
+			rxStr := "-"
+			if metrics.RxPower != nil {
+				rxStr = fmt.Sprintf("%.2f", *metrics.RxPower)
+			}
+			txStr := "-"
+			if metrics.TxPower != nil {
+				txStr = fmt.Sprintf("%.2f", *metrics.TxPower)
+			}
+			log.Printf("[AutoDiscovery] ✅ Polled metrics: serial=%s port=%d/%d rx_power=%s dBm tx_power=%s dBm distance=%dm",
+				ont.SerialNumber, loc.Port, loc.ONTID, rxStr, txStr, metrics.Distance)
+			successCount++
+		}
+	}
+
+	log.Printf("[AutoDiscovery] Completed: polled metrics for %d ONTs from OLT %s", successCount, olt.Name)
 }

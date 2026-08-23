@@ -78,7 +78,7 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		return
 	}
 
-	go autoDiscoverONTMetrics(h.service.GetDB(), olt)
+	go h.service.AutoDiscoverONTMetrics(olt)
 
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
 	response := ToOLTResponse(siteName, olt)

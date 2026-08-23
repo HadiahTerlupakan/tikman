@@ -1368,6 +1368,71 @@ func TestONTService_UpdateUptimeMetrics_NoTimestamps(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestONTService_ListONTSummariesForOLT(t *testing.T) {
+	db := setupTestDB(t)
+	siteService := NewSiteService(db)
+	ontService := NewONTService(db)
+
+	site, _ := siteService.Create("Test Site", "Test Location", "Test Description")
+
+	olt := &models.OLT{
+		ID:                uuid.New(),
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "encrypted",
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+		Status:            models.OLTStatusOnline,
+	}
+	db.Create(olt)
+
+	ont1 := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        1,
+		SerialNumber: "SN111111",
+		Name:         "ONT 1",
+		Description:  "First ONT",
+		Status:       models.ONTStatusOnline,
+	}
+	require.NoError(t, ontService.Create(ont1))
+
+	ont2 := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       2,
+		ONTID:        2,
+		SerialNumber: "SN222222",
+		Name:         "ONT 2",
+		Description:  "Second ONT",
+		Status:       models.ONTStatusOffline,
+	}
+	require.NoError(t, ontService.Create(ont2))
+
+	onts, err := ontService.ListONTSummariesForOLT(olt.ID)
+	require.NoError(t, err)
+	assert.Len(t, onts, 2)
+
+	// Verify the projection fields
+	assert.Equal(t, 1, onts[0].PortID)
+	assert.Equal(t, 1, onts[0].ONTID)
+	assert.Equal(t, "SN111111", onts[0].SerialNumber)
+	assert.Equal(t, "online", onts[0].Status)
+	assert.Equal(t, "ONT 1", onts[0].Name)
+	assert.Equal(t, "First ONT", onts[0].Description)
+
+	assert.Equal(t, 2, onts[1].PortID)
+	assert.Equal(t, 2, onts[1].ONTID)
+	assert.Equal(t, "SN222222", onts[1].SerialNumber)
+	assert.Equal(t, "offline", onts[1].Status)
+	assert.Equal(t, "ONT 2", onts[1].Name)
+	assert.Equal(t, "Second ONT", onts[1].Description)
+}
+
 func TestONTService_PruneMissingFromDiscoveryDeletesStaleONTs(t *testing.T) {
 	db := setupTestDB(t)
 	ontService := NewONTService(db)

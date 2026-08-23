@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/middleware"
-	"github.com/tikman/olt-provisioning/internal/services"
 )
 
 // DiscoverOLTTopology handles POST /api/v1/olts/:id/topology discovery
@@ -156,11 +155,8 @@ func (h *OLTHandler) DiscoverAndRegisterONTs(c *gin.Context) {
 		return
 	}
 
-	// Get ONT service
-	ontService := services.NewONTService(h.service.GetDB())
-
 	// Bulk register
-	result := ontService.BulkRegisterFromDiscovery(oltID, discovered)
+	result := h.ontService.BulkRegisterFromDiscovery(oltID, discovered)
 
 	// Audit log
 	if h.auditService != nil && result.Registered > 0 {
@@ -197,21 +193,7 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 		return
 	}
 
-	var onts []struct {
-		PortID       int    `json:"port_id"`
-		ONTID        int    `json:"ont_id"`
-		SerialNumber string `json:"serial_number"`
-		Status       string `json:"status"`
-		Name         string `json:"name"`
-		Description  string `json:"description"`
-	}
-
-	err = h.service.GetDB().
-		Table("onts").
-		Select("port_id, ont_id, serial_number, status, name, description").
-		Where("olt_id = ?", oltID).
-		Scan(&onts).Error
-
+	onts, err := h.ontService.ListONTSummariesForOLT(oltID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "QUERY_FAILED",

@@ -258,6 +258,29 @@ func (s *ONTService) GetByOLTAndPosition(oltID uuid.UUID, portID, ontID int) (*m
 	return &ont, nil
 }
 
+// ONTSummary is the projection the discovery handler renders: enough of an
+// ONT row to display discovery results without loading full models.
+type ONTSummary struct {
+	PortID       int    `json:"port_id"`
+	ONTID        int    `json:"ont_id"`
+	SerialNumber string `json:"serial_number"`
+	Status       string `json:"status"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+}
+
+// ListONTSummariesForOLT returns the discovery projection of every ONT on an
+// OLT. The handler used to run this query itself via GetDB(); the query
+// belongs here.
+func (s *ONTService) ListONTSummariesForOLT(oltID uuid.UUID) ([]ONTSummary, error) {
+	var onts []ONTSummary
+	err := s.db.Table("onts").
+		Select("port_id, ont_id, serial_number, status, name, description").
+		Where("olt_id = ?", oltID).
+		Scan(&onts).Error
+	return onts, err
+}
+
 // BulkRegisterResult holds the result of bulk ONT registration
 type BulkRegisterResult struct {
 	Registered int
