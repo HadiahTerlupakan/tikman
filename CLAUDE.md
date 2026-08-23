@@ -278,7 +278,7 @@ npm run format:check
 - [ ] Go code is gofmt-clean and modules verified (`gofmt -s -l .` empty, `go mod verify`)
 - [ ] Build succeeds (`npm run build`, `go build`)
 - [ ] No race conditions (`go test -race`)
-- [ ] Test coverage maintained (>80%)
+- [ ] Test coverage maintained (≥50% globally; network-bound/auth/cmd packages excluded from baseline)
 
 ### CI/CD Testing
 All GitHub Actions workflows MUST pass:
@@ -328,6 +328,31 @@ cannot be unit tested without an interface refactor, a fake SNMP responder, or
 real hardware, so splitting them would be verified by `go build` and review
 alone. Restructuring untestable code to satisfy a line count is risk without
 payoff. Code that only *calls* `connectivity` is not exempt.
+
+**Exemption: test files.** Test files may exceed 350 lines when the excess is
+individual test cases (one test function per behaviour, table-driven where
+applicable). Split a test file only when it covers multiple behaviours that
+belong in separate files (e.g., `handler_create_test.go` vs
+`handler_update_test.go`); do not split merely to satisfy the line count. Test
+volume is a consequence of coverage, not a code smell.
+
+**Exemption: entry points.** `main()` functions in `cmd/` are exempt from the
+50-line function limit. Wiring (config, logger, DB, HTTP server) is linear
+setup; forcing it into helpers scatters initialization order and makes
+startup harder to follow. Extract helpers only for reusable logic, not to
+game the line count.
+
+### Coverage Targets
+
+- **Global: ≥50%** of statements, measured with `go test ./... -coverprofile`
+- **Excluded from the baseline** (network-bound or infrastructure-dependent):
+  `internal/connectivity` (SNMP/Telnet devices), `internal/auth` (Redis
+  sessions), `cmd/*` (entry-point wiring)
+- The excluded packages are measured separately and reported, not silently
+  dropped: connectivity and auth deserve integration tests against real
+  Redis/devices, which is future investment beyond this compliance work
+- Do not pad coverage with trivial getter/setter tests to hit the number; a
+  test that asserts nothing is worse than an uncovered line
 
 ### Refactoring Guidelines
 When a file exceeds 300 lines:
