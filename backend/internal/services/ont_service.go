@@ -26,6 +26,14 @@ func (s *ONTService) GetDB() *gorm.DB {
 	return s.db
 }
 
+// GetONTOlts returns distinct OLTs that have ONTs in the given ID list.
+// Query logic belongs in services, not handlers.
+func (s *ONTService) GetONTOlts(oltIDs []uuid.UUID) ([]models.OLT, error) {
+	var olts []models.OLT
+	err := s.db.Select("id, name").Where("id IN ?", oltIDs).Find(&olts).Error
+	return olts, err
+}
+
 // List returns paginated list of ONTs with filters
 func (s *ONTService) List(oltID *uuid.UUID, status *models.ONTStatus, limit, offset int) ([]models.ONT, int64, error) {
 	return s.ListWithMetricsFilter(oltID, status, nil, nil, limit, offset)

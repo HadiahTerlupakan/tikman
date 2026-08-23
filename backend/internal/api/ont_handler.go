@@ -115,8 +115,7 @@ func (h *ONTHandler) List(c *gin.Context) {
 			}
 		}
 
-		var olts []models.OLT
-		if err := h.ontService.GetDB().Select("id, name").Where("id IN ?", oltIDs).Find(&olts).Error; err == nil {
+		if olts, err := h.ontService.GetONTOlts(oltIDs); err == nil {
 			for _, olt := range olts {
 				oltMap[olt.ID] = olt.Name
 			}

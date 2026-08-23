@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gosnmp/gosnmp"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
-	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"gorm.io/gorm"
 )
@@ -18,6 +17,7 @@ type SeedHandler struct {
 	oltService    *services.OLTService
 	ontService    *services.ONTService
 	eventService  *services.EventService
+	seedService   *services.SeedService
 	encryptionKey string
 }
 
@@ -27,6 +27,7 @@ func NewSeedHandler(db *gorm.DB, encryptionKey string) *SeedHandler {
 		oltService:    services.NewOLTService(db, encryptionKey),
 		ontService:    services.NewONTService(db),
 		eventService:  services.NewEventService(db),
+		seedService:   services.NewSeedService(db),
 		encryptionKey: encryptionKey,
 	}
 }
@@ -125,44 +126,8 @@ func (h *SeedHandler) SeedEventHistory(c *gin.Context) {
 				continue
 			}
 
-			eventsCreated := 0
-
-			if !lastOfflineTime.IsZero() {
-				event := &models.ONTEvent{
-					ONTID:     ont.ID,
-					EventType: models.EventTypeOffline,
-					EventTime: lastOfflineTime,
-					Reason:    lastOfflineReason,
-				}
-
-				if err := h.db.Create(event).Error; err != nil {
-					totalErrors++
-				} else {
-					eventsCreated++
-				}
-			}
-
-			if !lastOnlineTime.IsZero() {
-				var durationSeconds *int64
-				if !lastOfflineTime.IsZero() && lastOnlineTime.After(lastOfflineTime) {
-					duration := int64(lastOnlineTime.Sub(lastOfflineTime).Seconds())
-					durationSeconds = &duration
-				}
-
-				event := &models.ONTEvent{
-					ONTID:           ont.ID,
-					EventType:       models.EventTypeOnline,
-					EventTime:       lastOnlineTime,
-					Reason:          "System startup",
-					DurationSeconds: durationSeconds,
-				}
-
-				if err := h.db.Create(event).Error; err != nil {
-					totalErrors++
-				} else {
-					eventsCreated++
-				}
-			}
+			eventsCreated, eventErrors := h.seedService.SeedEventsForONT(ont.ID, lastOfflineReason, lastOnlineTime, lastOfflineTime)
+			totalErrors += eventErrors
 
 			if eventsCreated > 0 {
 				totalEvents += eventsCreated
