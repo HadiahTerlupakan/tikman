@@ -38,6 +38,19 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
 
+    # internal/auth and internal/middleware tests t.Skip without a reachable
+    # Redis, which silently left session and auth-middleware code untested.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
