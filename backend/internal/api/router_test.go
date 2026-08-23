@@ -115,3 +115,33 @@ func TestRouterSetup(t *testing.T) {
 
 	assert.NotNil(t, router)
 }
+
+// The create form tests a connection before the OLT exists, so this route must
+// carry no :id. It previously lived at /olts/:id/test, which the frontend never
+// calls, making Test Connection a silent 404. A 404 here means the path and its
+// only caller have drifted apart again; 401 means the route exists and merely
+// wants a session, which is all this test needs to prove.
+func TestTestConnectionRouteIsRegisteredWithoutID(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+	assert.NoError(t, models.AutoMigrate(db))
+
+	cfg := &config.Config{
+		LogLevel:       "release",
+		EncryptionKey:  "0123456789abcdef0123456789abcdef",
+		Environment:    "development",
+		AllowedOrigins: "http://localhost:3000",
+	}
+
+	router := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger)
+
+	req := httptest.NewRequest("POST", "/api/v1/olts/test-connection", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code,
+		"POST /api/v1/olts/test-connection is unrouted; the frontend's Test Connection button calls exactly this path")
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}

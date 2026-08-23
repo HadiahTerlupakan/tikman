@@ -87,7 +87,11 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.POST("", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Create)
 			olts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.Update)
 			olts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), oltHandler.Delete)
-			olts.POST("/:id/test", middleware.RequireRole(models.UserRoleAdmin), oltHandler.TestConnection)
+			// No :id - the handler takes the candidate's address and credentials
+			// from the body, because the point is to test a connection before the
+			// OLT exists. Registering this under /:id/test left the create form's
+			// Test Connection button hitting a 404.
+			olts.POST("/test-connection", middleware.RequireRole(models.UserRoleAdmin), oltHandler.TestConnection)
 			olts.GET("/:id/topology/cached", oltHandler.GetCachedTopology)
 			olts.POST("/:id/topology", oltHandler.DiscoverOLTTopology)
 			olts.POST("/:id/discover", oltHandler.DiscoverONTs)
