@@ -1,9 +1,7 @@
 package connectivity
 
-// ============================================================================
 // ZTE C300/C320 SNMP OIDs - VERIFIED AGAINST https://github.com/Cepat-Kilat-Teknologi/snmp-olt-zte
 // Tested against ZTE C300 V2.1.0 and C320 V2.1.0 production hardware
-// ============================================================================
 //
 // TWO INDEX SPACES:
 //
@@ -23,7 +21,6 @@ package connectivity
 // - .1.3.6.1.4.1.3902.1012.3.50.12.1.1.10   = RX optical power
 // - .1.3.6.1.4.1.3902.1012.3.50.12.1.1.14   = TX optical power
 // - .1.3.6.1.4.1.3902.1012.3.11.4.1.2       = Distance in meters
-// ============================================================================
 
 const (
 	// BaseOIDS for two different index spaces
