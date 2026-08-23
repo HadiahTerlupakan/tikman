@@ -25,7 +25,9 @@ export class OntRepository implements IOntRepository {
       status: params?.status,
       start_time: params?.startTime,
       end_time: params?.endTime,
-      limit: params?.limit || 200,
+      // Default to 500 (backend's max) for dashboard summary views,
+      // but allow caller to specify smaller limits for paginated lists
+      limit: params?.limit || 500,
       offset: params?.offset || 0,
     };
 
