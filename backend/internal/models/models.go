@@ -9,5 +9,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&OLT{},
 		&ONT{},
 		&ONTEvent{},
+		&AuditLog{},
 	)
 }

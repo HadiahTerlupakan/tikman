@@ -15,7 +15,11 @@ func setupTestAuditDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
 
-	err = db.AutoMigrate(&models.AuditLog{}, &models.User{})
+	// models.AutoMigrate rather than a local AutoMigrate(&models.AuditLog{}):
+	// migrating the model here passes whether or not AuditLog is registered in
+	// models.AutoMigrate, which is what let audit_logs ship missing from every
+	// real database while these tests stayed green.
+	err = models.AutoMigrate(db)
 	assert.NoError(t, err)
 
 	return db

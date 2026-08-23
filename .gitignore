@@ -60,3 +60,6 @@ backend/tikman-api
 
 # Local Claude Code settings
 .claude/settings.json
+
+# Subagent-driven-development scratch (ledger, briefs, review packages)
+.superpowers/
