@@ -16,8 +16,21 @@ type ONTEvent struct {
 	DurationSeconds *int64    `gorm:"column:duration_seconds" json:"duration_seconds,omitempty"`
 	CreatedAt       time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 
-	// Relations
-	ONT ONT `gorm:"foreignKey:ONTID;constraint:OnDelete:CASCADE" json:"ont,omitempty"`
+	// No ONT relation field here on purpose.
+	//
+	// A `ONT ONT gorm:"foreignKey:ONTID"` field used to sit here, and it was never
+	// preloaded anywhere. What it did do was confuse AutoMigrate: this struct's
+	// ONTID is the ONT's uuid, but ONT.ONTID is the integer ONU number on the PON
+	// port. Seeing that name on the target struct, GORM resolved the pair as a
+	// has-one and emitted
+	//   onts.ont_id -> ont_events.id   ("fk_ont_events_ont")
+	// which made every new ONT insert fail with a foreign key violation, because
+	// an ONU number is not an event id.
+	//
+	// The real constraint (ont_events.ont_id -> onts.id) is created by
+	// migrations/04_create_ont_events_table.sql, so nothing is lost by dropping
+	// the field. Re-adding a relation here means renaming one of the two ONTID
+	// fields first.
 }
 
 // TableName specifies the table name for GORM
