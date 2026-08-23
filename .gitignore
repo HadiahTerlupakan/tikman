@@ -28,6 +28,7 @@ go.work
 # IDE
 .vscode/
 .idea/
+.kiro/
 *.swp
 *.swo
 *~
