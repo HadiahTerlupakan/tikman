@@ -17,11 +17,11 @@ type ONUTrafficRates struct {
 	TxOctetBps uint64
 }
 
-// WalkONUTrafficRates walks the zxAnPonOnuIf{Rx,Tx}OctetRate gauge tables and
+// zteWalkTrafficRates walks the zxAnPonOnuIf{Rx,Tx}OctetRate gauge tables and
 // returns per-ONT rates keyed by physical location. The gauges are read
 // directly rather than derived from counter deltas because the octet counters
 // on C300/C320 are fragment snapshots that oscillate between polls.
-func WalkONUTrafficRates(ipAddress, community string, snmpPort int) (map[ONTLocation]ONUTrafficRates, error) {
+func zteWalkTrafficRates(ipAddress, community string, snmpPort int) (map[ONTLocation]ONUTrafficRates, error) {
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err
@@ -58,10 +58,10 @@ func WalkONUTrafficRates(ipAddress, community string, snmpPort int) (map[ONTLoca
 	return rates, nil
 }
 
-// QueryONUTrafficRates fetches the live rate gauges for a single ONT via SNMP
+// zteQueryTrafficRates fetches the live rate gauges for a single ONT via SNMP
 // GET. The gauge tables are indexed in the ONU-ID space:
 // OnuIDIfIndexBase + slot*OnuIDSlotStride + port, followed by the ONT ID.
-func QueryONUTrafficRates(ipAddress, community string, snmpPort, slot, port, ontID int) (*ONUTrafficRates, error) {
+func zteQueryTrafficRates(ipAddress, community string, snmpPort, slot, port, ontID int) (*ONUTrafficRates, error) {
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err

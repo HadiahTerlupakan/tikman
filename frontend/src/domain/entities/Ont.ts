@@ -60,8 +60,10 @@ export interface OntMetrics {
   txPackets: number;
   rxErrors: number;
   txErrors: number;
-  rxMbps?: number;
-  txMbps?: number;
+  // null when the OLT model exposes no per-ONU rate gauges, which is different
+  // from a measured 0 Mbps. The UI renders null as "-".
+  rxMbps?: number | null;
+  txMbps?: number | null;
   rxMaxMbps?: number;
   txMaxMbps?: number;
 }

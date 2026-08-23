@@ -10,6 +10,11 @@ import (
 type OLTStatus string
 type OLTProtocol string
 
+// OLTModel selects which SNMP dialect the connectivity layer speaks to a
+// device. C300 and C320 are distinct models even though their OIDs currently
+// match, so a firmware divergence later needs no migration.
+type OLTModel string
+
 const (
 	OLTStatusOnline  OLTStatus = "online"
 	OLTStatusOffline OLTStatus = "offline"
@@ -17,6 +22,10 @@ const (
 
 	OLTProtocolSSH    OLTProtocol = "ssh"
 	OLTProtocolTelnet OLTProtocol = "telnet"
+
+	OLTModelZTEC300 OLTModel = "zte_c300"
+	OLTModelZTEC320 OLTModel = "zte_c320"
+	OLTModelHSGQ    OLTModel = "hsgq"
 )
 
 type OLT struct {
@@ -29,6 +38,7 @@ type OLT struct {
 	SNMPPort          int         `gorm:"default:161"`
 	SNMPCommunity     string      `gorm:"type:varchar(100);default:public"`
 	PreferredProtocol OLTProtocol `gorm:"type:varchar(20);default:ssh"`
+	Model             OLTModel    `gorm:"type:varchar(30);not null;default:zte_c300"`
 	Username          string      `gorm:"type:varchar(100);not null"`
 	Password          string      `gorm:"type:varchar(255);not null"` // encrypted
 	Status            OLTStatus   `gorm:"type:varchar(20);default:offline"`

@@ -143,6 +143,39 @@ func ExtractName(oidValue any) string {
 	}
 }
 
+// printableText reads a text value keeping every printable character, and is
+// the counterpart to ExtractName for values whose punctuation carries meaning.
+//
+// ExtractName runs cleanString, which keeps only alphanumerics, space, "-" and
+// "_". That is right for the ZTE description fields it was written for, but it
+// destroys three things HSGQ reports: an interface name ("gpon-onu_1/1/1:1"
+// becomes "gpon-onu_1111", losing the PON position), a firmware version
+// ("V6.0.3P1T1" becomes "V603P1T1") and an ONU name ("ONU01/01" becomes
+// "ONU0101"). cleanString is left alone because the ZTE paths depend on it.
+//
+// Control bytes are still dropped, so a malformed value cannot smuggle escape
+// sequences into an operator's terminal.
+func printableText(value any) string {
+	var raw string
+	switch v := value.(type) {
+	case []byte:
+		raw = string(v)
+	case string:
+		raw = v
+	default:
+		return ""
+	}
+
+	printable := make([]rune, 0, len(raw))
+	for _, r := range raw {
+		if r >= 0x20 && r <= 0x7E {
+			printable = append(printable, r)
+		}
+	}
+
+	return strings.TrimSpace(string(printable))
+}
+
 // parseZxGponSuffix decodes the OID suffix after a ZXGPON table base into an
 // ONT location. Accepts both <ifIndex>.<onuIndex> and <ifIndex>.<onuIndex>.<sub>
 // shapes, since the optical power tables carry a trailing sub-instance.

@@ -51,6 +51,9 @@ func (h *OLTHandler) Update(c *gin.Context) {
 	if req.PreferredProtocol != nil {
 		updates["preferred_protocol"] = *req.PreferredProtocol
 	}
+	if req.Model != nil {
+		updates["model"] = *req.Model
+	}
 	if req.Username != nil {
 		updates["username"] = *req.Username
 	}

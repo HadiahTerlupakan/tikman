@@ -266,7 +266,12 @@ func (s *MetricsService) GetRealtimeMetrics(ontID uuid.UUID) (*ONTMetricsRow, er
 	port := int(ont.PortID)
 	ontIDInt := int(ont.ONTID)
 
-	snmpMetrics, err := connectivity.QuerySingleONTMetrics(
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		return nil, err
+	}
+
+	snmpMetrics, err := driver.QueryONTMetrics(
 		olt.IPAddress,
 		olt.SNMPCommunity,
 		olt.SNMPPort,
@@ -296,8 +301,9 @@ func (s *MetricsService) GetRealtimeMetrics(ontID uuid.UUID) (*ONTMetricsRow, er
 	}
 
 	// Live rate gauges are separate tables; failure here only means rates stay
-	// unset, the rest of the metrics are still returned.
-	if rates, err := connectivity.QueryONUTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, slot, port, ontIDInt); err == nil {
+	// unset, the rest of the metrics are still returned. A model with no known
+	// rate OIDs reports ErrUnsupported and lands in the same branch.
+	if rates, err := driver.QueryTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, slot, port, ontIDInt); err == nil {
 		rx := float64(rates.RxOctetBps) * 8 / 1000000
 		tx := float64(rates.TxOctetBps) * 8 / 1000000
 		row.RxRateMbps, row.TxRateMbps = &rx, &tx

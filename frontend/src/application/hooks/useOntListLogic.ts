@@ -84,9 +84,18 @@ export function useOntListLogic() {
     isLoading,
     refetch,
   } = useOnts({
-    oltId: undefined,
+    // Filter by OLT on the server. This was hardcoded to undefined while the
+    // OLT filter was applied client-side, so every OLT competed for one window
+    // of rows: with 444 ONTs across two OLTs, whichever sorted later was absent
+    // from the page entirely no matter which OLT you selected.
+    oltId: selectedOltId,
     status: statusFilter,
-    limit: 200,
+    // ponytail: fixed ceiling of 1000 rows per fetch, with pagination and search
+    // still done client-side. Enough for one OLT (largest here is 246) but an OLT
+    // with more than 1000 ONTs would silently lose the remainder. Upgrade path is
+    // server-side pagination: pass offset from the table's page and drive the
+    // total from the response instead of from the fetched array.
+    limit: 1000,
     offset: 0,
   });
 

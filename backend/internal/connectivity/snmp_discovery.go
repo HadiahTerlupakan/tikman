@@ -32,8 +32,8 @@ type DiscoveredONT struct {
 }
 
 // DiscoverONTs retrieves all ONTs on an OLT flattened into a single list.
-func DiscoverONTs(ipAddress, community string, port int) ([]DiscoveredONT, error) {
-	topology, err := DiscoverOLTTopology(ipAddress, community, port)
+func DiscoverONTs(driver Driver, ipAddress, community string, port int) ([]DiscoveredONT, error) {
+	topology, err := DiscoverOLTTopology(driver, ipAddress, community, port)
 	if err != nil {
 		return nil, err
 	}

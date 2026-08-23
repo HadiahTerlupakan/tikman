@@ -37,10 +37,16 @@ func (w *MonitoringWorker) pollAllONTsStatus() {
 		}
 		totalONTs += len(onts)
 
+		driver, err := connectivity.DriverFor(olt.Model)
+		if err != nil {
+			log.Printf("[Worker] Cannot poll OLT %s: %v", olt.Name, err)
+			continue
+		}
+
 		// One walk per OLT covers every ONT: the ZXGPON ifIndex in each OID
 		// carries the line-card slot as reported by the device, so we never
 		// have to guess it from stored rack/shelf/slot values.
-		statuses, err := connectivity.WalkONTStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+		statuses, err := driver.WalkStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 		if err != nil {
 			log.Printf("[Worker] Failed to walk phase state on OLT %s: %v", olt.Name, err)
 			continue
@@ -75,20 +81,29 @@ func (w *MonitoringWorker) pollAllONTsStatus() {
 					log.Printf("[Worker] Failed to update ONT %s: %v", ont.SerialNumber, err)
 					continue
 				}
-
-				eventType := models.EventTypeOffline
-				if newStatus == models.ONTStatusOnline {
-					eventType = models.EventTypeOnline
-				}
-				reason := string(newStatus)
-				if err := w.eventService.LogStatusChange(ont.ID, eventType, reason); err != nil {
-					log.Printf("[Worker] Failed to log event for ONT %s: %v", ont.SerialNumber, err)
-				}
 			} else if newStatus == models.ONTStatusOnline {
 				if err := w.ontService.UpdateStatus(ont.ID, newStatus); err != nil {
 					log.Printf("[Worker] Failed to refresh ONT %s: %v", ont.SerialNumber, err)
 					continue
 				}
+			}
+
+			// Recorded on every poll, not only on a transition. LogStatusChange is
+			// already idempotent - it opens a baseline event when an ONT has none,
+			// returns without writing when the state is unchanged, and closes out
+			// the previous event's duration on a real transition.
+			//
+			// Calling it only inside the "changed" branch starved it: an ONT whose
+			// stored status already matched the OLT from the moment it was
+			// registered never got a first event, so its Events tab stayed empty
+			// and availability had no interval to measure. That is every ONT on a
+			// freshly added OLT.
+			eventType := models.EventTypeOffline
+			if newStatus == models.ONTStatusOnline {
+				eventType = models.EventTypeOnline
+			}
+			if err := w.eventService.LogStatusChange(ont.ID, eventType, string(newStatus)); err != nil {
+				log.Printf("[Worker] Failed to log event for ONT %s: %v", ont.SerialNumber, err)
 			}
 
 			if err := w.ontService.UpdateUptimeMetrics(ont.ID); err != nil {
@@ -138,9 +153,15 @@ func (w *MonitoringWorker) pollAllONTsMetrics() {
 	var successCount int
 
 	for _, olt := range olts {
+		driver, err := connectivity.DriverFor(olt.Model)
+		if err != nil {
+			log.Printf("[Worker] Cannot collect metrics from OLT %s: %v", olt.Name, err)
+			continue
+		}
+
 		// Full topology discovery returns serial numbers and metrics for every ONT
 		// the device reports, keyed by physical location.
-		topology, err := connectivity.DiscoverOLTTopology(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+		topology, err := connectivity.DiscoverOLTTopology(driver, olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 		if err != nil {
 			log.Printf("[Worker] Failed to discover topology on OLT %s: %v", olt.Name, err)
 			continue
@@ -176,7 +197,7 @@ func (w *MonitoringWorker) pollAllONTsMetrics() {
 			continue
 		}
 
-		allMetrics, err := connectivity.WalkONTMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+		allMetrics, err := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 		if err != nil {
 			log.Printf("[Worker] Failed to walk metrics on OLT %s: %v", olt.Name, err)
 			continue

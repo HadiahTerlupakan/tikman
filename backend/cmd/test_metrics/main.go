@@ -5,13 +5,19 @@ import (
 	"log"
 
 	"github.com/tikman/olt-provisioning/internal/connectivity"
+	"github.com/tikman/olt-provisioning/internal/models"
 )
 
 func main() {
 	fmt.Println("Testing Full Metrics Discovery with Fixed RX Power Decoder")
 	fmt.Println(("================================================================"))
 
-	metrics, err := connectivity.WalkONTMetrics("113.192.1.98", "public", 23161)
+	driver, err := connectivity.DriverFor(models.OLTModelZTEC300)
+	if err != nil {
+		log.Fatalf("Driver lookup failed: %v", err)
+	}
+
+	metrics, err := driver.WalkMetrics("113.192.1.98", "public", 23161)
 	if err != nil {
 		log.Fatalf("Walk failed: %v", err)
 	}

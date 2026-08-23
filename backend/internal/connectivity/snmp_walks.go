@@ -9,8 +9,8 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// WalkONTIPAddresses walks the IP address table for all ONTs
-func WalkONTIPAddresses(ipAddress, community string, snmpPort int) (map[ONTLocation]string, error) {
+// zteWalkIPAddresses walks the IP address table for all ONTs
+func zteWalkIPAddresses(ipAddress, community string, snmpPort int) (map[ONTLocation]string, error) {
 	ipAddresses := make(map[ONTLocation]string)
 
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
@@ -71,8 +71,8 @@ func WalkONTIPAddresses(ipAddress, community string, snmpPort int) (map[ONTLocat
 	return ipAddresses, nil
 }
 
-// WalkONTMACAddresses walks the MAC address table for all ONTs
-func WalkONTMACAddresses(ipAddress, community string, snmpPort int) (map[ONTLocation]string, error) {
+// zteWalkMACAddresses walks the MAC address table for all ONTs
+func zteWalkMACAddresses(ipAddress, community string, snmpPort int) (map[ONTLocation]string, error) {
 	macAddresses := make(map[ONTLocation]string)
 
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
@@ -135,8 +135,8 @@ func WalkONTMACAddresses(ipAddress, community string, snmpPort int) (map[ONTLoca
 	return macAddresses, nil
 }
 
-// WalkONTHardwareVersions walks the hardware version table for all ONTs
-func WalkONTHardwareVersions(ipAddress, community string, snmpPort int) (map[ONTLocation]string, error) {
+// zteWalkHardwareVersions walks the hardware version table for all ONTs
+func zteWalkHardwareVersions(ipAddress, community string, snmpPort int) (map[ONTLocation]string, error) {
 	hwVersions := make(map[ONTLocation]string)
 
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
@@ -192,63 +192,3 @@ func WalkONTHardwareVersions(ipAddress, community string, snmpPort int) (map[ONT
 	log.Printf("[HardwareVersion] Retrieved hardware versions for %d ONTs", len(hwVersions))
 	return hwVersions, nil
 }
-
-// walkONTMetricsForPort queries optical metrics for ONTs on a specific port
-// UNUSED: func walkONTMetricsForPort(client *gosnmp.GoSNMP, ipAddress, community string, snmpPort int,
-// UNUSED: 	slot, port int, ontLocations []ONTLocation) (map[ONTLocation]*ONTMetrics, error) {
-// UNUSED:
-// UNUSED: 	log.Printf("[Metrics] Querying metrics for slot %d port %d (%d ONTs)", slot, port, len(ontLocations))
-// UNUSED: 	metrics := make(map[ONTLocation]*ONTMetrics)
-// UNUSED:
-// UNUSED: 	for _, loc := range ontLocations {
-// UNUSED: 		onMetrics := &ONTMetrics{}
-// UNUSED:
-// UNUSED: 		// Query RX power using ZXGPON-MIB table
-// UNUSED: 		zxIfIndex := encodeZxGponIfIndex(1, slot, port)
-// UNUSED: 		rxOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_RX_POWER_TABLE, zxIfIndex, loc.ONTID)
-// UNUSED:
-// UNUSED: 		result, err := client.Get([]string{rxOID})
-// UNUSED: 		if err == nil && len(result.Variables) > 0 {
-// UNUSED: 			if val, ok := toInt64(result.Variables[0].Value); ok {
-// UNUSED: 				log.Printf("[Metrics] ONT %d RX raw value: %d", loc.ONTID, val)
-// UNUSED: 				if val < 30000 {
-// UNUSED: 					rxDbm := decodeZxGponPower(val)
-// UNUSED: 					onMetrics.RxPower = rxDbm
-// UNUSED: 					log.Printf("[Metrics] ONT %d RX: %.2f dBm", loc.ONTID, *rxDbm)
-// UNUSED: 				} else {
-// UNUSED: 					log.Printf("[Metrics] ONT %d RX: no signal (val=%d)", loc.ONTID, val)
-// UNUSED: 				}
-// UNUSED: 			}
-// UNUSED: 		} else if err != nil {
-// UNUSED: 			log.Printf("[Metrics] RX power query failed for ONT %d: %v", loc.ONTID, err)
-// UNUSED: 		}
-// UNUSED:
-// UNUSED: 		// Query TX power
-// UNUSED: 		txOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_TX_POWER_TABLE, zxIfIndex, loc.ONTID)
-// UNUSED: 		result, err = client.Get([]string{txOID})
-// UNUSED: 		if err == nil && len(result.Variables) > 0 {
-// UNUSED: 			if val, ok := toInt64(result.Variables[0].Value); ok && val < 30000 {
-// UNUSED: 				txDbm := decodeZxGponPower(val)
-// UNUSED: 				onMetrics.TxPower = txDbm
-// UNUSED: 			}
-// UNUSED: 		} else if err != nil {
-// UNUSED: 			log.Printf("[Metrics] TX power query failed for ONT %d: %v", loc.ONTID, err)
-// UNUSED: 		}
-// UNUSED:
-// UNUSED: 		// Query distance
-// UNUSED: 		distOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_DISTANCE_TABLE, zxIfIndex, loc.ONTID)
-// UNUSED: 		result, err = client.Get([]string{distOID})
-// UNUSED: 		if err == nil && len(result.Variables) > 0 {
-// UNUSED: 			if val, ok := toInt64(result.Variables[0].Value); ok && val > 0 && val < 30000 {
-// UNUSED: 				onMetrics.Distance = int(val)
-// UNUSED: 			}
-// UNUSED: 		} else if err != nil {
-// UNUSED: 			log.Printf("[Metrics] Distance query failed for ONT %d: %v", loc.ONTID, err)
-// UNUSED: 		}
-// UNUSED:
-// UNUSED: 		metrics[loc] = onMetrics
-// UNUSED: 	}
-// UNUSED:
-// UNUSED: 	log.Printf("[Metrics] Retrieved metrics for %d ONTs on slot %d port %d", len(metrics), slot, port)
-// UNUSED: 	return metrics, nil
-// UNUSED: }

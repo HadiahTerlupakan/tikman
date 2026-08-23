@@ -49,7 +49,7 @@ func TestUnconfiguredONUService_ListByOLT(t *testing.T) {
 	var gotPort int
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(ipAddress, community string, snmpPort int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(_ connectivity.Driver, ipAddress, community string, snmpPort int) ([]connectivity.UnconfiguredONU, error) {
 			gotIP, gotCommunity, gotPort = ipAddress, community, snmpPort
 			return []connectivity.UnconfiguredONU{
 				{Slot: 3, Port: 1, SerialNumber: "HWTCB403E8A0", DeviceType: "HG8245H5"},
@@ -84,7 +84,7 @@ func TestUnconfiguredONUService_ExcludesRegisteredSerials(t *testing.T) {
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			return []connectivity.UnconfiguredONU{
 				{Slot: 3, Port: 1, SerialNumber: "HWTCB403E8A0"},
 				{Slot: 3, Port: 1, SerialNumber: "ZTEGCAFFC2FD"},
@@ -114,7 +114,7 @@ func TestUnconfiguredONUService_KeepsSerialRegisteredOnAnotherOLT(t *testing.T) 
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			return []connectivity.UnconfiguredONU{
 				{Slot: 3, Port: 1, SerialNumber: "HWTCB403E8A0"},
 			}, nil
@@ -132,7 +132,7 @@ func TestUnconfiguredONUService_EmptyResultIsNotNil(t *testing.T) {
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			return nil, nil
 		},
 	}
@@ -148,7 +148,7 @@ func TestUnconfiguredONUService_MissingOLT(t *testing.T) {
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			t.Fatal("walk must not run when the OLT is unknown")
 			return nil, nil
 		},
@@ -165,7 +165,7 @@ func TestUnconfiguredONUService_MissingCommunity(t *testing.T) {
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			t.Fatal("walk must not run without an SNMP community")
 			return nil, nil
 		},
@@ -182,7 +182,7 @@ func TestUnconfiguredONUService_WalkFailurePropagates(t *testing.T) {
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			return nil, errors.New("SNMP connect failed")
 		},
 	}
@@ -203,7 +203,7 @@ func TestUnconfiguredONUService_RegistrationLookupFailureIsReported(t *testing.T
 
 	service := &UnconfiguredONUService{
 		db: db,
-		walk: func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			return []connectivity.UnconfiguredONU{
 				{Slot: 3, Port: 1, SerialNumber: "HWTCB403E8A0"},
 			}, nil

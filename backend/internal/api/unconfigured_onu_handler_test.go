@@ -61,7 +61,7 @@ func TestUnconfiguredONUHandler_ListByOLT_ReturnsScanEnvelope(t *testing.T) {
 		22, 23, 161, "public", models.OLTProtocolSSH)
 
 	service := services.NewUnconfiguredONUServiceWithWalker(db,
-		func(string, string, int) ([]connectivity.UnconfiguredONU, error) {
+		func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
 			return []connectivity.UnconfiguredONU{
 				{Slot: 3, Port: 1, SerialNumber: "HWTCB403E8A0", DeviceType: "HG8245H5"},
 				{Slot: 3, Port: 2, SerialNumber: "ZTEGCAFFC2FD"},

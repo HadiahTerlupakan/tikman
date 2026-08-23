@@ -30,6 +30,7 @@ func TestOLTHandler_Create(t *testing.T) {
 			SiteID:            site.ID,
 			Name:              "Test OLT",
 			IPAddress:         "192.168.1.1",
+			Model:             models.OLTModelZTEC300,
 			PreferredProtocol: models.OLTProtocolSSH,
 			Username:          "admin",
 			Password:          "password123",
@@ -43,12 +44,16 @@ func TestOLTHandler_Create(t *testing.T) {
 
 		handler.Create(c)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		// An unreachable OLT is bad input, not a server fault, and the reason has
+		// to reach the operator: this used to answer 500 "Failed to create OLT",
+		// which gave no hint that SNMP was what failed.
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response ErrorResponse
 		err = json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Contains(t, response.Error, "Failed to create OLT")
+		assert.Equal(t, "SNMP_TEST_FAILED", response.Code)
+		assert.Contains(t, response.Error, "SNMP connection test failed")
 	})
 
 	t.Run("invalid request - missing required fields", func(t *testing.T) {
@@ -80,6 +85,7 @@ func TestOLTHandler_Create(t *testing.T) {
 			SiteID:            site.ID,
 			Name:              "Test OLT",
 			IPAddress:         "invalid-ip",
+			Model:             models.OLTModelZTEC300,
 			PreferredProtocol: models.OLTProtocolSSH,
 			Username:          "admin",
 			Password:          "password123",
@@ -103,6 +109,7 @@ func TestOLTHandler_Create(t *testing.T) {
 			SiteID:            invalidSiteID,
 			Name:              "Test OLT",
 			IPAddress:         "192.168.1.1",
+			Model:             models.OLTModelZTEC300,
 			PreferredProtocol: models.OLTProtocolSSH,
 			Username:          "admin",
 			Password:          "password123",
@@ -116,12 +123,15 @@ func TestOLTHandler_Create(t *testing.T) {
 
 		handler.Create(c)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		// The site check now runs before the SNMP probe, so this finally fails for
+		// the reason the test is named after. Previously it never reached the site
+		// lookup - and no site lookup existed.
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response ErrorResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Contains(t, response.Error, "Failed to create OLT")
+		assert.Equal(t, "INVALID_SITE_ID", response.Code)
 	})
 }
 

@@ -5,8 +5,8 @@ import (
 	"log"
 )
 
-// QuerySingleONTMetrics queries metrics for a single ONT via SNMP in real-time
-func QuerySingleONTMetrics(ipAddress, community string, snmpPort int, slot, port, ontID int) (*ONTMetrics, error) {
+// zteQueryONTMetrics queries metrics for a single ONT via SNMP in real-time
+func zteQueryONTMetrics(ipAddress, community string, snmpPort int, slot, port, ontID int) (*ONTMetrics, error) {
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err

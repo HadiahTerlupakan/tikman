@@ -9,8 +9,23 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// SNMPTest performs SNMP connectivity test with actual OID query
+// snmpTestTimeout is the floor for a reachability probe. SNMP runs over UDP, so
+// a device that is present but slow answers in tens or hundreds of milliseconds
+// across a NAT hop; a zero timeout gives it no chance at all.
+const snmpTestTimeout = 3 * time.Second
+
+// SNMPTest performs SNMP connectivity test with actual OID query.
+//
+// A non-positive timeout is clamped rather than honoured: gosnmp treats it as
+// "give up immediately", which fails every reachable device and reports it as
+// "request timeout" - indistinguishable from a wrong port or community. The
+// guard lives here because both callers reach this one function, so one clamp
+// covers them and any future caller.
 func SNMPTest(ipAddress string, port int, community string, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = snmpTestTimeout
+	}
+
 	log.Printf("[SNMP] Testing %s:%d with community '%s' (timeout: %v)", ipAddress, port, community, timeout)
 
 	client := &gosnmp.GoSNMP{
@@ -75,51 +90,6 @@ func newSNMPClientWithContext(ctx context.Context, ipAddress, community string, 
 		return nil, fmt.Errorf("SNMP connect failed: %w", err)
 	}
 	return client, nil
-}
-
-// PollOntStatus queries ONT phase state via SNMP
-// OID: 1.3.6.1.4.1.3902.1012.3.28.2.1.4.{ifIndex}.{onuIndex}
-// Returns phase state integer value (3=online, 4=dying_gasp, 6=offline, 1=los)
-func PollOntStatus(ipAddress string, community string, snmpPort int, slot, gponPort, ontID int) (int, error) {
-	client := &gosnmp.GoSNMP{
-		Target:    ipAddress,
-		Port:      uint16(snmpPort),
-		Community: community,
-		Version:   gosnmp.Version2c,
-		Timeout:   time.Second * 3,
-		Retries:   1,
-	}
-
-	err := client.Connect()
-	if err != nil {
-		return 0, fmt.Errorf("SNMP connect failed: %w", err)
-	}
-	defer func() { _ = client.Conn.Close() }()
-
-	ifIndex := encodeOnuIDIfIndex(1, slot, gponPort)
-	phaseStateOID := fmt.Sprintf("%s.%d.%d", OID_ZXAN_ONU_PHASE_STATE_TABLE, ifIndex, ontID)
-
-	result, err := client.Get([]string{phaseStateOID})
-	if err != nil {
-		return 0, fmt.Errorf("SNMP get failed: %w", err)
-	}
-
-	if len(result.Variables) == 0 {
-		return 0, fmt.Errorf("no SNMP response")
-	}
-
-	// Parse phase state value
-	var phaseState int
-	switch v := result.Variables[0].Value.(type) {
-	case int:
-		phaseState = v
-	case int64:
-		phaseState = int(v)
-	default:
-		return 0, fmt.Errorf("invalid phase state type: %T", v)
-	}
-
-	return phaseState, nil
 }
 
 // GetLastOnlineTime retrieves the last online timestamp for an ONT

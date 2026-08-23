@@ -111,42 +111,6 @@ func (w *MonitoringWorker) metricsPollLoop() {
 	}
 }
 
-// pollONTStatus polls ONT status via SNMP ZXGPON-MIB phase state
-// OID: 1.3.6.1.4.1.3902.1012.3.28.2.1.4.{ifIndex}.{onuIndex}
-// Status mapping per NetManeger verified values (C300 V2.1.0):
-//   3 = working/online - ONU registered and passing traffic
-//   4 = dying_gasp     - ONU just lost power
-//   6 = offline        - ONU powered off or cable disconnected
-//   1 = los            - Loss of Signal
-//   other = unknown    - unrecognized value
-// pollONTStatus is retained for targeted single-ONT checks.
-// Note: Slot parameter is now 0 (discovered dynamically from ifIndex).
-// UNUSED: func (w *MonitoringWorker) pollONTStatus(olt *models.OLT, ont *models.ONT) error {
-// UNUSED: 	phaseState, err := connectivity.PollOntStatus(
-// UNUSED: 		olt.IPAddress,
-// UNUSED: 		olt.SNMPCommunity,
-// UNUSED: 		olt.SNMPPort,
-// UNUSED: 		0, // Slot - no longer used, discovered from device via SNMP walk
-// UNUSED: 		ont.PortID,
-// UNUSED: 		ont.ONTID,
-// UNUSED: 	)
-// UNUSED: 	if err != nil {
-// UNUSED: 		return fmt.Errorf("SNMP poll failed: %w", err)
-// UNUSED: 	}
-// UNUSED:
-// UNUSED: 	newStatus := models.ONTStatus(utils.StatusMap(phaseState))
-// UNUSED:
-// UNUSED: 	if ont.Status != newStatus {
-// UNUSED: 		log.Printf("[Worker] ONT %s status changed: %s -> %s (phase state: %d)",
-// UNUSED: 			ont.SerialNumber, ont.Status, newStatus, phaseState)
-// UNUSED: 		if err := w.ontService.UpdateStatus(ont.ID, newStatus); err != nil {
-// UNUSED: 			return fmt.Errorf("failed to update status: %w", err)
-// UNUSED: 		}
-// UNUSED: 	}
-// UNUSED:
-// UNUSED: 	return nil
-// UNUSED: }
-
 // formatPower renders an optical power reading for logs, showing "no-signal"
 // when the ONT returned the sentinel value instead of a real measurement.
 func formatPower(dbm *float64) string {

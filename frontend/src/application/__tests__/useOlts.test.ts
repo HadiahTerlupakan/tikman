@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
-import { CreateOltDto, UpdateOltDto, OltProtocol } from "@/domain/entities/Olt";
+import {
+  CreateOltDto,
+  UpdateOltDto,
+  OltProtocol,
+  OltModel,
+} from "@/domain/entities/Olt";
 import {
   useCreateOlt,
   useUpdateOlt,
@@ -55,6 +60,7 @@ describe("OLT Hooks - Query Invalidation", () => {
       name: "OLT1",
       siteId: "site1",
       ipAddress: "192.168.1.1",
+      model: OltModel.ZTE_C300,
       preferredProtocol: OltProtocol.SSH,
       username: "admin",
       password: "password",

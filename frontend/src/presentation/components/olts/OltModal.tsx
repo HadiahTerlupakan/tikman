@@ -1,9 +1,20 @@
-import { Modal, Form, Input, Select, InputNumber, Button, Alert } from "antd";
+import {
+  Modal,
+  Form,
+  Input,
+  Select,
+  InputNumber,
+  Button,
+  Alert,
+  message,
+} from "antd";
 import {
   type Olt,
   type CreateOltDto,
   type UpdateOltDto,
   OltProtocol,
+  OltModel,
+  OLT_MODELS,
 } from "@/domain/entities";
 import { useSites } from "@/application/hooks";
 import { useEffect, useState } from "react";
@@ -47,6 +58,7 @@ export function OltModal({
         siteId: olt.siteId,
         name: olt.name,
         ipAddress: olt.ipAddress,
+        model: olt.model,
         preferredProtocol: olt.preferredProtocol,
         username: olt.username,
         snmpCommunity: olt.snmpCommunity,
@@ -59,6 +71,7 @@ export function OltModal({
       form.resetFields();
       form.setFieldsValue({
         preferredProtocol: OltProtocol.SSH,
+        model: OltModel.ZTE_C300,
         sshPort: 22,
         telnetPort: 23,
         snmpPort: 161,
@@ -97,7 +110,18 @@ export function OltModal({
 
       setTestResult(result);
     } catch (error) {
-      console.error("Test connection error:", error);
+      // A rejection carrying errorFields is antd telling us the form is
+      // incomplete; it already marks the offending inputs, so a toast would be
+      // noise. Anything else is the request itself failing, and staying silent
+      // there is what made a broken endpoint look like a dead button.
+      if (error && typeof error === "object" && "errorFields" in error) {
+        return;
+      }
+      message.error(
+        error instanceof Error
+          ? `Connection test failed: ${error.message}`
+          : "Connection test failed",
+      );
     } finally {
       setTestLoading(false);
     }
@@ -201,6 +225,21 @@ export function OltModal({
           ]}
         >
           <Input placeholder="192.168.1.1" />
+        </Form.Item>
+
+        <Form.Item
+          name="model"
+          label="OLT Model"
+          rules={[{ required: true, message: "Please select OLT model" }]}
+        >
+          <Select placeholder="Select model">
+            {OLT_MODELS.map((m) => (
+              <Select.Option key={m.value} value={m.value}>
+                {m.label}
+                {m.hint ? ` (${m.hint})` : ""}
+              </Select.Option>
+            ))}
+          </Select>
         </Form.Item>
 
         <Form.Item

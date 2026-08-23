@@ -101,6 +101,7 @@ type CreateOLTRequest struct {
 	SiteID            uuid.UUID          `json:"site_id" binding:"required"`
 	Name              string             `json:"name" binding:"required,min=2,max=255"`
 	IPAddress         string             `json:"ip_address" binding:"required,ip"`
+	Model             models.OLTModel    `json:"model" binding:"required,oneof=zte_c300 zte_c320 hsgq"`
 	SSHPort           int                `json:"ssh_port" binding:"omitempty,min=1,max=65535"`
 	TelnetPort        int                `json:"telnet_port" binding:"omitempty,min=1,max=65535"`
 	SNMPPort          int                `json:"snmp_port" binding:"omitempty,min=1,max=65535"`
@@ -131,6 +132,7 @@ type TestConnectionResponse struct {
 type UpdateOLTRequest struct {
 	Name              *string             `json:"name" binding:"omitempty,min=2,max=255"`
 	IPAddress         *string             `json:"ip_address" binding:"omitempty,ip"`
+	Model             *models.OLTModel    `json:"model" binding:"omitempty,oneof=zte_c300 zte_c320 hsgq"`
 	SSHPort           *int                `json:"ssh_port" binding:"omitempty,min=1,max=65535"`
 	TelnetPort        *int                `json:"telnet_port" binding:"omitempty,min=1,max=65535"`
 	SNMPPort          *int                `json:"snmp_port" binding:"omitempty,min=1,max=65535"`
@@ -146,6 +148,7 @@ type OLTResponse struct {
 	SiteName          string             `json:"site_name"`
 	Name              string             `json:"name"`
 	IPAddress         string             `json:"ip_address"`
+	Model             models.OLTModel    `json:"model"`
 	SSHPort           int                `json:"ssh_port"`
 	TelnetPort        int                `json:"telnet_port"`
 	SNMPPort          int                `json:"snmp_port"`
@@ -159,35 +162,15 @@ type OLTResponse struct {
 	UpdatedAt         time.Time          `json:"updated_at"`
 }
 
+// ToOLTResponse renders an OLT row for the API. The site name is looked up
+// here; a row whose site is missing or unset simply renders an empty name.
 func ToOLTResponse(db *gorm.DB, olt *models.OLT) OLTResponse {
-	// Fetch site name via join - skip if site_id is zero value
-	if olt.SiteID == uuid.Nil {
-		return OLTResponse{
-			ID:                olt.ID,
-			SiteID:            olt.SiteID,
-			SiteName:          "",
-			Name:              olt.Name,
-			IPAddress:         olt.IPAddress,
-			SSHPort:           olt.SSHPort,
-			TelnetPort:        olt.TelnetPort,
-			SNMPPort:          olt.SNMPPort,
-			SNMPCommunity:     olt.SNMPCommunity,
-			PreferredProtocol: olt.PreferredProtocol,
-			Username:          olt.Username,
-			Status:            olt.Status,
-			LastSeen:          olt.LastSeen,
-			ONTCount:          0,
-			CreatedAt:         olt.CreatedAt,
-			UpdatedAt:         olt.UpdatedAt,
-		}
-	}
-
-	// Fetch site name
-	var site models.Site
-	err := db.Where("id = ?", olt.SiteID).First(&site).Error
 	siteName := ""
-	if err == nil {
-		siteName = site.Name
+	if olt.SiteID != uuid.Nil {
+		var site models.Site
+		if err := db.Where("id = ?", olt.SiteID).First(&site).Error; err == nil {
+			siteName = site.Name
+		}
 	}
 
 	return OLTResponse{
@@ -196,6 +179,7 @@ func ToOLTResponse(db *gorm.DB, olt *models.OLT) OLTResponse {
 		SiteName:          siteName,
 		Name:              olt.Name,
 		IPAddress:         olt.IPAddress,
+		Model:             olt.Model,
 		SSHPort:           olt.SSHPort,
 		TelnetPort:        olt.TelnetPort,
 		SNMPPort:          olt.SNMPPort,
@@ -350,19 +334,15 @@ type ONTMetricsResponse struct {
 	TxPackets   uint64    `json:"tx_packets"`
 	RxErrors    uint64    `json:"rx_errors"`
 	TxErrors    uint64    `json:"tx_errors"`
-	RxMbps      float64   `json:"rx_mbps"`
-	TxMbps      float64   `json:"tx_mbps"`
+	// Pointers for the same reason RxPower is one: a model whose rate gauges are
+	// unsupported has no reading, and flattening that to 0 renders as "0.00 Mbps"
+	// - an idle link - instead of "-". The HSGQ counter table is keyed by physical
+	// port rather than by ONU, so this is the normal case there, not an edge case.
+	RxMbps *float64 `json:"rx_mbps"`
+	TxMbps *float64 `json:"tx_mbps"`
 }
 
 func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
-	var rxMbps, txMbps float64
-	if metrics.RxRateMbps != nil {
-		rxMbps = *metrics.RxRateMbps
-	}
-	if metrics.TxRateMbps != nil {
-		txMbps = *metrics.TxRateMbps
-	}
-
 	return ONTMetricsResponse{
 		Time:        metrics.Time,
 		RxPower:     metrics.RxPower,
@@ -376,8 +356,8 @@ func ToONTMetricsResponse(metrics *services.ONTMetricsRow) ONTMetricsResponse {
 		TxPackets:   metrics.TxPackets,
 		RxErrors:    metrics.RxErrors,
 		TxErrors:    metrics.TxErrors,
-		RxMbps:      rxMbps,
-		TxMbps:      txMbps,
+		RxMbps:      metrics.RxRateMbps,
+		TxMbps:      metrics.TxRateMbps,
 	}
 }
 

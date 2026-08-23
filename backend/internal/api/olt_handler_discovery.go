@@ -43,7 +43,16 @@ func (h *OLTHandler) DiscoverOLTTopology(c *gin.Context) {
 	}
 
 	// Perform topology discovery
-	topology, err := connectivity.DiscoverOLTTopology(olt.IPAddress, snmpCommunity, olt.SNMPPort)
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "UNSUPPORTED_MODEL",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	topology, err := connectivity.DiscoverOLTTopology(driver, olt.IPAddress, snmpCommunity, olt.SNMPPort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "DISCOVERY_FAILED",
@@ -90,7 +99,16 @@ func (h *OLTHandler) DiscoverONTs(c *gin.Context) {
 	}
 
 	// Use legacy flat discovery (deprecated but kept for backwards compat)
-	discovered, err := connectivity.DiscoverONTs(olt.IPAddress, snmpCommunity, olt.SNMPPort)
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "UNSUPPORTED_MODEL",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	discovered, err := connectivity.DiscoverONTs(driver, olt.IPAddress, snmpCommunity, olt.SNMPPort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "DISCOVERY_FAILED",

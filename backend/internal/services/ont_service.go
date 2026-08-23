@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -59,7 +60,11 @@ func (s *ONTService) ListWithMetricsFilter(oltID *uuid.UUID, status *models.ONTS
 	}
 
 	// Get paginated results
-	if err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&onts).Error; err != nil {
+	// Order by physical position, not by created_at. Newest-first meant a bulk
+	// registration buried every other OLT: adding one 246-ONT OLT pushed a
+	// 198-ONT OLT past the client's 200-row window, so it vanished from the page
+	// entirely. Position is stable across polls and keeps an OLT's ONTs together.
+	if err := query.Order("olt_id, port_id, ont_id").Limit(limit).Offset(offset).Find(&onts).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to list ONTs: %w", err)
 	}
 
@@ -316,7 +321,12 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 			SoftwareVersion: ont.SoftwareVersion,
 			IPAddress:       ont.IPAddress,
 			MACAddress:      ont.MACAddress,
-			Status:          models.ONTStatusUnknown,
+			// The discovery walk already read this ONT's phase state, so storing
+			// "unknown" here threw away a fact we had and left the ONT list showing
+			// UNKNOWN until the next status poll happened to run. Newly registered
+			// ONTs sort first by created_at, so those placeholders were exactly the
+			// rows an operator saw first after adding an OLT.
+			Status: models.ONTStatus(utils.StatusMap(ont.RunState)),
 		}
 
 		err := s.Create(newONT)

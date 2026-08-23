@@ -1,6 +1,12 @@
 import { Table, Button, Space, Tag, Popconfirm, Progress } from "antd";
 import { EditOutlined, DeleteOutlined, SyncOutlined } from "@ant-design/icons";
-import { type Olt, OltStatus, type OltStats } from "@/domain/entities";
+import {
+  type Olt,
+  OltStatus,
+  OltModel,
+  OLT_MODELS,
+  type OltStats,
+} from "@/domain/entities";
 import type { ColumnsType } from "antd/es/table";
 import { useOltStats } from "@/application/hooks";
 
@@ -82,6 +88,15 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       dataIndex: "ipAddress",
       key: "ipAddress",
       width: 150,
+    },
+    {
+      title: "Model",
+      dataIndex: "model",
+      key: "model",
+      width: 120,
+      responsive: ["lg"],
+      render: (model: OltModel) =>
+        OLT_MODELS.find((m) => m.value === model)?.label ?? model ?? "-",
     },
     {
       title: "Protocol",

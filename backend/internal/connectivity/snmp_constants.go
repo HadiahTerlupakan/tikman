@@ -29,7 +29,6 @@ const (
 	// BaseOIDS for two different index spaces
 	BaseOID1 = ".1.3.6.1.4.1.3902.1082" // ONU-ID space (serial/status/distance)
 	BaseOID2 = ".1.3.6.1.4.1.3902.1012" // TYPE space (type/txpower/ip/name/description)
-	BaseOID3 = ".1.3.6.1.4.1.3902.1015" // Vendor-specific cumulative counters (Type 3 index)
 
 	// Common OID prefixes (same for all board/PON combinations)
 	OnuIDNamePrefix              = ".3.28.1.1.2"        // ONU name (phone-customer)

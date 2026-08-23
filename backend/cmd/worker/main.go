@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -40,6 +41,10 @@ func main() {
 
 	ontService := services.NewONTService(db)
 	metricsService := services.NewMetricsService(db)
+	// Status history was never recorded by the running worker: the only writer of
+	// ont_events was the /admin/seed-events endpoint, so an ONT's Events tab and
+	// its availability figure were empty unless someone had seeded demo data.
+	eventService := services.NewEventService(db)
 
 	zapLogger.Info("Starting Worker service")
 	zapLogger.Info("Metrics collection interval: 5 minutes")
@@ -53,12 +58,12 @@ func main() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	collectMetrics(db, ontService, metricsService, zapLogger)
+	collectMetrics(db, ontService, metricsService, eventService, zapLogger)
 
 	for {
 		select {
 		case <-ticker.C:
-			collectMetrics(db, ontService, metricsService, zapLogger)
+			collectMetrics(db, ontService, metricsService, eventService, zapLogger)
 		case <-sigCh:
 			zapLogger.Info("Received shutdown signal")
 			return
@@ -68,7 +73,7 @@ func main() {
 	}
 }
 
-func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService *services.MetricsService, logger *zap.Logger) {
+func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
 	logger.Info("Starting metrics collection cycle")
 
 	onts, _, err := ontService.List(nil, nil, 1000, 0)
@@ -95,7 +100,16 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 		oltKey := olt.ID.String()
 
 		if _, exists := oltMetricsCache[oltKey]; !exists {
-			metricsMap, err := connectivity.WalkONTMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+			driver, err := connectivity.DriverFor(olt.Model)
+			if err != nil {
+				logger.Error("Cannot poll OLT", zap.String("olt", olt.Name), zap.Error(err))
+				oltMetricsCache[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
+				oltStatusCache[oltKey] = make(map[connectivity.ONTLocation]int)
+				oltRatesCache[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
+				continue
+			}
+
+			metricsMap, err := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 			if err != nil {
 				logger.Error("Failed to walk ONT metrics", zap.String("olt", olt.Name), zap.Error(err))
 				oltMetricsCache[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
@@ -104,7 +118,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				oltMetricsCache[oltKey] = metricsMap
 			}
 
-			statuses, err := connectivity.WalkONTStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+			statuses, err := driver.WalkStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 			if err != nil {
 				logger.Error("Failed to walk ONT statuses", zap.String("olt", olt.Name), zap.Error(err))
 				oltStatusCache[oltKey] = make(map[connectivity.ONTLocation]int)
@@ -120,11 +134,16 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 				}
 			}
 
-			rates, err := connectivity.WalkONUTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-			if err != nil {
+			rates, err := driver.WalkTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+			switch {
+			case errors.Is(err, connectivity.ErrUnsupported):
+				// A model with no known rate OIDs is not a fault; rates stay unset.
+				logger.Info("Traffic rate gauges unsupported", zap.String("olt", olt.Name), zap.String("model", string(olt.Model)))
+				oltRatesCache[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
+			case err != nil:
 				logger.Error("Failed to walk ONT traffic rates", zap.String("olt", olt.Name), zap.Error(err))
 				oltRatesCache[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
-			} else {
+			default:
 				logger.Info("Walked ONT traffic rates", zap.String("olt", olt.Name), zap.Int("count", len(rates)))
 				oltRatesCache[oltKey] = rates
 			}
@@ -281,6 +300,26 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 			}
 		}
 
+		// Recorded on every cycle rather than only when the status differs.
+		// LogStatusChange is idempotent: it opens a baseline event for an ONT that
+		// has none, returns without writing when the state is unchanged, and closes
+		// the previous event's duration on a real transition.
+		//
+		// Guarding this on "status changed" would starve it, because an ONT
+		// registered with the status the OLT already reports never changes - which
+		// is every ONT on a newly added OLT. Availability needs that opening event
+		// to have any interval to measure.
+		if newStatus != "" {
+			eventType := models.EventTypeOffline
+			if newStatus == models.ONTStatusOnline {
+				eventType = models.EventTypeOnline
+			}
+			if err := eventService.LogStatusChange(ont.ID, eventType, string(newStatus)); err != nil {
+				logger.Error("Failed to log ONT status event",
+					zap.String("serial", ont.SerialNumber), zap.Error(err))
+			}
+		}
+
 		var rxPower, txPower *float64
 		var distance int
 		if foundMetrics != nil {
@@ -301,9 +340,16 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService
 			if foundMetrics.SoftwareVersion != "" {
 				updates["software_version"] = foundMetrics.SoftwareVersion
 			}
-			if discoveredSlot > 0 {
-				updates["slot"] = discoveredSlot
-			}
+			// Written whenever the OLT matched this ONT, including slot 0. The guard
+			// used to be "discoveredSlot > 0", which conflated a real slot 0 with
+			// "not discovered yet": a chassis-less OLT such as the HSGQ XE08ID has
+			// no card slots and correctly reports 0, so its ONTs kept a NULL slot
+			// forever. GetRealtimeMetrics refuses a NULL slot, which is why the
+			// Traffic Statistics tab reported nothing for those ONTs.
+			//
+			// Reaching here means foundMetrics != nil, so the slot came from a
+			// location the OLT actually reported rather than from a zero value.
+			updates["slot"] = discoveredSlot
 
 			if len(updates) > 0 {
 				if err := db.Table("onts").Where("id = ?", ont.ID).Updates(updates).Error; err != nil {
@@ -348,7 +394,12 @@ func lookupByPortAndONT[T any](entries map[connectivity.ONTLocation]T, portID, o
 }
 
 func discoverONTsForSync(olt models.OLT) ([]connectivity.DiscoveredONT, error) {
-	topology, err := connectivity.DiscoverOLTTopology(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		return nil, err
+	}
+
+	topology, err := connectivity.DiscoverOLTTopology(driver, olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	if err != nil {
 		return nil, err
 	}

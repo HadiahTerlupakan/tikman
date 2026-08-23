@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
@@ -45,11 +46,13 @@ func (h *OLTHandler) Create(c *gin.Context) {
 	slot := 0
 
 	olt, err := h.service.Create(
+		req.SiteID,
 		req.Name,
 		req.IPAddress,
 		snmpCommunity,
 		req.Username,
 		req.Password,
+		req.Model,
 		rack,
 		shelf,
 		slot,
@@ -89,6 +92,19 @@ func (h *OLTHandler) Create(c *gin.Context) {
 			return
 		}
 
+		// An unreachable OLT is the operator's input to correct, not a server
+		// fault, and the reason has to travel: "Failed to create OLT" with a 500
+		// gave no hint that SNMP was the problem.
+		if strings.HasPrefix(errMsg, "SNMP connection test failed") {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error:   "SNMP connection test failed",
+				Code:    "SNMP_TEST_FAILED",
+				Details: errMsg,
+			})
+			return
+		}
+
+		log.Printf("[OLT Create] Failed to create OLT %s (%s): %v", req.Name, req.IPAddress, err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to create OLT",
 			Code:  "CREATE_FAILED",
@@ -107,7 +123,13 @@ func autoDiscoverONTMetrics(db *gorm.DB, olt *models.OLT) {
 
 	metricsService := services.NewMetricsService(db)
 
-	allMetrics, err := connectivity.WalkONTMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		log.Printf("[AutoDiscovery] Cannot poll OLT %s: %v", olt.Name, err)
+		return
+	}
+
+	allMetrics, err := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	if err != nil {
 		log.Printf("[AutoDiscovery] Failed to walk metrics from OLT %s: %v", olt.Name, err)
 		return

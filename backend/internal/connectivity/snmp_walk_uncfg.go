@@ -36,16 +36,10 @@ type uncfgIndex struct {
 // a real error instead of a generic network failure.
 const uncfgScanTimeout = 20 * time.Second
 
-// WalkUnconfiguredONUs walks the autofind table and returns the ONUs awaiting
-// provisioning. An empty result means every detected ONU is configured; it is
-// indistinguishable from the OLT having nothing on its PON ports.
-func WalkUnconfiguredONUs(ipAddress, community string, snmpPort int) ([]UnconfiguredONU, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), uncfgScanTimeout)
-	defer cancel()
-
-	return walkUnconfiguredONUs(ctx, ipAddress, community, snmpPort)
-}
-
+// walkUnconfiguredONUs walks the ZTE autofind table and returns the ONUs
+// awaiting provisioning. An empty result means every detected ONU is
+// configured; it is indistinguishable from the OLT having nothing on its PON
+// ports.
 func walkUnconfiguredONUs(ctx context.Context, ipAddress, community string, snmpPort int) ([]UnconfiguredONU, error) {
 	client, err := newSNMPClientWithContext(ctx, ipAddress, community, snmpPort)
 	if err != nil {

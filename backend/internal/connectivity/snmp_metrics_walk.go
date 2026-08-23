@@ -9,13 +9,13 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// WalkONTStatuses walks the ZXGPON phase state table and returns the raw phase
+// zteWalkStatuses walks the ZXGPON phase state table and returns the raw phase
 // state for every ONT the OLT knows about, keyed by its physical location.
 //
 // Walking is used rather than a per-ONT GET because the ZXGPON ifIndex encodes
 // the line-card slot, which the OLT reports authoritatively - deriving it from
 // stored rack/shelf/slot values is guesswork and silently yields wrong OIDs.
-func WalkONTStatuses(ipAddress, community string, snmpPort int) (map[ONTLocation]int, error) {
+func zteWalkStatuses(ipAddress, community string, snmpPort int) (map[ONTLocation]int, error) {
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err
@@ -47,9 +47,9 @@ func WalkONTStatuses(ipAddress, community string, snmpPort int) (map[ONTLocation
 	return statuses, nil
 }
 
-// WalkONTMetrics walks the optical metrics tables (power, distance) and returns
+// zteWalkMetrics walks the optical metrics tables (power, distance) and returns
 // collected metrics keyed by the ONT's location, decoded from each OID.
-func WalkONTMetrics(ipAddress, community string, snmpPort int) (map[ONTLocation]ONTMetrics, error) {
+func zteWalkMetrics(ipAddress, community string, snmpPort int) (map[ONTLocation]ONTMetrics, error) {
 	metrics := make(map[ONTLocation]ONTMetrics)
 
 	client, err := newSNMPClient(ipAddress, community, snmpPort)

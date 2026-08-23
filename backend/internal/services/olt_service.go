@@ -37,11 +37,13 @@ func (s *OLTService) GetEncryptionKey() []byte {
 
 // Create creates a new OLT with status validation
 func (s *OLTService) Create(
+	siteID uuid.UUID,
 	name,
 	ipAddress,
 	snmpCommunity,
 	username,
 	password string,
+	model models.OLTModel,
 	rack,
 	shelf,
 	slot int,
@@ -50,6 +52,12 @@ func (s *OLTService) Create(
 	snmpPort int,
 	preferredProtocol models.OLTProtocol,
 ) (*models.OLT, error) {
+	// A model with no driver would leave the OLT unmonitorable, so it is
+	// rejected here as well as at the API boundary.
+	if _, err := connectivity.DriverFor(model); err != nil {
+		return nil, err
+	}
+
 	// Validate SNMP port
 	if snmpPort < 1 || snmpPort > 65535 {
 		return nil, fmt.Errorf("invalid SNMP port: %d", snmpPort)
@@ -71,6 +79,16 @@ func (s *OLTService) Create(
 		return nil, fmt.Errorf("failed to encrypt password: %w", err)
 	}
 
+	// The site has to exist. This used to be uuid.New(), so every OLT created
+	// through the API pointed at a site that was never there: the list showed a
+	// blank Site column and any per-site query silently matched nothing. Checked
+	// after the free input validation above and before the SNMP probe, so the
+	// database is only touched once the request is structurally sound.
+	var site models.Site
+	if err := s.db.First(&site, "id = ?", siteID).Error; err != nil {
+		return nil, fmt.Errorf("site not found: %w", err)
+	}
+
 	// Validate SNMP connectivity if community provided
 	if snmpCommunity != "" {
 		if err := connectivity.SNMPTest(ipAddress, snmpPort, snmpCommunity, 0); err != nil {
@@ -80,7 +98,7 @@ func (s *OLTService) Create(
 
 	// Create OLT without Rack/Shelf/Slot - discovery happens at ONT level
 	olt := &models.OLT{
-		SiteID:            uuid.New(),
+		SiteID:            siteID,
 		Name:              name,
 		IPAddress:         ipAddress,
 		SSHPort:           sshPort,
@@ -88,6 +106,7 @@ func (s *OLTService) Create(
 		SNMPPort:          snmpPort,
 		SNMPCommunity:     snmpCommunity,
 		PreferredProtocol: preferredProtocol,
+		Model:             model,
 		Username:          username,
 		Password:          encryptedPassword,
 		Status:            models.OLTStatusOnline, // Changed from Offline to Online
@@ -154,7 +173,12 @@ func (s *OLTService) DiscoverONTs(oltID uuid.UUID) ([]connectivity.DiscoveredONT
 	}
 
 	// Perform discovery using topology-based approach
-	topology, err := connectivity.DiscoverOLTTopology(olt.IPAddress, snmpCommunity, olt.SNMPPort)
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		return nil, err
+	}
+
+	topology, err := connectivity.DiscoverOLTTopology(driver, olt.IPAddress, snmpCommunity, olt.SNMPPort)
 	if err != nil {
 		return nil, fmt.Errorf("discovery failed: %w", err)
 	}
