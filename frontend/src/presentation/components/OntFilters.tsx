@@ -122,7 +122,6 @@ export function OntFilters({
           style={{ width: 200 }}
           value={selectedPortId}
           onChange={(value) => {
-            console.log("[Port Selected]", value);
             setSelectedPortId(value);
           }}
           allowClear

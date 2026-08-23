@@ -99,20 +99,9 @@ export function useOntListLogic() {
     offset: 0,
   });
 
-  // Update total after data loads
-  useEffect(() => {
-    if (ontsData && ontsData.total) {
-      console.log(`[Data Loaded] Total ONTs: ${ontsData.total}`);
-    }
-  }, [ontsData]);
-
   // Only refetch when filter changes
   useEffect(() => {
     if (statusFilter) {
-      console.log(
-        "[Status Filter Changed] Refetching with status:",
-        statusFilter,
-      );
       refetch();
     }
   }, [statusFilter, refetch]);
@@ -144,29 +133,6 @@ export function useOntListLogic() {
     return true;
   });
 
-  // Debug log
-  useEffect(() => {
-    console.log("[ONT DEBUG] ontsData:", {
-      total_from_api: ontsData?.total,
-      data_array_length: ontsData?.data?.length,
-      filtered_count: filteredOnts.length,
-      searchText: searchText,
-      statusFilter: statusFilter,
-      selectedOltId: selectedOltId,
-      selectedPortId: selectedPortId,
-      limit: 200,
-      offset: 0,
-      sample_ont: ontsData?.data?.[0],
-    });
-  }, [
-    ontsData,
-    filteredOnts,
-    selectedOltId,
-    selectedPortId,
-    searchText,
-    statusFilter,
-  ]);
-
   // Fetch topology when OLT is selected
   useEffect(() => {
     if (!selectedOltId) {
@@ -183,7 +149,6 @@ export function useOntListLogic() {
         const response = await axios.get(
           `${API_ENDPOINTS.OLTS}/${selectedOltId}/topology/cached`,
         );
-        console.log("[Topology Response]", response.data);
 
         const topology =
           (response.data.topology as TopologySlotResponse[] | undefined)?.map(

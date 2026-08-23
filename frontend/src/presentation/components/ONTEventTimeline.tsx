@@ -72,12 +72,6 @@ export const ONTEventTimeline: React.FC<ONTEventTimelineProps> = ({
 
   const events = eventsData?.events || [];
 
-  console.log("[ONTEventTimeline DEBUG] Raw eventsData:", eventsData);
-  console.log("[ONTEventTimeline DEBUG] Parsed events:", events);
-  if (events.length > 0) {
-    console.log("[ONTEventTimeline DEBUG] First event:", events[0]);
-  }
-
   const getEventIcon = (eventType: string) => {
     return eventType === "online" ? (
       <CheckCircleOutlined style={{ fontSize: "16px", color: "#52c41a" }} />
