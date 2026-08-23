@@ -75,7 +75,7 @@ type OLTResponse struct {
 // ToOLTResponse renders an OLT row for the API. The site name is resolved by
 // the caller via the OLT service; a row whose site is missing or unset simply
 // renders an empty name.
-func ToOLTResponse(siteName string, olt *models.OLT) OLTResponse {
+func ToOLTResponse(siteName string, ontCount int64, olt *models.OLT) OLTResponse {
 	return OLTResponse{
 		ID:                olt.ID,
 		SiteID:            olt.SiteID,
@@ -91,7 +91,7 @@ func ToOLTResponse(siteName string, olt *models.OLT) OLTResponse {
 		Username:          olt.Username,
 		Status:            olt.Status,
 		LastSeen:          olt.LastSeen,
-		ONTCount:          0,
+		ONTCount:          int(ontCount),
 		CreatedAt:         olt.CreatedAt,
 		UpdatedAt:         olt.UpdatedAt,
 	}

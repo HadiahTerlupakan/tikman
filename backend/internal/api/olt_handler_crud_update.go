@@ -81,6 +81,7 @@ func (h *OLTHandler) Update(c *gin.Context) {
 	go h.service.AutoDiscoverONTMetrics(olt)
 
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
-	response := ToOLTResponse(siteName, olt)
+	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
+	response := ToOLTResponse(siteName, ontCount, olt)
 	c.JSON(http.StatusOK, response)
 }

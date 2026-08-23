@@ -281,6 +281,13 @@ func (s *ONTService) ListONTSummariesForOLT(oltID uuid.UUID) ([]ONTSummary, erro
 	return onts, err
 }
 
+// CountONTsByOLT returns how many ONTs belong to a single OLT.
+func (s *ONTService) CountONTsByOLT(oltID uuid.UUID) (int64, error) {
+	var count int64
+	err := s.db.Model(&models.ONT{}).Where("olt_id = ?", oltID).Count(&count).Error
+	return count, err
+}
+
 // BulkRegisterResult holds the result of bulk ONT registration
 type BulkRegisterResult struct {
 	Registered int

@@ -21,7 +21,8 @@ func (h *OLTHandler) List(c *gin.Context) {
 	responses := make([]OLTResponse, len(olts))
 	for i, olt := range olts {
 		siteName := h.service.SiteNameForOLT(olt.SiteID)
-		responses[i] = ToOLTResponse(siteName, &olt)
+		ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
+		responses[i] = ToOLTResponse(siteName, ontCount, &olt)
 	}
 
 	c.JSON(http.StatusOK, responses)
@@ -47,7 +48,8 @@ func (h *OLTHandler) GetByID(c *gin.Context) {
 	}
 
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
-	response := ToOLTResponse(siteName, olt)
+	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
+	response := ToOLTResponse(siteName, ontCount, olt)
 	c.JSON(http.StatusOK, response)
 }
 
