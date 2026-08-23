@@ -55,7 +55,7 @@ func printInventory(report connectivity.HSGQProbeReport) {
 	fmt.Printf("Found %d ONUs in the HSGQ status table.\n\n", len(report.Rows))
 
 	out := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(out, "IFINDEX\tIF LABEL\tSTATUS\tRX RAW\tNAME")
+	_, _ = fmt.Fprintln(out, "IFINDEX\tIF LABEL\tSTATUS\tRX RAW\tNAME")
 	for _, row := range report.Rows {
 		status := "-"
 		if row.HasStatus {
@@ -65,7 +65,7 @@ func printInventory(report connectivity.HSGQProbeReport) {
 		if row.HasRx {
 			rx = fmt.Sprintf("%d", row.RxRaw)
 		}
-		fmt.Fprintf(out, "%d\t%s\t%s\t%s\t%s\n", row.IfIndex, dash(row.IfLabel), status, rx, dash(row.Name))
+		_, _ = fmt.Fprintf(out, "%d\t%s\t%s\t%s\t%s\n", row.IfIndex, dash(row.IfLabel), status, rx, dash(row.Name))
 	}
 	_ = out.Flush()
 	fmt.Println()
@@ -92,7 +92,7 @@ func printIfIndexFindings(report connectivity.HSGQProbeReport) {
 
 	out := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	for _, row := range report.Rows {
-		fmt.Fprintf(out, "  %s\t%s\n", row.IfIndexBreakdown(), dash(row.IfLabel))
+		_, _ = fmt.Fprintf(out, "  %s\t%s\n", row.IfIndexBreakdown(), dash(row.IfLabel))
 	}
 	_ = out.Flush()
 	fmt.Println()
@@ -146,7 +146,7 @@ func printSerialFinding(report connectivity.HSGQProbeReport) {
 	fmt.Println("original third-party OID set.")
 
 	out := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(out, "  IFINDEX\tMAC\tRAW BYTES")
+	_, _ = fmt.Fprintln(out, "  IFINDEX\tMAC\tRAW BYTES")
 
 	shown := 0
 	for _, row := range report.Rows {
@@ -154,7 +154,7 @@ func printSerialFinding(report connectivity.HSGQProbeReport) {
 		if mac == "" && hex == "" {
 			continue
 		}
-		fmt.Fprintf(out, "  %d\t%s\t%s\n", row.IfIndex, dash(mac), hex)
+		_, _ = fmt.Fprintf(out, "  %d\t%s\t%s\n", row.IfIndex, dash(mac), hex)
 		shown++
 	}
 	_ = out.Flush()

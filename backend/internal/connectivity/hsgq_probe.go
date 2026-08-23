@@ -201,10 +201,10 @@ func inferHSGQOnlineStatus(rows []HSGQProbeRow) (int64, bool) {
 	var online int64
 	matches := 0
 	for status, counts := range byStatus {
-		switch {
-		case counts.withSignal == counts.total:
+		switch counts.withSignal {
+		case counts.total:
 			online, matches = status, matches+1
-		case counts.withSignal == 0:
+		case 0:
 			// Consistent with offline; nothing to conclude on its own.
 		default:
 			return 0, false // mixed group, correlation is not clean
