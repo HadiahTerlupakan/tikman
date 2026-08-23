@@ -67,3 +67,28 @@ export interface OntMetrics {
   rxMaxMbps?: number;
   txMaxMbps?: number;
 }
+
+// Topology response types for OLT slot/port/ONT structure
+export interface TopologySlotResponse {
+  slot: number;
+  ports?: TopologyPortResponse[];
+}
+
+export interface TopologyPortResponse {
+  portId: number;
+  onts?: TopologyOntResponse[];
+}
+
+export interface TopologyOntResponse {
+  portId: number;
+  ontId: number;
+  serialNumber: string;
+  runState: number;
+  name?: string;
+  description?: string;
+  rxPower?: number | null;
+  txPower?: number | null;
+  distance?: number;
+  status?: string;
+  lastSeenAt?: string | null;
+}

@@ -6,9 +6,10 @@ import {
   useDeleteOnt,
 } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
-import axios from "axios";
-import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
+import { OntRepository } from "@/infrastructure/repositories/OntRepository";
 import type { Ont, CreateOntDto, OntStatus } from "@/domain/entities";
+
+const ontRepository = new OntRepository();
 
 interface GponPortEntity {
   portId: number;
@@ -28,38 +29,6 @@ interface GponPortEntity {
 interface GPONSlot {
   slot: number;
   ports: GponPortEntity[];
-}
-
-interface TopologyOntResponse {
-  port_id?: number;
-  portId?: number;
-  ont_id?: number;
-  ontId?: number;
-  serial_number?: string;
-  serialNumber?: string;
-  run_state?: number;
-  runState?: number;
-  name?: string;
-  description?: string;
-  rx_power?: number | null;
-  rxPower?: number | null;
-  tx_power?: number | null;
-  txPower?: number | null;
-  distance?: number;
-  status?: string;
-  last_seen_at?: string | null;
-  lastSeenAt?: string | null;
-}
-
-interface TopologyPortResponse {
-  port_id?: number;
-  portId?: number;
-  onts?: TopologyOntResponse[];
-}
-
-interface TopologySlotResponse {
-  slot: number;
-  ports?: TopologyPortResponse[];
 }
 
 export function useOntListLogic() {
@@ -146,41 +115,33 @@ export function useOntListLogic() {
     const fetchTopology = async () => {
       setIsLoadingTopology(true);
       try {
-        const response = await axios.get(
-          `${API_ENDPOINTS.OLTS}/${selectedOltId}/topology/cached`,
-        );
+        const topology = await ontRepository.getTopology(selectedOltId);
 
-        const topology =
-          (response.data.topology as TopologySlotResponse[] | undefined)?.map(
-            (slot) => ({
-              slot: slot.slot,
-              ports:
-                slot.ports?.map((port) => ({
-                  portId: port.port_id || port.portId || 0,
-                  onts:
-                    port.onts?.map((ont) => ({
-                      portId: ont.port_id ?? ont.portId ?? 0,
-                      ontId: ont.ont_id ?? ont.ontId ?? 0,
-                      serialNumber: ont.serial_number ?? ont.serialNumber ?? "",
-                      runState: ont.run_state ?? ont.runState ?? 0,
-                      name: ont.name,
-                      description: ont.description,
-                      rxPower:
-                        ont.rx_power !== undefined ? ont.rx_power : ont.rxPower,
-                      txPower:
-                        ont.tx_power !== undefined ? ont.tx_power : ont.txPower,
-                      distance: ont.distance,
-                      status: ont.status,
-                      lastSeenAt: ont.last_seen_at ?? ont.lastSeenAt,
-                    })) || [],
+        const mappedTopology = (topology || []).map((slot) => ({
+          slot: slot.slot,
+          ports:
+            slot.ports?.map((port) => ({
+              portId: port.portId || 0,
+              onts:
+                port.onts?.map((ont) => ({
+                  portId: ont.portId || 0,
+                  ontId: ont.ontId || 0,
+                  serialNumber: ont.serialNumber || "",
+                  runState: ont.runState || 0,
+                  name: ont.name,
+                  description: ont.description,
+                  rxPower: ont.rxPower,
+                  txPower: ont.txPower,
+                  distance: ont.distance,
+                  status: ont.status,
+                  lastSeenAt: ont.lastSeenAt,
                 })) || [],
-            }),
-          ) || [];
+            })) || [],
+        }));
 
-        setTopologyData(topology);
-        message.success(`Discovered ${topology.length} slot(s)`);
-      } catch (error) {
-        console.error("Failed to fetch topology:", error);
+        setTopologyData(mappedTopology);
+        message.success(`Discovered ${mappedTopology.length} slot(s)`);
+      } catch {
         message.error("Failed to discover ONT topology");
       } finally {
         setIsLoadingTopology(false);
@@ -200,8 +161,8 @@ export function useOntListLogic() {
       await createMutation.mutateAsync(values);
       setIsCreateModalOpen(false);
       message.success("ONT created successfully");
-    } catch (error) {
-      console.error("Create failed:", error);
+    } catch {
+      message.error("Failed to create ONT");
     }
   };
 
@@ -213,8 +174,7 @@ export function useOntListLogic() {
         setSelectedOnt(null);
       }
       message.success("ONT deleted successfully");
-    } catch (error) {
-      console.error("Delete failed:", error);
+    } catch {
       message.error("Failed to delete ONT");
     }
   };

@@ -8,6 +8,7 @@ import type {
   OntMetrics,
   ONTEventsResponse,
   AvailabilityStats,
+  TopologySlotResponse,
 } from "@/domain/entities";
 
 export class OntRepository implements IOntRepository {
@@ -116,5 +117,12 @@ export class OntRepository implements IOntRepository {
       params,
     });
     return response.data;
+  }
+
+  async getTopology(oID: string): Promise<TopologySlotResponse[]> {
+    const response = await apiClient.get<{ topology: TopologySlotResponse[] }>(
+      `${API_ENDPOINTS.OLTS}/${oID}/topology/cached`,
+    );
+    return response.data.topology ?? [];
   }
 }
