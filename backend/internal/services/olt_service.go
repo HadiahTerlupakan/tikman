@@ -152,11 +152,43 @@ func (s *OLTService) Update(id uuid.UUID, updates map[string]interface{}) error 
 	return nil
 }
 
+// Delete removes an OLT and all dependent data in one transaction: ONTs,
+// their metrics, and their events. Without this cleanup, deleting an OLT
+// left orphaned ONT rows that still showed up in listings.
 func (s *OLTService) Delete(id uuid.UUID) error {
-	if err := s.db.Delete(&models.OLT{}, "id = ?", id).Error; err != nil {
-		return fmt.Errorf("failed to delete OLT: %w", err)
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var ontIDs []uuid.UUID
+		if err := tx.Model(&models.ONT{}).Where("olt_id = ?", id).Pluck("id", &ontIDs).Error; err != nil {
+			return fmt.Errorf("failed to list ONTs for OLT: %w", err)
+		}
+
+		if len(ontIDs) > 0 {
+			if tx.Migrator().HasTable("ont_metrics") {
+				for _, ontID := range ontIDs {
+					if err := tx.Exec("DELETE FROM ont_metrics WHERE ont_id = ?", ontID).Error; err != nil {
+						return fmt.Errorf("failed to delete ONT metrics: %w", err)
+					}
+				}
+			}
+		}
+		if len(ontIDs) > 0 {
+			if err := tx.Where("ont_id IN ?", ontIDs).Delete(&models.ONTEvent{}).Error; err != nil {
+				return fmt.Errorf("failed to delete ONT events: %w", err)
+			}
+		}
+		if err := tx.Delete(&models.ONT{}, "olt_id = ?", id).Error; err != nil {
+			return fmt.Errorf("failed to delete ONTs: %w", err)
+		}
+
+		result := tx.Delete(&models.OLT{}, "id = ?", id)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete OLT: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("OLT not found")
+		}
+		return nil
+	})
 }
 
 // DiscoverONTs discovers all ONTs connected to this OLT via SNMP topology walk
@@ -223,13 +255,62 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		return
 	}
 
-	allMetrics, err := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	if err != nil {
-		log.Printf("[AutoDiscovery] Failed to walk metrics from OLT %s: %v", olt.Name, err)
-		return
+	allMetrics, metricsErr := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if metricsErr != nil {
+		log.Printf("[AutoDiscovery] Metrics walk failed for OLT %s: %v; continuing with status discovery", olt.Name, metricsErr)
+		allMetrics = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
 	}
 
-	log.Printf("[AutoDiscovery] Discovered %d ONT devices via SNMP walk", len(allMetrics))
+	// Metrics and enumeration are independent SNMP walks. A timeout in one
+	// optical-power table must not prevent registering ONTs discovered in the
+	// status table.
+	statuses, statusErr := driver.WalkStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if statusErr != nil {
+		log.Printf("[AutoDiscovery] Status walk failed for OLT %s: %v", olt.Name, statusErr)
+	}
+	locations := make(map[connectivity.ONTLocation]bool, len(allMetrics)+len(statuses))
+	for loc := range allMetrics {
+		locations[loc] = true
+	}
+	for loc := range statuses {
+		locations[loc] = true
+	}
+	log.Printf("[AutoDiscovery] Found %d ONT positions via SNMP", len(locations))
+
+	locationList := make([]connectivity.ONTLocation, 0, len(locations))
+	for loc := range locations {
+		locationList = append(locationList, loc)
+	}
+	inventory, inventoryErr := driver.Inventory(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, locationList)
+	if inventoryErr != nil {
+		log.Printf("[AutoDiscovery] Failed to read ONT inventory from OLT %s: %v", olt.Name, inventoryErr)
+	}
+
+	// Register discovered ONTs before storing metrics. Newly added OLTs have no
+	// rows yet; skipping unknown positions caused the UI to remain at 0/0 until
+	// an operator manually ran discover-and-register.
+	discovered := make([]connectivity.DiscoveredONT, 0, len(locations))
+	for loc := range locations {
+		item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
+		if inv, ok := inventory[loc]; ok {
+			item.SerialNumber = inv.SerialNumber
+			item.Name = inv.Name
+			item.DeviceType = inv.DeviceType
+			item.HardwareVersion = inv.HardwareVersion
+			item.IPAddress = inv.IPAddress
+		}
+		if metrics, ok := allMetrics[loc]; ok {
+			item.RxPower = metrics.RxPower
+			item.TxPower = metrics.TxPower
+			item.Distance = metrics.Distance
+		}
+		discovered = append(discovered, item)
+	}
+	if len(discovered) > 0 && inventoryErr == nil {
+		registerService := NewONTService(s.db)
+		result := registerService.BulkRegisterFromDiscovery(olt.ID, discovered)
+		log.Printf("[AutoDiscovery] Registered %d ONTs, skipped %d, errors=%d", result.Registered, result.Skipped, len(result.Errors))
+	}
 
 	var successCount int
 
