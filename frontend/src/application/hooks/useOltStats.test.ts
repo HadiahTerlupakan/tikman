@@ -24,9 +24,36 @@ describe("useOltStats", () => {
       expect.objectContaining({
         queryKey: ["olts", "olt-1", "stats"],
         enabled: true,
-        refetchInterval: 60000,
         refetchIntervalInBackground: true,
       }),
     );
+  });
+
+  it("polls every five seconds while discovery has no ONTs", () => {
+    useOltStats("olt-1");
+    const results = vi.mocked(useQuery).mock.results;
+    const options = results[results.length - 1]?.value as {
+      refetchInterval: (query: {
+        state: { data?: { totalOnts: number } };
+      }) => number;
+    };
+
+    expect(options.refetchInterval({ state: { data: { totalOnts: 0 } } })).toBe(
+      5000,
+    );
+  });
+
+  it("slows to one minute after ONTs are available", () => {
+    useOltStats("olt-1");
+    const results = vi.mocked(useQuery).mock.results;
+    const options = results[results.length - 1]?.value as {
+      refetchInterval: (query: {
+        state: { data?: { totalOnts: number } };
+      }) => number;
+    };
+
+    expect(
+      options.refetchInterval({ state: { data: { totalOnts: 197 } } }),
+    ).toBe(60000);
   });
 });

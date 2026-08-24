@@ -6,6 +6,7 @@ const oltRepository = new OltRepository();
 
 const OLT_LIST_POLL_INTERVAL = 60000;
 const OLT_STATS_POLL_INTERVAL = 60000;
+const OLT_DISCOVERY_POLL_INTERVAL = 5000; // Refresh quickly while a new OLT is being discovered.
 
 export function useOlts(siteId?: string) {
   return useQuery({
@@ -30,7 +31,12 @@ export function useOltStats(id: string) {
     queryKey: ["olts", id, "stats"],
     queryFn: () => oltRepository.getStats(id),
     enabled: !!id,
-    refetchInterval: OLT_STATS_POLL_INTERVAL,
+    refetchInterval: (query) => {
+      const stats = query.state.data;
+      return stats?.totalOnts === 0
+        ? OLT_DISCOVERY_POLL_INTERVAL
+        : OLT_STATS_POLL_INTERVAL;
+    },
     refetchIntervalInBackground: true,
   });
 }
