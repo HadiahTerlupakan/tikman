@@ -10,6 +10,7 @@ import SitesPage from "../pages/Sites";
 import OltsPage from "../pages/Olts";
 import OntsPage from "../pages/OntListPage";
 import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
+import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
 import NotFoundPage from "../pages/NotFound";
 
 // Graphs is the only route that pulls in recharts, so it loads on demand to keep
@@ -53,6 +54,10 @@ export const router = createBrowserRouter([
           {
             path: "unconfigured-onus",
             element: <UnconfiguredOnusPage />,
+          },
+          {
+            path: "config-templates",
+            element: <ConfigTemplatesPage />,
           },
           {
             path: "graphs",

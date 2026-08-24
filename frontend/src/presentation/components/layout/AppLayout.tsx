@@ -10,6 +10,7 @@ import {
   MonitorOutlined,
   BarChartOutlined,
   QuestionCircleOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import { Dropdown, Avatar, Badge, App } from "antd";
 import type { MenuProps } from "antd";
@@ -68,6 +69,11 @@ export function AppLayout() {
       path: "/unconfigured-onus",
       name: "Unconfigured ONU",
       icon: <QuestionCircleOutlined />,
+    },
+    {
+      path: "/config-templates",
+      name: "Config Templates",
+      icon: <FileTextOutlined />,
     },
     {
       path: "/graphs",
