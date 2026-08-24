@@ -11,6 +11,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // fakeCommander satisfies connectivity.OLTCommander for provisioning tests
@@ -41,7 +42,7 @@ func (c *fakeCommander) BatchExecute(ctx context.Context, cmds []string) ([]*con
 }
 
 type testFixtures struct {
-	db         interface{}
+	db         *gorm.DB
 	olt        models.OLT
 	ont        models.ONT
 	jobService *JobService
