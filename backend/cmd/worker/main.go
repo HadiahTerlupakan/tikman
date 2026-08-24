@@ -40,6 +40,7 @@ func main() {
 	}
 
 	ontService := services.NewONTService(db)
+	oltService := services.NewOLTService(db, cfg.EncryptionKey)
 	metricsService := services.NewMetricsService(db)
 	// Status history was never recorded by the running worker: the only writer of
 	// ont_events was the /admin/seed-events endpoint, so an ONT's Events tab and
@@ -58,12 +59,12 @@ func main() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	collectMetrics(db, ontService, metricsService, eventService, zapLogger)
+	collectMetrics(db, ontService, oltService, metricsService, eventService, zapLogger)
 
 	for {
 		select {
 		case <-ticker.C:
-			collectMetrics(db, ontService, metricsService, eventService, zapLogger)
+			collectMetrics(db, ontService, oltService, metricsService, eventService, zapLogger)
 		case <-sigCh:
 			zapLogger.Info("Received shutdown signal")
 			return
@@ -73,8 +74,20 @@ func main() {
 	}
 }
 
-func collectMetrics(db *gorm.DB, ontService *services.ONTService, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
+func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *services.OLTService, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
 	logger.Info("Starting metrics collection cycle")
+
+	// Discover and register ONTs for every configured OLT before querying
+	// metrics. This makes a newly added OLT self-populate without requiring
+	// an operator to press Discover manually.
+	var olts []models.OLT
+	if err := db.Find(&olts).Error; err != nil {
+		logger.Error("Failed to list OLTs for discovery", zap.Error(err))
+	} else {
+		for i := range olts {
+			oltService.AutoDiscoverONTMetrics(&olts[i])
+		}
+	}
 
 	onts, _, err := ontService.List(nil, nil, 1000, 0)
 	if err != nil {
