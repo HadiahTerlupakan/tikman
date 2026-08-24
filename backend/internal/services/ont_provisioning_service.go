@@ -20,6 +20,7 @@ type OntProvisioningService struct {
 	jobService  *JobService
 	snapshotSvc *SnapshotService
 	commander   connectivity.OLTCommander
+	rollback    *RollbackEngine
 	audit       *AuditService
 	logger      *zap.Logger
 }
@@ -30,6 +31,7 @@ func NewOntProvisioningService(
 	jobService *JobService,
 	snapshotSvc *SnapshotService,
 	commander connectivity.OLTCommander,
+	rollback *RollbackEngine,
 	audit *AuditService,
 	logger *zap.Logger,
 ) *OntProvisioningService {
@@ -38,6 +40,7 @@ func NewOntProvisioningService(
 		jobService:  jobService,
 		snapshotSvc: snapshotSvc,
 		commander:   commander,
+		rollback:    rollback,
 		audit:       audit,
 		logger:      logger,
 	}
@@ -305,18 +308,19 @@ func (s *OntProvisioningService) buildZTECommands(ont models.ONT, config map[str
 }
 
 func (s *OntProvisioningService) buildHSGQCommands(ont models.ONT, config map[string]interface{}) []string {
-	cmds := []string{
+	return []string{
 		"configure terminal",
 		fmt.Sprintf("interface gpon-oltport 0/%d", ont.PortID),
-		"fmt.Sprintf(\"ont create %d serial XXXX service-profile 1\", ont.ONTID)",
+		fmt.Sprintf("ont create %d serial XXXX service-profile 1", ont.ONTID),
 		"commit",
 	}
-
-	return cmds
 }
 
 func (s *OntProvisioningService) rollbackOnt(job *models.ProvisioningJob, ont models.ONT, snap *ConfigSnapshot) error {
-	return s.snapshotSvc.RollbackTo(context.Background(), ont, snap)
+	if s.rollback == nil {
+		return fmt.Errorf("rollback engine not configured")
+	}
+	return s.rollback.RollbackToSnapshot(context.Background(), ont, snap)
 }
 
 func (s *OntProvisioningService) logAudit(

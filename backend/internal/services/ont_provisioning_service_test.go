@@ -56,11 +56,13 @@ func newProvisioningService(t *testing.T, model models.OLTModel, commander conne
 	snapshotSvc := newSnapshotService(db, driver)
 	auditSvc := NewAuditService(db, zap.NewNop())
 	jobService := NewJobService(db, auditSvc)
+	rollbackEngine := NewRollbackEngine(commander, zap.NewNop())
 	svc := NewOntProvisioningService(
 		db,
 		jobService,
 		snapshotSvc,
 		commander,
+		rollbackEngine,
 		auditSvc,
 		zap.NewNop(),
 	)
@@ -100,12 +102,16 @@ func TestOntProvisioningService_ProvisionOnt_Success(t *testing.T) {
 	assert.NotEmpty(t, cmdr.commands, "commands should have been sent to the commander")
 }
 
-func TestOntProvisioningService_ProvisionOnt_CommandFailure(t *testing.T) {
-	cmdr := &fakeCommander{
+func TestOntProvisioningService_ProvisionOnt_CommandFailureAndRollback(t *testing.T) {
+	// Provision commander that fails on commit
+	failCmdr := &fakeCommander{
 		failOn: map[string]error{
 			"commit": errors.New("commit rejected by OLT"),
 		},
 	}
+	rollbackCmdr := &fakeCommander{} // Captures rollback commands
+
+	// Driver serves the before-snapshot read (SNMP path)
 	driver := &fakeDriver{
 		model: models.OLTModelZTEC300,
 		inventory: connectivity.ONTInventory{
@@ -113,17 +119,38 @@ func TestOntProvisioningService_ProvisionOnt_CommandFailure(t *testing.T) {
 		},
 	}
 
-	svc, fixtures := newProvisioningService(t, models.OLTModelZTEC300, cmdr, driver)
+	db := setupSnapshotTestDB(t)
+	_, ont := seedOLTAndONT(t, db, models.OLTModelZTEC300)
 
-	_, err := svc.ProvisionOnt(context.Background(), fixtures.ont.ID, uuid.New(), ProvisionConfig{})
+	snapshotSvc := newSnapshotService(db, driver)
+	auditSvc := NewAuditService(db, zap.NewNop())
+	jobService := NewJobService(db, auditSvc)
+	rollbackEngine := NewRollbackEngine(rollbackCmdr, zap.NewNop())
+	svc := NewOntProvisioningService(
+		db,
+		jobService,
+		snapshotSvc,
+		failCmdr,
+		rollbackEngine,
+		auditSvc,
+		zap.NewNop(),
+	)
+
+	_, err := svc.ProvisionOnt(context.Background(), ont.ID, uuid.New(), ProvisionConfig{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provision execution failed")
 
 	// Verify job was created and marked as failed
-	jobs, total, err := svc.ListProvisioningJobsByONT(fixtures.ont.ID, 10, 0)
+	jobs, total, err := svc.ListProvisioningJobsByONT(ont.ID, 10, 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)
 	assert.Equal(t, models.ProvisioningStatusFailed, jobs[0].Status)
+
+	// CRITICAL: Verify rollback commands were actually issued after failure
+	// The rollback engine should have been invoked with proper vendor commands
+	assert.NotEmpty(t, rollbackCmdr.commands, "rollback commander should have received commands")
+	assert.Contains(t, rollbackCmdr.commands[0], "config", "first rollback command should be 'config'")
+	assert.Contains(t, rollbackCmdr.commands[len(rollbackCmdr.commands)-1], "commit", "last rollback command should be 'commit'")
 }
 
 func TestOntProvisioningService_ProvisionOnt_SnapshotFailure(t *testing.T) {

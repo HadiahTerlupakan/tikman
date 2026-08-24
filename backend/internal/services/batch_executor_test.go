@@ -27,7 +27,8 @@ func setupBatchExecutor(t *testing.T, commander connectivity.OLTCommander, drive
 	snapshotSvc := newSnapshotService(db, driver)
 	auditSvc := NewAuditService(db, zap.NewNop())
 	jobService := NewJobService(db, auditSvc)
-	provisioner := NewOntProvisioningService(db, jobService, snapshotSvc, commander, auditSvc, zap.NewNop())
+	rollbackEngine := NewRollbackEngine(commander, zap.NewNop())
+	provisioner := NewOntProvisioningService(db, jobService, snapshotSvc, commander, rollbackEngine, auditSvc, zap.NewNop())
 	executor := NewBatchExecutor(db, provisioner, jobService, snapshotSvc, zap.NewNop())
 
 	return executor, &testFixtures{db: db, olt: olt, ont: ont, jobService: jobService}, jobService
