@@ -57,16 +57,25 @@ func newProvisioningService(t *testing.T, model models.OLTModel, commander conne
 	auditSvc := NewAuditService(db, zap.NewNop())
 	jobService := NewJobService(db, auditSvc)
 	rollbackEngine := NewRollbackEngine(commander, zap.NewNop())
+	commanderFactory := &fakeCommanderFactory{commander: commander}
 	svc := NewOntProvisioningService(
 		db,
 		jobService,
 		snapshotSvc,
-		commander,
+		commanderFactory,
 		rollbackEngine,
 		auditSvc,
 		zap.NewNop(),
 	)
 	return svc, &testFixtures{db: db, olt: olt, ont: ont, jobService: jobService}
+}
+
+type fakeCommanderFactory struct {
+	commander connectivity.OLTCommander
+}
+
+func (f *fakeCommanderFactory) ForOLT(model models.OLTModel, host string, port int, username, password string) (connectivity.OLTCommander, error) {
+	return f.commander, nil
 }
 
 func TestOntProvisioningService_ProvisionOnt_Success(t *testing.T) {
@@ -126,11 +135,12 @@ func TestOntProvisioningService_ProvisionOnt_CommandFailureAndRollback(t *testin
 	auditSvc := NewAuditService(db, zap.NewNop())
 	jobService := NewJobService(db, auditSvc)
 	rollbackEngine := NewRollbackEngine(rollbackCmdr, zap.NewNop())
+	commanderFactory := &fakeCommanderFactory{commander: failCmdr}
 	svc := NewOntProvisioningService(
 		db,
 		jobService,
 		snapshotSvc,
-		failCmdr,
+		commanderFactory,
 		rollbackEngine,
 		auditSvc,
 		zap.NewNop(),

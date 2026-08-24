@@ -17,6 +17,15 @@ var allowedVendors = []string{
 	models.VendorHSGQ,
 }
 
+// CreateTemplateRequest is the payload accepted by the config template handler.
+type CreateTemplateRequest struct {
+	Name         string                 `json:"name" binding:"required"`
+	Description  string                 `json:"description"`
+	Vendor       string                 `json:"vendor" binding:"required"`
+	ConfigFields map[string]interface{} `json:"config_fields"`
+	IsDefault    bool                   `json:"is_default"`
+}
+
 type ConfigTemplateService struct {
 	db    *gorm.DB
 	audit *AuditService

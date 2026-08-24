@@ -1,9 +1,12 @@
 package api
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -41,6 +44,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	eventService := services.NewEventService(db)
 	auditService := services.NewAuditService(db, logger)
 	unconfiguredONUService := services.NewUnconfiguredONUService(db)
+	configTemplateService := services.NewConfigTemplateService(db, auditService)
 
 	authHandler := NewAuthHandler(userService, authStore)
 	userHandler := NewUserHandler(userService, auditService)
@@ -51,6 +55,17 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	eventHandler := NewEventHandler(eventService)
 	unconfiguredONUHandler := NewUnconfiguredONUHandler(unconfiguredONUService)
 	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
+	configTemplateHandler := NewConfigTemplateHandler(configTemplateService)
+
+	// Provisioning pipeline: factory creates per-OLT commanders since each OLT
+	// has its own address and credentials.
+	commanderFactory := connectivity.NewCommanderFactory(5 * time.Second)
+	provisionJobService := services.NewJobService(db, auditService)
+	snapshotService := services.NewSnapshotService(db, connectivity.DriverFor, logger)
+	rollbackEngine := services.NewRollbackEngine(nil, logger)
+	ontProvisioningService := services.NewOntProvisioningService(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, auditService, logger)
+	batchExecutor := services.NewBatchExecutor(db, ontProvisioningService, provisionJobService, snapshotService, logger)
+	provisionHandler := NewProvisionHandler(ontProvisioningService, batchExecutor)
 
 	api := router.Group("/api/v1")
 	{
@@ -116,6 +131,33 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.GET("/:id/events", eventHandler.GetEvents)
 			onts.GET("/:id/availability", eventHandler.GetAvailability)
 		}
+
+		configTemplates := api.Group("/config-templates")
+		configTemplates.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			configTemplates.GET("", configTemplateHandler.List)
+			configTemplates.GET("/:id", configTemplateHandler.GetByID)
+			configTemplates.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), configTemplateHandler.Create)
+			configTemplates.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), configTemplateHandler.Update)
+			configTemplates.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), configTemplateHandler.Delete)
+		}
+
+		batchJobs := api.Group("/batch-jobs")
+		batchJobs.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			batchJobs.GET("/:id", provisionHandler.GetBatchJob)
+		}
+
+		provisionJobs := api.Group("/provision-jobs")
+		provisionJobs.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			provisionJobs.GET("/:id", provisionHandler.GetProvisionJob)
+		}
+
+		onts.POST("/:id/provision", middleware.AuthMiddleware(authStore, logger), middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), provisionHandler.ProvisionOnt)
+		onts.GET("/:id/provision-jobs", middleware.AuthMiddleware(authStore, logger), provisionHandler.ListProvisionJobsByONT)
+
+		api.POST("/batch-provision", middleware.AuthMiddleware(authStore, logger), middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), provisionHandler.BatchProvision)
 
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthMiddleware(authStore, logger))

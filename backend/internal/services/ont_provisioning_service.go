@@ -16,13 +16,18 @@ import (
 // OntProvisioningService orchestrates single ONT provisioning with state tracking,
 // snapshot capture, command execution, rollback on failure, and audit logging.
 type OntProvisioningService struct {
-	db          *gorm.DB
-	jobService  *JobService
-	snapshotSvc *SnapshotService
-	commander   connectivity.OLTCommander
-	rollback    *RollbackEngine
-	audit       *AuditService
-	logger      *zap.Logger
+	db               *gorm.DB
+	jobService       *JobService
+	snapshotSvc      *SnapshotService
+	commanderFactory CommanderFactory
+	rollback         *RollbackEngine
+	audit            *AuditService
+	logger           *zap.Logger
+}
+
+// CommanderFactory abstracts connectivity.CommanderFactory for testability.
+type CommanderFactory interface {
+	ForOLT(model models.OLTModel, host string, port int, username, password string) (connectivity.OLTCommander, error)
 }
 
 // NewOntProvisioningService constructs an OntProvisioningService instance.
@@ -30,19 +35,19 @@ func NewOntProvisioningService(
 	db *gorm.DB,
 	jobService *JobService,
 	snapshotSvc *SnapshotService,
-	commander connectivity.OLTCommander,
+	commanderFactory CommanderFactory,
 	rollback *RollbackEngine,
 	audit *AuditService,
 	logger *zap.Logger,
 ) *OntProvisioningService {
 	return &OntProvisioningService{
-		db:          db,
-		jobService:  jobService,
-		snapshotSvc: snapshotSvc,
-		commander:   commander,
-		rollback:    rollback,
-		audit:       audit,
-		logger:      logger,
+		db:               db,
+		jobService:       jobService,
+		snapshotSvc:      snapshotSvc,
+		commanderFactory: commanderFactory,
+		rollback:         rollback,
+		audit:            audit,
+		logger:           logger,
 	}
 }
 
@@ -263,6 +268,13 @@ func (s *OntProvisioningService) buildProvisionConfig(config ProvisionConfig, on
 }
 
 func (s *OntProvisioningService) executeProvision(ctx context.Context, ont *models.ONT, olt *models.OLT, config map[string]interface{}) (*connectivity.CommandResult, error) {
+	// Create a fresh commander for this OLT using the factory
+	commander, err := s.commanderFactory.ForOLT(olt.Model, olt.IPAddress, olt.SNMPPort, olt.Username, olt.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create commander for OLT %s: %w", olt.IPAddress, err)
+	}
+	defer closeCommander(commander)
+
 	// Prepare vendor-specific CLI commands based on OLT model
 	var cmds []string
 
@@ -273,7 +285,7 @@ func (s *OntProvisioningService) executeProvision(ctx context.Context, ont *mode
 		cmds = s.buildHSGQCommands(*ont, config)
 	}
 
-	results, err := s.commander.BatchExecute(ctx, cmds)
+	results, err := commander.BatchExecute(ctx, cmds)
 	if err != nil {
 		return nil, fmt.Errorf("command batch execution failed: %w", err)
 	}
@@ -321,6 +333,15 @@ func (s *OntProvisioningService) rollbackOnt(job *models.ProvisioningJob, ont mo
 		return fmt.Errorf("rollback engine not configured")
 	}
 	return s.rollback.RollbackToSnapshot(context.Background(), ont, snap)
+}
+
+// closeCommander closes a commander if it implements io.Closer. Fake
+// commanders in tests do not hold connections, so failing the assertion is
+// the correct behavior.
+func closeCommander(commander connectivity.OLTCommander) {
+	if closer, ok := commander.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
 }
 
 func (s *OntProvisioningService) logAudit(

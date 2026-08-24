@@ -107,6 +107,11 @@ func (tc *TelnetCommander) connect() error {
 	return nil
 }
 
+// Close terminates the Telnet connection and implements io.Closer.
+func (tc *TelnetCommander) Close() error {
+	return tc.close()
+}
+
 // close terminates the Telnet connection
 func (tc *TelnetCommander) close() error {
 	if tc.conn != nil {
