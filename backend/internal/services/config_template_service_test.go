@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -454,7 +453,7 @@ func TestConfigTemplateService_Delete(t *testing.T) {
 		err = db.Create(&models.BatchJob{
 			ID:         batchID,
 			TemplateID: template.ID,
-			ONTIDs:     datatypes.JSON(`["` + ontID.String() + `"]`),
+			ONTIDs:     models.UUIDSlice{ontID},
 			Status:     models.BatchStatusPending,
 			CreatedBy:  &userID,
 		}).Error

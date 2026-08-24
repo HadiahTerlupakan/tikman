@@ -375,10 +375,7 @@ func TestJobService_CreateBatchJob(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, templateID, job.TemplateID)
 
-	var storedOntIDs []uuid.UUID
-	require.NoError(t, json.Unmarshal(job.ONTIDs, &storedOntIDs))
-	assert.Len(t, storedOntIDs, 3)
-	assert.Equal(t, ontIDs, storedOntIDs)
+	assert.Equal(t, ontIDs, []uuid.UUID(job.ONTIDs))
 	assert.Equal(t, models.BatchStatusPending, job.Status)
 	require.NotNil(t, job.CreatedBy)
 	assert.Equal(t, userID, *job.CreatedBy)
@@ -426,10 +423,8 @@ func createPendingBatchJob(t *testing.T, s *JobService) *models.BatchJob {
 
 func extractONTIDs(t *testing.T, job *models.BatchJob) []string {
 	t.Helper()
-	var ids []uuid.UUID
-	require.NoError(t, json.Unmarshal(job.ONTIDs, &ids))
-	result := make([]string, 0, len(ids))
-	for _, id := range ids {
+	result := make([]string, 0, len(job.ONTIDs))
+	for _, id := range []uuid.UUID(job.ONTIDs) {
 		result = append(result, id.String())
 	}
 	return result

@@ -171,14 +171,9 @@ func (s *JobService) CreateBatchJob(
 		return nil, errors.New("batch job must contain at least one ONT")
 	}
 
-	ontIDsJSON, err := json.Marshal(ontIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal ONT IDs: %w", err)
-	}
-
 	job := &models.BatchJob{
 		TemplateID: templateID,
-		ONTIDs:     datatypes.JSON(ontIDsJSON),
+		ONTIDs:     models.UUIDSlice(ontIDs),
 		Status:     models.BatchStatusPending,
 		CreatedBy:  &userID,
 	}
