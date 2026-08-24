@@ -24,16 +24,26 @@ const emptyStats: OltStats = {
 };
 
 function OltMetricsCell({ oltId }: { oltId: string }) {
-  const { data: stats = emptyStats } = useOltStats(oltId);
+  const { data: stats = emptyStats, isLoading, isError } = useOltStats(oltId);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <Progress
-        percent={stats.percentage}
+        percent={
+          isLoading || isError
+            ? 0
+            : Math.min(100, Math.max(0, stats.percentage))
+        }
         size="small"
         strokeColor={stats.percentage === 100 ? "#3ecf8e" : "#7dd3fc"}
-        format={() => `${Math.round(stats.percentage)}%`}
-        showInfo={false}
+        format={() =>
+          isLoading
+            ? "Loading…"
+            : isError
+              ? "Unavailable"
+              : `${Math.round(stats.percentage)}%`
+        }
+        showInfo={true}
       />
       <span style={{ fontSize: 11, color: "#94a3b8" }}>
         {stats.ontsWithMetrics}/{stats.totalOnts} ONTs polled
@@ -41,10 +51,10 @@ function OltMetricsCell({ oltId }: { oltId: string }) {
       <div
         style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}
       >
-        {stats.percentage < 100 && (
+        {!isError && stats.percentage < 100 && (
           <SyncOutlined spin style={{ color: "#7dd3fc", fontSize: 12 }} />
         )}
-        {stats.lastPollTime && (
+        {stats.lastPollTime && !isError && (
           <span style={{ fontSize: 11, color: "#4ade80" }}>
             Updated: {new Date(stats.lastPollTime).toLocaleTimeString()}
           </span>
