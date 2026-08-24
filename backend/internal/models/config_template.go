@@ -19,7 +19,7 @@ const (
 // and is validated at apply time rather than by the database.
 type ConfigTemplate struct {
 	ID           uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
-	Name         string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"name"`
+	Name         string         `gorm:"type:varchar(255);not null;uniqueIndex:config_templates_name_key" json:"name"`
 	Description  string         `gorm:"type:text" json:"description,omitempty"`
 	Vendor       string         `gorm:"type:varchar(50);not null;index:idx_config_templates_vendor" json:"vendor"`
 	ConfigFields datatypes.JSON `gorm:"type:jsonb" json:"config_fields"`
