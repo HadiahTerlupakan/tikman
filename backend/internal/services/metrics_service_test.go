@@ -1,6 +1,8 @@
 package services
 
 import (
+	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -586,6 +588,40 @@ func TestMetricsService_GetONTTrafficTimeSeriesCustomRange_NoDataInRange(t *test
 
 	require.NoError(t, err)
 	assert.Empty(t, rows)
+}
+
+func TestMetricsService_GetOLTPollingStats_ReportsDiscoveryProgress(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	siteID := uuid.New()
+	oltID := uuid.New()
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: siteID, Name: "olt-progress", IPAddress: "192.168.1.1", PreferredProtocol: "ssh", Username: "admin", Password: "pass"}).Error)
+
+	columns := []string{
+		"discovery_phase TEXT DEFAULT 'idle'",
+		"discovery_total INTEGER DEFAULT 0",
+		"discovery_registered INTEGER DEFAULT 0",
+		"discovery_polled INTEGER DEFAULT 0",
+		"discovery_error TEXT",
+		"discovery_started_at DATETIME",
+		"discovery_last_poll_at DATETIME",
+	}
+	for _, column := range columns {
+		var name string
+		parts := strings.SplitN(column, " ", 2)
+		row := db.Raw("SELECT name FROM pragma_table_info('olts') WHERE name = ?", parts[0]).Row()
+		if err := row.Scan(&name); err == sql.ErrNoRows {
+			require.NoError(t, db.Exec("ALTER TABLE olts ADD COLUMN "+column).Error)
+		}
+	}
+	require.NoError(t, db.Exec(`UPDATE olts SET discovery_phase = 'discovering', discovery_total = 197, discovery_registered = 64, discovery_polled = 51 WHERE id = ?`, oltID).Error)
+
+	stats := service.GetOLTPollingStats(oltID)
+	assert.Equal(t, "discovering", stats["phase"])
+	assert.Equal(t, int64(197), stats["discovery_total"])
+	assert.Equal(t, int64(64), stats["discovery_registered"])
+	assert.Equal(t, int64(51), stats["discovery_polled"])
 }
 
 func TestTrafficBucketKeysUseUTC(t *testing.T) {

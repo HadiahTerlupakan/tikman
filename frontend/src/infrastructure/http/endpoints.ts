@@ -28,4 +28,15 @@ export const API_ENDPOINTS = {
   ONT_TIMESERIES: (id: string) => `/api/v1/onts/${id}/metrics/timeseries`,
   ONT_EVENTS: (id: string) => `/api/v1/onts/${id}/events`,
   ONT_AVAILABILITY: (id: string) => `/api/v1/onts/${id}/availability`,
+
+  // Provisioning
+  ONT_PROVISION: (id: string) => `/api/v1/onts/${id}/provision`,
+  ONT_PROVISION_JOBS: (id: string) => `/api/v1/onts/${id}/provision-jobs`,
+  PROVISION_JOB_BY_ID: (id: string) => `/api/v1/provision-jobs/${id}`,
+  BATCH_PROVISION: "/api/v1/batch-provision",
+  BATCH_JOB_BY_ID: (id: string) => `/api/v1/batch-jobs/${id}`,
+
+  // Config Templates
+  CONFIG_TEMPLATES: "/api/v1/config-templates",
+  CONFIG_TEMPLATE_BY_ID: (id: string) => `/api/v1/config-templates/${id}`,
 } as const;

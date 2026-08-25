@@ -62,14 +62,35 @@ func (s *MetricsService) GetOLTPollingStats(oltID uuid.UUID) map[string]interfac
 		percentage = float64(ontsPolled) / float64(totalONTs) * 100
 	}
 
+	var olt models.OLT
+	discovery := map[string]interface{}{"phase": "idle", "total": int64(0), "registered": int64(0), "polled": int64(0)}
+	if err := s.db.First(&olt, "id = ?", oltID).Error; err == nil {
+		discovery = map[string]interface{}{
+			"phase":      olt.DiscoveryPhase,
+			"total":      int64(olt.DiscoveryTotal),
+			"registered": int64(olt.DiscoveryRegistered),
+			"polled":     int64(olt.DiscoveryPolled),
+		}
+	}
+
 	stats["total_onts"] = totalONTs
 	stats["onts_with_metrics"] = ontsPolled
 	stats["percentage"] = percentage
+	stats["phase"] = discovery["phase"]
+	stats["discovery_total"] = discovery["total"]
+	stats["discovery_registered"] = discovery["registered"]
+	stats["discovery_polled"] = discovery["polled"]
+	stats["discovery_error"] = olt.DiscoveryError
+	if discovery["phase"] == "discovering" || discovery["phase"] == "polling" {
+		if total := discovery["total"].(int64); total > 0 {
+			stats["percentage"] = float64(discovery["registered"].(int64)) / float64(total) * 100
+		}
+	}
 	stats["last_poll_time"] = time.Now()
 	stats["olt_id"] = oltID.String()
 
 	log.Printf("[OLT Stats] OLT=%s: Total ONTs=%d, Polled=%d (%.1f%%)",
-		oltID.String(), totalONTs, ontsPolled, percentage)
+		oltID.String(), totalONTs, ontsPolled, stats["percentage"].(float64))
 
 	return stats
 }

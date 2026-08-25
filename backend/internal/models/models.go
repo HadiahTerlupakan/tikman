@@ -10,5 +10,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&ONT{},
 		&ONTEvent{},
 		&AuditLog{},
+		&ConfigTemplate{},
+		&ProvisioningJob{},
+		&BatchJob{},
 	)
 }

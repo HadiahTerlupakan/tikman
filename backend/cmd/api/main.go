@@ -47,7 +47,19 @@ func main() {
 	if err := models.AutoMigrate(db); err != nil {
 		log.Fatal("Failed to run migrations", zap.Error(err))
 	}
-	log.Info("Database migrations completed")
+	log.Info("GORM AutoMigrate completed")
+
+	// SQL migrations (TimescaleDB hypertables, FKs, indexes) run after
+	// AutoMigrate and are version-tracked so they apply exactly once per
+	// database regardless of volume lifecycle.
+	migrationsDir := os.Getenv("MIGRATIONS_DIR")
+	if migrationsDir == "" {
+		migrationsDir = "/app/migrations"
+	}
+	if err := database.RunSQLMigrations(db, migrationsDir); err != nil {
+		log.Fatal("Failed to run SQL migrations", zap.Error(err))
+	}
+	log.Info("SQL migrations completed")
 
 	if err := services.CreateDefaultAdmin(db, log); err != nil {
 		log.Fatal("Failed to seed default admin", zap.Error(err))

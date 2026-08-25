@@ -9,6 +9,7 @@ import {
 } from "@/domain/entities";
 import type { ColumnsType } from "antd/es/table";
 import { useOltStats } from "@/application/hooks";
+import { getOltProgressDisplay } from "./oltProgress";
 
 interface OltTableProps {
   olts: Olt[];
@@ -24,27 +25,38 @@ const emptyStats: OltStats = {
 };
 
 function OltMetricsCell({ oltId }: { oltId: string }) {
-  const { data: stats = emptyStats } = useOltStats(oltId);
+  const { data: stats = emptyStats, isLoading, isError } = useOltStats(oltId);
+  const progress = getOltProgressDisplay(stats);
+  const isDiscovering =
+    stats.phase === "discovering" || stats.phase === "polling";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <Progress
-        percent={stats.percentage}
+        percent={isLoading || isError ? 0 : progress.percent}
         size="small"
-        strokeColor={stats.percentage === 100 ? "#3ecf8e" : "#7dd3fc"}
-        format={() => `${Math.round(stats.percentage)}%`}
-        showInfo={false}
+        strokeColor={progress.percent === 100 ? "#3ecf8e" : "#7dd3fc"}
+        format={() =>
+          isLoading
+            ? "Loading…"
+            : isError
+              ? "Unavailable"
+              : `${progress.percent}%`
+        }
+        showInfo={true}
       />
       <span style={{ fontSize: 11, color: "#94a3b8" }}>
-        {stats.ontsWithMetrics}/{stats.totalOnts} ONTs polled
+        {isDiscovering
+          ? progress.count
+          : `${stats.ontsWithMetrics}/${stats.totalOnts} ONTs polled`}
       </span>
       <div
         style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}
       >
-        {stats.percentage < 100 && (
+        {!isError && stats.percentage < 100 && (
           <SyncOutlined spin style={{ color: "#7dd3fc", fontSize: 12 }} />
         )}
-        {stats.lastPollTime && (
+        {stats.lastPollTime && !isError && (
           <span style={{ fontSize: 11, color: "#4ade80" }}>
             Updated: {new Date(stats.lastPollTime).toLocaleTimeString()}
           </span>

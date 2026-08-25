@@ -5,7 +5,7 @@
 DROP MATERIALIZED VIEW IF EXISTS ont_metrics_5min CASCADE;
 
 -- Recreate with traffic statistics
-CREATE MATERIALIZED VIEW ont_metrics_5min
+CREATE MATERIALIZED VIEW IF NOT EXISTS ont_metrics_5min
 WITH (timescaledb.continuous) AS
 SELECT
     time_bucket('5 minutes', time) AS bucket,

@@ -1,5 +1,10 @@
 import { Table, Tag, Button, Popconfirm, Space } from "antd";
-import { DeleteOutlined, EyeOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EyeOutlined,
+  HistoryOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import type { Ont, OntStatus } from "@/domain/entities";
 
 interface OntTableRow extends Ont {
@@ -15,6 +20,8 @@ interface OntTableProps {
   isLoading: boolean;
   onViewDetail: (ont: Ont) => void;
   onDelete: (id: string) => void;
+  onProvision?: (ont: Ont) => void;
+  onViewHistory?: (ont: Ont) => void;
 }
 
 const getStatusColor = (status: OntStatus) => {
@@ -39,6 +46,8 @@ export function OntTable({
   isLoading,
   onViewDetail,
   onDelete,
+  onProvision,
+  onViewHistory,
 }: OntTableProps) {
   const columns = [
     {
@@ -128,6 +137,24 @@ export function OntTable({
       key: "actions",
       render: (_: unknown, record: Ont) => (
         <Space>
+          {onProvision && (
+            <Button
+              type="link"
+              icon={<ThunderboltOutlined />}
+              onClick={() => onProvision(record)}
+            >
+              Provision
+            </Button>
+          )}
+          {onViewHistory && (
+            <Button
+              type="link"
+              icon={<HistoryOutlined />}
+              onClick={() => onViewHistory(record)}
+            >
+              History
+            </Button>
+          )}
           <Button
             type="link"
             icon={<EyeOutlined />}

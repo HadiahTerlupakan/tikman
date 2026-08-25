@@ -107,6 +107,8 @@ func (h *OLTHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Start the first discovery immediately. The service-level database claim
+	// prevents the worker fallback from starting a duplicate SNMP walk.
 	go h.service.AutoDiscoverONTMetrics(olt)
 
 	siteName := h.service.SiteNameForOLT(olt.SiteID)

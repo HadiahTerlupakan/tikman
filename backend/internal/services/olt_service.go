@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
@@ -152,11 +153,43 @@ func (s *OLTService) Update(id uuid.UUID, updates map[string]interface{}) error 
 	return nil
 }
 
+// Delete removes an OLT and all dependent data in one transaction: ONTs,
+// their metrics, and their events. Without this cleanup, deleting an OLT
+// left orphaned ONT rows that still showed up in listings.
 func (s *OLTService) Delete(id uuid.UUID) error {
-	if err := s.db.Delete(&models.OLT{}, "id = ?", id).Error; err != nil {
-		return fmt.Errorf("failed to delete OLT: %w", err)
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var ontIDs []uuid.UUID
+		if err := tx.Model(&models.ONT{}).Where("olt_id = ?", id).Pluck("id", &ontIDs).Error; err != nil {
+			return fmt.Errorf("failed to list ONTs for OLT: %w", err)
+		}
+
+		if len(ontIDs) > 0 {
+			if tx.Migrator().HasTable("ont_metrics") {
+				for _, ontID := range ontIDs {
+					if err := tx.Exec("DELETE FROM ont_metrics WHERE ont_id = ?", ontID).Error; err != nil {
+						return fmt.Errorf("failed to delete ONT metrics: %w", err)
+					}
+				}
+			}
+		}
+		if len(ontIDs) > 0 {
+			if err := tx.Where("ont_id IN ?", ontIDs).Delete(&models.ONTEvent{}).Error; err != nil {
+				return fmt.Errorf("failed to delete ONT events: %w", err)
+			}
+		}
+		if err := tx.Delete(&models.ONT{}, "olt_id = ?", id).Error; err != nil {
+			return fmt.Errorf("failed to delete ONTs: %w", err)
+		}
+
+		result := tx.Delete(&models.OLT{}, "id = ?", id)
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete OLT: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("OLT not found")
+		}
+		return nil
+	})
 }
 
 // DiscoverONTs discovers all ONTs connected to this OLT via SNMP topology walk
@@ -209,11 +242,40 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 	return ""
 }
 
+// TryClaimDiscovery atomically claims an OLT for one discovery run. The
+// database claim prevents the API-triggered run and worker fallback from
+// polling the same OLT concurrently.
+func (s *OLTService) TryClaimDiscovery(oltID uuid.UUID) (bool, error) {
+	result := s.db.Model(&models.OLT{}).
+		Where("id = ? AND discovery_phase NOT IN ?", oltID, []string{"discovering", "polling"}).
+		Updates(map[string]interface{}{"discovery_phase": "discovering", "discovery_error": ""})
+	if result.Error != nil {
+		return false, fmt.Errorf("claim discovery: %w", result.Error)
+	}
+	return result.RowsAffected == 1, nil
+}
+
 // AutoDiscoverONTMetrics polls ONT metrics from this OLT via SNMP and stores
-// them asynchronously. The handler spawns the goroutine; the actual query
-// logic lives here, not in the handler.
+// them asynchronously. The handler and worker may both call it; the database
+// claim ensures only one run proceeds.
 func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
+	claimed, err := s.TryClaimDiscovery(olt.ID)
+	if err != nil {
+		log.Printf("[AutoDiscovery] Cannot claim OLT %s: %v", olt.Name, err)
+		return
+	}
+	if !claimed {
+		log.Printf("[AutoDiscovery] Skipping OLT %s: discovery already running", olt.Name)
+		return
+	}
 	log.Printf("[AutoDiscovery] Starting immediate ONT metrics polling for OLT %s (%s)", olt.Name, olt.IPAddress)
+
+	start := time.Now()
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+		"discovery_phase": "discovering", "discovery_total": 0,
+		"discovery_registered": 0, "discovery_polled": 0,
+		"discovery_error": "", "discovery_started_at": start,
+	})
 
 	metricsService := NewMetricsService(s.db)
 
@@ -223,13 +285,92 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		return
 	}
 
-	allMetrics, err := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	if err != nil {
-		log.Printf("[AutoDiscovery] Failed to walk metrics from OLT %s: %v", olt.Name, err)
-		return
+	// Enumerate ONTs before the slower optical-metrics walk so the UI can show
+	// a discovery total as soon as the OLT reports its status table.
+	statuses, statusErr := driver.WalkStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if statusErr != nil {
+		log.Printf("[AutoDiscovery] Status walk failed for OLT %s: %v", olt.Name, statusErr)
+	}
+	locations := make(map[connectivity.ONTLocation]bool, len(statuses))
+	for loc := range statuses {
+		locations[loc] = true
+	}
+	if len(locations) > 0 {
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+			"discovery_phase": "discovering", "discovery_total": len(locations),
+		})
 	}
 
-	log.Printf("[AutoDiscovery] Discovered %d ONT devices via SNMP walk", len(allMetrics))
+	// Metrics and enumeration are independent SNMP walks. A timeout in the
+	// optical-power table must not prevent registering ONTs from status data.
+	allMetrics, metricsErr := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if metricsErr != nil {
+		log.Printf("[AutoDiscovery] Metrics walk failed for OLT %s: %v; continuing with inventory", olt.Name, metricsErr)
+		allMetrics = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
+	}
+	for loc := range allMetrics {
+		locations[loc] = true
+	}
+	for loc := range allMetrics {
+		locations[loc] = true
+	}
+	for loc := range statuses {
+		locations[loc] = true
+	}
+	log.Printf("[AutoDiscovery] Found %d ONT positions via SNMP", len(locations))
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+		"discovery_phase": "polling", "discovery_total": len(locations),
+	})
+
+	locationList := make([]connectivity.ONTLocation, 0, len(locations))
+	for loc := range locations {
+		locationList = append(locationList, loc)
+	}
+
+	// Inventory can be slow on large OLTs. Process small batches so rows and
+	// progress become visible while the full discovery is still running.
+	const batchSize = 25
+	registerService := NewONTService(s.db)
+	registered := int64(0)
+	for start := 0; start < len(locationList); start += batchSize {
+		end := start + batchSize
+		if end > len(locationList) {
+			end = len(locationList)
+		}
+		batchLocations := locationList[start:end]
+		inventory, inventoryErr := driver.Inventory(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, batchLocations)
+		if inventoryErr != nil {
+			log.Printf("[AutoDiscovery] Inventory batch %d-%d failed for OLT %s: %v", start+1, end, olt.Name, inventoryErr)
+			continue
+		}
+
+		discovered := make([]connectivity.DiscoveredONT, 0, len(batchLocations))
+		for _, loc := range batchLocations {
+			item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
+			if inv, ok := inventory[loc]; ok {
+				item.SerialNumber = inv.SerialNumber
+				item.Name = inv.Name
+				item.DeviceType = inv.DeviceType
+				item.HardwareVersion = inv.HardwareVersion
+				item.IPAddress = inv.IPAddress
+			}
+			if metrics, ok := allMetrics[loc]; ok {
+				item.RxPower = metrics.RxPower
+				item.TxPower = metrics.TxPower
+				item.Distance = metrics.Distance
+			}
+			discovered = append(discovered, item)
+		}
+		result := registerService.BulkRegisterFromDiscovery(olt.ID, discovered)
+		registered, _ = registerService.CountONTsByOLT(olt.ID)
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+			"discovery_registered": registered,
+		})
+		log.Printf("[AutoDiscovery] Inventory batch %d-%d: registered=%d total=%d", start+1, end, result.Registered, registered)
+	}
+	if registered == 0 && len(locationList) > 0 {
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_error": "inventory unavailable"})
+	}
 
 	var successCount int
 
@@ -270,5 +411,15 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		}
 	}
 
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+		"discovery_phase": "completed", "discovery_polled": successCount,
+		"discovery_last_poll_at": time.Now(),
+	})
 	log.Printf("[AutoDiscovery] Completed: polled metrics for %d ONTs from OLT %s", successCount, olt.Name)
+}
+
+func (s *OLTService) updateDiscoveryProgress(oltID uuid.UUID, updates map[string]interface{}) {
+	if err := s.db.Model(&models.OLT{}).Where("id = ?", oltID).Updates(updates).Error; err != nil {
+		log.Printf("[AutoDiscovery] Failed to update progress for OLT %s: %v", oltID, err)
+	}
 }

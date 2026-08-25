@@ -1,13 +1,32 @@
-import { Card, Space, Button, Form } from "antd";
+import { useState } from "react";
+import { Card, Space, Button, Form, message } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { OntFilters } from "@/presentation/components/OntFilters";
 import { OntTable } from "@/presentation/components/OntTable";
 import { OntCreateModal } from "@/presentation/components/OntCreateModal";
 import { OntDetailModal } from "@/presentation/components/OntDetailModal";
 import { useOntListLogic } from "@/application/hooks/useOntListLogic";
+import {
+  ProvisionModal,
+  ProvisionHistoryModal,
+} from "@/presentation/components/provisioning";
+import {
+  useConfigTemplates,
+  useProvisionOnt,
+  useProvisionJobsByONT,
+} from "@/application/hooks";
+import type { ProvisionRequest } from "@/domain/entities/Provisioning";
+import type { Ont } from "@/domain/entities";
 
 export default function OntListPage() {
   const [createForm] = Form.useForm();
+
+  const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
+  const [provisionTargetOnt, setProvisionTargetOnt] = useState<Ont | null>(
+    null,
+  );
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyTargetOnt, setHistoryTargetOnt] = useState<Ont | null>(null);
 
   const {
     searchText,
@@ -38,6 +57,38 @@ export default function OntListPage() {
     handleReset,
     refetch,
   } = useOntListLogic();
+
+  const { data: templates } = useConfigTemplates();
+  const provisionMutation = useProvisionOnt();
+  const { data: provisionJobs, isLoading: isLoadingProvisionJobs } =
+    useProvisionJobsByONT(historyTargetOnt?.id);
+
+  const handleProvision = (ont: Ont) => {
+    setProvisionTargetOnt(ont);
+    setIsProvisionModalOpen(true);
+  };
+
+  const handleViewHistory = (ont: Ont) => {
+    setHistoryTargetOnt(ont);
+    setIsHistoryModalOpen(true);
+  };
+
+  const handleProvisionSubmit = (data: ProvisionRequest) => {
+    if (!provisionTargetOnt) return;
+    provisionMutation.mutate(
+      { ontId: provisionTargetOnt.id, data },
+      {
+        onSuccess: (response) => {
+          message.success(`Provisioning started: ${response.data.status}`);
+          setIsProvisionModalOpen(false);
+          setProvisionTargetOnt(null);
+        },
+        onError: (error) => {
+          message.error(`Provisioning failed: ${error.message}`);
+        },
+      },
+    );
+  };
 
   return (
     <div style={{ padding: "24px" }}>
@@ -82,6 +133,8 @@ export default function OntListPage() {
           isLoading={isLoading}
           onViewDetail={handleViewDetail}
           onDelete={handleDelete}
+          onProvision={handleProvision}
+          onViewHistory={handleViewHistory}
         />
       </Card>
 
@@ -107,6 +160,29 @@ export default function OntListPage() {
           }}
         />
       )}
+
+      <ProvisionModal
+        open={isProvisionModalOpen}
+        ontId={provisionTargetOnt?.id}
+        templates={templates}
+        onClose={() => {
+          setIsProvisionModalOpen(false);
+          setProvisionTargetOnt(null);
+        }}
+        onSubmit={handleProvisionSubmit}
+        loading={provisionMutation.isPending}
+      />
+
+      <ProvisionHistoryModal
+        open={isHistoryModalOpen}
+        ontId={historyTargetOnt?.id}
+        jobs={provisionJobs?.data}
+        loading={isLoadingProvisionJobs}
+        onClose={() => {
+          setIsHistoryModalOpen(false);
+          setHistoryTargetOnt(null);
+        }}
+      />
     </div>
   );
 }

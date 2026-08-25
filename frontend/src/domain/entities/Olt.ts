@@ -87,6 +87,11 @@ export interface OltStats {
   totalOnts: number;
   ontsWithMetrics: number;
   percentage: number;
+  phase?: "idle" | "discovering" | "polling" | "completed" | "failed";
+  discoveryTotal?: number;
+  discoveryRegistered?: number;
+  discoveryPolled?: number;
+  discoveryError?: string;
   lastPollTime?: string;
   oltId?: string;
 }

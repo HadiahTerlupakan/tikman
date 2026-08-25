@@ -7,3 +7,5 @@ export * from "./useOntMetrics";
 export * from "./useOntEvents";
 export * from "./useUnconfiguredOnus";
 export * from "./useHealth";
+export * from "./useConfigTemplates";
+export * from "./useProvisioning";

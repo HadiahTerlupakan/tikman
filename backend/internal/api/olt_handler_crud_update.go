@@ -78,7 +78,8 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		return
 	}
 
-	go h.service.AutoDiscoverONTMetrics(olt)
+	// Discovery runs on create and worker cycles; avoid starting a second
+	// long-running SNMP walk on every metadata-only update.
 
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
 	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)

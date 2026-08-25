@@ -469,7 +469,73 @@ func TestOLTService_Delete_NotFound(t *testing.T) {
 
 	fakeID := uuid.New()
 	err := oltService.Delete(fakeID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OLT not found")
+}
+
+func TestOLTService_TryClaimDiscovery_IsExclusive(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "claim", IPAddress: "192.0.2.1", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
 	require.NoError(t, err)
+	assert.True(t, claimed)
+
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+}
+
+// TestOLTService_Delete_CascadesONTData verifies deleting an OLT also removes
+// its ONTs, metrics, and events — previously these were left orphaned.
+func TestOLTService_Delete_CascadesONTData(t *testing.T) {
+	db := setupTestDB(t)
+	siteService := NewSiteService(db)
+	oltService := NewOLTService(db, testEncryptionKey)
+
+	site, err := siteService.Create("Cascade Site", "Loc", "Desc")
+	require.NoError(t, err)
+
+	// Insert OLT directly (skip Create validation which does real SNMP ping)
+	olt := models.OLT{
+		SiteID:            site.ID,
+		Name:              "Cascade OLT",
+		IPAddress:         "192.168.1.50",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		TelnetPort:        22,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolTelnet,
+	}
+	require.NoError(t, db.Create(&olt).Error)
+
+	slot := 1
+	ont := models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        1,
+		Slot:         &slot,
+		SerialNumber: "CASCADE001",
+		Status:       models.ONTStatusOnline,
+	}
+	require.NoError(t, db.Create(&ont).Error)
+	require.NoError(t, db.Create(&models.ONTEvent{
+		ONTID:     ont.ID,
+		EventType: models.EventTypeOnline,
+	}).Error)
+
+	err = oltService.Delete(olt.ID)
+	require.NoError(t, err)
+
+	var ontCount, eventCount int64
+	db.Model(&models.ONT{}).Where("olt_id = ?", olt.ID).Count(&ontCount)
+	db.Model(&models.ONTEvent{}).Where("ont_id = ?", ont.ID).Count(&eventCount)
+	assert.Equal(t, int64(0), ontCount, "ONTs should be deleted with OLT")
+	assert.Equal(t, int64(0), eventCount, "ONT events should be deleted with OLT")
 }
 
 // TestOLTService_GetEncryptionKey tests retrieving the encryption key
