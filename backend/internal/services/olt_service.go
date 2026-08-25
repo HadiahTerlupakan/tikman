@@ -242,10 +242,32 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 	return ""
 }
 
+// TryClaimDiscovery atomically claims an OLT for one discovery run. The
+// database claim prevents the API-triggered run and worker fallback from
+// polling the same OLT concurrently.
+func (s *OLTService) TryClaimDiscovery(oltID uuid.UUID) (bool, error) {
+	result := s.db.Model(&models.OLT{}).
+		Where("id = ? AND discovery_phase NOT IN ?", oltID, []string{"discovering", "polling"}).
+		Updates(map[string]interface{}{"discovery_phase": "discovering", "discovery_error": ""})
+	if result.Error != nil {
+		return false, fmt.Errorf("claim discovery: %w", result.Error)
+	}
+	return result.RowsAffected == 1, nil
+}
+
 // AutoDiscoverONTMetrics polls ONT metrics from this OLT via SNMP and stores
-// them asynchronously. The handler spawns the goroutine; the actual query
-// logic lives here, not in the handler.
+// them asynchronously. The handler and worker may both call it; the database
+// claim ensures only one run proceeds.
 func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
+	claimed, err := s.TryClaimDiscovery(olt.ID)
+	if err != nil {
+		log.Printf("[AutoDiscovery] Cannot claim OLT %s: %v", olt.Name, err)
+		return
+	}
+	if !claimed {
+		log.Printf("[AutoDiscovery] Skipping OLT %s: discovery already running", olt.Name)
+		return
+	}
 	log.Printf("[AutoDiscovery] Starting immediate ONT metrics polling for OLT %s (%s)", olt.Name, olt.IPAddress)
 
 	start := time.Now()

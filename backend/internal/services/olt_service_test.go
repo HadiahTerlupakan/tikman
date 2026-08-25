@@ -473,6 +473,21 @@ func TestOLTService_Delete_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "OLT not found")
 }
 
+func TestOLTService_TryClaimDiscovery_IsExclusive(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "claim", IPAddress: "192.0.2.1", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.True(t, claimed)
+
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+}
+
 // TestOLTService_Delete_CascadesONTData verifies deleting an OLT also removes
 // its ONTs, metrics, and events — previously these were left orphaned.
 func TestOLTService_Delete_CascadesONTData(t *testing.T) {

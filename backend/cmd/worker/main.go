@@ -85,7 +85,7 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *se
 		logger.Error("Failed to list OLTs for discovery", zap.Error(err))
 	} else {
 		for i := range olts {
-			oltService.AutoDiscoverONTMetrics(&olts[i])
+			go oltService.AutoDiscoverONTMetrics(&olts[i])
 		}
 	}
 
