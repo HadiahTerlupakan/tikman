@@ -30,6 +30,7 @@ const (
 type ProvisioningJob struct {
 	ID             uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	ONTID          uuid.UUID      `gorm:"type:uuid;not null;index:idx_provisioning_jobs_ont_status,priority:1" json:"ont_id"`
+	ONUID          int            `gorm:"-" json:"onu_id,omitempty"`
 	TemplateID     *uuid.UUID     `gorm:"type:uuid" json:"template_id,omitempty"`
 	Status         string         `gorm:"type:varchar(20);not null;default:pending;index:idx_provisioning_jobs_ont_status,priority:2" json:"status"`
 	ConfigSnapshot datatypes.JSON `gorm:"type:jsonb" json:"config_snapshot,omitempty"`

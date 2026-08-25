@@ -1,17 +1,19 @@
 import { Table, Typography, Button, Tooltip } from "antd";
-import { CopyOutlined } from "@ant-design/icons";
+import { CopyOutlined, PlusOutlined } from "@ant-design/icons";
 import type { UnconfiguredOnu } from "@/domain/entities";
 
 interface UnconfiguredOnuTableProps {
   dataSource: UnconfiguredOnu[];
   isLoading: boolean;
   onCopySerial: (serialNumber: string) => void;
+  onRegister?: (record: UnconfiguredOnu) => void;
 }
 
 export function UnconfiguredOnuTable({
   dataSource,
   isLoading,
   onCopySerial,
+  onRegister,
 }: UnconfiguredOnuTableProps) {
   const columns = [
     {
@@ -44,14 +46,26 @@ export function UnconfiguredOnuTable({
       title: "Actions",
       key: "actions",
       render: (_: unknown, record: UnconfiguredOnu) => (
-        <Tooltip title="Copy serial number">
-          <Button
-            size="small"
-            icon={<CopyOutlined />}
-            onClick={() => onCopySerial(record.serialNumber)}
-            aria-label={`Copy serial number ${record.serialNumber}`}
-          />
-        </Tooltip>
+        <>
+          <Tooltip title="Copy serial number">
+            <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => onCopySerial(record.serialNumber)}
+              aria-label={`Copy serial number ${record.serialNumber}`}
+            />
+          </Tooltip>
+          {onRegister && (
+            <Button
+              size="small"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => onRegister(record)}
+            >
+              Register
+            </Button>
+          )}
+        </>
       ),
     },
   ];

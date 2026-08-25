@@ -1,7 +1,20 @@
 import { useState } from "react";
-import { Modal, Form, Select, Switch, Input, message } from "antd";
+import { Modal, Form, Select, Switch, Input, message, Button } from "antd";
 import type { ConfigTemplate } from "@/domain/entities/ConfigTemplate";
 import type { ProvisionRequest } from "@/domain/entities/Provisioning";
+
+function parseManualConfig(value: string | undefined): Record<string, unknown> {
+  if (!value?.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    message.error("Konfigurasi manual harus berupa JSON object yang valid");
+  }
+  return {};
+}
 
 interface ProvisionModalProps {
   open: boolean;
@@ -35,7 +48,7 @@ export function ProvisionModal({
     form.validateFields().then((values) => {
       onSubmit({
         templateId: values.templateId || undefined,
-        manualConfig: {},
+        manualConfig: parseManualConfig(values.manualConfig),
         confirm: isConfirmed,
       });
     });
@@ -60,6 +73,18 @@ export function ProvisionModal({
           size="small"
         />,
         <span key="confirm-text">Saya sudah memeriksa konfigurasi</span>,
+        <Button key="cancel" onClick={onClose}>
+          Batal
+        </Button>,
+        <Button
+          key="submit"
+          type="primary"
+          loading={loading}
+          disabled={!isConfirmed}
+          onClick={handleSubmit}
+        >
+          Kirim
+        </Button>,
       ]}
       destroyOnClose
     >

@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
 )
@@ -24,11 +25,11 @@ func ValidateZTEGPONRegister(req models.ZTEGPONRegisterRequest, olt *models.OLT)
 	if olt == nil || (olt.Model != models.OLTModelZTEC300 && olt.Model != models.OLTModelZTEC320) {
 		return fmt.Errorf("ZTE GPON registration supports only C300 or C320 OLTs")
 	}
-	if req.Card <= 0 {
-		return fmt.Errorf("card is required")
+	if req.Card < 1 || req.Card > connectivity.MaxBoardID {
+		return fmt.Errorf("card must be in range 1-%d", connectivity.MaxBoardID)
 	}
-	if req.PON <= 0 {
-		return fmt.Errorf("PON is required")
+	if req.PON < 1 || req.PON > connectivity.MaxPonID {
+		return fmt.Errorf("PON must be in range 1-%d", connectivity.MaxPonID)
 	}
 	if !zteSerialPattern.MatchString(strings.ToUpper(strings.TrimSpace(req.SerialNumber))) {
 		return fmt.Errorf("serial number must be 12 uppercase alphanumeric characters")
@@ -38,6 +39,27 @@ func ValidateZTEGPONRegister(req models.ZTEGPONRegisterRequest, olt *models.OLT)
 	}
 	if len([]rune(req.ONUType)) > 64 {
 		return fmt.Errorf("ONU type must be at most 64 characters")
+	}
+	if !isZTECommandToken(req.ONUType) {
+		return fmt.Errorf("ONU type contains unsupported characters")
+	}
+	if strings.TrimSpace(req.Name) != "" && !isZTEName(req.Name) {
+		return fmt.Errorf("ONU name contains unsupported characters")
+	}
+	if req.VLANMode != "tag" {
+		return fmt.Errorf("VLAN mode must be tag")
+	}
+	if !isZTECommandToken(req.DownloadProfile) || !isZTECommandToken(req.UploadProfile) || !isZTECommandToken(req.VLANProfile) {
+		return fmt.Errorf("profile contains unsupported characters")
+	}
+	if req.DownloadProfile != req.UploadProfile {
+		return fmt.Errorf("download and upload profiles must match")
+	}
+	if !isZTECredential(req.PPPoEUsername) {
+		return fmt.Errorf("PPPoE username contains unsupported characters")
+	}
+	if !isZTECredential(req.PPPoEPassword) {
+		return fmt.Errorf("PPPoE password contains unsupported characters")
 	}
 	switch req.ONUIDMode {
 	case models.ZTEONUIDAuto:
@@ -82,15 +104,56 @@ func unicodeWhitespace(r rune) bool {
 	return unicode.IsSpace(r)
 }
 
+func isZTECommandToken(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isZTEName(value string) bool {
+	if strings.TrimSpace(value) != value || value == "" {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.' || r == ' ' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isZTECredential(value string) bool {
+	if value == "" || strings.IndexFunc(value, unicodeWhitespace) >= 0 {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) || strings.ContainsRune(";'|`$\\\"", r) {
+			return false
+		}
+	}
+	return true
+}
+
 // ResolveZTEONUID returns a free ONU ID for an OLT PON port or verifies a requested custom ID.
-func ResolveZTEONUID(ctx context.Context, db *gorm.DB, oltID uuid.UUID, portID int, requestedID int) (int, error) {
+func ResolveZTEONUID(ctx context.Context, db *gorm.DB, oltID uuid.UUID, slotID, portID, requestedID int) (int, error) {
+	if slotID < 1 || slotID > connectivity.MaxBoardID || portID < 1 || portID > connectivity.MaxPonID {
+		return 0, fmt.Errorf("card and PON must be in valid range")
+	}
 	if requestedID < 0 || requestedID > maxZTEONUID {
 		return 0, fmt.Errorf("ONU ID must be zero for auto mode or in range 1-127")
 	}
 
 	var usedIDs []int
 	if err := db.WithContext(ctx).Model(&models.ONT{}).
-		Where("olt_id = ? AND port_id = ?", oltID, portID).
+		Where("olt_id = ? AND slot = ? AND port_id = ?", oltID, slotID, portID).
 		Pluck("ont_id", &usedIDs).Error; err != nil {
 		return 0, fmt.Errorf("failed to resolve ONU ID: %w", err)
 	}

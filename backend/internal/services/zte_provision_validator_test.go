@@ -15,19 +15,22 @@ import (
 
 func validZTEGPONRequest() models.ZTEGPONRegisterRequest {
 	return models.ZTEGPONRegisterRequest{
-		OLTID:          uuid.New(),
-		Card:           1,
-		PON:            1,
-		ONUIDMode:      models.ZTEONUIDAuto,
-		SerialNumber:   " zteg12345678 ",
-		ONUType:        "F601",
-		ServiceEnabled: true,
-		VLANMode:       "tag",
-		ServiceType:    "internet",
-		VLANID:         100,
-		WANMode:        "pppoe",
-		PPPoEUsername:  "subscriber01",
-		PPPoEPassword:  "secret-pass",
+		OLTID:           uuid.New(),
+		Card:            1,
+		PON:             1,
+		ONUIDMode:       models.ZTEONUIDAuto,
+		SerialNumber:    " zteg12345678 ",
+		ONUType:         "F601",
+		ServiceEnabled:  true,
+		VLANMode:        "tag",
+		ServiceType:     "internet",
+		VLANID:          100,
+		DownloadProfile: "100M",
+		UploadProfile:   "100M",
+		WANMode:         "pppoe",
+		VLANProfile:     "INTERNET",
+		PPPoEUsername:   "subscriber01",
+		PPPoEPassword:   "secret-pass",
 	}
 }
 
@@ -108,27 +111,29 @@ func setupZTEProvisionDB(t *testing.T) *gorm.DB {
 func TestResolveZTEONUID(t *testing.T) {
 	db := setupZTEProvisionDB(t)
 	oltID := uuid.New()
-	require.NoError(t, db.Create(&models.ONT{OLTID: oltID, PortID: 1, ONTID: 1, SerialNumber: "ZTEG00000001"}).Error)
-	require.NoError(t, db.Create(&models.ONT{OLTID: oltID, PortID: 1, ONTID: 2, SerialNumber: "ZTEG00000002"}).Error)
+	slot := 1
+	require.NoError(t, db.Create(&models.ONT{OLTID: oltID, Slot: &slot, PortID: 1, ONTID: 1, SerialNumber: "ZTEG00000001"}).Error)
+	require.NoError(t, db.Create(&models.ONT{OLTID: oltID, Slot: &slot, PortID: 1, ONTID: 2, SerialNumber: "ZTEG00000002"}).Error)
 
 	t.Run("auto returns first free ONU ID on port", func(t *testing.T) {
-		id, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 0)
+		id, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 1, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 3, id)
 	})
 	t.Run("auto ignores IDs used on another port", func(t *testing.T) {
-		require.NoError(t, db.Create(&models.ONT{OLTID: oltID, PortID: 2, ONTID: 1, SerialNumber: "ZTEG00000003"}).Error)
-		id, err := ResolveZTEONUID(context.Background(), db, oltID, 2, 0)
+		slot := 1
+		require.NoError(t, db.Create(&models.ONT{OLTID: oltID, Slot: &slot, PortID: 2, ONTID: 1, SerialNumber: "ZTEG00000003"}).Error)
+		id, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 2, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 2, id)
 	})
 	t.Run("custom rejects used ONU ID", func(t *testing.T) {
-		_, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 2)
+		_, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 1, 2)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "already used")
 	})
 	t.Run("custom accepts free ONU ID", func(t *testing.T) {
-		id, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 127)
+		id, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 1, 127)
 		require.NoError(t, err)
 		assert.Equal(t, 127, id)
 	})
@@ -138,8 +143,35 @@ func TestResolveZTEONUIDRejectsInvalidRequestedID(t *testing.T) {
 	db := setupZTEProvisionDB(t)
 	oltID := uuid.New()
 	for _, requestedID := range []int{-1, 128} {
-		_, err := ResolveZTEONUID(context.Background(), db, oltID, 1, requestedID)
+		_, err := ResolveZTEONUID(context.Background(), db, oltID, 1, 1, requestedID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "1-127")
 	}
+}
+
+func TestValidateZTEGPONRegister_EnforcesPhysicalBounds(t *testing.T) {
+	for name, mutate := range map[string]func(*models.ZTEGPONRegisterRequest){
+		"card upper bound": func(req *models.ZTEGPONRegisterRequest) { req.Card = 31 },
+		"PON upper bound":  func(req *models.ZTEGPONRegisterRequest) { req.PON = 17 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := validZTEGPONRequest()
+			mutate(&req)
+			err := ValidateZTEGPONRegister(req, validZTEOLT(models.OLTModelZTEC300))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "range")
+		})
+	}
+}
+
+func TestResolveZTEONUID_UsesCardAndPONPosition(t *testing.T) {
+	db := setupZTEProvisionDB(t)
+	oltID := uuid.New()
+	slot := 3
+	require.NoError(t, db.Create(&models.ONT{OLTID: oltID, Slot: &slot, PortID: 1, ONTID: 1, SerialNumber: "ZTEG00000001"}).Error)
+
+	id, err := ResolveZTEONUID(context.Background(), db, oltID, 3, 1, 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, id)
 }

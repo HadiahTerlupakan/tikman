@@ -22,9 +22,9 @@ const (
 type ONT struct {
 	ID                   uuid.UUID  `gorm:"type:uuid;primary_key" json:"id"`
 	OLTID                uuid.UUID  `gorm:"type:uuid;not null;index" json:"olt_id"`
-	PortID               int        `gorm:"not null" json:"port_id"`
-	ONTID                int        `gorm:"not null" json:"ont_id"`
-	Slot                 *int       `gorm:"index" json:"slot,omitempty"`
+	PortID               int        `gorm:"not null;uniqueIndex:uq_onts_olt_slot_port_ont,priority:3" json:"port_id"`
+	ONTID                int        `gorm:"not null;uniqueIndex:uq_onts_olt_slot_port_ont,priority:4" json:"ont_id"`
+	Slot                 *int       `gorm:"uniqueIndex:uq_onts_olt_slot_port_ont,priority:2" json:"slot,omitempty"`
 	SerialNumber         string     `gorm:"type:varchar(20);not null;uniqueIndex" json:"serial_number"`
 	Name                 string     `gorm:"type:varchar(255)" json:"name"`
 	Description          string     `gorm:"type:varchar(255)" json:"description"`

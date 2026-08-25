@@ -24,6 +24,7 @@ type fakeDriver struct {
 	metrics    *connectivity.ONTMetrics
 	invErr     error
 	metricsErr error
+	inventoryByONTID map[int]connectivity.ONTInventory
 }
 
 func (d *fakeDriver) Model() models.OLTModel { return d.model }
@@ -42,6 +43,10 @@ func (d *fakeDriver) Inventory(_ string, _ string, _ int, locations []connectivi
 	}
 	out := make(map[connectivity.ONTLocation]connectivity.ONTInventory, len(locations))
 	for _, loc := range locations {
+		if inventory, ok := d.inventoryByONTID[loc.ONTID]; ok {
+			out[loc] = inventory
+			continue
+		}
 		out[loc] = d.inventory
 	}
 	return out, nil
@@ -312,5 +317,5 @@ func TestSnapshotService_RollbackTo_NotYetImplemented(t *testing.T) {
 	snap := &ConfigSnapshot{OntID: ont.ID, ZTE: &ZTESnapshot{SerialNumber: ont.SerialNumber}}
 	err := svc.RollbackTo(context.Background(), ont, snap)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not yet implemented")
+	assert.Contains(t, err.Error(), "rollback command factory is not configured")
 }

@@ -137,17 +137,12 @@ func (tc *TelnetCommander) ExecuteCommand(ctx context.Context, cmd string) (*Com
 
 	duration := time.Since(startTime)
 
-	// Determine success based on output
-	success := true
-	errorOutput := ""
-	result := &CommandResult{
-		Success:  success,
+	return &CommandResult{
+		Success:  commandOutputError(output) == "",
 		Output:   output,
-		Error:    errorOutput,
+		Error:    commandOutputError(output),
 		Duration: duration,
-	}
-
-	return result, nil
+	}, nil
 }
 
 // BatchExecute sends multiple commands sequentially
@@ -241,17 +236,12 @@ func (hc *HSGQCommander) ExecuteCommand(ctx context.Context, cmd string) (*Comma
 	duration := time.Since(startTime)
 
 	if err != nil {
-		return &CommandResult{
-			Success:  false,
-			Output:   output,
-			Error:    err.Error(),
-			Duration: duration,
-		}, nil
+		return &CommandResult{Success: false, Output: output, Error: err.Error(), Duration: duration}, nil
 	}
-
 	return &CommandResult{
-		Success:  true,
+		Success:  commandOutputError(output) == "",
 		Output:   output,
+		Error:    commandOutputError(output),
 		Duration: duration,
 	}, nil
 }
@@ -264,7 +254,12 @@ func (hc *HSGQCommander) BatchExecute(ctx context.Context, cmds []string) ([]*Co
 		result, err := hc.ExecuteCommand(ctx, cmd)
 		results[i] = result
 		if err != nil {
-			results[i].Error = err.Error()
+			if result == nil {
+				result = &CommandResult{}
+				results[i] = result
+			}
+			result.Success = false
+			result.Error = err.Error()
 		}
 	}
 

@@ -21,6 +21,7 @@ interface OntTableProps {
   onViewDetail: (ont: Ont) => void;
   onDelete: (id: string) => void;
   onProvision?: (ont: Ont) => void;
+  onConfigureService?: (ont: Ont) => void;
   onViewHistory?: (ont: Ont) => void;
 }
 
@@ -47,6 +48,7 @@ export function OntTable({
   onViewDetail,
   onDelete,
   onProvision,
+  onConfigureService,
   onViewHistory,
 }: OntTableProps) {
   const columns = [
@@ -144,6 +146,11 @@ export function OntTable({
               onClick={() => onProvision(record)}
             >
               Provision
+            </Button>
+          )}
+          {onConfigureService && (
+            <Button type="link" onClick={() => onConfigureService(record)}>
+              Configure Service
             </Button>
           )}
           {onViewHistory && (

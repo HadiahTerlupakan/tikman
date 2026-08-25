@@ -16,7 +16,9 @@ import {
   useProvisionJobsByONT,
 } from "@/application/hooks";
 import type { ProvisionRequest } from "@/domain/entities/Provisioning";
-import type { Ont } from "@/domain/entities";
+import type { Ont, ZteProvisionTarget } from "@/domain/entities";
+import { ZteProvisionModal } from "@/presentation/components/zte-provisioning";
+import { useZteExistingService } from "@/application/hooks";
 
 export default function OntListPage() {
   const [createForm] = Form.useForm();
@@ -26,6 +28,11 @@ export default function OntListPage() {
     null,
   );
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [serviceTarget, setServiceTarget] = useState<{
+    ont: Ont;
+    target: ZteProvisionTarget;
+  } | null>(null);
+  const serviceMutation = useZteExistingService();
   const [historyTargetOnt, setHistoryTargetOnt] = useState<Ont | null>(null);
 
   const {
@@ -71,6 +78,22 @@ export default function OntListPage() {
   const handleViewHistory = (ont: Ont) => {
     setHistoryTargetOnt(ont);
     setIsHistoryModalOpen(true);
+  };
+
+  const handleConfigureService = (ont: Ont) => {
+    setServiceTarget({
+      ont,
+      target: {
+        oltId: ont.oltId,
+        card: ont.slot || 1,
+        pon: ont.portId,
+        onuId: ont.ontId,
+        serialNumber: ont.serialNumber,
+        onuType: ont.deviceType,
+        name: ont.name,
+        description: ont.description,
+      },
+    });
   };
 
   const handleProvisionSubmit = (data: ProvisionRequest) => {
@@ -134,6 +157,7 @@ export default function OntListPage() {
           onViewDetail={handleViewDetail}
           onDelete={handleDelete}
           onProvision={handleProvision}
+          onConfigureService={handleConfigureService}
           onViewHistory={handleViewHistory}
         />
       </Card>
@@ -172,6 +196,30 @@ export default function OntListPage() {
         onSubmit={handleProvisionSubmit}
         loading={provisionMutation.isPending}
       />
+
+      {serviceTarget && (
+        <ZteProvisionModal
+          open
+          mode="configure"
+          target={serviceTarget.target}
+          onClose={() => setServiceTarget(null)}
+          onSubmit={(request) => {
+            serviceMutation.mutate(
+              { ontId: serviceTarget.ont.id, data: request },
+              {
+                onSuccess: () => {
+                  message.success("Service configuration started");
+                  setServiceTarget(null);
+                  refetch();
+                },
+                onError: (submitError) => message.error(submitError.message),
+              },
+            );
+          }}
+          loading={serviceMutation.isPending}
+          error={serviceMutation.error}
+        />
+      )}
 
       <ProvisionHistoryModal
         open={isHistoryModalOpen}

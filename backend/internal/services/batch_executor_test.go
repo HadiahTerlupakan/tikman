@@ -27,9 +27,10 @@ func setupBatchExecutor(t *testing.T, commander connectivity.OLTCommander, drive
 	snapshotSvc := newSnapshotService(db, driver)
 	auditSvc := NewAuditService(db, zap.NewNop())
 	jobService := NewJobService(db, auditSvc)
+	templateService := NewConfigTemplateService(db, auditSvc)
 	rollbackEngine := NewRollbackEngine(commander, zap.NewNop())
 	commanderFactory := &fakeCommanderFactory{commander: commander}
-	provisioner := NewOntProvisioningService(db, jobService, snapshotSvc, commanderFactory, rollbackEngine, auditSvc, zap.NewNop())
+	provisioner := NewOntProvisioningServiceWithTemplates(db, jobService, snapshotSvc, commanderFactory, rollbackEngine, auditSvc, zap.NewNop(), templateService)
 	executor := NewBatchExecutor(db, provisioner, jobService, snapshotSvc, zap.NewNop())
 
 	return executor, &testFixtures{db: db, olt: olt, ont: ont, jobService: jobService}, jobService
@@ -63,9 +64,15 @@ func TestBatchExecutor_Execute_AllSuccess(t *testing.T) {
 	}
 
 	executor, fixtures, jobService := setupBatchExecutor(t, cmdr, driver)
+	driver.inventoryByONTID = map[int]connectivity.ONTInventory{2: {
+		SerialNumber: "ZTEGC0A1B2C4",
+		Name:         "customer-43",
+		DeviceType:   "F660",
+	}}
 	secondOnt := seedSecondONT(t, fixtures)
 
 	templateID := uuid.New()
+	require.NoError(t, fixtures.db.Create(&models.ConfigTemplate{ID: templateID, Name: "batch-template-success", Vendor: models.VendorZTE, ConfigFields: []byte(`{}`)}).Error)
 	result, err := executor.Execute(context.Background(), BatchConfig{
 		TemplateID: &templateID,
 		UserID:     uuid.New(),
@@ -135,6 +142,7 @@ func TestBatchExecutor_Execute_FailureTriggersRollback(t *testing.T) {
 	executor, fixtures, jobService := setupBatchExecutor(t, cmdr, driver)
 
 	templateID := uuid.New()
+	require.NoError(t, fixtures.db.Create(&models.ConfigTemplate{ID: templateID, Name: "batch-template-failure", Vendor: models.VendorZTE, ConfigFields: []byte(`{}`)}).Error)
 	result, err := executor.Execute(context.Background(), BatchConfig{
 		TemplateID: &templateID,
 		UserID:     uuid.New(),

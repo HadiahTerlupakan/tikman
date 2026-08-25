@@ -46,6 +46,7 @@ type testFixtures struct {
 	olt        models.OLT
 	ont        models.ONT
 	jobService *JobService
+	factory    *fakeCommanderFactory
 }
 
 func newProvisioningService(t *testing.T, model models.OLTModel, commander connectivity.OLTCommander, driver connectivity.Driver) (*OntProvisioningService, *testFixtures) {
@@ -67,14 +68,25 @@ func newProvisioningService(t *testing.T, model models.OLTModel, commander conne
 		auditSvc,
 		zap.NewNop(),
 	)
-	return svc, &testFixtures{db: db, olt: olt, ont: ont, jobService: jobService}
+	return svc, &testFixtures{db: db, olt: olt, ont: ont, jobService: jobService, factory: commanderFactory}
 }
 
 type fakeCommanderFactory struct {
 	commander connectivity.OLTCommander
+	model     models.OLTModel
+	host      string
+	protocol  models.OLTProtocol
+	port      int
+	username  string
+	password  string
 }
 
 func (f *fakeCommanderFactory) ForOLT(model models.OLTModel, host string, port int, username, password string) (connectivity.OLTCommander, error) {
+	return f.commander, nil
+}
+
+func (f *fakeCommanderFactory) ForOLTWithProtocol(model models.OLTModel, host string, protocol models.OLTProtocol, port int, username, password string) (connectivity.OLTCommander, error) {
+	f.model, f.host, f.protocol, f.port, f.username, f.password = model, host, protocol, port, username, password
 	return f.commander, nil
 }
 
@@ -109,6 +121,9 @@ func TestOntProvisioningService_ProvisionOnt_Success(t *testing.T) {
 	require.Equal(t, int64(1), total)
 	assert.Equal(t, models.ProvisioningStatusSuccess, jobs[0].Status)
 	assert.NotEmpty(t, cmdr.commands, "commands should have been sent to the commander")
+	assert.Equal(t, models.OLTProtocolSSH, fixtures.factory.protocol)
+	assert.Equal(t, fixtures.olt.SSHPort, fixtures.factory.port)
+	assert.Equal(t, fixtures.olt.Password, fixtures.factory.password)
 }
 
 func TestOntProvisioningService_ProvisionOnt_CommandFailureAndRollback(t *testing.T) {

@@ -15,8 +15,8 @@ interface ConfigTemplateModalProps {
 }
 
 const VENDOR_OPTIONS = [
-  { value: "ZTE", label: "ZTE" },
-  { value: "HSGQ", label: "HSGQ" },
+  { value: "zte", label: "ZTE" },
+  { value: "hsgq", label: "HSGQ" },
 ];
 
 export function ConfigTemplateModal({

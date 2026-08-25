@@ -9,3 +9,4 @@ export * from "./useUnconfiguredOnus";
 export * from "./useHealth";
 export * from "./useConfigTemplates";
 export * from "./useProvisioning";
+export * from "./useZteProvisioning";

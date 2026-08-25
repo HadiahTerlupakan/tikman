@@ -59,15 +59,18 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 
 	// Provisioning pipeline: factory creates per-OLT commanders since each OLT
 	// has its own address and credentials.
-	commanderFactory := connectivity.NewCommanderFactory(5 * time.Second)
+	commanderFactory := connectivity.NewCommanderFactoryWithEncryption(5*time.Second, cfg.EncryptionKey)
 	provisionJobService := services.NewJobService(db, auditService)
-	snapshotService := services.NewSnapshotService(db, connectivity.DriverFor, logger)
-	rollbackEngine := services.NewRollbackEngine(nil, logger)
-	ontProvisioningService := services.NewOntProvisioningService(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, auditService, logger)
+	snapshotService := services.NewSnapshotServiceWithCommander(db, connectivity.DriverFor, logger, commanderFactory)
+	rollbackEngine := services.NewRollbackEngineForOLTs(commanderFactory, logger)
+	ontProvisioningService := services.NewOntProvisioningServiceWithTemplates(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, auditService, logger, configTemplateService)
 	batchExecutor := services.NewBatchExecutor(db, ontProvisioningService, provisionJobService, snapshotService, logger)
 	provisionHandler := NewProvisionHandler(ontProvisioningService, batchExecutor)
+	zteProvisioner := services.NewZTEGPONRegisterService(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, logger)
+	zteProvisionHandler := NewZTEProvisionHandler(zteProvisioner, provisionJobService)
 
 	api := router.Group("/api/v1")
+
 	{
 		auth := api.Group("/auth")
 		{
@@ -113,6 +116,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.POST("/:id/discover-and-register", oltHandler.DiscoverAndRegisterONTs)
 			olts.GET("/:id/stats", metricsHandler.GetOltsStats)
 			olts.GET("/:id/unconfigured-onus", unconfiguredONUHandler.ListByOLT)
+			olts.POST("/:id/gpon/register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.Register)
 		}
 
 		onts := api.Group("/onts")
@@ -130,6 +134,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.GET("/:id/metrics", metricsHandler.GetLatest)
 			onts.GET("/:id/events", eventHandler.GetEvents)
 			onts.GET("/:id/availability", eventHandler.GetAvailability)
+			onts.POST("/:id/gpon/configure", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.ConfigureExisting)
 		}
 
 		configTemplates := api.Group("/config-templates")
