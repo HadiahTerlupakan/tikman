@@ -13,16 +13,34 @@ import (
 // same command executor path used for provisioning. It is idempotent: applying
 // the same snapshot twice yields the same final state.
 type RollbackEngine struct {
-	commander connectivity.OLTCommander
-	logger    *zap.Logger
+	commander        connectivity.OLTCommander
+	commanderFactory CommanderFactory
+	logger           *zap.Logger
 }
 
 // NewRollbackEngine constructs a RollbackEngine with the given command executor.
 func NewRollbackEngine(commander connectivity.OLTCommander, logger *zap.Logger) *RollbackEngine {
-	return &RollbackEngine{
-		commander: commander,
-		logger:    logger,
+	return &RollbackEngine{commander: commander, logger: logger}
+}
+
+// NewRollbackEngineForOLTs creates commanders per OLT when rollback runs.
+func NewRollbackEngineForOLTs(factory CommanderFactory, logger *zap.Logger) *RollbackEngine {
+	return &RollbackEngine{commanderFactory: factory, logger: logger}
+}
+
+// RollbackToSnapshotForOLT restores a snapshot using a commander bound to this OLT.
+func (e *RollbackEngine) RollbackToSnapshotForOLT(ctx context.Context, olt models.OLT, ont models.ONT, snapshot *ConfigSnapshot) error {
+	if e.commanderFactory == nil {
+		return e.RollbackToSnapshot(ctx, ont, snapshot)
 	}
+	commander, err := createCommanderForOLT(e.commanderFactory, olt)
+	if err != nil {
+		return fmt.Errorf("create rollback commander: %w", err)
+	}
+	defer closeCommander(commander)
+	clone := *e
+	clone.commander = commander
+	return clone.RollbackToSnapshot(ctx, ont, snapshot)
 }
 
 // RollbackToSnapshot restores an ONT's configuration from a ConfigSnapshot.
@@ -48,6 +66,9 @@ func (e *RollbackEngine) RollbackToSnapshot(ctx context.Context, ont models.ONT,
 }
 
 func (e *RollbackEngine) executeRollback(ctx context.Context, cmds []string, vendor string) error {
+	if e.commander == nil {
+		return fmt.Errorf("rollback commander is not configured")
+	}
 	results, err := e.commander.BatchExecute(ctx, cmds)
 	if err != nil {
 		return fmt.Errorf("failed to execute %s rollback commands: %w", vendor, err)
@@ -64,6 +85,18 @@ func (e *RollbackEngine) executeRollback(ctx context.Context, cmds []string, ven
 }
 
 func (e *RollbackEngine) buildZTERollbackCommands(ont models.ONT, snap *ZTESnapshot) []string {
+	// A registration snapshot represents a new ONU, so restoring it means
+	// removing the exact ONU context rather than applying generic ONT defaults.
+	if snap.ServiceMode == "gpon-register" {
+		return []string{
+			"configure terminal",
+			fmt.Sprintf("interface gpon-olt_1/%d/%d", intSlotOrDefault(ont.Slot), ont.PortID),
+			fmt.Sprintf("no onu %d", ont.ONTID),
+			"exit",
+			"commit",
+		}
+	}
+
 	cmds := []string{
 		"config",
 		fmt.Sprintf("interface gpon 0/%d", ont.PortID),

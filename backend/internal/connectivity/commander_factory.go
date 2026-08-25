@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/utils"
 )
 
 // CommanderFactory creates vendor-specific OLTCommander instances bound to a
@@ -13,6 +14,7 @@ import (
 type CommanderFactory struct {
 	// Default timeout used when creating a commander. Can be overridden per call.
 	defaultTimeout time.Duration
+	encryptionKey  string
 }
 
 // NewCommanderFactory constructs a CommanderFactory with a default timeout.
@@ -23,25 +25,54 @@ func NewCommanderFactory(defaultTimeout time.Duration) *CommanderFactory {
 	return &CommanderFactory{defaultTimeout: defaultTimeout}
 }
 
-// ForOLT returns a commander suitable for the OLT's vendor and credentials.
-// Currently supports Telnet-based ZTE/HSGQ; SNMP SET support can be added here.
+// NewCommanderFactoryWithEncryption constructs a factory that decrypts stored OLT credentials.
+func NewCommanderFactoryWithEncryption(defaultTimeout time.Duration, encryptionKey string) *CommanderFactory {
+	factory := NewCommanderFactory(defaultTimeout)
+	factory.encryptionKey = encryptionKey
+	return factory
+}
+
+// ForOLT returns a Telnet commander for compatibility with existing callers.
 func (f *CommanderFactory) ForOLT(model models.OLTModel, host string, port int, username, password string) (OLTCommander, error) {
+	return f.ForOLTWithProtocol(model, host, models.OLTProtocolTelnet, port, username, password)
+}
+
+// ForOLTWithProtocol creates a commander using the OLT's configured CLI protocol.
+func (f *CommanderFactory) ForOLTWithProtocol(model models.OLTModel, host string, protocol models.OLTProtocol, port int, username, password string) (OLTCommander, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host is required for OLT commander")
 	}
 	if port <= 0 {
-		port = 23
+		if protocol == models.OLTProtocolSSH {
+			port = 22
+		} else {
+			port = 23
+		}
+	}
+
+	if f.encryptionKey != "" {
+		decrypted, err := utils.Decrypt(password, f.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt OLT password: %w", err)
+		}
+		password = decrypted
 	}
 
 	timeout := f.defaultTimeout
-
-	// Choose the right commander implementation based on the vendor model.
-	// For now, both ZTE and HSGQ use Telnet; future models may use SSH or SNMP.
-	commander, err := NewTelnetCommander(host, port, username, password, timeout)
+	var commander OLTCommander
+	var err error
+	switch protocol {
+	case models.OLTProtocolSSH:
+		commander, err = NewSSHCommander(host, port, username, password, timeout)
+	case models.OLTProtocolTelnet:
+		commander, err = NewTelnetCommander(host, port, username, password, timeout)
+	default:
+		return nil, fmt.Errorf("unsupported OLT protocol: %s", protocol)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create commander for OLT %s: %w", host, err)
 	}
 
-	_ = model // Reserved for vendor-specific branching (ZTE SNMP, HSGQ Telnet, etc.)
+	_ = model // Reserved for vendor-specific branching.
 	return commander, nil
 }

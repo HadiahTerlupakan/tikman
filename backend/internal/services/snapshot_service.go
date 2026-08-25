@@ -50,16 +50,20 @@ type DriverResolver func(models.OLTModel) (connectivity.Driver, error)
 type SnapshotService struct {
 	db       *gorm.DB // Read-only: OLT credentials loaded here
 	resolver DriverResolver
-	logger   *zap.Logger
+	logger           *zap.Logger
+	commanderFactory CommanderFactory
 }
 
 // NewSnapshotService creates a snapshot service with vendor driver resolver
 func NewSnapshotService(db *gorm.DB, resolver DriverResolver, logger *zap.Logger) *SnapshotService {
-	return &SnapshotService{
-		db:       db,
-		resolver: resolver,
-		logger:   logger,
-	}
+	return &SnapshotService{db: db, resolver: resolver, logger: logger}
+}
+
+// NewSnapshotServiceWithCommander adds the command boundary needed for generic rollback.
+func NewSnapshotServiceWithCommander(db *gorm.DB, resolver DriverResolver, logger *zap.Logger, factory CommanderFactory) *SnapshotService {
+	service := NewSnapshotService(db, resolver, logger)
+	service.commanderFactory = factory
+	return service
 }
 
 // CaptureBeforeSnapshot reads current ONT config via SNMP and maps to vendor-specific snapshot
@@ -221,7 +225,15 @@ func (s *SnapshotService) Compare(before, after *ConfigSnapshot) []string {
 // Note: This requires vendor-specific write commands (Telnet/SNMP SET) which are implemented in Phase 2
 // For now, return unimplemented error with clear explanation for developers
 func (s *SnapshotService) RollbackTo(ctx context.Context, ont models.ONT, snapshot *ConfigSnapshot) error {
-	return fmt.Errorf("rollback not yet implemented — requires CLI command executor integration; see Phase 2 design doc for ZTE/HSGQ write protocols")
+	if s.commanderFactory == nil {
+		return fmt.Errorf("rollback command factory is not configured")
+	}
+	var olt models.OLT
+	if err := s.db.First(&olt, "id = ?", ont.OLTID).Error; err != nil {
+		return fmt.Errorf("load OLT for rollback: %w", err)
+	}
+	engine := NewRollbackEngineForOLTs(s.commanderFactory, s.logger)
+	return engine.RollbackToSnapshotForOLT(ctx, olt, ont, snapshot)
 }
 
 // Helper functions
