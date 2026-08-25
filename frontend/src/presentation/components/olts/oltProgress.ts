@@ -11,7 +11,7 @@ export function getOltProgressDisplay(stats: OltStats): OltProgressDisplay {
   const registered = stats.discoveryRegistered ?? 0;
   const phase = stats.phase ?? "idle";
 
-  if (phase === "discovering" && total === 0) {
+  if ((phase === "idle" || phase === "discovering") && total === 0) {
     return { percent: 0, label: "Discovering ONTs…", count: "Waiting for OLT" };
   }
 

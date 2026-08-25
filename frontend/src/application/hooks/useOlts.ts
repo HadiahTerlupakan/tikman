@@ -33,7 +33,7 @@ export function useOltStats(id: string) {
     enabled: !!id,
     refetchInterval: (query) => {
       const stats = query.state.data;
-      return stats?.totalOnts === 0
+      return !stats || stats.totalOnts === 0
         ? OLT_DISCOVERY_POLL_INTERVAL
         : OLT_STATS_POLL_INTERVAL;
     },

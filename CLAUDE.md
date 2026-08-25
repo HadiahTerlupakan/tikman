@@ -44,6 +44,26 @@ cd backend
 go test -v -run TestFunctionName ./internal/services/
 ```
 
+### Quick Workflow
+
+**Backend entry points:**
+- `cmd/api/main.go` — HTTP API, database, Redis, and startup migrations
+- `cmd/worker/main.go` — OLT/ONT polling and monitoring events
+- `cmd/seed-events/main.go` — development event seeding utility
+- `cmd/probe_hsgq/main.go` — device probe utility
+
+**CI workflow:** `.github/workflows/ci.yml`
+- Backend: tests, race detector, coverage, `go vet`, `gofmt`, `go mod verify`, and API/worker builds
+- Frontend: Vitest, ESLint, Prettier check, and production build
+- Security: Trivy filesystem scan
+
+### Tool Versions
+
+- Go 1.25.x
+- Node.js 24
+- PostgreSQL 15 / TimescaleDB in production Compose
+- Redis 7
+
 ### Frontend (React + TypeScript)
 
 **Working directory:** `frontend/`
@@ -106,6 +126,12 @@ docker-compose up -d
 curl http://localhost:8080/health
 ```
 
+**Development configuration:** `docker-compose.dev.yml` exposes PostgreSQL on
+host port `5437`, while PostgreSQL uses port `5432` inside the Docker network.
+When running the API directly on the host, use `DB_HOST=localhost` and
+`DB_PORT=5437`; when running it in a container, use `DB_HOST=postgres` and
+`DB_PORT=5432`. Development Redis uses the password `dev-password`.
+
 ## Architecture
 
 ### Backend Structure (Go)
@@ -134,7 +160,11 @@ The backend uses a **layered architecture** with clear separation of concerns:
 - **Important:** Foreign key relationship fields (e.g., `Site *Site`, `OLT *OLT`) have been removed to avoid preload issues
 - Only foreign key IDs (e.g., `SiteID uuid.UUID`) are kept
 - To get related data, query manually using the foreign key ID
-- `models.go` defines AutoMigrate - migrates `User`, `Site`, `OLT`, `ONT`, `ONTEvent`, `AuditLog`
+- `models.go` defines model metadata; versioned SQL migrations live in `backend/migrations/`
+
+**`backend/migrations/`** - Versioned SQL schema migrations
+- Add schema changes as numbered `.up.sql`/`.down.sql` files
+- The API applies pending migrations during startup; do not rely on `AutoMigrate` for new schema changes
 
 **`internal/auth/`** - Session management with Redis
 
@@ -164,7 +194,7 @@ The frontend follows **Clean Architecture** principles:
 
 **`src/application/`** - Application logic
 - `stores/` - Zustand stores for global state (auth state)
-- `hooks/` - React Query hooks for data fetching (useAuth, useSites, useOlts, useUsers)
+- `hooks/` - React Query hooks for auth, sites, OLTs, users, ONTs, ONT events, OLT statistics/polling, provisioning, config templates, unconfigured ONUs, and health checks
 
 **`src/infrastructure/`** - External implementations
 - `repositories/` - API repository implementations (AuthRepository, SiteRepository, UserRepository, OLTRepository)
@@ -281,10 +311,13 @@ npm run format:check
 - [ ] Test coverage maintained (≥50% globally; network-bound/auth/cmd packages excluded from baseline)
 
 ### CI/CD Testing
-All GitHub Actions workflows MUST pass:
-- Backend CI (tests + lint + build)
-- Frontend CI (tests + lint + format + build)
-- Code Quality (security scan)
+All jobs in `.github/workflows/ci.yml` MUST pass:
+- Backend tests, race detector, coverage, lint checks, and API/worker builds
+- Frontend tests, lint, format check, and build
+- Trivy security scan
+
+`.github/workflows/code-quality.yml` is deprecated and only redirects to the
+main CI workflow.
 
 **If CI fails, fix immediately before merging.**
 
@@ -466,36 +499,21 @@ See `.env.example` for required variables. Key ones:
 
 ### GitHub Actions Workflows
 
-**Backend CI** (`.github/workflows/backend-ci.yml`)
+**CI/CD Pipeline** (`.github/workflows/ci.yml`)
 - Runs on push/PR to `main` or `develop`
-- Tests with race detector and coverage
-- Lints with golangci-lint
-- Builds binaries and uploads artifacts
-
-**Frontend CI** (`.github/workflows/frontend-ci.yml`)
-- Runs on push/PR to `main` or `develop`
-- Tests with Vitest and coverage
-- Lints with ESLint
-- Checks code formatting with Prettier
-- Builds production bundle
-
-**Docker Build** (`.github/workflows/docker-build.yml`)
-- Builds Docker images for backend and worker
-- Pushes to GitHub Container Registry (ghcr.io)
-- Tags: branch name, semver, SHA
-- Triggered on push to `main` or version tags
+- Detects backend/frontend changes before running relevant jobs
+- Backend tests use the race detector and coverage; lint checks use `go vet`, `gofmt -s`, and `go mod verify`
+- Frontend runs Vitest, ESLint, Prettier format checks, and a production build
+- Security scanning uses Trivy and uploads results to GitHub Security
+- Builds and pushes backend/worker images to GitHub Container Registry on pushes to `main`
 
 **Code Quality** (`.github/workflows/code-quality.yml`)
-- Security scanning with Trivy
-- Dependency review for PRs
-- Go security scanning with Gosec
-- Results uploaded to GitHub Security tab
+- Deprecated redirect workflow; security scanning now runs in `ci.yml`
 
 **Deploy** (`.github/workflows/deploy.yml`)
-- Manual dispatch or triggered on release
-- Deploys to production/staging via SSH
-- Pulls latest Docker images
-- Runs health check post-deployment
+- Runs for published releases or manual production/staging dispatch
+- Pulls GHCR images, deploys via SSH, and checks the configured health endpoint
+
 
 ### Deployment Secrets Required
 

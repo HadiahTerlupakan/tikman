@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { getOltProgressDisplay } from "./oltProgress";
 
 describe("getOltProgressDisplay", () => {
+  it("treats an idle OLT with no ONTs as discovery waiting", () => {
+    expect(
+      getOltProgressDisplay({
+        totalOnts: 0,
+        ontsWithMetrics: 0,
+        percentage: 0,
+      }),
+    ).toEqual({
+      percent: 0,
+      label: "Discovering ONTs…",
+      count: "Waiting for OLT",
+    });
+  });
+
   it("shows discovery as waiting before the OLT reports its ONT total", () => {
     expect(
       getOltProgressDisplay({
