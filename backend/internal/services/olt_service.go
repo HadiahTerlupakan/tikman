@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
@@ -247,6 +248,13 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 	log.Printf("[AutoDiscovery] Starting immediate ONT metrics polling for OLT %s (%s)", olt.Name, olt.IPAddress)
 
+	start := time.Now()
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+		"discovery_phase": "discovering", "discovery_total": 0,
+		"discovery_registered": 0, "discovery_polled": 0,
+		"discovery_error": "", "discovery_started_at": start,
+	})
+
 	metricsService := NewMetricsService(s.db)
 
 	driver, err := connectivity.DriverFor(olt.Model)
@@ -255,20 +263,32 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		return
 	}
 
-	allMetrics, metricsErr := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	if metricsErr != nil {
-		log.Printf("[AutoDiscovery] Metrics walk failed for OLT %s: %v; continuing with status discovery", olt.Name, metricsErr)
-		allMetrics = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
-	}
-
-	// Metrics and enumeration are independent SNMP walks. A timeout in one
-	// optical-power table must not prevent registering ONTs discovered in the
-	// status table.
+	// Enumerate ONTs before the slower optical-metrics walk so the UI can show
+	// a discovery total as soon as the OLT reports its status table.
 	statuses, statusErr := driver.WalkStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	if statusErr != nil {
 		log.Printf("[AutoDiscovery] Status walk failed for OLT %s: %v", olt.Name, statusErr)
 	}
-	locations := make(map[connectivity.ONTLocation]bool, len(allMetrics)+len(statuses))
+	locations := make(map[connectivity.ONTLocation]bool, len(statuses))
+	for loc := range statuses {
+		locations[loc] = true
+	}
+	if len(locations) > 0 {
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+			"discovery_phase": "discovering", "discovery_total": len(locations),
+		})
+	}
+
+	// Metrics and enumeration are independent SNMP walks. A timeout in the
+	// optical-power table must not prevent registering ONTs from status data.
+	allMetrics, metricsErr := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	if metricsErr != nil {
+		log.Printf("[AutoDiscovery] Metrics walk failed for OLT %s: %v; continuing with inventory", olt.Name, metricsErr)
+		allMetrics = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
+	}
+	for loc := range allMetrics {
+		locations[loc] = true
+	}
 	for loc := range allMetrics {
 		locations[loc] = true
 	}
@@ -276,40 +296,58 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		locations[loc] = true
 	}
 	log.Printf("[AutoDiscovery] Found %d ONT positions via SNMP", len(locations))
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+		"discovery_phase": "polling", "discovery_total": len(locations),
+	})
 
 	locationList := make([]connectivity.ONTLocation, 0, len(locations))
 	for loc := range locations {
 		locationList = append(locationList, loc)
 	}
-	inventory, inventoryErr := driver.Inventory(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, locationList)
-	if inventoryErr != nil {
-		log.Printf("[AutoDiscovery] Failed to read ONT inventory from OLT %s: %v", olt.Name, inventoryErr)
-	}
 
-	// Register discovered ONTs before storing metrics. Newly added OLTs have no
-	// rows yet; skipping unknown positions caused the UI to remain at 0/0 until
-	// an operator manually ran discover-and-register.
-	discovered := make([]connectivity.DiscoveredONT, 0, len(locations))
-	for loc := range locations {
-		item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
-		if inv, ok := inventory[loc]; ok {
-			item.SerialNumber = inv.SerialNumber
-			item.Name = inv.Name
-			item.DeviceType = inv.DeviceType
-			item.HardwareVersion = inv.HardwareVersion
-			item.IPAddress = inv.IPAddress
+	// Inventory can be slow on large OLTs. Process small batches so rows and
+	// progress become visible while the full discovery is still running.
+	const batchSize = 25
+	registerService := NewONTService(s.db)
+	registered := int64(0)
+	for start := 0; start < len(locationList); start += batchSize {
+		end := start + batchSize
+		if end > len(locationList) {
+			end = len(locationList)
 		}
-		if metrics, ok := allMetrics[loc]; ok {
-			item.RxPower = metrics.RxPower
-			item.TxPower = metrics.TxPower
-			item.Distance = metrics.Distance
+		batchLocations := locationList[start:end]
+		inventory, inventoryErr := driver.Inventory(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, batchLocations)
+		if inventoryErr != nil {
+			log.Printf("[AutoDiscovery] Inventory batch %d-%d failed for OLT %s: %v", start+1, end, olt.Name, inventoryErr)
+			continue
 		}
-		discovered = append(discovered, item)
-	}
-	if len(discovered) > 0 && inventoryErr == nil {
-		registerService := NewONTService(s.db)
+
+		discovered := make([]connectivity.DiscoveredONT, 0, len(batchLocations))
+		for _, loc := range batchLocations {
+			item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
+			if inv, ok := inventory[loc]; ok {
+				item.SerialNumber = inv.SerialNumber
+				item.Name = inv.Name
+				item.DeviceType = inv.DeviceType
+				item.HardwareVersion = inv.HardwareVersion
+				item.IPAddress = inv.IPAddress
+			}
+			if metrics, ok := allMetrics[loc]; ok {
+				item.RxPower = metrics.RxPower
+				item.TxPower = metrics.TxPower
+				item.Distance = metrics.Distance
+			}
+			discovered = append(discovered, item)
+		}
 		result := registerService.BulkRegisterFromDiscovery(olt.ID, discovered)
-		log.Printf("[AutoDiscovery] Registered %d ONTs, skipped %d, errors=%d", result.Registered, result.Skipped, len(result.Errors))
+		registered, _ = registerService.CountONTsByOLT(olt.ID)
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+			"discovery_registered": registered,
+		})
+		log.Printf("[AutoDiscovery] Inventory batch %d-%d: registered=%d total=%d", start+1, end, result.Registered, registered)
+	}
+	if registered == 0 && len(locationList) > 0 {
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_error": "inventory unavailable"})
 	}
 
 	var successCount int
@@ -351,5 +389,15 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		}
 	}
 
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
+		"discovery_phase": "completed", "discovery_polled": successCount,
+		"discovery_last_poll_at": time.Now(),
+	})
 	log.Printf("[AutoDiscovery] Completed: polled metrics for %d ONTs from OLT %s", successCount, olt.Name)
+}
+
+func (s *OLTService) updateDiscoveryProgress(oltID uuid.UUID, updates map[string]interface{}) {
+	if err := s.db.Model(&models.OLT{}).Where("id = ?", oltID).Updates(updates).Error; err != nil {
+		log.Printf("[AutoDiscovery] Failed to update progress for OLT %s: %v", oltID, err)
+	}
 }

@@ -107,7 +107,8 @@ func (h *OLTHandler) Create(c *gin.Context) {
 		return
 	}
 
-	go h.service.AutoDiscoverONTMetrics(olt)
+	// Worker owns discovery and progress updates; avoiding a second concurrent
+	// walk here prevents duplicate SNMP load and competing progress counters.
 
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
 	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
