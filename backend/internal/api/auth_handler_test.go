@@ -27,7 +27,7 @@ func setupAuthTest(t *testing.T) (*gorm.DB, *services.UserService, *auth.Store, 
 
 	userService := services.NewUserService(db)
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
-	handler := NewAuthHandler(userService, sessionStore)
+	handler := NewAuthHandler(userService, sessionStore, false)
 
 	return db, userService, sessionStore, handler
 }
@@ -248,4 +248,45 @@ func TestAuthHandler_Me_UserNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "User not found", response.Error)
 	assert.Equal(t, "NOT_FOUND", response.Code)
+}
+
+// A session cookie that is not marked Secure travels over plain HTTP, so a
+// downgrade or a hostile network can lift it straight off the wire.
+func TestAuthHandler_Login_SecureCookieFollowsEnvironment(t *testing.T) {
+	tests := []struct {
+		name         string
+		secureCookie bool
+	}{
+		{name: "production marks the cookie Secure", secureCookie: true},
+		{name: "development leaves it usable over plain HTTP", secureCookie: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			assert.NoError(t, err)
+			assert.NoError(t, db.AutoMigrate(&models.User{}))
+
+			userService := services.NewUserService(db)
+			_, err = userService.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+			assert.NoError(t, err)
+
+			handler := NewAuthHandler(userService, auth.NewMemoryStore(24*time.Hour), tt.secureCookie)
+
+			body, _ := json.Marshal(LoginRequest{Username: "testuser", Password: "password123"})
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			handler.Login(c)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			cookies := w.Result().Cookies()
+			assert.Len(t, cookies, 1)
+			assert.Equal(t, tt.secureCookie, cookies[0].Secure)
+			assert.True(t, cookies[0].HttpOnly)
+		})
+	}
 }

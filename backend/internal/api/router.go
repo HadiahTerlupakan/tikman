@@ -12,26 +12,27 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"net/http"
+)
+
+// productionEnvironment is the ENVIRONMENT value that turns on cookie hardening.
+const productionEnvironment = "production"
+
+const (
+	// The dashboard polls hard: ONT realtime metrics refetch every 3s and the
+	// ONT list every 15s, and several operators can share one NAT address, so a
+	// tight global ceiling would 429 normal use. Documented in docs/SECURITY.md.
+	globalRequestsPerMinute = 600
+	// Login is the only unauthenticated write, so it carries its own ceiling.
+	// /auth/me is deliberately left on the global limit: the SPA refetches it on
+	// every window focus and would trip a login-sized budget.
+	loginRequestsPerMinute = 10
 )
 
 func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger) *gin.Engine {
 	router := ginEngine
 
-	// CORS Configuration - allow requests from frontend
-	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, Cookie, X-CSRF-Token, X-Request-ID")
-		c.Header("Access-Control-Allow-Credentials", "true")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	})
+	router.Use(corsMiddleware(cfg.AllowedOrigins))
+	router.Use(middleware.RateLimitMiddleware(globalRequestsPerMinute))
 
 	router.GET("/health", NewHealthHandler(db, authStore).Check)
 
@@ -46,7 +47,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	unconfiguredONUService := services.NewUnconfiguredONUService(db)
 	configTemplateService := services.NewConfigTemplateService(db, auditService)
 
-	authHandler := NewAuthHandler(userService, authStore)
+	authHandler := NewAuthHandler(userService, authStore, cfg.Environment == productionEnvironment)
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
 	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService, ontService)
@@ -74,7 +75,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	{
 		auth := api.Group("/auth")
 		{
-			auth.POST("/login", authHandler.Login)
+			auth.POST("/login", middleware.RateLimitMiddleware(loginRequestsPerMinute), authHandler.Login)
 			auth.POST("/logout", authHandler.Logout)
 			auth.GET("/me", middleware.AuthMiddleware(authStore, logger), authHandler.Me)
 		}

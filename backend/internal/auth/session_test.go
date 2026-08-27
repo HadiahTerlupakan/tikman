@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -14,8 +15,12 @@ import (
 )
 
 func setupTestRedis(t *testing.T) *redis.Client {
+	// docker-compose.dev.yml starts Redis with --requirepass, so without this
+	// every test here silently skipped on a developer machine that had the dev
+	// stack running. CI's Redis has no password and leaves the variable unset.
 	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr:     "localhost:6379",
+		Password: os.Getenv("REDIS_PASSWORD"),
 	})
 
 	ctx := context.Background()
@@ -92,4 +97,6 @@ func TestSessionStore_Refresh(t *testing.T) {
 	data, err := store.Get(token)
 	require.NoError(t, err)
 	assert.Equal(t, userID, data.UserID)
+
+	assert.Error(t, store.Refresh("missing-token"))
 }

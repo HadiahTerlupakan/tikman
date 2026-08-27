@@ -20,6 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const metricsInterval = 1 * time.Minute
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -48,7 +50,7 @@ func main() {
 	eventService := services.NewEventService(db)
 
 	zapLogger.Info("Starting Worker service")
-	zapLogger.Info("Metrics collection interval: 5 minutes")
+	zapLogger.Info("Starting metrics collection", zap.Duration("interval", metricsInterval))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -56,7 +58,7 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(metricsInterval)
 	defer ticker.Stop()
 
 	collectMetrics(db, ontService, oltService, metricsService, eventService, zapLogger)

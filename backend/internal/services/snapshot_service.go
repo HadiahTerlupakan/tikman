@@ -48,8 +48,8 @@ type DriverResolver func(models.OLTModel) (connectivity.Driver, error)
 // SnapshotService captures ONT configuration snapshots before/after provisioning
 // for validation against written config and rollback restoration on failure
 type SnapshotService struct {
-	db       *gorm.DB // Read-only: OLT credentials loaded here
-	resolver DriverResolver
+	db               *gorm.DB // Read-only: OLT credentials loaded here
+	resolver         DriverResolver
 	logger           *zap.Logger
 	commanderFactory CommanderFactory
 }

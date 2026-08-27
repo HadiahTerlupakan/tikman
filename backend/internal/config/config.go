@@ -6,21 +6,20 @@ import (
 )
 
 type Config struct {
-	DBHost           string
-	DBPort           int
-	DBUser           string
-	DBPassword       string
-	DBName           string
-	RedisHost        string
-	RedisPort        int
-	RedisPassword    string
-	EncryptionKey    string
-	SessionSecret    string
-	LogLevel         string
-	APIPort          int
-	Environment      string
-	AllowedOrigins   string
-	OLTStructureFile string // Path to JSON file defining OLT card/slot/port structure
+	DBHost         string
+	DBPort         int
+	DBUser         string
+	DBPassword     string
+	DBName         string
+	RedisHost      string
+	RedisPort      int
+	RedisPassword  string
+	EncryptionKey  string
+	SessionSecret  string
+	LogLevel       string
+	APIPort        int
+	Environment    string
+	AllowedOrigins string
 }
 
 func Load() (*Config, error) {

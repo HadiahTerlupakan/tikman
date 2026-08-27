@@ -12,12 +12,17 @@ import (
 type AuthHandler struct {
 	userService  *services.UserService
 	sessionStore *auth.Store
+	// secureCookie marks the session cookie HTTPS-only. It has to stay off in
+	// development, where the dashboard is served over plain HTTP and a Secure
+	// cookie would never be sent back.
+	secureCookie bool
 }
 
-func NewAuthHandler(userService *services.UserService, sessionStore *auth.Store) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, sessionStore *auth.Store, secureCookie bool) *AuthHandler {
 	return &AuthHandler{
 		userService:  userService,
 		sessionStore: sessionStore,
+		secureCookie: secureCookie,
 	}
 }
 
@@ -64,8 +69,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		86400, // 24 hours
 		"/api",
 		"",
-		false, // Secure (set true in production with HTTPS)
-		true,  // HttpOnly
+		h.secureCookie,
+		true, // HttpOnly
 	)
 
 	c.JSON(http.StatusOK, LoginResponse{
@@ -87,7 +92,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		-1,
 		"/api",
 		"",
-		false,
+		h.secureCookie,
 		true,
 	)
 

@@ -124,28 +124,23 @@ func (s *Store) Delete(token string) error {
 	return nil
 }
 
+// Refresh runs on every authenticated request, so it only bumps the TTL.
+// LastActivity is deliberately not rewritten: nothing reads it on the Redis
+// path (expiry is the TTL itself), it only drives MemoryStore's expiry check.
 func (s *Store) Refresh(token string) error {
 	if s.memory != nil {
 		return s.memory.refresh(token)
 	}
 
-	data, err := s.Get(token)
-	if err != nil {
-		return err
-	}
-
-	data.LastActivity = time.Now().UTC()
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal session data: %w", err)
-	}
-
 	key := fmt.Sprintf("session:%s", token)
 	ctx := context.Background()
 
-	if err := s.client.Set(ctx, key, jsonData, s.ttl).Err(); err != nil {
+	keyExisted, err := s.client.Expire(ctx, key, s.ttl).Result()
+	if err != nil {
 		return fmt.Errorf("failed to refresh session: %w", err)
+	}
+	if !keyExisted {
+		return fmt.Errorf("session not found")
 	}
 
 	return nil

@@ -79,7 +79,18 @@ func main() {
 
 	sessionStore := auth.NewStore(redisClient, 24*time.Hour)
 
-	router := api.Setup(gin.Default(), cfg, db, sessionStore, log)
+	engine := gin.Default()
+	// Do not widen: gin's default trusts every proxy, making c.ClientIP() equal
+	// to any X-Forwarded-For the caller sends, which bypasses the per-IP rate
+	// limiter and forges audit-log IPs. This is the docker bridge range nginx
+	// sits in. Requests reaching the published host port keep their real source
+	// address and fall outside it, except when docker-proxy relays them from the
+	// host itself.
+	if err := engine.SetTrustedProxies([]string{"172.16.0.0/12"}); err != nil {
+		log.Fatal("Failed to set trusted proxies", zap.Error(err))
+	}
+
+	router := api.Setup(engine, cfg, db, sessionStore, log)
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))

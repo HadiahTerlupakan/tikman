@@ -13,4 +13,3 @@ func commandOutputError(output string) string {
 	}
 	return ""
 }
-

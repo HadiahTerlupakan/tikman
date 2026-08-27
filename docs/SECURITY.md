@@ -70,8 +70,13 @@ All user inputs are validated:
 
 ### Rate Limiting
 
-- **100 requests per minute per IP** (configurable)
-- Applied globally to all endpoints
+- **600 requests per minute per IP** applied to every endpoint
+- **10 requests per minute per IP** on `POST /api/v1/auth/login`, which is the
+  only unauthenticated write and therefore the brute-force surface
+- The global ceiling is loose on purpose: the dashboard refetches ONT metrics
+  every 3 seconds and several operators can share one NAT address
+- Client IP comes from `c.ClientIP()`, which is why the API trusts only the
+  docker bridge range as a proxy (see `cmd/api/main.go`)
 - Automatic cleanup of old entries
 
 ### SQL Injection Protection
@@ -82,10 +87,12 @@ All user inputs are validated:
 
 ### CORS Configuration
 
-- **Environment-based allowed origins**
-- Credentials support for cookies
-- Specific HTTP methods allowed
-- Specific headers allowed
+- Allowed origins come from `ALLOWED_ORIGINS` (comma-separated); an origin that
+  is not listed gets no `Access-Control-Allow-Origin` header at all
+- The matching origin is echoed rather than wildcarded, because the session
+  cookie needs `Access-Control-Allow-Credentials`
+- Responses carry `Vary: Origin` so caches cannot cross origins
+- Specific HTTP methods and headers allowed
 
 ## Security Best Practices for Deployment
 

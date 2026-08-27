@@ -75,7 +75,7 @@ func SetupUserHandlerTest(t *testing.T) (*UserHandler, *gorm.DB) {
 func SetupAuthHandlerTest(t *testing.T) (*AuthHandler, *services.UserService, *gorm.DB) {
 	db := TestDB(t)
 	userService := services.NewUserService(db)
-	handler := NewAuthHandler(userService, nil)
+	handler := NewAuthHandler(userService, nil, false)
 	return handler, userService, db
 }
 

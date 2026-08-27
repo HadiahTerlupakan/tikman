@@ -25,7 +25,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: tikman-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy volatile-lru
     volumes:
       - redis_data:/data
     environment:
@@ -57,6 +57,8 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - SESSION_SECRET=${SESSION_SECRET}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - LOG_LEVEL=info
       - API_PORT=8080
     depends_on:
@@ -103,16 +105,11 @@ services:
       - DB_USER=tikman
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_NAME=tikman
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - SESSION_SECRET=${SESSION_SECRET}
       - LOG_LEVEL=info
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - tikman-network

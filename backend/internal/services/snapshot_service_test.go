@@ -19,11 +19,11 @@ import (
 // never touch a network. inventory and metrics are looked up by ONT location;
 // invErr/metricsErr simulate an unreachable OLT.
 type fakeDriver struct {
-	model      models.OLTModel
-	inventory  connectivity.ONTInventory
-	metrics    *connectivity.ONTMetrics
-	invErr     error
-	metricsErr error
+	model            models.OLTModel
+	inventory        connectivity.ONTInventory
+	metrics          *connectivity.ONTMetrics
+	invErr           error
+	metricsErr       error
 	inventoryByONTID map[int]connectivity.ONTInventory
 }
 

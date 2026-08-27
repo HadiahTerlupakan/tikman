@@ -1,6 +1,7 @@
 package connectivity
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,14 @@ func skipIfPingPermissionDenied(t *testing.T, err error) bool {
 }
 
 func TestPingTest_Success(t *testing.T) {
+	// macOS never delivers the echo reply to the unprivileged UDP socket that
+	// PingTest uses when the target is the loopback interface; pinging a real
+	// host from the same socket works. Linux, which CI and the container image
+	// run, has no such gap.
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping ping test: macOS drops unprivileged ICMP on loopback")
+	}
+
 	// Test with localhost (should always be reachable)
 	err := PingTest("127.0.0.1", 2*time.Second)
 	if skipIfPingPermissionDenied(t, err) {
