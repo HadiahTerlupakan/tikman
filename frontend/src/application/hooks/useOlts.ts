@@ -33,7 +33,13 @@ export function useOltStats(id: string) {
     enabled: !!id,
     refetchInterval: (query) => {
       const stats = query.state.data;
-      return !stats || stats.totalOnts === 0
+      if (!stats) return OLT_DISCOVERY_POLL_INTERVAL;
+      // The bar only moves while a walk is registering ONTs. Keying this on
+      // totalOnts alone dropped to the slow interval as soon as the first
+      // instalment landed, so the rest of the discovery advanced once a minute.
+      const discovering =
+        stats.phase === "discovering" || stats.phase === "polling";
+      return discovering || stats.totalOnts === 0
         ? OLT_DISCOVERY_POLL_INTERVAL
         : OLT_STATS_POLL_INTERVAL;
     },

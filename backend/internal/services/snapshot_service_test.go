@@ -52,6 +52,15 @@ func (d *fakeDriver) Inventory(_ string, _ string, _ int, locations []connectivi
 	return out, nil
 }
 
+func (d *fakeDriver) InventoryByPort(ip string, community string, snmpPort int, locations []connectivity.ONTLocation, report func([]connectivity.ONTLocation, map[connectivity.ONTLocation]connectivity.ONTInventory)) error {
+	inventory, err := d.Inventory(ip, community, snmpPort, locations)
+	if err != nil {
+		return err
+	}
+	report(locations, inventory)
+	return nil
+}
+
 func (d *fakeDriver) QueryONTMetrics(string, string, int, int, int, int) (*connectivity.ONTMetrics, error) {
 	if d.metricsErr != nil {
 		return nil, d.metricsErr

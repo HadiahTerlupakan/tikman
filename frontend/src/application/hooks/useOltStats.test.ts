@@ -16,6 +16,18 @@ vi.mock("@/infrastructure/repositories", () => ({
   },
 }));
 
+type StatsQueryOptions = {
+  refetchInterval: (query: {
+    state: { data?: { totalOnts: number; phase?: string } };
+  }) => number;
+};
+
+function useStatsQueryOptions(): StatsQueryOptions {
+  useOltStats("olt-1");
+  const results = vi.mocked(useQuery).mock.results;
+  return results[results.length - 1]?.value as StatsQueryOptions;
+}
+
 describe("useOltStats", () => {
   it("refreshes OLT stats in the background", () => {
     useOltStats("olt-1");
@@ -30,30 +42,33 @@ describe("useOltStats", () => {
   });
 
   it("polls every five seconds while discovery has no ONTs", () => {
-    useOltStats("olt-1");
-    const results = vi.mocked(useQuery).mock.results;
-    const options = results[results.length - 1]?.value as {
-      refetchInterval: (query: {
-        state: { data?: { totalOnts: number } };
-      }) => number;
-    };
+    const options = useStatsQueryOptions();
 
     expect(options.refetchInterval({ state: { data: { totalOnts: 0 } } })).toBe(
       5000,
     );
   });
 
-  it("slows to one minute after ONTs are available", () => {
-    useOltStats("olt-1");
-    const results = vi.mocked(useQuery).mock.results;
-    const options = results[results.length - 1]?.value as {
-      refetchInterval: (query: {
-        state: { data?: { totalOnts: number } };
-      }) => number;
-    };
+  it("slows to one minute once discovery has finished", () => {
+    const options = useStatsQueryOptions();
 
     expect(
-      options.refetchInterval({ state: { data: { totalOnts: 197 } } }),
+      options.refetchInterval({
+        state: { data: { totalOnts: 197, phase: "completed" } },
+      }),
     ).toBe(60000);
+  });
+
+  // Registration lands one PON port at a time, so the count keeps climbing well
+  // after the first ONTs appear. Slowing down there froze the progress bar for
+  // a minute between instalments.
+  it("keeps the fast interval while ONTs are still being registered", () => {
+    const options = useStatsQueryOptions();
+
+    for (const phase of ["discovering", "polling"]) {
+      expect(
+        options.refetchInterval({ state: { data: { totalOnts: 25, phase } } }),
+      ).toBe(5000);
+    }
   });
 });

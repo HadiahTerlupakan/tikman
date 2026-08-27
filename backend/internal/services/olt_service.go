@@ -242,13 +242,26 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 	return ""
 }
 
+// staleDiscoveryClaim is how long a running discovery may hold its claim before
+// another run may take it over. The claim lives in the database but the run
+// holding it does not: an API restart mid-walk leaves the phase at
+// "discovering" with nobody working on it, and without this the OLT would
+// never be polled again.
+const staleDiscoveryClaim = 30 * time.Minute
+
 // TryClaimDiscovery atomically claims an OLT for one discovery run. The
 // database claim prevents the API-triggered run and worker fallback from
 // polling the same OLT concurrently.
 func (s *OLTService) TryClaimDiscovery(oltID uuid.UUID) (bool, error) {
 	result := s.db.Model(&models.OLT{}).
-		Where("id = ? AND discovery_phase NOT IN ?", oltID, []string{"discovering", "polling"}).
-		Updates(map[string]interface{}{"discovery_phase": "discovering", "discovery_error": ""})
+		Where("id = ? AND (discovery_phase NOT IN ? OR discovery_started_at IS NULL OR discovery_started_at < ?)",
+			oltID, []string{"discovering", "polling"}, time.Now().Add(-staleDiscoveryClaim)).
+		Updates(map[string]interface{}{
+			"discovery_phase": "discovering", "discovery_error": "",
+			// Stamped here, not when the walk starts, so the claim itself carries
+			// the age the takeover above tests against.
+			"discovery_started_at": time.Now(),
+		})
 	if result.Error != nil {
 		return false, fmt.Errorf("claim discovery: %w", result.Error)
 	}
@@ -327,47 +340,18 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		locationList = append(locationList, loc)
 	}
 
-	// Inventory can be slow on large OLTs. Process small batches so rows and
-	// progress become visible while the full discovery is still running.
-	const batchSize = 25
-	registerService := NewONTService(s.db)
-	registered := int64(0)
-	for start := 0; start < len(locationList); start += batchSize {
-		end := start + batchSize
-		if end > len(locationList) {
-			end = len(locationList)
-		}
-		batchLocations := locationList[start:end]
-		inventory, inventoryErr := driver.Inventory(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, batchLocations)
-		if inventoryErr != nil {
-			log.Printf("[AutoDiscovery] Inventory batch %d-%d failed for OLT %s: %v", start+1, end, olt.Name, inventoryErr)
-			continue
-		}
-
-		discovered := make([]connectivity.DiscoveredONT, 0, len(batchLocations))
-		for _, loc := range batchLocations {
-			item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
-			if inv, ok := inventory[loc]; ok {
-				item.SerialNumber = inv.SerialNumber
-				item.Name = inv.Name
-				item.DeviceType = inv.DeviceType
-				item.HardwareVersion = inv.HardwareVersion
-				item.IPAddress = inv.IPAddress
-			}
-			if metrics, ok := allMetrics[loc]; ok {
-				item.RxPower = metrics.RxPower
-				item.TxPower = metrics.TxPower
-				item.Distance = metrics.Distance
-			}
-			discovered = append(discovered, item)
-		}
-		result := registerService.BulkRegisterFromDiscovery(olt.ID, discovered)
-		registered, _ = registerService.CountONTsByOLT(olt.ID)
-		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{
-			"discovery_registered": registered,
+	// Registering each instalment as the walk reports it, rather than after the
+	// whole inventory, is what lets the progress bar move on a large OLT.
+	processed := 0
+	inventoryErr := driver.InventoryByPort(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, locationList,
+		func(locs []connectivity.ONTLocation, inventory map[connectivity.ONTLocation]connectivity.ONTInventory) {
+			processed += len(locs)
+			s.registerDiscoveredONTs(olt, locs, inventory, statuses, allMetrics, processed)
 		})
-		log.Printf("[AutoDiscovery] Inventory batch %d-%d: registered=%d total=%d", start+1, end, result.Registered, registered)
+	if inventoryErr != nil {
+		log.Printf("[AutoDiscovery] Inventory walk failed for OLT %s: %v", olt.Name, inventoryErr)
 	}
+	registered, _ := NewONTService(s.db).CountONTsByOLT(olt.ID)
 	if registered == 0 && len(locationList) > 0 {
 		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_error": "inventory unavailable"})
 	}
@@ -416,6 +400,48 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		"discovery_last_poll_at": time.Now(),
 	})
 	log.Printf("[AutoDiscovery] Completed: polled metrics for %d ONTs from OLT %s", successCount, olt.Name)
+}
+
+// registerDiscoveredONTs persists one instalment of an inventory walk and
+// publishes how far the walk has got. Progress counts locations this walk has
+// covered, not rows in the table: re-running discovery on an OLT that is
+// already populated would otherwise show a full bar from the first instalment.
+func (s *OLTService) registerDiscoveredONTs(
+	olt *models.OLT,
+	locs []connectivity.ONTLocation,
+	inventory map[connectivity.ONTLocation]connectivity.ONTInventory,
+	statuses map[connectivity.ONTLocation]int,
+	allMetrics map[connectivity.ONTLocation]connectivity.ONTMetrics,
+	processed int,
+) {
+	registerService := NewONTService(s.db)
+
+	discovered := make([]connectivity.DiscoveredONT, 0, len(locs))
+	for _, loc := range locs {
+		item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
+		if inv, ok := inventory[loc]; ok {
+			item.SerialNumber = inv.SerialNumber
+			item.Name = inv.Name
+			item.DeviceType = inv.DeviceType
+			item.HardwareVersion = inv.HardwareVersion
+			item.IPAddress = inv.IPAddress
+		}
+		if metrics, ok := allMetrics[loc]; ok {
+			item.RxPower = metrics.RxPower
+			item.TxPower = metrics.TxPower
+			item.Distance = metrics.Distance
+		}
+		discovered = append(discovered, item)
+	}
+
+	result := registerService.BulkRegisterFromDiscovery(olt.ID, discovered)
+	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_registered": processed})
+
+	slot, port := 0, 0
+	if len(locs) > 0 {
+		slot, port = locs[0].Slot, locs[0].Port
+	}
+	log.Printf("[AutoDiscovery] Instalment slot=%d port=%d: onts=%d touched=%d processed=%d", slot, port, len(locs), result.Registered, processed)
 }
 
 func (s *OLTService) updateDiscoveryProgress(oltID uuid.UUID, updates map[string]interface{}) {

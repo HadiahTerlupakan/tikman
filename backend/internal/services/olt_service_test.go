@@ -2,6 +2,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -697,4 +698,31 @@ func TestOLTService_Create_InvalidEncryptionKey(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to encrypt password")
+}
+
+// A discovery claim outlives the process holding it: restart the API mid-walk
+// and the row still reads "discovering" with nobody working on it. Without a
+// takeover the OLT is never polled again.
+func TestOLTService_TryClaimDiscovery_TakesOverAStaleClaim(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "stale", IPAddress: "192.0.2.1", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	abandoned := time.Now().Add(-staleDiscoveryClaim - time.Minute)
+	require.NoError(t, db.Model(&models.OLT{}).Where("id = ?", olt.ID).
+		Update("discovery_started_at", abandoned).Error)
+
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a claim older than %v must be reclaimable", staleDiscoveryClaim)
+
+	// The takeover has to restamp the claim, or every caller would win it.
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.False(t, claimed)
 }

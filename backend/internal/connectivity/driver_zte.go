@@ -59,32 +59,45 @@ func (zteDriver) WalkUnconfigured(ctx context.Context, ipAddress, community stri
 // Inventory reads identity data for the given ONTs. Serial, name, description
 // and model are indexed per (slot, port) subtree, so those are walked once per
 // PON port; IP, MAC and hardware version live in flat tables walked whole.
-func (zteDriver) Inventory(ipAddress, community string, snmpPort int, locations []ONTLocation) (map[ONTLocation]ONTInventory, error) {
+func (d zteDriver) Inventory(ipAddress, community string, snmpPort int, locations []ONTLocation) (map[ONTLocation]ONTInventory, error) {
 	inventory := make(map[ONTLocation]ONTInventory, len(locations))
+	err := d.InventoryByPort(ipAddress, community, snmpPort, locations, func(_ []ONTLocation, part map[ONTLocation]ONTInventory) {
+		for loc, inv := range part {
+			inventory[loc] = inv
+		}
+	})
+	return inventory, err
+}
+
+// InventoryByPort reports one PON port per instalment. The flat tables are
+// walked once up front: scoping them to an instalment instead would repeat
+// three full-table walks per port, which on a 198-ONT OLT meant the MAC table
+// timing out and no ONT registering for minutes.
+func (zteDriver) InventoryByPort(ipAddress, community string, snmpPort int, locations []ONTLocation, report func([]ONTLocation, map[ONTLocation]ONTInventory)) error {
 	if len(locations) == 0 {
-		return inventory, nil
+		return nil
 	}
 
-	set := func(loc ONTLocation, apply func(*ONTInventory)) {
-		inv := inventory[loc]
+	flat := make(map[ONTLocation]ONTInventory, len(locations))
+	setFlat := func(loc ONTLocation, apply func(*ONTInventory)) {
+		inv := flat[loc]
 		apply(&inv)
-		inventory[loc] = inv
+		flat[loc] = inv
 	}
 
-	// Flat tables: one walk each for every ONT on the OLT.
 	if ips, err := zteWalkIPAddresses(ipAddress, community, snmpPort); err == nil {
 		for loc, ip := range ips {
-			set(loc, func(inv *ONTInventory) { inv.IPAddress = ip })
+			setFlat(loc, func(inv *ONTInventory) { inv.IPAddress = ip })
 		}
 	}
 	if macs, err := zteWalkMACAddresses(ipAddress, community, snmpPort); err == nil {
 		for loc, mac := range macs {
-			set(loc, func(inv *ONTInventory) { inv.MACAddress = mac })
+			setFlat(loc, func(inv *ONTInventory) { inv.MACAddress = mac })
 		}
 	}
 	if hws, err := zteWalkHardwareVersions(ipAddress, community, snmpPort); err == nil {
 		for loc, hw := range hws {
-			set(loc, func(inv *ONTInventory) { inv.HardwareVersion = hw })
+			setFlat(loc, func(inv *ONTInventory) { inv.HardwareVersion = hw })
 		}
 	}
 
@@ -97,11 +110,23 @@ func (zteDriver) Inventory(ipAddress, community string, snmpPort int, locations 
 
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
 	if err != nil {
-		return inventory, err
+		return err
 	}
 	defer func() { _ = client.Conn.Close() }()
 
 	for key, locs := range byPort {
+		part := make(map[ONTLocation]ONTInventory, len(locs))
+		for _, loc := range locs {
+			if inv, ok := flat[loc]; ok {
+				part[loc] = inv
+			}
+		}
+		set := func(loc ONTLocation, apply func(*ONTInventory)) {
+			inv := part[loc]
+			apply(&inv)
+			part[loc] = inv
+		}
+
 		ifIndexONU := OnuIDIfIndexBase + key.Slot*OnuIDSlotStride + key.Port*OnuIDIncrement
 		ifIndexType := OnuTypeIfIndexBase + key.Slot*OnuTypeSlotStride + key.Port*OnuTypeIncrement
 
@@ -125,9 +150,11 @@ func (zteDriver) Inventory(ipAddress, community string, snmpPort int, locations 
 				set(loc, func(inv *ONTInventory) { inv.DeviceType = deviceType })
 			}
 		})
+
+		report(locs, part)
 	}
 
-	return inventory, nil
+	return nil
 }
 
 // walkPortColumn walks one ZTE table column scoped to a single PON port and

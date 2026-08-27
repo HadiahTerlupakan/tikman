@@ -408,6 +408,18 @@ func (hsgqDriver) Inventory(ipAddress, community string, snmpPort int, locations
 	return inventory, nil
 }
 
+// InventoryByPort reports the whole result in one instalment. HSGQ indexes the
+// ONU table by a flat ifIndex with no per-port subtree to scope a walk to, so
+// there is nothing to report until every column has been read.
+func (d hsgqDriver) InventoryByPort(ipAddress, community string, snmpPort int, locations []ONTLocation, report func([]ONTLocation, map[ONTLocation]ONTInventory)) error {
+	inventory, err := d.Inventory(ipAddress, community, snmpPort, locations)
+	if err != nil {
+		return err
+	}
+	report(locations, inventory)
+	return nil
+}
+
 // hsgqFormatMAC renders the 6 raw bytes of an ONU MAC as colon-separated hex.
 func hsgqFormatMAC(value any) string {
 	raw, ok := value.([]byte)

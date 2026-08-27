@@ -62,6 +62,13 @@ type Driver interface {
 	// come from WalkStatuses.
 	Inventory(ipAddress, community string, snmpPort int, locations []ONTLocation) (map[ONTLocation]ONTInventory, error)
 
+	// InventoryByPort reads the same attributes as Inventory but hands them to
+	// report in instalments as the walk produces them, so a discovery over
+	// hundreds of ONTs can register rows and advance its progress while the
+	// OLT is still being walked. Each call carries the locations that
+	// instalment covers, including any the OLT returned no data for.
+	InventoryByPort(ipAddress, community string, snmpPort int, locations []ONTLocation, report func([]ONTLocation, map[ONTLocation]ONTInventory)) error
+
 	// QueryONTMetrics reads one ONT's metrics on demand, for the realtime view.
 	QueryONTMetrics(ipAddress, community string, snmpPort, slot, port, ontID int) (*ONTMetrics, error)
 
