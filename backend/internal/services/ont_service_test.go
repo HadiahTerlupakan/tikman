@@ -1481,3 +1481,30 @@ func TestONTService_PruneMissingFromDiscoveryDeletesStaleONTs(t *testing.T) {
 	require.NoError(t, db.Model(&models.ONTEvent{}).Where("ont_id = ?", stale.ID).Count(&count).Error)
 	assert.Equal(t, int64(0), count)
 }
+
+// A contended SNMP walk on a busy C300 returns the phase-state table empty
+// without failing. Treating that as "the OLT has no ONTs" once deleted a whole
+// 198-ONT inventory along with its event history.
+func TestONTService_PruneMissingFromDiscoveryKeepsONTsWhenDiscoveryIsEmpty(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	siteService := NewSiteService(db)
+
+	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
+	require.NoError(t, err)
+
+	oltID := uuid.New()
+	require.NoError(t, db.Create(&models.OLT{ID: oltID, SiteID: site.ID, Name: "OLT 1", IPAddress: "192.168.1.1", SNMPCommunity: "public", PreferredProtocol: models.OLTProtocolSSH}).Error)
+
+	ont := &models.ONT{OLTID: oltID, PortID: 1, ONTID: 1, SerialNumber: "KEEP001", Status: models.ONTStatusOnline}
+	require.NoError(t, ontService.Create(ont))
+
+	deleted, err := ontService.PruneMissingFromDiscovery(oltID, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), deleted)
+
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Where("id = ?", ont.ID).Count(&count).Error)
+	assert.Equal(t, int64(1), count, "an empty discovery must not delete the inventory")
+}

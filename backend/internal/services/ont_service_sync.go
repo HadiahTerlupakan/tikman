@@ -10,7 +10,18 @@ import (
 )
 
 // PruneMissingFromDiscovery deletes local ONTs that are no longer reported by the OLT.
+//
+// An empty discovery prunes nothing. A walk that returns no rows without
+// returning an error is indistinguishable from an OLT that genuinely has no
+// ONTs, and on a busy C300 the phase-state table does come back empty: a
+// contended walk once deleted a whole 198-ONT inventory and its event history.
+// Leaving stale rows until a discovery reports something is the cheaper
+// mistake of the two.
 func (s *ONTService) PruneMissingFromDiscovery(oltID uuid.UUID, discovered []connectivity.DiscoveredONT) (int64, error) {
+	if len(discovered) == 0 {
+		return 0, nil
+	}
+
 	discoveredPositions := make(map[ontPosition]struct{}, len(discovered))
 	for _, ont := range discovered {
 		discoveredPositions[ontPosition{portID: ont.PortID, ontID: ont.ONTID}] = struct{}{}
