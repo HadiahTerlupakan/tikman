@@ -298,6 +298,8 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		return
 	}
 
+	s.refreshVLANCache(olt)
+
 	// Enumerate ONTs before the slower optical-metrics walk so the UI can show
 	// a discovery total as soon as the OLT reports its status table.
 	statuses, statusErr := driver.WalkStatuses(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)

@@ -4,6 +4,12 @@ import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ZteProvisionModal } from "./ZteProvisionModal";
 
+// The service step reads the OLT's cached VLAN list. These tests are about the
+// form, not the fetch, so the list is stubbed rather than served by a client.
+vi.mock("@/application/hooks/useOlts", () => ({
+  useOltVlans: () => ({ data: [] }),
+}));
+
 const target = {
   oltId: "olt-1",
   oltModel: "zte_c300" as const,

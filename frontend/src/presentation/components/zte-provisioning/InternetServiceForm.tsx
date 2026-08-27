@@ -1,6 +1,13 @@
-import { Form, Input, InputNumber, Radio } from "antd";
+import { Form, Input, InputNumber, Radio, Select } from "antd";
+import { useOltVlans } from "@/application/hooks/useOlts";
 
-export function InternetServiceForm() {
+interface InternetServiceFormProps {
+  oltId?: string;
+}
+
+export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
+  const { data: vlans } = useOltVlans(oltId);
+
   return (
     <>
       <strong>Service 1 — Internet</strong>
@@ -22,8 +29,31 @@ export function InternetServiceForm() {
           options={[{ value: "internet", label: "Internet" }]}
         />
       </Form.Item>
-      <Form.Item name="vlanId" label="VLAN ID" rules={[{ required: true }]}>
-        <InputNumber min={1} max={4094} style={{ width: "100%" }} />
+      <Form.Item
+        name="vlanId"
+        label="VLAN ID"
+        rules={[{ required: true }]}
+        extra={
+          vlans?.length
+            ? undefined
+            : "VLANs appear here once the OLT has been polled."
+        }
+      >
+        {/* Falls back to a typed ID: an OLT that has never been polled, or one
+            that was unreachable on its last poll, has no cached VLAN list. */}
+        {vlans?.length ? (
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Select a VLAN"
+            options={vlans.map((vlan) => ({
+              value: vlan.vlanId,
+              label: `${vlan.vlanId} — ${vlan.name}`,
+            }))}
+          />
+        ) : (
+          <InputNumber min={1} max={4094} style={{ width: "100%" }} />
+        )}
       </Form.Item>
       <Form.Item
         name="downloadProfile"

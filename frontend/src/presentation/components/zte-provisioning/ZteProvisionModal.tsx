@@ -121,7 +121,7 @@ export function ZteProvisionModal({
       />
       <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
         {step === 0 && <OnuIdentityForm target={target} />}
-        {step === 1 && <InternetServiceForm />}
+        {step === 1 && <InternetServiceForm oltId={target.oltId} />}
         {step === 2 && (
           <ZteCommandPreview request={previewRequest} onuId={onuId} />
         )}

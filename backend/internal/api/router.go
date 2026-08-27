@@ -117,6 +117,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.POST("/:id/discover-and-register", oltHandler.DiscoverAndRegisterONTs)
 			olts.GET("/:id/stats", metricsHandler.GetOltsStats)
 			olts.GET("/:id/unconfigured-onus", unconfiguredONUHandler.ListByOLT)
+			olts.GET("/:id/vlans", oltHandler.ListVLANs)
 			olts.POST("/:id/gpon/register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.Register)
 		}
 

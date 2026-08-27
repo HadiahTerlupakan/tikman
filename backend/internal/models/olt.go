@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -50,8 +51,15 @@ type OLT struct {
 	DiscoveryRegistered int         `gorm:"default:0"`
 	DiscoveryPolled     int         `gorm:"default:0"`
 	DiscoveryError      string      `gorm:"type:text"`
-	DiscoveryStartedAt  *time.Time  `json:"discovery_started_at,omitempty"`
-	DiscoveryLastPollAt *time.Time  `json:"discovery_last_poll_at,omitempty"`
+	// VLANs caches the OLT's VLAN table from the last successful discovery poll,
+	// so the provisioning form can offer a list without its own SNMP walk.
+	// The column names are explicit: GORM derives "vla_ns" from VLANs, because
+	// the trailing lowercase s defeats its acronym handling, and reads would
+	// then silently miss the column the migration actually created.
+	VLANs               datatypes.JSON `gorm:"column:vlans;type:jsonb" json:"vlans,omitempty"`
+	VLANsUpdatedAt      *time.Time     `gorm:"column:vlans_updated_at" json:"vlans_updated_at,omitempty"`
+	DiscoveryStartedAt  *time.Time     `json:"discovery_started_at,omitempty"`
+	DiscoveryLastPollAt *time.Time     `json:"discovery_last_poll_at,omitempty"`
 	LastSeen            *time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time

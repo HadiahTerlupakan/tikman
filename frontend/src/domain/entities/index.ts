@@ -4,5 +4,6 @@ export * from "./Olt";
 export * from "./Ont";
 export * from "./OntEvent";
 export * from "./UnconfiguredOnu";
+export * from "./OltVlan";
 export * from "./Health";
 export * from "./ZteProvisioning";

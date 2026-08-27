@@ -47,6 +47,16 @@ export function useOltStats(id: string) {
   });
 }
 
+// The VLAN list is refreshed by the discovery poll and stored with the OLT, so
+// reading it here costs no SNMP traffic and does not need its own polling.
+export function useOltVlans(oltId?: string) {
+  return useQuery({
+    queryKey: ["olts", oltId, "vlans"],
+    queryFn: () => oltRepository.getVlans(oltId as string),
+    enabled: !!oltId,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 
