@@ -26,53 +26,6 @@ func (c *scriptedCommander) BatchExecute(context.Context, []string) ([]*CommandR
 	return nil, errors.New("not used")
 }
 
-// Verbatim from a C300 V2.1.0, trailing spaces and all.
-const tcontListing = `show gpon profile tcont
-Profile name :default  
- Type           FBW(kbps)   ABW(kbps)   MBW(kbps)   PRIORITY   WEIGHT    
- 1              10000       0           0           N/A         N/A         
- 
-Profile name :1G  
- Type           FBW(kbps)   ABW(kbps)   MBW(kbps)   PRIORITY   WEIGHT    
- 3              0           512         1024000     N/A         N/A         
- 
-BRAS-PANCORANMAS-DPK#`
-
-func TestReadZTETcontProfileDetails(t *testing.T) {
-	commander := &scriptedCommander{outputs: map[string]string{zteTcontProfileCommand: tcontListing}}
-
-	profiles, err := ReadZTETcontProfileDetails(context.Background(), commander)
-	if err != nil {
-		t.Fatalf("ReadZTETcontProfileDetails: %v", err)
-	}
-
-	want := []string{"default", "1G"}
-	if len(profiles) != len(want) {
-		t.Fatalf("got %v, want %v", profiles, want)
-	}
-	for i, profile := range profiles {
-		if profile.Name != want[i] {
-			t.Errorf("profile %d = %q, want %q", i, profile.Name, want[i])
-		}
-	}
-
-	// Paging has to be off first, or a long listing stalls waiting for a keypress.
-	if len(commander.sent) != 2 || commander.sent[0] != disablePagingCommand {
-		t.Errorf("sent %v, want paging disabled before the listing", commander.sent)
-	}
-}
-
-func TestReadZTETcontProfileDetailsRejectsACLIError(t *testing.T) {
-	commander := &scriptedCommander{
-		outputs:  map[string]string{zteTcontProfileCommand: "%Error 20200: Invalid input detected"},
-		failures: map[string]string{zteTcontProfileCommand: "Invalid input detected"},
-	}
-
-	if _, err := ReadZTETcontProfileDetails(context.Background(), commander); err == nil {
-		t.Fatal("a CLI error must not be reported as an empty profile list")
-	}
-}
-
 // Verbatim shape of the wan-ip lines a C300 running config carries. The
 // password field is why the raw config must never leave the reader.
 const runningConfigExtract = `

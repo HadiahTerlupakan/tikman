@@ -45,6 +45,23 @@ func (s *OLTService) refreshSystemCache(olt *models.OLT) {
 		}
 	}
 
+	speeds, err := connectivity.WalkTcontProfiles(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	switch {
+	case err != nil:
+		log.Printf("[AutoDiscovery] T-CONT profile walk failed for OLT %s: %v", olt.Name, err)
+	case len(speeds) == 0:
+		log.Printf("[AutoDiscovery] T-CONT profile walk returned nothing for OLT %s; keeping the cached list", olt.Name)
+	default:
+		names := make([]string, 0, len(speeds))
+		for _, profile := range speeds {
+			names = append(names, profile.Name)
+		}
+		addProfileUpdate(updates, "tcont_profiles", names, olt.Name)
+		if encoded, err := json.Marshal(speeds); err == nil {
+			updates["tcont_profile_details"] = datatypes.JSON(encoded)
+		}
+	}
+
 	ports, err := connectivity.WalkPorts(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	switch {
 	case err != nil:

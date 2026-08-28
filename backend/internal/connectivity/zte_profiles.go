@@ -9,16 +9,6 @@ import (
 	"time"
 )
 
-// zteProfileName matches the "Profile name :default" heading that opens each
-// entry of "show gpon profile tcont".
-var zteProfileName = regexp.MustCompile(`(?mi)^\s*Profile name\s*:\s*(\S+)`)
-
-// zteTcontProfileCommand lists the T-CONT profiles. These are the names the
-// provisioning command references as "tcont 1 name internet profile-name X".
-// A C300 V2.1.0 exposes no equivalent for vlan-profile: "show gpon profile ?"
-// offers only tcont and traffic.
-const zteTcontProfileCommand = "show gpon profile tcont"
-
 // disablePagingCommand stops the CLI paginating a long listing, which would
 // otherwise stall the read waiting for a keypress instead of a prompt.
 const disablePagingCommand = "terminal length 0"

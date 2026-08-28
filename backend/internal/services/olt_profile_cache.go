@@ -42,26 +42,8 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 	ctx := context.Background()
 	updates := make(map[string]interface{}, 3)
 
-	// One read serves both: the names the provisioning form offers and the
-	// bandwidths the configuration page shows, so the profile listing is not
-	// fetched twice in the same session.
-	details, err := connectivity.ReadZTETcontProfileDetails(ctx, commander)
-	tcont := make([]string, 0, len(details))
-	for _, profile := range details {
-		tcont = append(tcont, profile.Name)
-	}
-	switch {
-	case err != nil:
-		log.Printf("[AutoDiscovery] T-CONT profile read failed for OLT %s: %v", olt.Name, err)
-	case len(details) == 0:
-		log.Printf("[AutoDiscovery] T-CONT profile read returned nothing for OLT %s", olt.Name)
-	default:
-		addProfileUpdate(updates, "tcont_profiles", tcont, olt.Name)
-		if encoded, err := json.Marshal(details); err == nil {
-			updates["tcont_profile_details"] = datatypes.JSON(encoded)
-		}
-	}
-
+	// T-CONT profiles are read over SNMP; this session exists only for what the
+	// running config alone carries.
 	snapshot, err := connectivity.ReadZTEConfigSnapshot(ctx, commander)
 	vlan := snapshot.VLANProfiles
 	switch {
@@ -99,7 +81,7 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 		return
 	}
 
-	log.Printf("[AutoDiscovery] Cached %d T-CONT profiles, %d VLAN profiles and %d ONU types for OLT %s", len(tcont), len(vlan), len(snapshot.ONUTypes), olt.Name)
+	log.Printf("[AutoDiscovery] Cached %d VLAN profiles and %d ONU types for OLT %s", len(vlan), len(snapshot.ONUTypes), olt.Name)
 }
 
 // storeONUServices records each ONU's current service against its ONT row, so
