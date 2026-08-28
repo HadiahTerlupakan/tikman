@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -245,7 +246,27 @@ func failedZTECommand(commands []string, index int, result *connectivity.Command
 		reply = RedactZTECommands([]string{strings.TrimSpace(result.Error)})[0]
 	}
 
-	return fmt.Errorf("command %d %q failed: %s", index, command, reply)
+	return fmt.Errorf("command %d %q failed: %s%s", index, command, reply, zteFailureHint(command))
+}
+
+// zteRegistrationLine matches the command that binds a serial to an ONU ID.
+var zteRegistrationLine = regexp.MustCompile(`^onu \d+ type (\S+) sn \S+`)
+
+// zteFailureHint adds what the OLT's own answer leaves out.
+//
+// A C300 answers the registration line with a bare ".[Failed]" when it is given
+// a specific ONU type for an ONU it cannot currently see: it has no way to
+// check the hardware against the type. Observed directly — "type HG8245H5" was
+// refused for an ONU that was offline, and "type ALL" for the same serial on
+// the same port was accepted seconds later.
+func zteFailureHint(command string) string {
+	match := zteRegistrationLine.FindStringSubmatch(command)
+	if match == nil || strings.EqualFold(match[1], "ALL") {
+		return ""
+	}
+	return fmt.Sprintf(
+		". The OLT rejects a specific ONU type for an ONU it cannot see;"+
+			" register %s as type ALL, or bring the ONU online first", match[1])
 }
 
 func (s *ZTEGPONRegisterService) verify(req models.ZTEGPONRegisterRequest, ont models.ONT) error {
