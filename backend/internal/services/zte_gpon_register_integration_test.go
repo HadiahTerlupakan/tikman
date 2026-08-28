@@ -98,7 +98,6 @@ func TestZTEGPONRegisterIntegration_Success(t *testing.T) {
 		"wan-ip 1 mode pppoe username example-user password secret-password vlan-profile INTERNET host 1",
 		"wan 1 service internet host 1",
 		"exit",
-		"commit",
 	}
 	assertOrderedCommands(t, commander.commands, want)
 }

@@ -40,14 +40,15 @@ func TestRollbackEngine_RollbackToSnapshot_ZTERegistrationDeletesONU(t *testing.
 	cmdr := &fakeCommander{}
 	engine := NewRollbackEngine(cmdr, zap.NewNop())
 	require.NoError(t, engine.RollbackToSnapshot(context.Background(), ont, snap))
-	require.GreaterOrEqual(t, len(cmdr.commands), 5)
+	require.GreaterOrEqual(t, len(cmdr.commands), 4)
+	// No "commit": the C300 rejects it, and a rollback that had removed the ONU
+	// cleanly still reported itself as failed because of that last line.
 	assert.Equal(t, []string{
 		"configure terminal",
 		"interface gpon-olt_1/1/3",
 		"no onu 7",
 		"exit",
-		"commit",
-	}, cmdr.commands[len(cmdr.commands)-5:])
+	}, cmdr.commands[len(cmdr.commands)-4:])
 }
 
 func TestRollbackEngine_RollbackToSnapshot_HSGQ(t *testing.T) {

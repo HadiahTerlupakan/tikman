@@ -88,12 +88,13 @@ func (e *RollbackEngine) buildZTERollbackCommands(ont models.ONT, snap *ZTESnaps
 	// A registration snapshot represents a new ONU, so restoring it means
 	// removing the exact ONU context rather than applying generic ONT defaults.
 	if snap.ServiceMode == "gpon-register" {
+		// No "commit": the C300 rejects it as an invalid command, and a rollback
+		// that removed the ONU cleanly still reported itself as failed.
 		return []string{
 			"configure terminal",
 			fmt.Sprintf("interface gpon-olt_1/%d/%d", intSlotOrDefault(ont.Slot), ont.PortID),
 			fmt.Sprintf("no onu %d", ont.ONTID),
 			"exit",
-			"commit",
 		}
 	}
 

@@ -52,7 +52,6 @@ func TestBuildZTEGPONRegisterCommands(t *testing.T) {
 		"wan-ip 1 mode pppoe username example-user password <redacted> vlan-profile INTERNET host 1",
 		"wan 1 service internet host 1",
 		"exit",
-		"commit",
 	}, commands)
 }
 

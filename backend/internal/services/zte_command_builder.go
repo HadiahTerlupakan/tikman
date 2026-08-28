@@ -63,7 +63,12 @@ func buildZTEGPONServiceCommands(req models.ZTEGPONRegisterRequest, onuID int, i
 	commands = append(commands, buildZTEInterfaceSection(req, onuID)...)
 	commands = append(commands, buildZTEManagementSection(req, onuID, includePassword)...)
 
-	return append(commands, "commit"), nil
+	// No "commit": a C300 V2.1.0 answers it with "%Error 20200: Invalid input
+	// detected ... Invalid command". Its configuration applies as each line is
+	// accepted. Persisting to the startup config is a separate "write", which
+	// this deliberately does not issue: it would save the whole running config,
+	// including anything another operator has in flight.
+	return commands, nil
 }
 
 // buildZTEInterfaceSection writes the transport: the bandwidth a T-CONT gets,
