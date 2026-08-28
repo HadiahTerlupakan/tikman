@@ -15,7 +15,13 @@ export function getOltProgressDisplay(stats: OltStats): OltProgressDisplay {
     return { percent: 0, label: "Discovering ONTs…", count: "Waiting for OLT" };
   }
 
-  if (phase === "discovering" || phase === "polling") {
+  // Discovery progress is only worth showing while the inventory is still
+  // being built. A re-poll of an OLT TikMan already holds in full restarts
+  // that counter from zero, and preferring it there blanked a bar whose real
+  // figure was 200 of 200 ONTs polled — which is what made an established OLT
+  // read 0% for most of every cycle.
+  const inventoryIncomplete = stats.totalOnts < total;
+  if ((phase === "discovering" || phase === "polling") && inventoryIncomplete) {
     const percent = total > 0 ? Math.round((registered / total) * 100) : 0;
     return {
       percent,
@@ -24,8 +30,16 @@ export function getOltProgressDisplay(stats: OltStats): OltProgressDisplay {
     };
   }
 
+  // Computed from the two numbers shown rather than read from stats.percentage,
+  // which the server overrides with discovery progress whenever a poll is in
+  // flight. The bar then read 0% next to a count of 200/200.
+  const polled =
+    stats.totalOnts > 0
+      ? Math.round((stats.ontsWithMetrics / stats.totalOnts) * 100)
+      : 0;
+
   return {
-    percent: Math.round(stats.percentage),
+    percent: polled,
     label: "Polling metrics",
     count: `${stats.ontsWithMetrics}/${stats.totalOnts} ONTs polled`,
   };
