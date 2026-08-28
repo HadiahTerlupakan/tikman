@@ -154,16 +154,24 @@ export function useOntListLogic() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, removeFromOlt = false) => {
     try {
-      await deleteMutation.mutateAsync(id);
+      await deleteMutation.mutateAsync({ id, removeFromOlt });
       if (selectedOnt?.id === id) {
         setIsDetailModalOpen(false);
         setSelectedOnt(null);
       }
-      message.success("ONT deleted successfully");
-    } catch {
-      message.error("Failed to delete ONT");
+      message.success(
+        removeFromOlt
+          ? "Removed from the OLT and from TikMan"
+          : "Removed from TikMan",
+      );
+    } catch (error) {
+      // The OLT's own refusal is the useful part: it names the command it
+      // rejected, which a generic failure message would hide.
+      message.error(
+        error instanceof Error ? error.message : "Failed to remove the ONT",
+      );
     }
   };
 

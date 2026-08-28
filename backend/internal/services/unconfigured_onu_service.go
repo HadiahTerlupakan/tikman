@@ -58,45 +58,15 @@ func (s *UnconfiguredONUService) ListByOLT(oltID uuid.UUID) ([]connectivity.Unco
 		return nil, fmt.Errorf("unconfigured ONU scan failed: %w", err)
 	}
 
-	return s.excludeRegistered(oltID, onus)
-}
-
-// excludeRegistered drops ONUs whose serial is already registered in TikMan.
-// The OLT clears its autofind entry only after provisioning completes, so an
-// ONU registered here but not yet pushed to the OLT would otherwise resurface
-// as unconfigured and invite a duplicate registration.
-func (s *UnconfiguredONUService) excludeRegistered(oltID uuid.UUID, onus []connectivity.UnconfiguredONU) ([]connectivity.UnconfiguredONU, error) {
-	if len(onus) == 0 {
-		return []connectivity.UnconfiguredONU{}, nil
+	// An empty walk is an empty list, not a null one: the page renders it.
+	if onus == nil {
+		onus = []connectivity.UnconfiguredONU{}
 	}
 
-	serials := make([]string, len(onus))
-	for i, onu := range onus {
-		serials[i] = onu.SerialNumber
-	}
-
-	var registered []string
-	if err := s.db.Model(&models.ONT{}).
-		Where("olt_id = ? AND serial_number IN ?", oltID, serials).
-		Pluck("serial_number", &registered).Error; err != nil {
-		return nil, fmt.Errorf("registered serial lookup failed: %w", err)
-	}
-
-	if len(registered) == 0 {
-		return onus, nil
-	}
-
-	known := make(map[string]bool, len(registered))
-	for _, serial := range registered {
-		known[serial] = true
-	}
-
-	filtered := make([]connectivity.UnconfiguredONU, 0, len(onus))
-	for _, onu := range onus {
-		if !known[onu.SerialNumber] {
-			filtered = append(filtered, onu)
-		}
-	}
-
-	return filtered, nil
+	// The autofind table is the authority here: an OLT lists an ONU there only
+	// when it holds no configuration for it. Filtering that against TikMan's own
+	// ONT rows used to hide exactly the case an operator needs to see — an ONU
+	// deleted from the OLT while a stale row survived here — so the serial
+	// became invisible and could never be provisioned again.
+	return onus, nil
 }

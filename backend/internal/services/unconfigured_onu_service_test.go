@@ -70,7 +70,11 @@ func TestUnconfiguredONUService_ListByOLT(t *testing.T) {
 	assert.Equal(t, 3, onus[0].Slot)
 }
 
-func TestUnconfiguredONUService_ExcludesRegisteredSerials(t *testing.T) {
+// An OLT lists an ONU as autofind only when it holds no configuration for it,
+// so that listing outranks TikMan's own records. Filtering it against them hid
+// the case this exists for: an ONU deleted from the OLT while a stale row
+// survived here stayed invisible and could never be provisioned again.
+func TestUnconfiguredONUService_TrustsTheOLTOverAStaleLocalRow(t *testing.T) {
 	db := setupTestDB(t)
 	olt := seedUncfgOLT(t, db, "public")
 
@@ -93,10 +97,10 @@ func TestUnconfiguredONUService_ExcludesRegisteredSerials(t *testing.T) {
 	}
 
 	onus, err := service.ListByOLT(olt.ID)
-	require.NoError(t, err)
 
-	require.Len(t, onus, 1)
-	assert.Equal(t, "ZTEGCAFFC2FD", onus[0].SerialNumber)
+	require.NoError(t, err)
+	require.Len(t, onus, 2, "an ONU the OLT calls unconfigured must be listed")
+	assert.Equal(t, "HWTCB403E8A0", onus[0].SerialNumber)
 }
 
 func TestUnconfiguredONUService_KeepsSerialRegisteredOnAnotherOLT(t *testing.T) {
@@ -190,29 +194,6 @@ func TestUnconfiguredONUService_WalkFailurePropagates(t *testing.T) {
 	_, err := service.ListByOLT(olt.ID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SNMP connect failed")
-}
-
-func TestUnconfiguredONUService_RegistrationLookupFailureIsReported(t *testing.T) {
-	db := setupTestDB(t)
-	olt := seedUncfgOLT(t, db, "public")
-
-	// Without the onts table the exclusion query cannot run. Returning the
-	// unfiltered list here would invite the duplicate registration the
-	// exclusion exists to prevent, so the scan has to fail loudly instead.
-	require.NoError(t, db.Migrator().DropTable(&models.ONT{}))
-
-	service := &UnconfiguredONUService{
-		db: db,
-		walk: func(connectivity.Driver, string, string, int) ([]connectivity.UnconfiguredONU, error) {
-			return []connectivity.UnconfiguredONU{
-				{Slot: 3, Port: 1, SerialNumber: "HWTCB403E8A0"},
-			}, nil
-		},
-	}
-
-	_, err := service.ListByOLT(olt.ID)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "registered serial lookup failed")
 }
 
 func TestNewUnconfiguredONUService_UsesLiveWalker(t *testing.T) {

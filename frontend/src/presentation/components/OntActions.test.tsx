@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { Modal } from "antd";
+import { describe, expect, it, vi } from "vitest";
 import { OntActions } from "./OntActions";
 import type { Ont } from "@/domain/entities";
 
@@ -14,12 +13,6 @@ const ont = {
   name: "Bapak Budi",
   status: "online",
 } as Ont;
-
-// Modal.confirm renders outside the component tree, so Testing Library's
-// cleanup leaves it behind and the next test finds the previous dialog.
-afterEach(() => {
-  Modal.destroyAll();
-});
 
 function renderActions(
   overrides: Partial<Parameters<typeof OntActions>[0]> = {},
@@ -60,31 +53,15 @@ describe("OntActions", () => {
     expect(screen.getByText("Delete")).toBeInTheDocument();
   });
 
-  // Deleting takes the ONT's metrics and events with it, so it asks first.
-  it("confirms before removing", async () => {
+  // The confirmation lives on the page, which fetches the commands a removal
+  // would send to the OLT. This menu only reports the intent.
+  it("hands the removal to the page rather than confirming here", async () => {
     const handlers = renderActions();
 
     await userEvent.click(screen.getByTestId("ont-more"));
     await userEvent.click(await screen.findByText("Delete"));
 
-    expect(handlers.onDelete).not.toHaveBeenCalled();
-    expect(
-      await screen.findByText(/Remove HWTCB403E8A0 from TikMan\?/),
-    ).toBeInTheDocument();
-  });
-
-  // The action only clears TikMan's own records. An operator who read it as
-  // removing the ONU from the OLT was left wondering why the SN never
-  // reappeared under Unconfigured ONU, and why the next poll listed it again.
-  it("says the ONU stays configured on the OLT", async () => {
-    renderActions();
-
-    await userEvent.click(screen.getByTestId("ont-more"));
-    await userEvent.click(await screen.findByText("Delete"));
-
-    expect(
-      await screen.findByText(/stays configured on the OLT/),
-    ).toBeInTheDocument();
+    expect(handlers.onDelete).toHaveBeenCalledWith("ont-1");
   });
 
   // A non-ZTE OLT passes no service handler, and the icon must not appear.

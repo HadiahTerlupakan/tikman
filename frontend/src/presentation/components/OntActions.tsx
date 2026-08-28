@@ -1,4 +1,4 @@
-import { Button, Dropdown, Modal, Space, Tooltip } from "antd";
+import { Button, Dropdown, Space, Tooltip } from "antd";
 import type { MenuProps } from "antd";
 import {
   DeleteOutlined,
@@ -30,19 +30,8 @@ export function OntActions({
   onConfigureService,
   onViewHistory,
 }: OntActionsProps) {
-  // Deleting an ONT takes its metrics and event history with it, so it asks
-  // first. A modal rather than a Popconfirm, because the action lives inside
-  // the overflow menu.
-  const confirmDelete = () =>
-    Modal.confirm({
-      title: `Remove ${ont.serialNumber} from TikMan?`,
-      content:
-        "Its metrics and event history go with it. The ONU stays configured on the OLT, so the next discovery poll will list it again once it comes back online. To take it off the OLT, delete it there first.",
-      okText: "Remove",
-      okButtonProps: { danger: true },
-      cancelText: "Cancel",
-      onOk: () => onDelete(ont.id),
-    });
+  // The page owns the confirmation, because it fetches the commands a removal
+  // would send to the OLT and shows them before anything is done.
 
   const items: MenuProps["items"] = [
     ...(onProvision
@@ -71,7 +60,7 @@ export function OntActions({
       icon: <DeleteOutlined />,
       label: "Delete",
       danger: true,
-      onClick: confirmDelete,
+      onClick: () => onDelete(ont.id),
     },
   ];
 

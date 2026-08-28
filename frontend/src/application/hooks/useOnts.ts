@@ -56,12 +56,29 @@ export function useUpdateOnt() {
   });
 }
 
+// The commands a removal would send. Fetched only when the operator opens the
+// dialog, because it reads the ONT's position rather than the OLT itself.
+export function useOntRemovalPreview(ontId?: string) {
+  return useQuery({
+    queryKey: ["onts", ontId, "removal-preview"],
+    queryFn: () => ontRepository.previewRemoval(ontId as string),
+    enabled: !!ontId,
+    staleTime: Infinity,
+  });
+}
+
 export function useDeleteOnt() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => ontRepository.delete(id),
-    onSuccess: (_, id) => {
+    mutationFn: ({
+      id,
+      removeFromOlt,
+    }: {
+      id: string;
+      removeFromOlt: boolean;
+    }) => ontRepository.delete(id, removeFromOlt),
+    onSuccess: (_, { id }) => {
       queryClient.removeQueries({ queryKey: ["onts", id] });
       queryClient.invalidateQueries({ queryKey: ["onts"] });
       queryClient.invalidateQueries({ queryKey: ["olts"] });

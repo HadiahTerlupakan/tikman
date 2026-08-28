@@ -33,6 +33,7 @@ export const API_ENDPOINTS = {
   ONT_METRICS_HISTORY: (id: string) => `/api/v1/onts/${id}/metrics/history`,
   ONT_REALTIME_METRICS: (id: string) => `/api/v1/onts/${id}/metrics/realtime`,
   ONT_TIMESERIES: (id: string) => `/api/v1/onts/${id}/metrics/timeseries`,
+  ONT_REMOVAL_PREVIEW: (id: string) => `/api/v1/onts/${id}/removal/preview`,
   ONT_EVENTS: (id: string) => `/api/v1/onts/${id}/events`,
   ONT_SERVICE_CONFIG: (id: string) => `/api/v1/onts/${id}/service-config`,
   ONT_AVAILABILITY: (id: string) => `/api/v1/onts/${id}/availability`,

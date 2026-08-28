@@ -18,14 +18,16 @@ type ONTHandler struct {
 	ontService     *services.ONTService
 	metricsService *services.MetricsService
 	auditService   *services.AuditService
+	removalService *services.ZTEONURemovalService
 }
 
 // NewONTHandler creates a new ONT handler
-func NewONTHandler(ontService *services.ONTService, metricsService *services.MetricsService, auditService *services.AuditService) *ONTHandler {
+func NewONTHandler(ontService *services.ONTService, metricsService *services.MetricsService, auditService *services.AuditService, removalService *services.ZTEONURemovalService) *ONTHandler {
 	return &ONTHandler{
 		ontService:     ontService,
 		metricsService: metricsService,
 		auditService:   auditService,
+		removalService: removalService,
 	}
 }
 
@@ -295,6 +297,26 @@ func (h *ONTHandler) Delete(c *gin.Context) {
 			Error: err.Error(),
 		})
 		return
+	}
+
+	// The OLT is cleared first. Deleting TikMan's rows before the device would
+	// leave an ONU configured on the OLT that nothing tracks any more, and the
+	// next discovery poll would simply register it again.
+	if c.Query("remove_from_olt") == "true" {
+		if h.removalService == nil {
+			c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+				Code:  "OLT_REMOVAL_UNAVAILABLE",
+				Error: "This deployment has no CLI access configured for OLT removal",
+			})
+			return
+		}
+		if err := h.removalService.RemoveFromOLT(c.Request.Context(), id); err != nil {
+			c.JSON(http.StatusBadGateway, ErrorResponse{
+				Code:  "OLT_REMOVAL_FAILED",
+				Error: err.Error(),
+			})
+			return
+		}
 	}
 
 	if err := h.ontService.Delete(id); err != nil {

@@ -55,7 +55,8 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	userHandler := NewUserHandler(userService, auditService)
 	siteHandler := NewSiteHandler(siteService, auditService)
 	oltHandler := NewOLTHandler(oltService, oltValidatorService, auditService, ontService)
-	ontHandler := NewONTHandler(ontService, metricsService, auditService)
+	onuRemovalService := services.NewZTEONURemovalService(db, ontService, commanderFactory)
+	ontHandler := NewONTHandler(ontService, metricsService, auditService, onuRemovalService)
 	metricsHandler := NewMetricsHandler(metricsService)
 	eventHandler := NewEventHandler(eventService)
 	unconfiguredONUHandler := NewUnconfiguredONUHandler(unconfiguredONUService)
@@ -138,6 +139,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.POST("", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Create)
 			onts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Update)
 			onts.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Delete)
+			onts.GET("/:id/removal/preview", middleware.RequireRole(models.UserRoleAdmin), ontHandler.PreviewRemoval)
 
 			onts.GET("/:id/metrics/realtime", metricsHandler.GetRealtime)
 			onts.GET("/:id/metrics/timeseries", metricsHandler.GetTrafficTimeSeries)

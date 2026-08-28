@@ -3,6 +3,7 @@ import { Card, Space, Button, Form, message } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { OntFilters } from "@/presentation/components/OntFilters";
 import { OntTable } from "@/presentation/components/OntTable";
+import { OntRemoveDialog } from "@/presentation/components/ont-detail/OntRemoveDialog";
 import { OntCreateModal } from "@/presentation/components/OntCreateModal";
 import { OntDetailModal } from "@/presentation/components/OntDetailModal";
 import { useOntListLogic } from "@/application/hooks/useOntListLogic";
@@ -64,6 +65,10 @@ export default function OntListPage() {
     handleReset,
     refetch,
   } = useOntListLogic();
+
+  // Held here rather than in the row, because the dialog fetches the commands
+  // a removal would send and has to outlive the menu that opened it.
+  const [ontPendingRemoval, setOntPendingRemoval] = useState<Ont | null>(null);
 
   const { data: templates } = useConfigTemplates();
   const provisionMutation = useProvisionOnt();
@@ -155,12 +160,28 @@ export default function OntListPage() {
           dataSource={filteredOnts}
           isLoading={isLoading}
           onViewDetail={handleViewDetail}
-          onDelete={handleDelete}
+          onDelete={(id) =>
+            setOntPendingRemoval(
+              filteredOnts.find((candidate) => candidate.id === id) ?? null,
+            )
+          }
           onProvision={handleProvision}
           onConfigureService={handleConfigureService}
           onViewHistory={handleViewHistory}
         />
       </Card>
+
+      <OntRemoveDialog
+        ont={ontPendingRemoval}
+        open={!!ontPendingRemoval}
+        onCancel={() => setOntPendingRemoval(null)}
+        onConfirm={async (removeFromOlt) => {
+          const target = ontPendingRemoval;
+          if (!target) return;
+          setOntPendingRemoval(null);
+          await handleDelete(target.id, removeFromOlt);
+        }}
+      />
 
       <OntCreateModal
         open={isCreateModalOpen}

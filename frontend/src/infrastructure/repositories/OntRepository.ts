@@ -59,8 +59,15 @@ export class OntRepository implements IOntRepository {
     return response.data;
   }
 
-  async delete(id: string): Promise<void> {
-    await apiClient.delete(API_ENDPOINTS.ONT_BY_ID(id));
+  async delete(id: string, removeFromOlt = false): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.ONT_BY_ID(id), {
+      params: removeFromOlt ? { remove_from_olt: "true" } : undefined,
+    });
+  }
+
+  async previewRemoval(id: string): Promise<string[]> {
+    const response = await apiClient.get(API_ENDPOINTS.ONT_REMOVAL_PREVIEW(id));
+    return response.data.commands ?? [];
   }
 
   async getLatestMetrics(id: string): Promise<OntMetrics> {
