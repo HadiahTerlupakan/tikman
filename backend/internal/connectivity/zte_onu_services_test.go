@@ -1,6 +1,8 @@
 package connectivity
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +42,7 @@ func TestParseZTEONUServicesReadsTheProvisionedService(t *testing.T) {
 		TCONTProfile: "1G",
 		WANMode:      "wan_ip", WANIPMode: "pppoe",
 		VLANProfile: "PPPOE-214", PPPoEUsername: "258179206252",
+		PPPoEPassword: "12345",
 	}
 	if got != want {
 		t.Errorf("got  %+v\nwant %+v", got, want)
@@ -60,18 +63,23 @@ func TestParseZTEONUServicesReadsAnUntaggedBridge(t *testing.T) {
 	}
 }
 
-// The password sits on the same line as everything else that is read; nothing
-// downstream should ever be able to find it in the result.
-func TestParseZTEONUServicesNeverCarriesThePassword(t *testing.T) {
-	for location, service := range ParseZTEONUServices(onuRunningConfig) {
-		for field, value := range map[string]string{
-			"vlan profile":   service.VLANProfile,
-			"pppoe username": service.PPPoEUsername,
-			"tcont profile":  service.TCONTProfile,
-		} {
-			if value == "12345" {
-				t.Errorf("%v leaked the password through %s", location, field)
-			}
-		}
+func TestParseZTEONUServicesReadsThePassword(t *testing.T) {
+	got := ParseZTEONUServices(onuRunningConfig)[ONTLocation{Slot: 3, Port: 1, ONTID: 1}]
+
+	if got.PPPoEPassword != "12345" {
+		t.Errorf("password = %q, want it read so a reconfigure can resend it", got.PPPoEPassword)
+	}
+}
+
+// The service is stored as JSON. The password must not ride along in it: it is
+// encrypted into its own column, the way the OLT's own credentials are.
+func TestZTEONUServiceJSONOmitsThePassword(t *testing.T) {
+	encoded, err := json.Marshal(ZTEONUService{PPPoEUsername: "user", PPPoEPassword: "12345"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	if strings.Contains(string(encoded), "12345") {
+		t.Fatalf("the encoded service carries the password: %s", encoded)
 	}
 }

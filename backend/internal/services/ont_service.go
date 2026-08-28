@@ -1,7 +1,9 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,12 +15,50 @@ import (
 
 // ONTService handles ONT business logic
 type ONTService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	encryptionKey string
 }
 
 // NewONTService creates a new ONT service
 func NewONTService(db *gorm.DB) *ONTService {
 	return &ONTService{db: db}
+}
+
+// NewONTServiceWithEncryption adds the key needed to read back a subscriber's
+// stored PPPoE password. Without it the service still works and simply never
+// returns one.
+func NewONTServiceWithEncryption(db *gorm.DB, encryptionKey string) *ONTService {
+	return &ONTService{db: db, encryptionKey: encryptionKey}
+}
+
+// GetServiceConfig returns the ONU's provisioned service as the last poll read
+// it, with the PPPoE password decrypted so a reconfigure can resend it.
+func (s *ONTService) GetServiceConfig(ontID uuid.UUID) (*connectivity.ZTEONUService, *time.Time, error) {
+	var ont models.ONT
+	if err := s.db.First(&ont, "id = ?", ontID).Error; err != nil {
+		return nil, nil, fmt.Errorf("ONT not found: %w", err)
+	}
+	if len(ont.ServiceConfig) == 0 {
+		return nil, ont.ServiceConfigAt, nil
+	}
+
+	var service connectivity.ZTEONUService
+	if err := json.Unmarshal(ont.ServiceConfig, &service); err != nil {
+		return nil, nil, fmt.Errorf("stored service config is unreadable: %w", err)
+	}
+
+	if ont.PPPoEPassword != "" && s.encryptionKey != "" {
+		password, err := utils.Decrypt(ont.PPPoEPassword, s.encryptionKey)
+		if err != nil {
+			// A password that cannot be decrypted is left out rather than failing
+			// the whole read: everything else still pre-fills the form.
+			log.Printf("[ONT] Cannot decrypt stored PPPoE password for %s: %v", ontID, err)
+		} else {
+			service.PPPoEPassword = password
+		}
+	}
+
+	return &service, ont.ServiceConfigAt, nil
 }
 
 // GetDB returns the database instance

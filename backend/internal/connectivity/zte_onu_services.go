@@ -10,9 +10,11 @@ import (
 // backs the pre-fill on the configure form, so it carries what that form asks
 // for and nothing else.
 //
-// PPPoEPassword is deliberately absent. The running config holds it in clear
-// text; reading it into the application, let alone back out to a browser,
-// would spread a credential the operator can simply retype.
+// PPPoEPassword is read because reconfiguring a service requires resending it,
+// and an operator who does not have it to hand would otherwise break the
+// subscriber's session. It is tagged out of the JSON on purpose: the service
+// is stored as JSON, and this one field is encrypted into its own column
+// instead of riding along in clear text.
 type ZTEONUService struct {
 	VLANID        int    `json:"vlan_id"`
 	VLANMode      string `json:"vlan_mode"`
@@ -22,6 +24,7 @@ type ZTEONUService struct {
 	WANIPMode     string `json:"wan_ip_mode"`
 	VLANProfile   string `json:"vlan_profile"`
 	PPPoEUsername string `json:"pppoe_username"`
+	PPPoEPassword string `json:"-"`
 }
 
 var (
@@ -33,6 +36,7 @@ var (
 	zteServiceLine     = regexp.MustCompile(`^service \S+ gemport (\d+)(?: (untag)| .*\bvlan (\d+))?`)
 	zteWanIPLine       = regexp.MustCompile(`^wan-ip \d+ mode (\S+)`)
 	zteWanIPUser       = regexp.MustCompile(`\busername (\S+)`)
+	zteWanIPPassword   = regexp.MustCompile(`\bpassword (\S+)`)
 	zteWanIPProfile    = regexp.MustCompile(`\bvlan-profile (\S+)`)
 )
 
@@ -139,6 +143,9 @@ func applyZTEServiceLine(service *ZTEONUService, line string, gemportTcont map[i
 		service.WANIPMode = zteWanIPLine.FindStringSubmatch(line)[1]
 		if match := zteWanIPUser.FindStringSubmatch(line); match != nil {
 			service.PPPoEUsername = match[1]
+		}
+		if match := zteWanIPPassword.FindStringSubmatch(line); match != nil {
+			service.PPPoEPassword = match[1]
 		}
 		if match := zteWanIPProfile.FindStringSubmatch(line); match != nil {
 			service.VLANProfile = match[1]

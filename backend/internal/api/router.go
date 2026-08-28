@@ -44,7 +44,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	siteService := services.NewSiteService(db)
 	oltService := services.NewOLTServiceWithCommander(db, cfg.EncryptionKey, commanderFactory)
 	oltValidatorService := services.NewOLTValidatorService(db)
-	ontService := services.NewONTService(db)
+	ontService := services.NewONTServiceWithEncryption(db, cfg.EncryptionKey)
 	metricsService := services.NewMetricsService(db)
 	eventService := services.NewEventService(db)
 	auditService := services.NewAuditService(db, logger)

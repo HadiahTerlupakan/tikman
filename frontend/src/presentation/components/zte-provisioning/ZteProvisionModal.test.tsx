@@ -97,6 +97,7 @@ describe("ZteProvisionModal", () => {
         wanIpMode: "pppoe",
         vlanProfile: "PPPOE-214",
         pppoeUsername: "258179206252",
+        pppoePassword: "12345",
       },
     });
 
@@ -116,7 +117,8 @@ describe("ZteProvisionModal", () => {
     expect(screen.getByLabelText(/PPPoE username/i)).toHaveValue(
       "258179206252",
     );
-    // The OLT holds the password in clear text; it is never read back.
-    expect(screen.getByLabelText(/^PPPoE password$/i)).toHaveValue("");
+    // Without this the operator would need a password the OLT already has, and
+    // a reconfigure that omitted it would break the subscriber's session.
+    expect(screen.getByLabelText(/^PPPoE password$/i)).toHaveValue("12345");
   });
 });

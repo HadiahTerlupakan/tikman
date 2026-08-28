@@ -1,8 +1,8 @@
 import type { ZteWanIpMode } from "./ZteProvisioning";
 
-// An ONU's provisioned service as the OLT currently has it. There is no
-// password field: the OLT holds one in clear text and the operator retypes it
-// rather than having it travel to a browser.
+// An ONU's provisioned service as the OLT currently has it. The password is
+// included because reconfiguring the service has to resend it; it is stored
+// encrypted and only reaches here over an authenticated session.
 export interface OntServiceConfig {
   vlanId: number;
   vlanMode: "tag" | "untag";
@@ -12,4 +12,5 @@ export interface OntServiceConfig {
   wanIpMode: ZteWanIpMode | "";
   vlanProfile: string;
   pppoeUsername: string;
+  pppoePassword: string;
 }

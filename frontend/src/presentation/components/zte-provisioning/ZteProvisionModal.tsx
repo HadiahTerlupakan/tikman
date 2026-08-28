@@ -75,9 +75,8 @@ export function ZteProvisionModal({
       wanMode: serviceConfig?.wanMode ?? "wan_ip",
       wanIpMode: serviceConfig?.wanIpMode ?? "pppoe",
       vlanProfile: serviceConfig?.vlanProfile ?? "",
-      // The password is never read back from the OLT, so it is always retyped.
       pppoeUsername: serviceConfig?.pppoeUsername ?? "",
-      pppoePassword: "",
+      pppoePassword: serviceConfig?.pppoePassword ?? "",
     });
   }, [form, mode, ontId, open, serviceConfig, target]);
 

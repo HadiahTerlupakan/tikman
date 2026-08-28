@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/utils"
 	"gorm.io/datatypes"
 )
 
@@ -88,9 +89,19 @@ func (s *OLTService) storeONUServices(olt *models.OLT, services map[connectivity
 		if err != nil {
 			continue
 		}
+		updates := map[string]interface{}{"service_config": datatypes.JSON(encoded), "service_config_at": now}
+		// Encrypted with the same key as the OLT's own credentials. A failure to
+		// encrypt drops the password rather than storing it readable.
+		if service.PPPoEPassword != "" {
+			if sealed, err := utils.Encrypt(service.PPPoEPassword, string(s.encryptionKey)); err == nil {
+				updates["pppoe_password"] = sealed
+			} else {
+				log.Printf("[AutoDiscovery] Cannot encrypt PPPoE password for OLT %s: %v", olt.Name, err)
+			}
+		}
 		result := s.db.Model(&models.ONT{}).
 			Where("olt_id = ? AND port_id = ? AND ont_id = ?", olt.ID, location.Port, location.ONTID).
-			Updates(map[string]interface{}{"service_config": datatypes.JSON(encoded), "service_config_at": now})
+			Updates(updates)
 		if result.Error != nil {
 			log.Printf("[AutoDiscovery] Cannot store service config for OLT %s: %v", olt.Name, result.Error)
 			return
