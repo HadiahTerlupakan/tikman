@@ -17,6 +17,7 @@ vi.mock("@/application/hooks/useOlts", () => ({
   useOltVlans: () => ({ data: [] }),
   useOltTcontProfiles: () => ({ data: [] }),
   useOltVlanProfiles: () => ({ data: [] }),
+  useOltOnuTypes: () => ({ data: [] }),
 }));
 
 const target = {

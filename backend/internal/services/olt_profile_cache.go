@@ -63,6 +63,9 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 		addProfileUpdate(updates, "vlan_profiles", vlan, olt.Name)
 	}
 	if err == nil {
+		if len(snapshot.ONUTypes) > 0 {
+			addProfileUpdate(updates, "onu_types", snapshot.ONUTypes, olt.Name)
+		}
 		s.storeONUServices(olt, snapshot.ONUServices)
 	}
 
@@ -76,7 +79,7 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 		return
 	}
 
-	log.Printf("[AutoDiscovery] Cached %d T-CONT and %d VLAN profiles for OLT %s", len(tcont), len(vlan), olt.Name)
+	log.Printf("[AutoDiscovery] Cached %d T-CONT profiles, %d VLAN profiles and %d ONU types for OLT %s", len(tcont), len(vlan), len(snapshot.ONUTypes), olt.Name)
 }
 
 // storeONUServices records each ONU's current service against its ONT row, so
@@ -137,6 +140,23 @@ func (s *OLTService) ListTCONTProfiles(oltID uuid.UUID) ([]string, *time.Time, e
 	}
 
 	return profiles, olt.TCONTProfilesUpdatedAt, nil
+}
+
+// ListONUTypes returns the ONU types the OLT accepts, cached by the last poll.
+func (s *OLTService) ListONUTypes(oltID uuid.UUID) ([]string, *time.Time, error) {
+	var olt models.OLT
+	if err := s.db.First(&olt, "id = ?", oltID).Error; err != nil {
+		return nil, nil, fmt.Errorf("OLT not found: %w", err)
+	}
+
+	types := make([]string, 0)
+	if len(olt.ONUTypes) > 0 {
+		if err := json.Unmarshal(olt.ONUTypes, &types); err != nil {
+			return nil, nil, fmt.Errorf("cached ONU type list is unreadable: %w", err)
+		}
+	}
+
+	return types, olt.TCONTProfilesUpdatedAt, nil
 }
 
 // ListVLANProfiles returns the VLAN profile names cached by the last poll.

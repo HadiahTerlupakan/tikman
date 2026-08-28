@@ -1,5 +1,6 @@
-import { Form, Input, InputNumber, Radio, Switch } from "antd";
+import { Form, Input, InputNumber, Radio, Select, Switch } from "antd";
 import type { ZteProvisionTarget } from "@/domain/entities";
+import { useOltOnuTypes } from "@/application/hooks/useOlts";
 
 interface OnuIdentityFormProps {
   target: ZteProvisionTarget;
@@ -7,6 +8,16 @@ interface OnuIdentityFormProps {
 
 export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
   const mode = Form.useWatch("onuIdMode");
+  const { data: onuTypes } = useOltOnuTypes(target.oltId);
+
+  // The OLT reports a model over OMCI — an F609 announces itself as F609V9 —
+  // but the registration command takes one of the OLT's own onu-type names and
+  // rejects anything else. The detected model is shown so the operator can
+  // match it, rather than pre-selected as if it were valid.
+  const detected = target.onuType?.trim();
+  const typeHint = detected
+    ? `The OLT reports this ONU as ${detected}. Pick the matching type it accepts.`
+    : undefined;
   return (
     <>
       <Form.Item name="card" label="Card" rules={[{ required: true }]}>
@@ -40,8 +51,35 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
       >
         <Input maxLength={12} />
       </Form.Item>
-      <Form.Item name="onuType" label="ONU type" rules={[{ required: true }]}>
-        <Input maxLength={64} />
+      <Form.Item
+        name="onuType"
+        label="ONU type"
+        extra={
+          onuTypes?.length
+            ? typeHint
+            : "ONU types appear here once the OLT has been polled."
+        }
+        rules={[
+          { required: true },
+          {
+            validator: (_, value: string) =>
+              !onuTypes?.length || !value || onuTypes.includes(value)
+                ? Promise.resolve()
+                : Promise.reject(
+                    new Error(`The OLT does not accept the type ${value}.`),
+                  ),
+          },
+        ]}
+      >
+        {onuTypes?.length ? (
+          <Select
+            showSearch
+            placeholder="Select an ONU type"
+            options={onuTypes.map((name) => ({ value: name, label: name }))}
+          />
+        ) : (
+          <Input maxLength={64} />
+        )}
       </Form.Item>
       <Form.Item
         name="useVeip"

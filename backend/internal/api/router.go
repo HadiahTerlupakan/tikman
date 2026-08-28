@@ -123,6 +123,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.GET("/:id/vlans", oltHandler.ListVLANs)
 			olts.GET("/:id/tcont-profiles", oltHandler.ListTCONTProfiles)
 			olts.GET("/:id/vlan-profiles", oltHandler.ListVLANProfiles)
+			olts.GET("/:id/onu-types", oltHandler.ListONUTypes)
 			olts.POST("/:id/gpon/register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.Register)
 		}
 

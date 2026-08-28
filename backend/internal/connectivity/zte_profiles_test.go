@@ -146,3 +146,26 @@ func TestReadZTEConfigSnapshotNeedsABulkRead(t *testing.T) {
 		t.Fatalf("err = %v, want ErrUnsupported", err)
 	}
 }
+
+// Verbatim from the C300. The registration command takes one of these names;
+// the model an ONU reports over OMCI — F609V9 for the F609 below — is not one
+// of them and the OLT rejects it.
+const onuTypeListing = `onu-type ZTEG-F609 gpon description F609
+onu-type ZTEG-F660 gpon description F660
+onu-type HG8245H5 gpon description Huawei
+  onu-type ZTEG-F609 gpon description duplicate
+`
+
+func TestParseZTEONUTypesListsWhatTheOLTAccepts(t *testing.T) {
+	names := parseZTEONUTypes(onuTypeListing)
+
+	want := []string{"HG8245H5", "ZTEG-F609", "ZTEG-F660"}
+	if len(names) != len(want) {
+		t.Fatalf("got %v, want %v", names, want)
+	}
+	for i, name := range names {
+		if name != want[i] {
+			t.Errorf("type %d = %q, want %q", i, name, want[i])
+		}
+	}
+}

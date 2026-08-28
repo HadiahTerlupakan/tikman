@@ -64,7 +64,10 @@ type OLT struct {
 	// VLANProfiles is recovered from the ONU configs, since the CLI has no
 	// listing command for it. Read in the same session as the T-CONT profiles,
 	// so TCONTProfilesUpdatedAt times both.
-	VLANProfiles           datatypes.JSON `gorm:"column:vlan_profiles;type:jsonb" json:"vlan_profiles,omitempty"`
+	VLANProfiles datatypes.JSON `gorm:"column:vlan_profiles;type:jsonb" json:"vlan_profiles,omitempty"`
+	// ONUTypes are the names the registration command accepts, which are not the
+	// model strings ONUs report over OMCI.
+	ONUTypes               datatypes.JSON `gorm:"column:onu_types;type:jsonb" json:"onu_types,omitempty"`
 	TCONTProfilesUpdatedAt *time.Time     `gorm:"column:tcont_profiles_updated_at" json:"tcont_profiles_updated_at,omitempty"`
 	DiscoveryStartedAt     *time.Time     `json:"discovery_started_at,omitempty"`
 	DiscoveryLastPollAt    *time.Time     `json:"discovery_last_poll_at,omitempty"`

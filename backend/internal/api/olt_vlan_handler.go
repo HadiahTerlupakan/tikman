@@ -46,6 +46,11 @@ func (h *OLTHandler) ListTCONTProfiles(c *gin.Context) {
 	h.respondWithProfiles(c, h.service.ListTCONTProfiles)
 }
 
+// ListONUTypes handles GET /api/v1/olts/:id/onu-types.
+func (h *OLTHandler) ListONUTypes(c *gin.Context) {
+	h.respondWithProfiles(c, h.service.ListONUTypes)
+}
+
 // ListVLANProfiles handles GET /api/v1/olts/:id/vlan-profiles.
 func (h *OLTHandler) ListVLANProfiles(c *gin.Context) {
 	h.respondWithProfiles(c, h.service.ListVLANProfiles)

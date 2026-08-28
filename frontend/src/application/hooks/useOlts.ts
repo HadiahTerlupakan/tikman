@@ -77,6 +77,16 @@ export function useOltVlanProfiles(oltId?: string) {
   });
 }
 
+// The ONU types the OLT will accept in a registration command. These are not
+// the model strings ONUs report over OMCI, which the OLT rejects.
+export function useOltOnuTypes(oltId?: string) {
+  return useQuery({
+    queryKey: ["olts", oltId, "onu-types"],
+    queryFn: () => oltRepository.getOnuTypes(oltId as string),
+    enabled: !!oltId,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

@@ -42,11 +42,32 @@ type bulkCommander interface {
 	ExecuteBulk(ctx context.Context, cmd string, quiet, max time.Duration) (string, error)
 }
 
+// zteONUTypeName captures the profile names an "onu-type" line declares. The
+// registration command takes one of these, not the model string an ONU reports
+// over OMCI: an F609 announces itself as F609V9, which the OLT rejects.
+var zteONUTypeName = regexp.MustCompile(`(?m)^\s*onu-type\s+(\S+)`)
+
 // ZTEConfigSnapshot is everything one pass over the running config yields: the
-// VLAN profile names in use, and each ONU's current service.
+// ONU types the OLT will accept, the VLAN profile names in use, and each ONU's
+// current service.
 type ZTEConfigSnapshot struct {
+	ONUTypes     []string
 	VLANProfiles []string
 	ONUServices  map[ONTLocation]ZTEONUService
+}
+
+// parseZTEONUTypes lists the registered ONU types in alphabetical order.
+func parseZTEONUTypes(config string) []string {
+	seen := make(map[string]bool)
+	names := make([]string, 0)
+	for _, match := range zteONUTypeName.FindAllStringSubmatch(unwrapZTEOutput(config), -1) {
+		if name := strings.TrimSpace(match[1]); name != "" && !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ReadZTEConfigSnapshot reads the OLT's running config once and returns only
@@ -71,6 +92,7 @@ func ReadZTEConfigSnapshot(ctx context.Context, commander OLTCommander) (ZTEConf
 	}
 
 	return ZTEConfigSnapshot{
+		ONUTypes:     parseZTEONUTypes(output),
 		VLANProfiles: rankZTEVLANProfiles(output),
 		ONUServices:  ParseZTEONUServices(output),
 	}, nil
