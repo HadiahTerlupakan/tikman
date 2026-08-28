@@ -27,16 +27,25 @@ func (s *MetricsService) GetDB() *gorm.DB {
 // StoreMetrics saves ONT metrics to ont_metrics hypertable. Rates come from
 // the OLT's live octet-rate gauges; nil means no gauge reading was available.
 func (s *MetricsService) StoreMetrics(ontID uuid.UUID, metrics *connectivity.ONTMetrics, rates *connectivity.ONUTrafficRates) error {
+	// rx_errors and tx_errors are left out: no confirmed counter column for them
+	// was found on the C300, and the OIDs that used to fill them addressed the
+	// wrong table.
 	query := `
-		INSERT INTO ont_metrics (time, ont_id, rx_power, tx_power, temperature, voltage, distance, rx_bytes, tx_bytes, rx_packets, tx_packets, rx_errors, tx_errors, rx_rate_mbps, tx_rate_mbps)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		INSERT INTO ont_metrics (time, ont_id, rx_power, tx_power, temperature, voltage, distance, rx_bytes, tx_bytes, rx_packets, tx_packets, rx_rate_mbps, tx_rate_mbps)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 
 	var rxRateMbps, txRateMbps *float64
+	// The byte and packet columns hold the OLT's lifetime Counter64 totals, so
+	// usage over a period is the difference between two rows. They come from the
+	// rate walk, which reads the ONU-ID table these counters live in.
+	var rxBytes, txBytes, rxPackets, txPackets *uint64
 	if rates != nil {
 		rx := float64(rates.RxOctetBps) * 8 / 1000000
 		tx := float64(rates.TxOctetBps) * 8 / 1000000
 		rxRateMbps, txRateMbps = &rx, &tx
+		rxBytes, txBytes = &rates.RxOctets, &rates.TxOctets
+		rxPackets, txPackets = &rates.RxPackets, &rates.TxPackets
 	}
 
 	err := s.db.Exec(query,
@@ -47,24 +56,20 @@ func (s *MetricsService) StoreMetrics(ontID uuid.UUID, metrics *connectivity.ONT
 		metrics.Temperature,
 		metrics.Voltage,
 		metrics.Distance,
-		metrics.RxBytes,
-		metrics.TxBytes,
-		metrics.RxPackets,
-		metrics.TxPackets,
-		metrics.RxErrors,
-		metrics.TxErrors,
+		rxBytes,
+		txBytes,
+		rxPackets,
+		txPackets,
 		rxRateMbps,
 		txRateMbps,
 	).Error
 
 	if err == nil {
-		log.Printf("[Metrics] ✅ Stored for %s: RX=%v TX=%v Dist=%dm RxPkts=%d TxPkts=%d Rates(up=%v down=%v Mbps)",
+		log.Printf("[Metrics] ✅ Stored for %s: RX=%v TX=%v Dist=%dm Rates(up=%v down=%v Mbps)",
 			ontID.String(),
 			formatPowerValue(metrics.RxPower),
 			formatPowerValue(metrics.TxPower),
 			metrics.Distance,
-			metrics.RxPackets,
-			metrics.TxPackets,
 			rxRateMbps,
 			txRateMbps)
 	} else {

@@ -221,101 +221,11 @@ func zteWalkMetrics(ipAddress, community string, snmpPort int) (map[ONTLocation]
 		}
 	}
 
-	rxBytesMetrics, err := walkONTMetricTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_RX_BYTES_TABLE, func(_ ONTLocation, raw int64) ONTMetrics {
-		return ONTMetrics{RxBytes: uint64(raw)}
-	})
-	if err != nil {
-		log.Printf("[Metrics] RX bytes walk failed: %v", err)
-	} else {
-		for k, v := range rxBytesMetrics {
-			if m, found := metrics[k]; found {
-				m.RxBytes = v.RxBytes
-				metrics[k] = m
-			} else {
-				metrics[k] = v
-			}
-		}
-	}
-
-	txBytesMetrics, err := walkONTMetricTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_TX_BYTES_TABLE, func(_ ONTLocation, raw int64) ONTMetrics {
-		return ONTMetrics{TxBytes: uint64(raw)}
-	})
-	if err != nil {
-		log.Printf("[Metrics] TX bytes walk failed: %v", err)
-	} else {
-		for k, v := range txBytesMetrics {
-			if m, found := metrics[k]; found {
-				m.TxBytes = v.TxBytes
-				metrics[k] = m
-			} else {
-				metrics[k] = v
-			}
-		}
-	}
-
-	rxPacketsMetrics, err := walkONTMetricTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_RX_PACKETS_TABLE, func(_ ONTLocation, raw int64) ONTMetrics {
-		return ONTMetrics{RxPackets: uint64(raw)}
-	})
-	if err != nil {
-		log.Printf("[Metrics] RX packets walk failed: %v", err)
-	} else {
-		for k, v := range rxPacketsMetrics {
-			if m, found := metrics[k]; found {
-				m.RxPackets = v.RxPackets
-				metrics[k] = m
-			} else {
-				metrics[k] = v
-			}
-		}
-	}
-
-	txPacketsMetrics, err := walkONTMetricTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_TX_PACKETS_TABLE, func(_ ONTLocation, raw int64) ONTMetrics {
-		return ONTMetrics{TxPackets: uint64(raw)}
-	})
-	if err != nil {
-		log.Printf("[Metrics] TX packets walk failed: %v", err)
-	} else {
-		for k, v := range txPacketsMetrics {
-			if m, found := metrics[k]; found {
-				m.TxPackets = v.TxPackets
-				metrics[k] = m
-			} else {
-				metrics[k] = v
-			}
-		}
-	}
-
-	rxErrorsMetrics, err := walkONTMetricTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_RX_ERRORS_TABLE, func(_ ONTLocation, raw int64) ONTMetrics {
-		return ONTMetrics{RxErrors: uint64(raw)}
-	})
-	if err != nil {
-		log.Printf("[Metrics] RX errors walk failed: %v", err)
-	} else {
-		for k, v := range rxErrorsMetrics {
-			if m, found := metrics[k]; found {
-				m.RxErrors = v.RxErrors
-				metrics[k] = m
-			} else {
-				metrics[k] = v
-			}
-		}
-	}
-
-	txErrorsMetrics, err := walkONTMetricTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_TX_ERRORS_TABLE, func(_ ONTLocation, raw int64) ONTMetrics {
-		return ONTMetrics{TxErrors: uint64(raw)}
-	})
-	if err != nil {
-		log.Printf("[Metrics] TX errors walk failed: %v", err)
-	} else {
-		for k, v := range txErrorsMetrics {
-			if m, found := metrics[k]; found {
-				m.TxErrors = v.TxErrors
-				metrics[k] = m
-			} else {
-				metrics[k] = v
-			}
-		}
-	}
+	// Octet, packet and error counts are not read here. The columns this used
+	// to walk under .3.50.12.1.1 do not hold them: that table has 13 columns,
+	// so the byte prefixes addressed nothing, and the RX packet prefix is the
+	// RX optical power column. The real counters live in the ONU-ID table
+	// beside the rate gauges and are collected by the traffic-rate walk.
 
 	equipmentIDs, err := walkONTStringTable(ipAddress, community, snmpPort, OID_ZXGPON_ONU_EQUIPMENT_ID_TABLE)
 	if err != nil {

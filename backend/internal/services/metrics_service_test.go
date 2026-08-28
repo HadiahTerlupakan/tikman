@@ -426,8 +426,6 @@ func TestMetricsService_StoreMetrics_Integration(t *testing.T) {
 	txBytes := uint64(500000)
 	rxPkts := uint64(10000)
 	txPkts := uint64(5000)
-	rxErrs := uint64(0)
-	txErrs := uint64(0)
 
 	metrics := &connectivity.ONTMetrics{
 		RxPower:     &rxPower,
@@ -435,17 +433,18 @@ func TestMetricsService_StoreMetrics_Integration(t *testing.T) {
 		Temperature: temp,
 		Voltage:     volt,
 		Distance:    dist,
-		RxBytes:     rxBytes,
-		TxBytes:     txBytes,
-		RxPackets:   rxPkts,
-		TxPackets:   txPkts,
-		RxErrors:    rxErrs,
-		TxErrors:    txErrs,
 	}
 
+	// The lifetime counters travel with the rate gauges, because both live in
+	// the ONU-ID table the rate walk reads. Taking them from ONTMetrics stored
+	// an optical power reading in rx_packets.
 	err := service.StoreMetrics(ontID, metrics, &connectivity.ONUTrafficRates{
 		RxOctetBps: 125000,  // 1 Mbps upload
 		TxOctetBps: 2500000, // 20 Mbps download
+		RxOctets:   rxBytes,
+		TxOctets:   txBytes,
+		RxPackets:  rxPkts,
+		TxPackets:  txPkts,
 	})
 	require.NoError(t, err)
 
@@ -462,8 +461,6 @@ func TestMetricsService_StoreMetrics_Integration(t *testing.T) {
 	assert.Equal(t, txBytes, retrieved.TxBytes)
 	assert.Equal(t, rxPkts, retrieved.RxPackets)
 	assert.Equal(t, txPkts, retrieved.TxPackets)
-	assert.Equal(t, rxErrs, retrieved.RxErrors)
-	assert.Equal(t, txErrs, retrieved.TxErrors)
 	require.NotNil(t, retrieved.RxRateMbps)
 	assert.InDelta(t, 1.0, *retrieved.RxRateMbps, 0.0001)
 	require.NotNil(t, retrieved.TxRateMbps)

@@ -9,12 +9,19 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// ONUTrafficRates holds live traffic rates reported by the OLT as Gauge32
-// values in bytes per second. RxOctet is the ONU→OLT direction (upload),
-// TxOctet is OLT→ONU (download).
+// ONUTrafficRates holds what the OLT reports for one ONU's traffic: the live
+// Gauge32 rates in bytes per second, and the Counter64 totals beside them.
+// RxOctet is the ONU→OLT direction (upload), TxOctet is OLT→ONU (download).
+//
+// The totals are lifetime counters, so a report of data used over a period is
+// the difference between two readings, not a sum of them.
 type ONUTrafficRates struct {
 	RxOctetBps uint64
 	TxOctetBps uint64
+	RxOctets   uint64
+	TxOctets   uint64
+	RxPackets  uint64
+	TxPackets  uint64
 }
 
 // zteWalkTrafficRates walks the zxAnPonOnuIf{Rx,Tx}OctetRate gauge tables and
@@ -54,6 +61,21 @@ func zteWalkTrafficRates(ipAddress, community string, snmpPort int) (map[ONTLoca
 		return nil, fmt.Errorf("tx octet rate walk failed: %w", err)
 	}
 
+	// A counter walk that fails leaves the rates usable rather than failing the
+	// whole poll: the gauges are what the live graphs read.
+	if err := collect(OID_ZXGPON_ONU_RX_OCTETS_TABLE, func(r *ONUTrafficRates, v uint64) { r.RxOctets = v }); err != nil {
+		log.Printf("[TrafficRates] RX octet counter walk failed: %v", err)
+	}
+	if err := collect(OID_ZXGPON_ONU_TX_OCTETS_TABLE, func(r *ONUTrafficRates, v uint64) { r.TxOctets = v }); err != nil {
+		log.Printf("[TrafficRates] TX octet counter walk failed: %v", err)
+	}
+	if err := collect(OID_ZXGPON_ONU_RX_PACKETS_TABLE, func(r *ONUTrafficRates, v uint64) { r.RxPackets = v }); err != nil {
+		log.Printf("[TrafficRates] RX packet counter walk failed: %v", err)
+	}
+	if err := collect(OID_ZXGPON_ONU_TX_PACKETS_TABLE, func(r *ONUTrafficRates, v uint64) { r.TxPackets = v }); err != nil {
+		log.Printf("[TrafficRates] TX packet counter walk failed: %v", err)
+	}
+
 	log.Printf("[TrafficRates] Walked %d ONT rate gauges", len(rates))
 	return rates, nil
 }
@@ -69,26 +91,45 @@ func zteQueryTrafficRates(ipAddress, community string, snmpPort, slot, port, ont
 	defer func() { _ = client.Conn.Close() }()
 
 	ifIndex := OnuIDIfIndexBase + slot*OnuIDSlotStride + port
-	rxOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_RX_OCTET_RATE_TABLE, ifIndex, ontID)
-	txOID := fmt.Sprintf("%s.%d.%d", OID_ZXGPON_ONU_TX_OCTET_RATE_TABLE, ifIndex, ontID)
+	instance := func(table string) string {
+		return fmt.Sprintf("%s.%d.%d", table, ifIndex, ontID)
+	}
 
-	result, err := client.Get([]string{rxOID, txOID})
+	rates := &ONUTrafficRates{}
+	// The gauges and the lifetime counters are columns of one table, so a single
+	// GET fetches both.
+	assign := []func(uint64){
+		func(v uint64) { rates.RxOctetBps = v },
+		func(v uint64) { rates.TxOctetBps = v },
+		func(v uint64) { rates.RxOctets = v },
+		func(v uint64) { rates.TxOctets = v },
+		func(v uint64) { rates.RxPackets = v },
+		func(v uint64) { rates.TxPackets = v },
+	}
+	oids := []string{
+		instance(OID_ZXGPON_ONU_RX_OCTET_RATE_TABLE),
+		instance(OID_ZXGPON_ONU_TX_OCTET_RATE_TABLE),
+		instance(OID_ZXGPON_ONU_RX_OCTETS_TABLE),
+		instance(OID_ZXGPON_ONU_TX_OCTETS_TABLE),
+		instance(OID_ZXGPON_ONU_RX_PACKETS_TABLE),
+		instance(OID_ZXGPON_ONU_TX_PACKETS_TABLE),
+	}
+
+	result, err := client.Get(oids)
 	if err != nil {
 		return nil, fmt.Errorf("rate gauge GET failed: %w", err)
 	}
 
-	rates := &ONUTrafficRates{}
 	got := 0
 	for i, v := range result.Variables {
+		if i >= len(assign) {
+			break
+		}
 		value, ok := toInt64(v.Value)
 		if !ok || value < 0 {
 			continue
 		}
-		if i == 0 {
-			rates.RxOctetBps = uint64(value)
-		} else {
-			rates.TxOctetBps = uint64(value)
-		}
+		assign[i](uint64(value))
 		got++
 	}
 	if got == 0 {

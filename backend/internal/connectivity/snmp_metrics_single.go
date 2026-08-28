@@ -2,7 +2,6 @@ package connectivity
 
 import (
 	"fmt"
-	"log"
 )
 
 // zteQueryONTMetrics queries metrics for a single ONT via SNMP in real-time
@@ -46,31 +45,14 @@ func zteQueryONTMetrics(ipAddress, community string, snmpPort int, slot, port, o
 		return 0
 	}
 
-	queryUint64 := func(oidBase string) uint64 {
-		oid := fmt.Sprintf("%s.%d.%d.1", oidBase, ifIndex, ontID)
-		if result, err := client.Get([]string{oid}); err == nil && len(result.Variables) > 0 {
-			if v, ok := toInt64(result.Variables[0].Value); ok {
-				return uint64(v)
-			}
-		}
-		return 0
-	}
-
 	metrics.RxPower = queryOpticalPower(OID_ZXGPON_ONU_RX_POWER_TABLE)
 	metrics.TxPower = queryOpticalPower(OID_ZXGPON_ONU_TX_POWER_TABLE)
 	metrics.Temperature = queryFloat(OID_ZXGPON_ONU_TEMPERATURE_TABLE, 256.0)
 	metrics.Voltage = queryFloat(OID_ZXGPON_ONU_VOLTAGE_TABLE, 10000.0)
 	metrics.TxBiasCurrent = queryFloat(OID_ZXGPON_ONU_TX_BIAS_CURRENT_TABLE, 500.0)
 	metrics.Distance = int(queryInt64(OID_ZXGPON_ONU_DISTANCE_TABLE))
-	metrics.RxBytes = queryUint64(OID_ZXGPON_ONU_RX_BYTES_TABLE)
-	metrics.TxBytes = queryUint64(OID_ZXGPON_ONU_TX_BYTES_TABLE)
-	metrics.RxPackets = queryUint64(OID_ZXGPON_ONU_RX_PACKETS_TABLE)
-	metrics.TxPackets = queryUint64(OID_ZXGPON_ONU_TX_PACKETS_TABLE)
-	metrics.RxErrors = queryUint64(OID_ZXGPON_ONU_RX_ERRORS_TABLE)
-	metrics.TxErrors = queryUint64(OID_ZXGPON_ONU_TX_ERRORS_TABLE)
-
-	log.Printf("[Realtime] ONT %d/%d/%d (ifIndex=%d): RxBytes=%d TxBytes=%d RxPkts=%d TxPkts=%d",
-		slot, port, ontID, ifIndex, metrics.RxBytes, metrics.TxBytes, metrics.RxPackets, metrics.TxPackets)
+	// Traffic counters are indexed in the ONU-ID space, not this one, and are
+	// read by the traffic-rate query alongside the gauges.
 
 	return metrics, nil
 }

@@ -130,21 +130,20 @@ func (s *MetricsService) GetRealtimeMetrics(ontID uuid.UUID) (*ONTMetricsRow, er
 		Voltage:       snmpMetrics.Voltage,
 		TxBiasCurrent: snmpMetrics.TxBiasCurrent,
 		Distance:      snmpMetrics.Distance,
-		RxBytes:       snmpMetrics.RxBytes,
-		TxBytes:       snmpMetrics.TxBytes,
-		RxPackets:     snmpMetrics.RxPackets,
-		TxPackets:     snmpMetrics.TxPackets,
-		RxErrors:      snmpMetrics.RxErrors,
-		TxErrors:      snmpMetrics.TxErrors,
 	}
 
 	// Live rate gauges are separate tables; failure here only means rates stay
 	// unset, the rest of the metrics are still returned. A model with no known
 	// rate OIDs reports ErrUnsupported and lands in the same branch.
+	// The lifetime counters come from the same table as the gauges, so they are
+	// read here rather than with the optical metrics, whose index space does not
+	// address them.
 	if rates, err := driver.QueryTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, slot, port, ontIDInt); err == nil {
 		rx := float64(rates.RxOctetBps) * 8 / 1000000
 		tx := float64(rates.TxOctetBps) * 8 / 1000000
 		row.RxRateMbps, row.TxRateMbps = &rx, &tx
+		row.RxBytes, row.TxBytes = rates.RxOctets, rates.TxOctets
+		row.RxPackets, row.TxPackets = rates.RxPackets, rates.TxPackets
 	} else {
 		log.Printf("[Realtime] Rate gauges unavailable for ONT %s: %v", ontID, err)
 	}

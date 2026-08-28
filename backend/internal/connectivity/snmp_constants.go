@@ -60,13 +60,18 @@ const (
 	OnuVoltagePrefix       = ".3.50.12.1.1.2" // Supply voltage
 	OnuTxBiasCurrentPrefix = ".3.50.12.1.1.3" // TX bias current in mA
 
-	// Traffic statistics OID prefixes
-	OnuRxBytesPrefix   = ".3.50.12.1.1.18" // RX bytes counter (fragment, oscillating)
-	OnuTxBytesPrefix   = ".3.50.12.1.1.19" // TX bytes counter (fragment, oscillating)
-	OnuRxPacketsPrefix = ".3.50.12.1.1.10" // RX packets counter
-	OnuTxPacketsPrefix = ".3.50.12.1.1.14" // TX packets counter
-	OnuRxErrorsPrefix  = ".3.50.12.1.1.20" // RX errors counter
-	OnuTxErrorsPrefix  = ".3.50.12.1.1.22" // TX errors counter
+	// Traffic counters, alongside the rate gauges in the same ONU-ID table.
+	// Counter64, and confirmed to increase monotonically: over 90 seconds one
+	// ONU moved 580780 rx and 12804263 tx octets, matching the rate gauges.
+	//
+	// They replace an earlier set under .3.50.12.1.1, which was wrong in two
+	// ways: that table has only 13 columns, so the byte prefixes .18 and .19
+	// addressed nothing, and the RX packet prefix .10 is the RX optical power
+	// column, so "packets" held a raw power reading.
+	OnuRxOctetsPrefix  = ".500.4.2.2.2.1.1"  // zxAnPonOnuIfRxOctets (upload)
+	OnuRxPacketsPrefix = ".500.4.2.2.2.1.2"  // zxAnPonOnuIfRxPackets
+	OnuTxOctetsPrefix  = ".500.4.2.2.2.1.44" // zxAnPonOnuIfTxOctets (download)
+	OnuTxPacketsPrefix = ".500.4.2.2.2.1.45" // zxAnPonOnuIfTxPackets
 
 	// Live traffic rate gauges (zxGponOntMgmt). These are Gauge32 values in
 	// bytes/second read directly from the OLT, not cumulative counters — the
@@ -113,12 +118,10 @@ const (
 	OID_ZXGPON_ONU_TX_BIAS_CURRENT_TABLE = BaseOID2 + OnuTxBiasCurrentPrefix
 
 	// Traffic statistics OIDs
-	OID_ZXGPON_ONU_RX_BYTES_TABLE   = BaseOID2 + OnuRxBytesPrefix
-	OID_ZXGPON_ONU_TX_BYTES_TABLE   = BaseOID2 + OnuTxBytesPrefix
-	OID_ZXGPON_ONU_RX_PACKETS_TABLE = BaseOID2 + OnuRxPacketsPrefix
-	OID_ZXGPON_ONU_TX_PACKETS_TABLE = BaseOID2 + OnuTxPacketsPrefix
-	OID_ZXGPON_ONU_RX_ERRORS_TABLE  = BaseOID2 + OnuRxErrorsPrefix
-	OID_ZXGPON_ONU_TX_ERRORS_TABLE  = BaseOID2 + OnuTxErrorsPrefix
+	OID_ZXGPON_ONU_RX_OCTETS_TABLE  = BaseOID1 + OnuRxOctetsPrefix
+	OID_ZXGPON_ONU_TX_OCTETS_TABLE  = BaseOID1 + OnuTxOctetsPrefix
+	OID_ZXGPON_ONU_RX_PACKETS_TABLE = BaseOID1 + OnuRxPacketsPrefix
+	OID_ZXGPON_ONU_TX_PACKETS_TABLE = BaseOID1 + OnuTxPacketsPrefix
 
 	// Live traffic rate gauges
 	OID_ZXGPON_ONU_RX_OCTET_RATE_TABLE = BaseOID1 + OnuRxOctetRatePrefix
