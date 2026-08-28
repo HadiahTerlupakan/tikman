@@ -60,6 +60,14 @@ func (zteDriver) WalkUnconfigured(ctx context.Context, ipAddress, community stri
 // and model are indexed per (slot, port) subtree, so those are walked once per
 // PON port; IP, MAC and hardware version live in flat tables walked whole.
 func (d zteDriver) Inventory(ipAddress, community string, snmpPort int, locations []ONTLocation) (map[ONTLocation]ONTInventory, error) {
+	// A caller naming a few ONUs gets them read directly. Going through the
+	// bulk path meant a provisioning snapshot of a single ONU walked the IP,
+	// MAC and hardware-version tables of the whole OLT; on a busy C300 all
+	// three timed out, and the registration waited about a minute for them.
+	if len(locations) > 0 && len(locations) <= targetedInventoryLimit {
+		return queryZTEInventoryFor(ipAddress, community, snmpPort, locations)
+	}
+
 	inventory := make(map[ONTLocation]ONTInventory, len(locations))
 	err := d.InventoryByPort(ipAddress, community, snmpPort, locations, func(_ []ONTLocation, part map[ONTLocation]ONTInventory) {
 		for loc, inv := range part {
