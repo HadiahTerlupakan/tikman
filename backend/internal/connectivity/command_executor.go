@@ -40,6 +40,7 @@ type TelnetCommander struct {
 	username string
 	password string
 	prompt   string // Expected prompt after login (> or #)
+	hostname string // Fixed part of the CLI prompt, learned at login
 }
 
 // NewTelnetCommander creates a new TelnetCommander and establishes connection
@@ -104,6 +105,10 @@ func (tc *TelnetCommander) connect() error {
 		return fmt.Errorf("failed to verify login")
 	}
 
+	// Learned once so later reads can tell the prompt from the same characters
+	// appearing inside command output.
+	tc.hostname = deviceHostname(response)
+
 	// Check for failure indicators
 	respLower := strings.ToLower(response)
 	failureIndicators := []string{"error", "incorrect", "denied", "invalid"}
@@ -133,6 +138,8 @@ func (tc *TelnetCommander) close() error {
 func (tc *TelnetCommander) ExecuteCommand(ctx context.Context, cmd string) (*CommandResult, error) {
 	startTime := time.Now()
 
+	tc.discardPending()
+
 	// Send command
 	if _, err := tc.writeLine(cmd); err != nil {
 		return nil, fmt.Errorf("failed to send command '%s': %w", cmd, err)
@@ -156,23 +163,22 @@ func (tc *TelnetCommander) ExecuteCommand(ctx context.Context, cmd string) (*Com
 
 // BatchExecute sends multiple commands sequentially
 func (tc *TelnetCommander) BatchExecute(ctx context.Context, cmds []string) ([]*CommandResult, error) {
-	results := make([]*CommandResult, len(cmds))
-
-	for i, cmd := range cmds {
+	// Stops at the first failure. Carrying on used to send the closing "exit"
+	// and "commit" after a command the OLT had refused, which is how a rejected
+	// registration still left a half-written ONU behind.
+	executed := make([]*CommandResult, 0, len(cmds))
+	for _, cmd := range cmds {
 		result, err := tc.ExecuteCommand(ctx, cmd)
 		if err != nil {
-			results[i] = &CommandResult{
-				Success:  false,
-				Error:    err.Error(),
-				Duration: 0,
-			}
-			// Continue trying other commands (don't abort batch)
-			continue
+			result = &CommandResult{Success: false, Error: err.Error()}
 		}
-		results[i] = result
+		executed = append(executed, result)
+		if !result.Success {
+			break
+		}
 	}
 
-	return results, nil
+	return executed, nil
 }
 
 // writeLine writes a line terminated with \r\n
@@ -194,8 +200,17 @@ func containsAnyFold(s string, substrings []string) bool {
 	return false
 }
 
-// readUntilPatterns reads until one of the patterns is found
+// readUntilPatterns reads until one of the patterns appears anywhere in the
+// stream. Used for the login handshake, where there is no prompt yet.
 func (tc *TelnetCommander) readUntilPatterns(patterns []string, maxWait time.Duration) (string, error) {
+	return tc.readUntil(func(buffer string) bool {
+		return containsAnyFold(buffer, patterns)
+	}, maxWait)
+}
+
+// readUntil reads bytes, answering Telnet negotiation as it goes, until done
+// reports that enough has arrived or maxWait expires.
+func (tc *TelnetCommander) readUntil(done func(string) bool, maxWait time.Duration) (string, error) {
 	var buffer strings.Builder
 	deadline := time.Now().Add(maxWait)
 
@@ -230,11 +245,8 @@ func (tc *TelnetCommander) readUntilPatterns(patterns []string, maxWait time.Dur
 
 		buffer.WriteByte(b)
 
-		current := strings.ToLower(buffer.String())
-		for _, pattern := range patterns {
-			if strings.Contains(current, strings.ToLower(pattern)) {
-				return buffer.String(), nil
-			}
+		if done(buffer.String()) {
+			return buffer.String(), nil
 		}
 	}
 
@@ -294,9 +306,22 @@ func (tc *TelnetCommander) ExecuteBulk(ctx context.Context, cmd string, quiet, m
 	return buffer.String(), nil
 }
 
-// waitForPrompt waits for the prompt character
+// waitForPrompt reads until the CLI has finished and printed its prompt again.
 func (tc *TelnetCommander) waitForPrompt(maxWait time.Duration) (string, error) {
-	return tc.readUntilPatterns([]string{">", "#", "$"}, maxWait)
+	return tc.readUntil(func(buffer string) bool {
+		return endsWithDevicePrompt(buffer, tc.hostname)
+	}, maxWait)
+}
+
+// discardPending throws away anything the OLT is still writing, so a command
+// is never sent into the tail of the previous one's output.
+func (tc *TelnetCommander) discardPending() {
+	for {
+		_ = tc.conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+		if _, err := tc.reader.ReadByte(); err != nil {
+			return
+		}
+	}
 }
 
 // HSGQCommander implements OLTCommander for HSGQ OLTs
