@@ -8,7 +8,11 @@ import (
 
 // Verbatim shape from the C300, including the 80-column wrap that splits the
 // VLAN profile name and the password field the parser must never carry out.
-const onuRunningConfig = `interface gpon-onu_1/3/1:1
+const onuRunningConfig = `interface gpon-olt_1/3/1
+  onu 1 type ALL sn RTEGC609E381
+  onu 15 type HG8245H5 sn HWTCB403E8A0
+!
+interface gpon-onu_1/3/1:1
   name 258179206252-Saraswati
   tcont 1 name VLAN0214-PPP profile default
   tcont 2 name INET profile 1G
@@ -37,7 +41,8 @@ func TestParseZTEONUServicesReadsTheProvisionedService(t *testing.T) {
 	}
 
 	want := ZTEONUService{
-		VLANID: 214, VLANMode: "tag", ServiceType: "internet",
+		ONUType: "ALL",
+		VLANID:  214, VLANMode: "tag", ServiceType: "internet",
 		// Resolved through gemport 2 -> tcont 2, not the first T-CONT on the ONU.
 		TCONTProfile: "1G",
 		WANMode:      "wan_ip", WANIPMode: "pppoe",
@@ -81,5 +86,19 @@ func TestZTEONUServiceJSONOmitsThePassword(t *testing.T) {
 
 	if strings.Contains(string(encoded), "12345") {
 		t.Fatalf("the encoded service carries the password: %s", encoded)
+	}
+}
+
+// The form fills its ONU type from this. The model an ONU announces over OMCI
+// — HWTC for a Huawei HG8245H5 — is not a name the OLT accepts back, so the
+// registered type is what has to be read.
+func TestParseZTEONUServicesReadsTheRegisteredType(t *testing.T) {
+	services := ParseZTEONUServices(onuRunningConfig)
+
+	if got := services[ONTLocation{Slot: 3, Port: 1, ONTID: 15}].ONUType; got != "HG8245H5" {
+		t.Errorf("ONU 15 type = %q, want HG8245H5", got)
+	}
+	if got := services[ONTLocation{Slot: 3, Port: 1, ONTID: 1}].ONUType; got != "ALL" {
+		t.Errorf("ONU 1 type = %q, want ALL", got)
 	}
 }

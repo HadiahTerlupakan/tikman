@@ -16,6 +16,10 @@ import (
 // is stored as JSON, and this one field is encrypted into its own column
 // instead of riding along in clear text.
 type ZTEONUService struct {
+	// ONUType is the name the OLT was registered with, which is not the model
+	// the ONU announces over OMCI: a Huawei HG8245H5 announces itself as HWTC.
+	// Only the former is a name the OLT accepts back.
+	ONUType       string `json:"onu_type"`
 	VLANID        int    `json:"vlan_id"`
 	VLANMode      string `json:"vlan_mode"`
 	ServiceType   string `json:"service_type"`
@@ -29,6 +33,8 @@ type ZTEONUService struct {
 
 var (
 	zteInterfaceHeader = regexp.MustCompile(`^interface gpon-onu_1/(\d+)/(\d+):(\d+)`)
+	ztePortHeader      = regexp.MustCompile(`^interface gpon-olt_1/(\d+)/(\d+)`)
+	zteONURegistration = regexp.MustCompile(`^onu (\d+) type (\S+)`)
 	zteMgmtHeader      = regexp.MustCompile(`^pon-onu-mng gpon-onu_1/(\d+)/(\d+):(\d+)`)
 	zteTcontLine       = regexp.MustCompile(`^tcont (\d+).*\bprofile (\S+)`)
 	zteGemportLine     = regexp.MustCompile(`^gemport (\d+).*\btcont (\d+)`)
@@ -46,6 +52,8 @@ func ParseZTEONUServices(config string) map[ONTLocation]ZTEONUService {
 	services := make(map[ONTLocation]ZTEONUService)
 
 	var location ONTLocation
+	var port ONTLocation
+	var inPort bool
 	var inSection bool
 	// Keyed by location, not reset per section: an ONU's T-CONTs and GEM ports
 	// are declared under interface, while the service that picks one of them
@@ -56,7 +64,30 @@ func ParseZTEONUServices(config string) map[ONTLocation]ZTEONUService {
 	for _, line := range strings.Split(unwrapZTEOutput(config), "\n") {
 		trimmed := strings.TrimSpace(line)
 
+		// The registered type lives on the port's own section, one line per ONU,
+		// not inside the ONU's section.
+		if match := ztePortHeader.FindStringSubmatch(trimmed); match != nil {
+			slot, _ := strconv.Atoi(match[1])
+			portID, _ := strconv.Atoi(match[2])
+			port, inPort, inSection = ONTLocation{Slot: slot, Port: portID}, true, false
+			continue
+		}
+		if inPort {
+			if match := zteONURegistration.FindStringSubmatch(trimmed); match != nil {
+				ontID, _ := strconv.Atoi(match[1])
+				at := ONTLocation{Slot: port.Slot, Port: port.Port, ONTID: ontID}
+				service := services[at]
+				service.ONUType = match[2]
+				services[at] = service
+				continue
+			}
+			if trimmed == "!" || trimmed == "end" {
+				inPort = false
+			}
+		}
+
 		if next, ok := zteSectionLocation(trimmed); ok {
+			inPort = false
 			location, inSection = next, true
 			if _, seen := services[location]; !seen {
 				services[location] = ZTEONUService{ServiceType: "bridge", WANMode: "setup_via_ont"}

@@ -59,7 +59,9 @@ export function ZteProvisionModal({
       onuIdMode: mode === "configure" ? "custom" : "auto",
       onuId: target.onuId || 0,
       serialNumber: target.serialNumber,
-      onuType: target.onuType || "",
+      // Prefers what the OLT was registered with over the model the ONU
+      // announces over OMCI, which the OLT will not accept back.
+      onuType: serviceConfig?.onuType || target.onuType || "",
       useVeip: false,
       name: target.name || "",
       description: target.description || "",

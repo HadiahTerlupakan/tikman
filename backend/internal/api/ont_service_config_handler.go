@@ -33,6 +33,7 @@ func (h *ONTHandler) GetServiceConfig(c *gin.Context) {
 	var payload gin.H
 	if service != nil {
 		payload = gin.H{
+			"onu_type":       service.ONUType,
 			"vlan_id":        service.VLANID,
 			"vlan_mode":      service.VLANMode,
 			"service_type":   service.ServiceType,

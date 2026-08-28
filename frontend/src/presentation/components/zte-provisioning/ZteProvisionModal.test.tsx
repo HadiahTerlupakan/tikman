@@ -133,6 +133,7 @@ describe("ZteProvisionModal", () => {
   it("opens pre-filled with the ONT's stored service", async () => {
     useOntServiceConfig.mockReturnValue({
       data: {
+        onuType: "HG8245H5",
         vlanId: 214,
         vlanMode: "tag",
         serviceType: "internet",
@@ -164,6 +165,38 @@ describe("ZteProvisionModal", () => {
     // Without this the operator would need a password the OLT already has, and
     // a reconfigure that omitted it would break the subscriber's session.
     expect(screen.getByLabelText(/^PPPoE password$/i)).toHaveValue("12345");
+  });
+
+  // The ONU announces itself as HWTC over OMCI, which the OLT will not accept
+  // back. The type it was registered with is what the form has to show.
+  it("prefers the registered ONU type over the announced model", async () => {
+    useOntServiceConfig.mockReturnValue({
+      data: {
+        onuType: "HG8245H5",
+        vlanId: 214,
+        vlanMode: "tag",
+        serviceType: "internet",
+        tcontProfile: "1G",
+        wanMode: "wan_ip",
+        wanIpMode: "pppoe",
+        vlanProfile: "PPPOE-214",
+        pppoeUsername: "258179206252",
+        pppoePassword: "12345",
+      },
+    });
+
+    render(
+      <ZteProvisionModal
+        open
+        mode="configure"
+        target={{ ...target, onuType: "HWTC" }}
+        ontId="ont-1"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/ONU type/i)).toHaveValue("HG8245H5");
   });
 
   // The wizard unmounts each step as it advances, and antd only returns the

@@ -4,6 +4,9 @@ import type { ZteWanIpMode } from "./ZteProvisioning";
 // included because reconfiguring the service has to resend it; it is stored
 // encrypted and only reaches here over an authenticated session.
 export interface OntServiceConfig {
+  // The type the OLT was registered with, not the model the ONU announces
+  // over OMCI — only the former is a name the OLT accepts back.
+  onuType: string;
   vlanId: number;
   vlanMode: "tag" | "untag";
   serviceType: "internet" | "bridge";
