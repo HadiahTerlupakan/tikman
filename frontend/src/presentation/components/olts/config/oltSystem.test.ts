@@ -76,4 +76,11 @@ describe("summariseModel", () => {
   it("falls back to the first clause when the banner is shaped differently", () => {
     expect(summariseModel("Some OLT, build 7")).toBe("Some OLT");
   });
+
+  // An empty string reaches antd's Statistic as a missing value and renders as
+  // 0, which read as a model number on an OLT the poll had not yet reached.
+  it("says unknown when the poll has not read the banner", () => {
+    expect(summariseModel("")).toBe("unknown");
+    expect(summariseModel("   ")).toBe("unknown");
+  });
 });

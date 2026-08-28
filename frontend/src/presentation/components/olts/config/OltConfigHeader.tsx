@@ -43,7 +43,7 @@ export function OltConfigHeader({
         <Col xs={12} md={6}>
           <Statistic
             title="Model"
-            value={system ? summariseModel(system.description) : "—"}
+            value={summariseModel(system?.description ?? "")}
             valueStyle={{ fontSize: 18 }}
           />
           <Text type="secondary">{system?.name || "—"}</Text>

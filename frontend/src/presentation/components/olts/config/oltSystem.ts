@@ -56,9 +56,14 @@ export function formatUptime(seconds: number): string {
 
 // sysDescr is a full copyright banner. The header has room for the model and
 // the software version, which are the two things an operator reads off it.
+// An OLT the poll has not read yet has no banner at all, and the caller needs
+// something printable: an empty string renders as 0 in a Statistic.
 export function summariseModel(description: string): string {
-  const match = description.match(/^(\S+)\s+Version\s+(\S+)/i);
-  return match ? `${match[1]} ${match[2]}` : description.split(",")[0].trim();
+  const banner = description.trim();
+  if (banner === "") return "unknown";
+
+  const match = banner.match(/^(\S+)\s+Version\s+(\S+)/i);
+  return match ? `${match[1]} ${match[2]}` : banner.split(",")[0].trim();
 }
 
 export function isPowerEntity(entity: ChassisEntity): boolean {
