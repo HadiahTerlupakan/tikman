@@ -195,7 +195,7 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 
 	commander, err := createCommanderForOLT(s.commanderFactory, *olt)
 	if err != nil {
-		return s.failJob(ctx, job, ont, before, fmt.Errorf("create commander: %w", err))
+		return s.failJob(ctx, job, ont, before, false, fmt.Errorf("create commander: %w", err))
 	}
 	defer closeCommander(commander)
 	var commands []string
@@ -205,22 +205,28 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 		commands, err = BuildZTEGPONServiceExecutionCommands(req, ont.ONTID)
 	}
 	if err != nil {
-		return s.failJob(ctx, job, ont, before, err)
+		return s.failJob(ctx, job, ont, before, false, err)
 	}
 	results, err := commander.BatchExecute(ctx, commands)
+	// Whether this job put the ONU on the OLT decides whether undoing it may
+	// delete one. A batch stops at its first failure, so anything at or before
+	// the registration line means the ONU is not ours to remove.
+	createdONU := !register
 	if err == nil {
+		createdONU = true
 		for i, result := range results {
 			if result == nil || !result.Success {
 				err = failedZTECommand(commands, i, result)
+				createdONU = register && i > zteRegistrationIndex(commands)
 				break
 			}
 		}
 	}
 	if err != nil {
-		return s.failJob(ctx, job, ont, before, fmt.Errorf("execute ZTE registration: %w", err))
+		return s.failJob(ctx, job, ont, before, createdONU, fmt.Errorf("execute ZTE registration: %w", err))
 	}
 	if err := s.verify(req, ont); err != nil {
-		return s.failJob(ctx, job, ont, before, err)
+		return s.failJob(ctx, job, ont, before, createdONU, err)
 	}
 	if err := s.jobs.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusSuccess, nil); err != nil {
 		return nil, err
@@ -318,13 +324,21 @@ func zteSnapshotPosition(snapshot *ConfigSnapshot) (position struct{ slot, port,
 	return position, true
 }
 
-func (s *ZTEGPONRegisterService) failJob(ctx context.Context, job *models.ProvisioningJob, ont models.ONT, before *ConfigSnapshot, cause error) (*models.ProvisioningJob, error) {
+// failJob records the failure and undoes what the job did. createdONU says
+// whether this job actually registered the ONU on the OLT: when it did not,
+// the OLT is left alone.
+//
+// Rolling back regardless was dangerous. A registration refused because the
+// serial was already on the OLT would answer by sending "no onu 15" — deleting
+// a working subscriber that an earlier job had put there. It did no damage the
+// one time it happened only because the OLT refused that command too.
+func (s *ZTEGPONRegisterService) failJob(ctx context.Context, job *models.ProvisioningJob, ont models.ONT, before *ConfigSnapshot, createdONU bool, cause error) (*models.ProvisioningJob, error) {
 	message := cause.Error()
 	_ = s.jobs.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusFailed, &message)
 	if before != nil && before.ZTE != nil && before.ZTE.ServiceMode == "gpon-register" {
 		_ = s.db.Delete(&models.ONT{}, "id = ?", ont.ID).Error
 	}
-	if s.rollback != nil {
+	if s.rollback != nil && createdONU {
 		var rollbackErr error
 		if rollbacker, ok := s.rollback.(zteOLTRollbacker); ok {
 			olt, loadErr := s.loadOLT(ont.OLTID)
@@ -410,4 +424,15 @@ func reserveONUError(tx *gorm.DB, serial string, cause error) error {
 		position = fmt.Sprintf("1/%d/%d:%d", *existing.Slot, existing.PortID, existing.ONTID)
 	}
 	return fmt.Errorf("serial %s is already registered at %s", serial, position)
+}
+
+// zteRegistrationIndex reports where the "onu N type X sn Y" line sits in a
+// command list, or -1 when the list has none.
+func zteRegistrationIndex(commands []string) int {
+	for i, command := range commands {
+		if zteRegistrationLine.MatchString(strings.TrimSpace(command)) {
+			return i
+		}
+	}
+	return -1
 }
