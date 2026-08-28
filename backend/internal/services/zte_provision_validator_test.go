@@ -79,6 +79,15 @@ func TestValidateZTEGPONRegister(t *testing.T) {
 		{name: "rejects unsupported service type", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) { req.ServiceType = "voip" }, wantSubstr: "internet or bridge"},
 		{name: "rejects a bridge that also asks for an OMCI WAN", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) { req.ServiceType = models.ZTEServiceBridge }, wantSubstr: "carries no OMCI WAN"},
 		{name: "rejects an untagged service that also asks for an OMCI WAN", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) { req.VLANMode = models.ZTEVLANModeUntag }, wantSubstr: "carries no OMCI WAN"},
+		{name: "rejects VEIP on a bridge", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) {
+			req.UseVEIP = true
+			req.ServiceType = models.ZTEServiceBridge
+			req.WANMode = models.ZTEWANModeSetupViaONT
+			req.WANIPMode = ""
+			req.VLANProfile = ""
+			req.PPPoEUsername = ""
+			req.PPPoEPassword = ""
+		}, wantSubstr: "VEIP applies only"},
 		{name: "rejects PPPoE credentials on a DHCP WAN", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) { req.WANIPMode = models.ZTEWANIPModeDHCP }, wantSubstr: "do not apply"},
 		{name: "requires PPPoE username", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) { req.PPPoEUsername = "" }, wantSubstr: "PPPoE username"},
 		{name: "rejects whitespace in PPPoE username", mutate: func(req *models.ZTEGPONRegisterRequest, olt *models.OLT) { req.PPPoEUsername = "subscriber 01" }, wantSubstr: "PPPoE username"},

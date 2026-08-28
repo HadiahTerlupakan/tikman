@@ -95,6 +95,42 @@ func TestBuildZTEGPONRegisterCommandsForBridgeService(t *testing.T) {
 	require.NotContains(t, joined, "wan-ip")
 }
 
+// A Fiberhome, VSOL or Huawei HGU only takes the service once its virtual
+// Ethernet port is bound; the syntax is the OLT's own.
+func TestBuildZTEGPONRegisterCommandsBindsTheVEIPPort(t *testing.T) {
+	req := validZTECommandRequest()
+	req.UseVEIP = true
+
+	commands, err := BuildZTEGPONRegisterCommands(req, 7)
+	require.NoError(t, err)
+
+	require.Contains(t, commands, "vlan port veip_1 mode tag vlan 100")
+}
+
+func TestBuildZTEGPONRegisterCommandsOmitsTheVEIPPortWhenOff(t *testing.T) {
+	commands, err := BuildZTEGPONRegisterCommands(validZTECommandRequest(), 7)
+	require.NoError(t, err)
+
+	require.NotContains(t, strings.Join(commands, "\n"), "veip")
+}
+
+// The binding lives in a section a bridge never gets, so the request must be
+// refused rather than quietly dropping the toggle.
+func TestBuildZTEGPONRegisterCommandsRejectsVEIPOnABridge(t *testing.T) {
+	req := validZTECommandRequest()
+	req.UseVEIP = true
+	req.ServiceType = models.ZTEServiceBridge
+	req.WANMode = models.ZTEWANModeSetupViaONT
+	req.WANIPMode = ""
+	req.VLANProfile = ""
+	req.PPPoEUsername = ""
+	req.PPPoEPassword = ""
+
+	commands, err := BuildZTEGPONRegisterCommands(req, 7)
+	require.Error(t, err)
+	require.Nil(t, commands)
+}
+
 // A DHCP WAN needs no credentials, and none must appear on the line.
 func TestBuildZTEGPONRegisterCommandsForDHCPWAN(t *testing.T) {
 	req := validZTECommandRequest()

@@ -95,6 +95,12 @@ func validateZTEWAN(req models.ZTEGPONRegisterRequest) error {
 		return fmt.Errorf("an untagged service carries no OMCI WAN, so WAN mode must be setup_via_ont")
 	}
 
+	// The VEIP port is bound in the OMCI management section, which neither a
+	// bridge nor an ONT-configured WAN produces.
+	if req.UseVEIP && (req.ServiceType == models.ZTEServiceBridge || req.WANMode != models.ZTEWANModeWANIP) {
+		return fmt.Errorf("VEIP applies only to an internet service the OLT configures over OMCI")
+	}
+
 	if req.WANMode == models.ZTEWANModeSetupViaONT {
 		if req.WANIPMode != "" || req.VLANProfile != "" || req.PPPoEUsername != "" || req.PPPoEPassword != "" {
 			return fmt.Errorf("WAN details do not apply when the WAN is set up on the ONT")

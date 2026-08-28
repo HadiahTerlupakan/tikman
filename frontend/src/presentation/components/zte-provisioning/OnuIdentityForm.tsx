@@ -47,7 +47,7 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
         name="useVeip"
         label="Use VEIP"
         valuePropName="checked"
-        extra="For ONUs that are not ZTE — Fiberhome, VSOL, Huawei and other HGUs — which present a virtual Ethernet port instead of physical ones. Recorded with the ONU; it does not change the generated commands yet."
+        extra="For ONUs that are not ZTE — Fiberhome, VSOL, Huawei and other HGUs — which present a virtual Ethernet port instead of physical ones. Binds veip_1 to the service VLAN, so it applies only to an Internet service the OLT configures over OMCI."
       >
         <Switch />
       </Form.Item>
