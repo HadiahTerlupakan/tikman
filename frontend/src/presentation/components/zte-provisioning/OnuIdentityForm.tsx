@@ -43,7 +43,12 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
       <Form.Item name="onuType" label="ONU type" rules={[{ required: true }]}>
         <Input maxLength={64} />
       </Form.Item>
-      <Form.Item name="useVeip" label="Use VEIP" valuePropName="checked">
+      <Form.Item
+        name="useVeip"
+        label="Use VEIP"
+        valuePropName="checked"
+        extra="For ONUs that are not ZTE — Fiberhome, VSOL, Huawei and other HGUs — which present a virtual Ethernet port instead of physical ones. Recorded with the ONU; it does not change the generated commands yet."
+      >
         <Switch />
       </Form.Item>
       <Form.Item name="name" label="Name">
