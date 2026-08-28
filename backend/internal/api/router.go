@@ -125,6 +125,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.GET("/:id/vlan-profiles", oltHandler.ListVLANProfiles)
 			olts.GET("/:id/onu-types", oltHandler.ListONUTypes)
 			olts.POST("/:id/gpon/register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.Register)
+			olts.POST("/:id/gpon/preview", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.PreviewRegister)
 		}
 
 		onts := api.Group("/onts")
@@ -144,6 +145,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.GET("/:id/events", eventHandler.GetEvents)
 			onts.GET("/:id/availability", eventHandler.GetAvailability)
 			onts.POST("/:id/gpon/configure", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.ConfigureExisting)
+			onts.POST("/:id/gpon/preview", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.PreviewConfigure)
 		}
 
 		configTemplates := api.Group("/config-templates")

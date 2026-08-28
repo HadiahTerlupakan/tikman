@@ -41,8 +41,6 @@ export function ZteProvisionModal({
   const [confirmed, setConfirmed] = useState(false);
   const watchedValues = Form.useWatch([], form);
   const values = useMemo(() => watchedValues || {}, [watchedValues]);
-  const onuId =
-    values.onuIdMode === "custom" ? values.onuId : target.onuId || 1;
 
   useEffect(() => {
     if (!open) {
@@ -131,8 +129,13 @@ export function ZteProvisionModal({
       ? "Register ZTE GPON ONU"
       : "Configure ZTE Internet Service";
   const previewRequest = useMemo(
-    () => values as Partial<ZteGPONRegisterRequest>,
-    [values],
+    () => ({
+      ...(values as ZteGPONRegisterRequest),
+      oltId: target.oltId,
+      onuId: values.onuIdMode === "auto" ? 0 : values.onuId,
+      confirm: false,
+    }),
+    [target.oltId, values],
   );
 
   return (
@@ -183,7 +186,11 @@ export function ZteProvisionModal({
           <InternetServiceForm oltId={target.oltId} />
         </div>
         {step === 2 && (
-          <ZteCommandPreview request={previewRequest} onuId={onuId} />
+          <ZteCommandPreview
+            mode={mode}
+            targetId={mode === "register" ? target.oltId : ontId}
+            request={previewRequest}
+          />
         )}
       </Form>
       {step === 2 && (

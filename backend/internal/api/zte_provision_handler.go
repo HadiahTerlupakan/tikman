@@ -23,6 +23,8 @@ var _ zteJobReader = (*services.JobService)(nil)
 type ZTEProvisioner interface {
 	RegisterAndConfigure(ctx context.Context, req models.ZTEGPONRegisterRequest, userID uuid.UUID) (*models.ProvisioningJob, error)
 	ConfigureExisting(ctx context.Context, ontID uuid.UUID, req models.ZTEGPONRegisterRequest, userID uuid.UUID) (*models.ProvisioningJob, error)
+	PreviewRegister(ctx context.Context, req models.ZTEGPONRegisterRequest) (int, []string, error)
+	PreviewConfigure(ctx context.Context, ontID uuid.UUID, req models.ZTEGPONRegisterRequest) (int, []string, error)
 }
 
 // ZTEProvisionHandler handles ZTE GPON registration and service configuration.
@@ -70,6 +72,47 @@ func (h *ZTEProvisionHandler) Register(c *gin.Context) {
 		return
 	}
 	writeZTEAccepted(c, job, jobONUID(job, req.ONUID), req.preview(jobONUID(job, req.ONUID)))
+}
+
+// PreviewRegister handles POST /api/v1/olts/:id/gpon/preview. It writes
+// nothing: it answers with the ONU ID the allocator would assign and the
+// commands the OLT would receive, so the operator approves what actually runs.
+func (h *ZTEProvisionHandler) PreviewRegister(c *gin.Context) {
+	oltID, err := parseZTEID(c, "id")
+	if err != nil {
+		return
+	}
+	var req zteProvisionRequest
+	if !bindZTERequest(c, &req) {
+		return
+	}
+	req.OLTID = oltID
+
+	onuID, commands, err := h.provisioner.PreviewRegister(c.Request.Context(), req.request())
+	if err != nil {
+		writeZTEServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"onu_id": onuID, "commands": commands})
+}
+
+// PreviewConfigure handles POST /api/v1/onts/:id/gpon/preview.
+func (h *ZTEProvisionHandler) PreviewConfigure(c *gin.Context) {
+	ontID, err := parseZTEID(c, "id")
+	if err != nil {
+		return
+	}
+	var req zteProvisionRequest
+	if !bindZTERequest(c, &req) {
+		return
+	}
+
+	onuID, commands, err := h.provisioner.PreviewConfigure(c.Request.Context(), ontID, req.request())
+	if err != nil {
+		writeZTEServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"onu_id": onuID, "commands": commands})
 }
 
 // ConfigureExisting handles POST /api/v1/onts/:ont_id/gpon/configure.

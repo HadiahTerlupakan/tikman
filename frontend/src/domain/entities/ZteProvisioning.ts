@@ -58,3 +58,9 @@ export interface ZteProvisionJob {
   ontId?: string;
   errorMessage?: string;
 }
+
+// What the server would send, and the ONU ID it would use.
+export interface ZteCommandPreviewResult {
+  onuId: number;
+  commands: string[];
+}

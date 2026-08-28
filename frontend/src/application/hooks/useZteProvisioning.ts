@@ -28,6 +28,32 @@ export function useZteExistingService() {
   });
 }
 
+// Fetched rather than rebuilt in the browser: a second copy of the command
+// list drifted from the one the OLT receives, and the operator was approving
+// the wrong text.
+export function useZteCommandPreview(
+  mode: "register" | "configure",
+  targetId: string | undefined,
+  data: ZteGPONRegisterRequest | undefined,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ["zte-command-preview", mode, targetId, data],
+    queryFn: () =>
+      mode === "register"
+        ? repository.previewRegister(
+            targetId as string,
+            data as ZteGPONRegisterRequest,
+          )
+        : repository.previewConfigure(
+            targetId as string,
+            data as ZteGPONRegisterRequest,
+          ),
+    enabled: enabled && Boolean(targetId) && Boolean(data),
+    retry: false,
+  });
+}
+
 export function useZteProvisionJob(jobId?: string) {
   return useQuery({
     queryKey: ["zte-provision-jobs", jobId],

@@ -42,6 +42,8 @@ export const API_ENDPOINTS = {
   BATCH_JOB_BY_ID: (id: string) => `/api/v1/batch-jobs/${id}`,
   ZTE_GPON_REGISTER: (id: string) => `/api/v1/olts/${id}/gpon/register`,
   ZTE_GPON_CONFIGURE: (id: string) => `/api/v1/onts/${id}/gpon/configure`,
+  ZTE_GPON_PREVIEW_REGISTER: (id: string) => `/api/v1/olts/${id}/gpon/preview`,
+  ZTE_GPON_PREVIEW_CONFIGURE: (id: string) => `/api/v1/onts/${id}/gpon/preview`,
 
   // Config Templates
   CONFIG_TEMPLATES: "/api/v1/config-templates",

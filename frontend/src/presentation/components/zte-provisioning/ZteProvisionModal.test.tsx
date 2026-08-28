@@ -13,6 +13,27 @@ const useOntServiceConfig = vi.hoisted(() =>
 
 vi.mock("@/application/hooks/useOnts", () => ({ useOntServiceConfig }));
 
+// The review step asks the server what it would send. These tests are about
+// the wizard, so the answer is stubbed; the redaction itself is the server's
+// job and is covered there.
+const useZteCommandPreview = vi.hoisted(() =>
+  vi.fn(() => ({
+    data: {
+      onuId: 15,
+      commands: [
+        "onu 15 type HG8245H5 sn HWTCB403E8A0",
+        "wan-ip 1 mode pppoe username user password <redacted> vlan-profile PPPOE-214",
+      ],
+    },
+    isLoading: false,
+    error: null,
+  })),
+);
+
+vi.mock("@/application/hooks/useZteProvisioning", () => ({
+  useZteCommandPreview,
+}));
+
 vi.mock("@/application/hooks/useOlts", () => ({
   useOltVlans: () => ({ data: [] }),
   useOltTcontProfiles: () => ({ data: [] }),
@@ -100,8 +121,11 @@ describe("ZteProvisionModal", () => {
     await fillInternetService("secret-pass");
     await user.click(screen.getByRole("button", { name: "Next" }));
 
+    // The rendered preview is the server's text, and the password typed into
+    // the form must not appear anywhere in it.
     expect(screen.getByText(/password <redacted>/i)).toBeInTheDocument();
-    expect(screen.queryByText("secret-pass")).not.toBeInTheDocument();
+    expect(screen.queryByText(/secret-pass/)).not.toBeInTheDocument();
+    expect(screen.getByText(/ONU ID 15/)).toBeInTheDocument();
   });
 
   // Configuring an existing ONT opens on what it is already running, so the

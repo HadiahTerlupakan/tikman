@@ -4,6 +4,7 @@ import type {
   ZteGPONRegisterRequest,
   ZteProvisionJob,
   ZteProvisionResponse,
+  ZteCommandPreviewResult,
 } from "@/domain/entities";
 
 export class ZteProvisioningRepository {
@@ -13,6 +14,30 @@ export class ZteProvisioningRepository {
   ): Promise<ZteProvisionResponse> {
     const response = await apiClient.post<ZteProvisionResponse>(
       API_ENDPOINTS.ZTE_GPON_REGISTER(oltId),
+      data,
+    );
+    return response.data;
+  }
+
+  // The preview comes from the server so the operator approves the commands the
+  // OLT will actually receive, with the ONU ID the allocator assigns.
+  async previewRegister(
+    oltId: string,
+    data: ZteGPONRegisterRequest,
+  ): Promise<ZteCommandPreviewResult> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.ZTE_GPON_PREVIEW_REGISTER(oltId),
+      data,
+    );
+    return response.data;
+  }
+
+  async previewConfigure(
+    ontId: string,
+    data: ZteGPONRegisterRequest,
+  ): Promise<ZteCommandPreviewResult> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.ZTE_GPON_PREVIEW_CONFIGURE(ontId),
       data,
     );
     return response.data;

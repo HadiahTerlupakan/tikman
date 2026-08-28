@@ -118,6 +118,57 @@ func (s *ZTEGPONRegisterService) ConfigureExisting(ctx context.Context, ontID uu
 	return s.executeJob(ctx, req, olt, ont, before, userID, false)
 }
 
+// PreviewRegister returns the ONU ID the allocator would assign and the
+// commands the OLT would receive, without writing anything. The preview an
+// operator approves has to come from the same builder that runs, or it is not
+// a preview of what happens.
+func (s *ZTEGPONRegisterService) PreviewRegister(ctx context.Context, req models.ZTEGPONRegisterRequest) (int, []string, error) {
+	olt, err := s.loadOLT(req.OLTID)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := ValidateZTEGPONRegister(req, olt); err != nil {
+		return 0, nil, err
+	}
+
+	req.SerialNumber = canonicalZTESerial(req.SerialNumber)
+	onuID, err := ResolveZTEONUID(ctx, s.db, req.OLTID, req.Card, req.PON, req.ONUID)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	commands, err := BuildZTEGPONRegisterCommands(req, onuID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return onuID, commands, nil
+}
+
+// PreviewConfigure is the same for an ONT that is already registered, whose
+// position and ONU ID are fixed.
+func (s *ZTEGPONRegisterService) PreviewConfigure(ctx context.Context, ontID uuid.UUID, req models.ZTEGPONRegisterRequest) (int, []string, error) {
+	var ont models.ONT
+	if err := s.db.WithContext(ctx).First(&ont, "id = ?", ontID).Error; err != nil {
+		return 0, nil, fmt.Errorf("load ONT: %w", err)
+	}
+
+	olt, err := s.loadOLT(ont.OLTID)
+	if err != nil {
+		return 0, nil, err
+	}
+	req.OLTID = ont.OLTID
+	if err := ValidateZTEGPONRegister(req, olt); err != nil {
+		return 0, nil, err
+	}
+
+	req.SerialNumber = canonicalZTESerial(req.SerialNumber)
+	commands, err := BuildZTEGPONServiceCommands(req, ont.ONTID)
+	if err != nil {
+		return 0, nil, err
+	}
+	return ont.ONTID, commands, nil
+}
+
 func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEGPONRegisterRequest, olt *models.OLT, ont models.ONT, before *ConfigSnapshot, userID uuid.UUID, register bool) (*models.ProvisioningJob, error) {
 	normalized := req
 	normalized.PPPoEPassword = "<redacted>"

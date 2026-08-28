@@ -1,10 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -21,6 +23,9 @@ type fakeZTEProvisioner struct {
 	err          error
 	gotRequest   models.ZTEGPONRegisterRequest
 	gotONTID     uuid.UUID
+
+	previewONUID    int
+	previewCommands []string
 }
 
 func (f *fakeZTEProvisioner) RegisterAndConfigure(_ context.Context, req models.ZTEGPONRegisterRequest, _ uuid.UUID) (*models.ProvisioningJob, error) {
@@ -32,6 +37,17 @@ func (f *fakeZTEProvisioner) ConfigureExisting(_ context.Context, ontID uuid.UUI
 	f.gotONTID = ontID
 	f.gotRequest = req
 	return f.configureJob, f.err
+}
+
+func (f *fakeZTEProvisioner) PreviewRegister(_ context.Context, req models.ZTEGPONRegisterRequest) (int, []string, error) {
+	f.gotRequest = req
+	return f.previewONUID, f.previewCommands, f.err
+}
+
+func (f *fakeZTEProvisioner) PreviewConfigure(_ context.Context, ontID uuid.UUID, req models.ZTEGPONRegisterRequest) (int, []string, error) {
+	f.gotONTID = ontID
+	f.gotRequest = req
+	return f.previewONUID, f.previewCommands, f.err
 }
 
 func validZTEAPIRequest() zteProvisionRequest {
@@ -178,4 +194,63 @@ func TestZTEProvisionHandler_ReturnsResolvedAutoONUInResponseAndPreview(t *testi
 	assert.Equal(t, float64(3), body["onu_id"])
 	commands := body["commands"].([]interface{})
 	assert.Contains(t, commands[2], "onu 3 type")
+}
+
+// The preview an operator approves has to come from the builder that runs, and
+// carry the ONU ID the allocator would assign. A second copy of the command
+// list in the browser drifted from the real one and showed a placeholder ID.
+func TestZTEProvisionHandler_PreviewRegisterReturnsTheRealCommands(t *testing.T) {
+	provisioner := &fakeZTEProvisioner{
+		previewONUID: 15,
+		previewCommands: []string{
+			"configure terminal",
+			"onu 15 type HG8245H5 sn HWTCB403E8A0",
+		},
+	}
+	router, oltID := setupZTEPreviewRouter(t, provisioner)
+
+	body, err := json.Marshal(validZTEAPIRequest())
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/olts/"+oltID.String()+"/gpon/preview", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var response struct {
+		ONUID    int      `json:"onu_id"`
+		Commands []string `json:"commands"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, 15, response.ONUID)
+	assert.Contains(t, response.Commands, "onu 15 type HG8245H5 sn HWTCB403E8A0")
+}
+
+// A preview writes nothing, so it must not demand the confirmation that guards
+// the real thing.
+func TestZTEProvisionHandler_PreviewNeedsNoConfirmation(t *testing.T) {
+	provisioner := &fakeZTEProvisioner{previewONUID: 15, previewCommands: []string{"commit"}}
+	router, oltID := setupZTEPreviewRouter(t, provisioner)
+
+	request := validZTEAPIRequest()
+	request.Confirm = false
+	body, err := json.Marshal(request)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/olts/"+oltID.String()+"/gpon/preview", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func setupZTEPreviewRouter(t *testing.T, provisioner *fakeZTEProvisioner) (*gin.Engine, uuid.UUID) {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	handler := NewZTEProvisionHandler(provisioner)
+	router.POST("/api/v1/olts/:id/gpon/preview", handler.PreviewRegister)
+
+	return router, uuid.New()
 }

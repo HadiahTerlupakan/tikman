@@ -1,36 +1,55 @@
-import { Alert, Typography } from "antd";
+import { Alert, Skeleton, Typography } from "antd";
 import type { ZteGPONRegisterRequest } from "@/domain/entities";
+import { useZteCommandPreview } from "@/application/hooks/useZteProvisioning";
 
 interface ZteCommandPreviewProps {
-  request: Partial<ZteGPONRegisterRequest>;
-  onuId: number;
+  mode: "register" | "configure";
+  targetId?: string;
+  request: ZteGPONRegisterRequest;
 }
 
-export function ZteCommandPreview({ request, onuId }: ZteCommandPreviewProps) {
-  const serial = request.serialNumber?.trim().toUpperCase() || "<serial>";
-  const profile = request.downloadProfile || "<profile>";
-  const vlan = request.vlanId || "<vlan>";
-  const username = request.pppoeUsername || "<username>";
-  const commands = [
-    "configure terminal",
-    `interface gpon-olt_1/${request.card || "<card>"}/${request.pon || "<pon>"}`,
-    `onu ${onuId} type ${request.onuType || "<onu-type>"} sn ${serial}`,
-    "exit",
-    `interface gpon-onu_1/${request.card || "<card>"}/${request.pon || "<pon>"}:${onuId}`,
-    ...(request.name ? [`name ${request.name}`] : []),
-    `tcont 1 name internet profile-name ${profile}`,
-    "gemport 1 name internet tcont 1",
-    `service-port 1 vport 1 user-vlan ${vlan} vlan ${vlan}`,
-    `wan-ip 1 mode pppoe username ${username} password <redacted> vlan-profile ${request.vlanProfile || "<profile>"}`,
-    "exit",
-    "commit",
-  ];
+// The commands come from the server, which owns the builder that runs them.
+// This used to assemble its own copy, and that copy drifted: it kept a keyword
+// the OLT rejects, put the WAN lines in the wrong context, and showed a
+// placeholder ONU ID instead of the one the allocator assigns.
+export function ZteCommandPreview({
+  mode,
+  targetId,
+  request,
+}: ZteCommandPreviewProps) {
+  const { data, isLoading, error } = useZteCommandPreview(
+    mode,
+    targetId,
+    request,
+    true,
+  );
+
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 6 }} />;
+  }
+
+  if (error) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="The OLT would refuse this configuration"
+        description={error.message}
+      />
+    );
+  }
+
+  const commands = data?.commands ?? [];
 
   return (
     <Alert
       type="info"
       showIcon
-      message="Command preview (password redacted)"
+      message={
+        data?.onuId
+          ? `Command preview — ONU ID ${data.onuId} (password redacted)`
+          : "Command preview (password redacted)"
+      }
       description={
         <Typography.Paragraph copyable={{ text: commands.join("\n") }}>
           <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
