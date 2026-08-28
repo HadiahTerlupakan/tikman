@@ -28,8 +28,38 @@ type ZTEGPONRegisterRequest struct {
 	VLANID          int          `json:"vlan_id"`
 	DownloadProfile string       `json:"download_profile"`
 	UploadProfile   string       `json:"upload_profile"`
-	WANMode         string       `json:"wan_mode"`
-	VLANProfile     string       `json:"vlan_profile"`
-	PPPoEUsername   string       `json:"pppoe_username"`
-	PPPoEPassword   string       `json:"pppoe_password"`
+	// WANMode says whether the OLT writes the ONU's WAN over OMCI or leaves it
+	// to be set up on the ONT itself; WANIPMode is how that WAN gets its address
+	// and only applies to the former.
+	WANMode       string `json:"wan_mode"`
+	WANIPMode     string `json:"wan_ip_mode"`
+	VLANProfile   string `json:"vlan_profile"`
+	PPPoEUsername string `json:"pppoe_username"`
+	PPPoEPassword string `json:"pppoe_password"`
 }
+
+// VLAN tagging modes on the UNI side of an ONU.
+const (
+	ZTEVLANModeTag   = "tag"
+	ZTEVLANModeUntag = "untag"
+)
+
+// Service types the form offers. Bridge carries no OMCI WAN at all.
+const (
+	ZTEServiceInternet = "internet"
+	ZTEServiceBridge   = "bridge"
+)
+
+// Where the WAN is configured.
+const (
+	ZTEWANModeWANIP       = "wan_ip"
+	ZTEWANModeSetupViaONT = "setup_via_ont"
+)
+
+// How an OMCI-configured WAN obtains its address. The OLT's own help lists
+// exactly these three.
+const (
+	ZTEWANIPModePPPoE  = "pppoe"
+	ZTEWANIPModeDHCP   = "dhcp"
+	ZTEWANIPModeStatic = "static"
+)

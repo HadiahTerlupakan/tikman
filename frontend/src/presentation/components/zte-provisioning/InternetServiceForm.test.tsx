@@ -19,9 +19,19 @@ beforeEach(() => {
   useOltVlanProfiles.mockReturnValue({ data: [] });
 });
 
-function renderForm() {
+// The form reads its own fields to decide what applies, so the wrapper has to
+// supply the same starting values the modal does.
+function renderForm(overrides: Record<string, unknown> = {}) {
   render(
-    <Form>
+    <Form
+      initialValues={{
+        vlanMode: "tag",
+        serviceType: "internet",
+        wanMode: "wan_ip",
+        wanIpMode: "pppoe",
+        ...overrides,
+      }}
+    >
       <InternetServiceForm oltId="olt-1" />
     </Form>,
   );
@@ -88,6 +98,34 @@ describe("InternetServiceForm", () => {
     renderForm();
 
     expect(screen.getByText("Select a VLAN profile")).toBeInTheDocument();
+  });
+
+  // A bridged ONU carries no OMCI WAN, so the VLAN profile and credentials that
+  // only describe one must not be asked for.
+  it("hides the WAN fields for a bridge service", () => {
+    useOltVlanProfiles.mockReturnValue({ data: ["PPPOE-214"] });
+
+    renderForm({
+      serviceType: "bridge",
+      wanMode: "setup_via_ont",
+      wanIpMode: "",
+    });
+
+    expect(screen.queryByText("Select a VLAN profile")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/PPPoE password/i)).not.toBeInTheDocument();
+  });
+
+  // Untagged traffic is transport only, so it does not even offer a service type.
+  it("hides the service type for an untagged service", () => {
+    renderForm({ vlanMode: "untag", wanMode: "setup_via_ont", wanIpMode: "" });
+
+    expect(screen.queryByText("Service type")).not.toBeInTheDocument();
+  });
+
+  it("drops the PPPoE credentials for a DHCP WAN", () => {
+    renderForm({ wanIpMode: "dhcp" });
+
+    expect(screen.queryByLabelText(/PPPoE username/i)).not.toBeInTheDocument();
   });
 
   it("falls back to a typed VLAN profile when nothing is cached", () => {

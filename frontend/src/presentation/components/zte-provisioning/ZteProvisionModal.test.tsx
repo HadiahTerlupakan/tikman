@@ -38,7 +38,7 @@ describe("ZteProvisionModal", () => {
     expect(screen.getByLabelText(/^PON$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/serial number/i)).toHaveValue("HWTCB403E8A0");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText(/Service 1.*Internet/i)).toBeInTheDocument();
+    expect(screen.getByText("Service 1")).toBeInTheDocument();
     expect(screen.getByLabelText(/^PPPoE password$/i)).toBeInTheDocument();
   });
 

@@ -51,7 +51,8 @@ export function ZteProvisionModal({
         serviceEnabled: true,
         vlanMode: "tag",
         serviceType: "internet",
-        wanMode: "pppoe",
+        wanMode: "wan_ip",
+        wanIpMode: "pppoe",
       });
     }
   }, [form, mode, open, target]);

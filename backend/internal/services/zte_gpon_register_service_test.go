@@ -39,7 +39,7 @@ func (f *zteRollbackFake) RollbackToSnapshot(_ context.Context, _ models.ONT, sn
 func intPtr(value int) *int { return &value }
 
 func validZTERequest(oltID uuid.UUID) models.ZTEGPONRegisterRequest {
-	return models.ZTEGPONRegisterRequest{OLTID: oltID, Card: 1, PON: 3, ONUIDMode: models.ZTEONUIDCustom, ONUID: 7, SerialNumber: "HWTCB403E8A0", ONUType: "HG8245H5", Name: "customer-42", ServiceEnabled: true, VLANMode: "tag", ServiceType: "internet", VLANID: 100, DownloadProfile: "100M", UploadProfile: "100M", WANMode: "pppoe", VLANProfile: "INTERNET", PPPoEUsername: "example-user", PPPoEPassword: "secret-password"}
+	return models.ZTEGPONRegisterRequest{OLTID: oltID, Card: 1, PON: 3, ONUIDMode: models.ZTEONUIDCustom, ONUID: 7, SerialNumber: "HWTCB403E8A0", ONUType: "HG8245H5", Name: "customer-42", ServiceEnabled: true, VLANMode: "tag", ServiceType: "internet", VLANID: 100, DownloadProfile: "100M", UploadProfile: "100M", WANMode: "wan_ip", WANIPMode: "pppoe", VLANProfile: "INTERNET", PPPoEUsername: "example-user", PPPoEPassword: "secret-password"}
 }
 
 func newZTEServiceTest(t *testing.T, commander connectivity.OLTCommander, snapshot ZTESnapshotter, rollback ZTERollbacker) (*ZTEGPONRegisterService, *models.OLT) {

@@ -46,20 +46,14 @@ func ValidateZTEGPONRegister(req models.ZTEGPONRegisterRequest, olt *models.OLT)
 	if strings.TrimSpace(req.Name) != "" && !isZTEName(req.Name) {
 		return fmt.Errorf("ONU name contains unsupported characters")
 	}
-	if req.VLANMode != "tag" {
-		return fmt.Errorf("VLAN mode must be tag")
+	if req.VLANMode != models.ZTEVLANModeTag && req.VLANMode != models.ZTEVLANModeUntag {
+		return fmt.Errorf("VLAN mode must be tag or untag")
 	}
-	if !isZTECommandToken(req.DownloadProfile) || !isZTECommandToken(req.UploadProfile) || !isZTECommandToken(req.VLANProfile) {
+	if !isZTECommandToken(req.DownloadProfile) || !isZTECommandToken(req.UploadProfile) {
 		return fmt.Errorf("profile contains unsupported characters")
 	}
 	if req.DownloadProfile != req.UploadProfile {
 		return fmt.Errorf("download and upload profiles must match")
-	}
-	if !isZTECredential(req.PPPoEUsername) {
-		return fmt.Errorf("PPPoE username contains unsupported characters")
-	}
-	if !isZTECredential(req.PPPoEPassword) {
-		return fmt.Errorf("PPPoE password contains unsupported characters")
 	}
 	switch req.ONUIDMode {
 	case models.ZTEONUIDAuto:
@@ -79,20 +73,70 @@ func ValidateZTEGPONRegister(req models.ZTEGPONRegisterRequest, olt *models.OLT)
 	if req.VLANID < 1 || req.VLANID > 4094 {
 		return fmt.Errorf("VLAN ID must be in range 1-4094")
 	}
-	if req.WANMode != "pppoe" {
-		return fmt.Errorf("WAN mode must be pppoe")
+	if req.ServiceType != models.ZTEServiceInternet && req.ServiceType != models.ZTEServiceBridge {
+		return fmt.Errorf("service type must be internet or bridge")
 	}
-	if req.ServiceType != "internet" {
-		return fmt.Errorf("service type must be internet")
+	return validateZTEWAN(req)
+}
+
+// validateZTEWAN checks the WAN half of the request. A bridged ONU and an ONU
+// set up on the ONT itself both carry no OMCI WAN, so everything below the WAN
+// mode has to be absent rather than merely ignored: silently dropping a filled
+// field would provision something other than what the operator saw.
+func validateZTEWAN(req models.ZTEGPONRegisterRequest) error {
+	if req.WANMode != models.ZTEWANModeWANIP && req.WANMode != models.ZTEWANModeSetupViaONT {
+		return fmt.Errorf("WAN mode must be wan_ip or setup_via_ont")
 	}
+
+	if req.ServiceType == models.ZTEServiceBridge && req.WANMode != models.ZTEWANModeSetupViaONT {
+		return fmt.Errorf("a bridge service carries no OMCI WAN, so WAN mode must be setup_via_ont")
+	}
+	if req.VLANMode == models.ZTEVLANModeUntag && req.WANMode != models.ZTEWANModeSetupViaONT {
+		return fmt.Errorf("an untagged service carries no OMCI WAN, so WAN mode must be setup_via_ont")
+	}
+
+	if req.WANMode == models.ZTEWANModeSetupViaONT {
+		if req.WANIPMode != "" || req.VLANProfile != "" || req.PPPoEUsername != "" || req.PPPoEPassword != "" {
+			return fmt.Errorf("WAN details do not apply when the WAN is set up on the ONT")
+		}
+		return nil
+	}
+
+	switch req.WANIPMode {
+	case models.ZTEWANIPModePPPoE, models.ZTEWANIPModeDHCP, models.ZTEWANIPModeStatic:
+	default:
+		return fmt.Errorf("WAN-IP mode must be pppoe, dhcp or static")
+	}
+
+	if !isZTECommandToken(req.VLANProfile) {
+		return fmt.Errorf("VLAN profile contains unsupported characters")
+	}
+
+	if req.WANIPMode != models.ZTEWANIPModePPPoE {
+		if req.PPPoEUsername != "" || req.PPPoEPassword != "" {
+			return fmt.Errorf("PPPoE credentials do not apply to a %s WAN", req.WANIPMode)
+		}
+		return nil
+	}
+
+	return validateZTEPPPoECredentials(req)
+}
+
+func validateZTEPPPoECredentials(req models.ZTEGPONRegisterRequest) error {
 	if req.PPPoEUsername == "" {
 		return fmt.Errorf("PPPoE username is required")
+	}
+	if !isZTECredential(req.PPPoEUsername) {
+		return fmt.Errorf("PPPoE username contains unsupported characters")
 	}
 	if strings.IndexFunc(req.PPPoEUsername, unicodeWhitespace) >= 0 {
 		return fmt.Errorf("PPPoE username cannot contain whitespace")
 	}
 	if req.PPPoEPassword == "" {
 		return fmt.Errorf("PPPoE password is required")
+	}
+	if !isZTECredential(req.PPPoEPassword) {
+		return fmt.Errorf("PPPoE password contains unsupported characters")
 	}
 	if strings.IndexFunc(req.PPPoEPassword, unicodeWhitespace) >= 0 {
 		return fmt.Errorf("PPPoE password cannot contain whitespace")

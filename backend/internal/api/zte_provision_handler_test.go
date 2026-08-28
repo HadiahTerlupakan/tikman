@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -49,7 +50,8 @@ func validZTEAPIRequest() zteProvisionRequest {
 			VLANID:          100,
 			DownloadProfile: "100M",
 			UploadProfile:   "100M",
-			WANMode:         "pppoe",
+			WANMode:         "wan_ip",
+			WANIPMode:       "pppoe",
 			VLANProfile:     "INTERNET",
 			PPPoEUsername:   "example-user",
 			PPPoEPassword:   "secret-password",
@@ -130,7 +132,17 @@ func TestZTEProvisionHandler_ReturnsAcceptedJobAndRedactedPreview(t *testing.T) 
 	assert.Equal(t, models.ProvisioningStatusSuccess, body["status"])
 	commands, ok := body["commands"].([]interface{})
 	require.True(t, ok)
-	assert.Contains(t, commands[8], "<redacted>")
+	// Located by content rather than index: the preview is what the operator
+	// reads before approving, and the password must be masked wherever the
+	// wan-ip line ends up in it.
+	var wanLine string
+	for _, command := range commands {
+		if text, ok := command.(string); ok && strings.HasPrefix(text, "wan-ip ") {
+			wanLine = text
+		}
+	}
+	require.NotEmpty(t, wanLine, "preview has no wan-ip line: %v", commands)
+	assert.Contains(t, wanLine, "<redacted>")
 }
 
 func TestZTEProvisionHandler_ConfigureExistingParsesONTID(t *testing.T) {

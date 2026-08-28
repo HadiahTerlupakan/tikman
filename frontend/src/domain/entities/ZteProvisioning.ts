@@ -1,8 +1,11 @@
 import type { OltModel } from "./Olt";
 
 export type ZteOnuIdMode = "auto" | "custom";
-export type ZteServiceType = "internet";
-export type ZteWanMode = "pppoe";
+export type ZteVlanMode = "tag" | "untag";
+export type ZteServiceType = "internet" | "bridge";
+// Where the WAN is configured, and how an OLT-configured one gets its address.
+export type ZteWanMode = "wan_ip" | "setup_via_ont";
+export type ZteWanIpMode = "pppoe" | "dhcp" | "static";
 
 export interface ZteGPONRegisterRequest {
   oltId: string;
@@ -16,12 +19,13 @@ export interface ZteGPONRegisterRequest {
   name: string;
   description: string;
   serviceEnabled: boolean;
-  vlanMode: "tag";
+  vlanMode: ZteVlanMode;
   serviceType: ZteServiceType;
   vlanId: number;
   downloadProfile: string;
   uploadProfile: string;
   wanMode: ZteWanMode;
+  wanIpMode: ZteWanIpMode | "";
   vlanProfile: string;
   pppoeUsername: string;
   pppoePassword: string;

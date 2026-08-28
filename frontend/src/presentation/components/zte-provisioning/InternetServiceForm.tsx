@@ -9,40 +9,77 @@ interface InternetServiceFormProps {
   oltId?: string;
 }
 
+// Untagged traffic and a bridged ONU both leave the WAN to the ONT: the OLT
+// only carries their traffic, so the OMCI service and WAN fields do not apply.
+function carriesOmciWan(vlanMode?: string, serviceType?: string) {
+  return vlanMode === "tag" && serviceType === "internet";
+}
+
 export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
+  const form = Form.useFormInstance();
+  const vlanMode = Form.useWatch("vlanMode", form);
+  const serviceType = Form.useWatch("serviceType", form);
+  const wanMode = Form.useWatch("wanMode", form);
+  const wanIpMode = Form.useWatch("wanIpMode", form);
+
   const { data: vlans } = useOltVlans(oltId);
   const { data: profiles } = useOltTcontProfiles(oltId);
   const { data: vlanProfiles } = useOltVlanProfiles(oltId);
-  const profileOptions = profiles?.map((name) => ({
-    value: name,
-    label: name,
-  }));
-  const vlanProfileOptions = vlanProfiles?.map((name) => ({
-    value: name,
-    label: name,
-  }));
+
+  const toOptions = (names?: string[]) =>
+    names?.map((name) => ({ value: name, label: name }));
+  const profileOptions = toOptions(profiles);
+  const vlanProfileOptions = toOptions(vlanProfiles);
+
+  const omciWan = carriesOmciWan(vlanMode, serviceType);
+  const configuredByOlt = omciWan && wanMode === "wan_ip";
 
   return (
     <>
-      <strong>Service 1 — Internet</strong>
+      <strong>Service 1</strong>
       <Form.Item
         name="vlanMode"
         label="VLAN mode"
         initialValue="tag"
         rules={[{ required: true }]}
       >
-        <Radio.Group disabled options={[{ value: "tag", label: "Tag" }]} />
-      </Form.Item>
-      <Form.Item
-        name="serviceType"
-        label="Service type"
-        initialValue="internet"
-      >
         <Radio.Group
-          disabled
-          options={[{ value: "internet", label: "Internet" }]}
+          optionType="button"
+          options={[
+            { value: "tag", label: "Tag" },
+            { value: "untag", label: "Untag" },
+          ]}
+          onChange={() =>
+            form.setFieldsValue({ wanMode: "setup_via_ont", wanIpMode: "" })
+          }
         />
       </Form.Item>
+
+      {vlanMode === "tag" && (
+        <Form.Item
+          name="serviceType"
+          label="Service type"
+          initialValue="internet"
+        >
+          <Radio.Group
+            optionType="button"
+            options={[
+              { value: "internet", label: "Internet" },
+              { value: "bridge", label: "Bridge" },
+            ]}
+            onChange={(event) =>
+              form.setFieldsValue({
+                wanMode:
+                  event.target.value === "internet"
+                    ? "wan_ip"
+                    : "setup_via_ont",
+                wanIpMode: event.target.value === "internet" ? "pppoe" : "",
+              })
+            }
+          />
+        </Form.Item>
+      )}
+
       <Form.Item
         name="vlanId"
         label="VLAN ID"
@@ -53,8 +90,6 @@ export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
             : "VLANs appear here once the OLT has been polled."
         }
       >
-        {/* Falls back to a typed ID: an OLT that has never been polled, or one
-            that was unreachable on its last poll, has no cached VLAN list. */}
         {vlans?.length ? (
           <Select
             showSearch
@@ -69,8 +104,7 @@ export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
           <InputNumber min={1} max={4094} style={{ width: "100%" }} />
         )}
       </Form.Item>
-      {/* Both fields offer the OLT's T-CONT profiles: the command references one
-          name, and the validator requires the two to match. */}
+
       <Form.Item
         name="downloadProfile"
         label="Download profile"
@@ -106,45 +140,71 @@ export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
           <Input />
         )}
       </Form.Item>
-      <Form.Item name="wanMode" label="WAN mode" initialValue="pppoe">
-        <Radio.Group disabled options={[{ value: "pppoe", label: "PPPoE" }]} />
+
+      <Form.Item name="wanMode" label="WAN mode">
+        <Radio.Group
+          optionType="button"
+          options={[
+            { value: "wan_ip", label: "WAN-IP", disabled: !omciWan },
+            { value: "setup_via_ont", label: "Setup via ONT" },
+          ]}
+        />
       </Form.Item>
-      {/* The CLI has no command that lists these, so the options are the names
-          the OLT's own ONUs already use, most common first. */}
-      <Form.Item
-        name="vlanProfile"
-        label="VLAN profile"
-        rules={[{ required: true }]}
-        extra={
-          vlanProfileOptions?.length
-            ? undefined
-            : "VLAN profiles appear here once the OLT has been polled."
-        }
-      >
-        {vlanProfileOptions?.length ? (
-          <Select
-            showSearch
-            placeholder="Select a VLAN profile"
-            options={vlanProfileOptions}
-          />
-        ) : (
-          <Input />
-        )}
-      </Form.Item>
-      <Form.Item
-        name="pppoeUsername"
-        label="PPPoE username"
-        rules={[{ required: true }]}
-      >
-        <Input autoComplete="off" />
-      </Form.Item>
-      <Form.Item
-        name="pppoePassword"
-        label="PPPoE password"
-        rules={[{ required: true }]}
-      >
-        <Input.Password autoComplete="new-password" />
-      </Form.Item>
+
+      {configuredByOlt && (
+        <>
+          <Form.Item name="wanIpMode" label="Mode WAN-IP" initialValue="pppoe">
+            <Radio.Group
+              optionType="button"
+              options={[
+                { value: "pppoe", label: "PPPoE" },
+                { value: "dhcp", label: "DHCP" },
+                { value: "static", label: "Static" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="vlanProfile"
+            label="VLAN profile"
+            rules={[{ required: true }]}
+            extra={
+              vlanProfileOptions?.length
+                ? undefined
+                : "VLAN profiles appear here once the OLT has been polled."
+            }
+          >
+            {vlanProfileOptions?.length ? (
+              <Select
+                showSearch
+                placeholder="Select a VLAN profile"
+                options={vlanProfileOptions}
+              />
+            ) : (
+              <Input />
+            )}
+          </Form.Item>
+        </>
+      )}
+
+      {configuredByOlt && wanIpMode === "pppoe" && (
+        <>
+          <Form.Item
+            name="pppoeUsername"
+            label="PPPoE username"
+            rules={[{ required: true }]}
+          >
+            <Input autoComplete="off" />
+          </Form.Item>
+          <Form.Item
+            name="pppoePassword"
+            label="PPPoE password"
+            rules={[{ required: true }]}
+          >
+            <Input.Password autoComplete="new-password" />
+          </Form.Item>
+        </>
+      )}
     </>
   );
 }
