@@ -1,5 +1,9 @@
 import { Form, Input, InputNumber, Radio, Select } from "antd";
-import { useOltTcontProfiles, useOltVlans } from "@/application/hooks/useOlts";
+import {
+  useOltTcontProfiles,
+  useOltVlanProfiles,
+  useOltVlans,
+} from "@/application/hooks/useOlts";
 
 interface InternetServiceFormProps {
   oltId?: string;
@@ -8,7 +12,12 @@ interface InternetServiceFormProps {
 export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
   const { data: vlans } = useOltVlans(oltId);
   const { data: profiles } = useOltTcontProfiles(oltId);
+  const { data: vlanProfiles } = useOltVlanProfiles(oltId);
   const profileOptions = profiles?.map((name) => ({
+    value: name,
+    label: name,
+  }));
+  const vlanProfileOptions = vlanProfiles?.map((name) => ({
     value: name,
     label: name,
   }));
@@ -100,14 +109,27 @@ export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
       <Form.Item name="wanMode" label="WAN mode" initialValue="pppoe">
         <Radio.Group disabled options={[{ value: "pppoe", label: "PPPoE" }]} />
       </Form.Item>
-      {/* Stays typed: a C300 V2.1.0 has no listing command for it — "show gpon
-          profile ?" offers only tcont and traffic. */}
+      {/* The CLI has no command that lists these, so the options are the names
+          the OLT's own ONUs already use, most common first. */}
       <Form.Item
         name="vlanProfile"
         label="VLAN profile"
         rules={[{ required: true }]}
+        extra={
+          vlanProfileOptions?.length
+            ? undefined
+            : "VLAN profiles appear here once the OLT has been polled."
+        }
       >
-        <Input />
+        {vlanProfileOptions?.length ? (
+          <Select
+            showSearch
+            placeholder="Select a VLAN profile"
+            options={vlanProfileOptions}
+          />
+        ) : (
+          <Input />
+        )}
       </Form.Item>
       <Form.Item
         name="pppoeUsername"

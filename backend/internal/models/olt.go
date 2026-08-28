@@ -60,7 +60,11 @@ type OLT struct {
 	VLANsUpdatedAt *time.Time     `gorm:"column:vlans_updated_at" json:"vlans_updated_at,omitempty"`
 	// TCONTProfiles caches the CLI's T-CONT profile names, which the ZTE
 	// provisioning command references as "tcont ... profile-name X".
-	TCONTProfiles          datatypes.JSON `gorm:"column:tcont_profiles;type:jsonb" json:"tcont_profiles,omitempty"`
+	TCONTProfiles datatypes.JSON `gorm:"column:tcont_profiles;type:jsonb" json:"tcont_profiles,omitempty"`
+	// VLANProfiles is recovered from the ONU configs, since the CLI has no
+	// listing command for it. Read in the same session as the T-CONT profiles,
+	// so TCONTProfilesUpdatedAt times both.
+	VLANProfiles           datatypes.JSON `gorm:"column:vlan_profiles;type:jsonb" json:"vlan_profiles,omitempty"`
 	TCONTProfilesUpdatedAt *time.Time     `gorm:"column:tcont_profiles_updated_at" json:"tcont_profiles_updated_at,omitempty"`
 	DiscoveryStartedAt     *time.Time     `json:"discovery_started_at,omitempty"`
 	DiscoveryLastPollAt    *time.Time     `json:"discovery_last_poll_at,omitempty"`

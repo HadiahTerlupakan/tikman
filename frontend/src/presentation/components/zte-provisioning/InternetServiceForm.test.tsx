@@ -1,15 +1,23 @@
 import { render, screen } from "@testing-library/react";
 import { Form } from "antd";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InternetServiceForm } from "./InternetServiceForm";
 
 const useOltVlans = vi.hoisted(() => vi.fn());
 const useOltTcontProfiles = vi.hoisted(() => vi.fn());
+const useOltVlanProfiles = vi.hoisted(() => vi.fn());
 
 vi.mock("@/application/hooks/useOlts", () => ({
   useOltVlans,
   useOltTcontProfiles,
+  useOltVlanProfiles,
 }));
+
+beforeEach(() => {
+  useOltVlans.mockReturnValue({ data: [] });
+  useOltTcontProfiles.mockReturnValue({ data: [] });
+  useOltVlanProfiles.mockReturnValue({ data: [] });
+});
 
 function renderForm() {
   render(
@@ -69,6 +77,26 @@ describe("InternetServiceForm", () => {
 
     expect(
       screen.getByText("Profiles appear here once the OLT has been polled."),
+    ).toBeInTheDocument();
+  });
+
+  // The CLI cannot list these, so the options are the names already in use on
+  // the OLT's own ONUs.
+  it("offers the VLAN profiles recovered from the OLT config", () => {
+    useOltVlanProfiles.mockReturnValue({ data: ["PPPOE-21", "PPPOE-214"] });
+
+    renderForm();
+
+    expect(screen.getByText("Select a VLAN profile")).toBeInTheDocument();
+  });
+
+  it("falls back to a typed VLAN profile when nothing is cached", () => {
+    renderForm();
+
+    expect(
+      screen.getByText(
+        "VLAN profiles appear here once the OLT has been polled.",
+      ),
     ).toBeInTheDocument();
   });
 });

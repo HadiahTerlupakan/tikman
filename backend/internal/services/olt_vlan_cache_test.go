@@ -105,7 +105,7 @@ func TestOLTService_RefreshTCONTProfileCacheSkipsAFreshList(t *testing.T) {
 	}
 	require.NoError(t, db.Create(olt).Error)
 
-	service.refreshTCONTProfileCache(olt)
+	service.refreshProfileCache(olt)
 
 	assert.Zero(t, factory.calls, "a fresh cache must not open a CLI session")
 }
@@ -123,7 +123,7 @@ func TestOLTService_RefreshTCONTProfileCacheReadsAStaleList(t *testing.T) {
 	}
 	require.NoError(t, db.Create(olt).Error)
 
-	service.refreshTCONTProfileCache(olt)
+	service.refreshProfileCache(olt)
 
 	assert.Equal(t, 1, factory.calls)
 }

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
+	"strings"
+	"time"
 )
 
 // zteProfileName matches the "Profile name :default" heading that opens each
@@ -19,6 +22,67 @@ const zteTcontProfileCommand = "show gpon profile tcont"
 // disablePagingCommand stops the CLI paginating a long listing, which would
 // otherwise stall the read waiting for a keypress instead of a prompt.
 const disablePagingCommand = "terminal length 0"
+
+// zteVLANProfileName captures the profile named by a wan-ip line. The C300 has
+// no listing command for VLAN profiles — "show gpon profile ?" offers only
+// tcont and traffic, and vlan-profile is a keyword of wan-ip rather than a
+// command — so the names in use are recovered from the running config.
+var zteVLANProfileName = regexp.MustCompile(`vlan-profile\s+(\S+)`)
+
+const zteRunningConfigCommand = "show running-config"
+
+// bulkCommander reads output the ordinary prompt-bounded read cannot handle.
+type bulkCommander interface {
+	ExecuteBulk(ctx context.Context, cmd string, quiet, max time.Duration) (string, error)
+}
+
+// ReadZTEVLANProfiles returns the VLAN profile names configured on the OLT's
+// ONUs, most used first.
+//
+// The running config it reads carries PPPoE passwords in clear text. Only the
+// profile names leave this function: the body is never returned, logged or
+// stored.
+func ReadZTEVLANProfiles(ctx context.Context, commander OLTCommander) ([]string, error) {
+	bulk, ok := commander.(bulkCommander)
+	if !ok {
+		return nil, ErrUnsupported
+	}
+
+	if _, err := commander.ExecuteCommand(ctx, disablePagingCommand); err != nil {
+		return nil, fmt.Errorf("disable paging: %w", err)
+	}
+
+	output, err := bulk.ExecuteBulk(ctx, zteRunningConfigCommand, 3*time.Second, 90*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("read running config: %w", err)
+	}
+
+	return rankZTEVLANProfiles(output), nil
+}
+
+// rankZTEVLANProfiles orders names by how many ONUs use them, so the profile
+// the OLT is actually standardised on leads and one-off typos sort last.
+func rankZTEVLANProfiles(config string) []string {
+	counts := make(map[string]int)
+	for _, match := range zteVLANProfileName.FindAllStringSubmatch(config, -1) {
+		if name := strings.TrimSpace(match[1]); name != "" {
+			counts[name]++
+		}
+	}
+
+	names := make([]string, 0, len(counts))
+	for name := range counts {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if counts[names[i]] != counts[names[j]] {
+			return counts[names[i]] > counts[names[j]]
+		}
+		return names[i] < names[j]
+	})
+
+	return names
+}
 
 // ReadZTETcontProfiles returns the T-CONT profile names configured on the OLT,
 // in the order the CLI lists them.

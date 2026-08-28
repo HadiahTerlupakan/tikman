@@ -241,6 +241,59 @@ func (tc *TelnetCommander) readUntilPatterns(patterns []string, maxWait time.Dur
 	return buffer.String(), nil
 }
 
+// ExecuteBulk reads output too large for the prompt-bounded read: the running
+// config runs to thousands of lines and takes tens of seconds, and its body
+// contains characters the prompt match would stop on. It instead returns once
+// the OLT has been quiet for quiet, or when max expires.
+func (tc *TelnetCommander) ExecuteBulk(ctx context.Context, cmd string, quiet, max time.Duration) (string, error) {
+	if _, err := tc.writeLine(cmd); err != nil {
+		return "", fmt.Errorf("failed to send command: %w", err)
+	}
+
+	var buffer strings.Builder
+	deadline := time.Now().Add(max)
+	lastByte := time.Now()
+
+	for time.Now().Before(deadline) {
+		if ctx.Err() != nil {
+			return buffer.String(), ctx.Err()
+		}
+
+		_ = tc.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		b, err := tc.reader.ReadByte()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				if buffer.Len() > 0 && time.Since(lastByte) > quiet {
+					return buffer.String(), nil
+				}
+				continue
+			}
+			return buffer.String(), err
+		}
+
+		lastByte = time.Now()
+
+		if b == telnetIAC {
+			_ = tc.conn.SetWriteDeadline(time.Now().Add(tc.timeout))
+			data, keep, negErr := negotiateTelnetOption(tc.reader, tc.conn)
+			if negErr != nil {
+				continue
+			}
+			if !keep {
+				continue
+			}
+			b = data
+		}
+
+		buffer.WriteByte(b)
+	}
+
+	return buffer.String(), nil
+}
+
 // waitForPrompt waits for the prompt character
 func (tc *TelnetCommander) waitForPrompt(maxWait time.Duration) (string, error) {
 	return tc.readUntilPatterns([]string{">", "#", "$"}, maxWait)

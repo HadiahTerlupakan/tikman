@@ -67,6 +67,16 @@ export function useOltTcontProfiles(oltId?: string) {
   });
 }
 
+// VLAN profile names in use on the OLT's ONUs, recovered by the poll because
+// the CLI has no command that lists them.
+export function useOltVlanProfiles(oltId?: string) {
+  return useQuery({
+    queryKey: ["olts", oltId, "vlan-profiles"],
+    queryFn: () => oltRepository.getVlanProfiles(oltId as string),
+    enabled: !!oltId,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

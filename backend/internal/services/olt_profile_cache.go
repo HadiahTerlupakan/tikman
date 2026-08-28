@@ -18,10 +18,10 @@ import (
 // profiles change when an engineer edits the OLT config, not by the minute.
 const profileCacheTTL = 30 * time.Minute
 
-// refreshTCONTProfileCache stores the OLT's T-CONT profile names for the
-// provisioning form. As with the VLAN list, a failed read keeps whatever was
+// refreshProfileCache stores the profile names the provisioning form offers.
+// Both lists come from one CLI session, and a failed read keeps whatever was
 // cached before rather than emptying a dropdown the operator still needs.
-func (s *OLTService) refreshTCONTProfileCache(olt *models.OLT) {
+func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 	if s.commanderFactory == nil {
 		return
 	}
@@ -38,31 +38,49 @@ func (s *OLTService) refreshTCONTProfileCache(olt *models.OLT) {
 		defer func() { _ = closer.Close() }()
 	}
 
-	profiles, err := connectivity.ReadZTETcontProfiles(context.Background(), commander)
-	if err != nil {
+	ctx := context.Background()
+	updates := make(map[string]interface{}, 3)
+
+	tcont, err := connectivity.ReadZTETcontProfiles(ctx, commander)
+	switch {
+	case err != nil:
 		log.Printf("[AutoDiscovery] T-CONT profile read failed for OLT %s: %v", olt.Name, err)
+	case len(tcont) == 0:
+		log.Printf("[AutoDiscovery] T-CONT profile read returned nothing for OLT %s", olt.Name)
+	default:
+		addProfileUpdate(updates, "tcont_profiles", tcont, olt.Name)
+	}
+
+	vlan, err := connectivity.ReadZTEVLANProfiles(ctx, commander)
+	switch {
+	case err != nil:
+		log.Printf("[AutoDiscovery] VLAN profile read failed for OLT %s: %v", olt.Name, err)
+	case len(vlan) == 0:
+		log.Printf("[AutoDiscovery] No VLAN profiles in use on OLT %s", olt.Name)
+	default:
+		addProfileUpdate(updates, "vlan_profiles", vlan, olt.Name)
+	}
+
+	if len(updates) == 0 {
 		return
 	}
-	if len(profiles) == 0 {
-		log.Printf("[AutoDiscovery] T-CONT profile read returned nothing for OLT %s; keeping the cached list", olt.Name)
+	updates["tcont_profiles_updated_at"] = time.Now()
+
+	if err := s.db.Model(&models.OLT{}).Where("id = ?", olt.ID).Updates(updates).Error; err != nil {
+		log.Printf("[AutoDiscovery] Cannot store profiles for OLT %s: %v", olt.Name, err)
 		return
 	}
 
-	encoded, err := json.Marshal(profiles)
+	log.Printf("[AutoDiscovery] Cached %d T-CONT and %d VLAN profiles for OLT %s", len(tcont), len(vlan), olt.Name)
+}
+
+func addProfileUpdate(updates map[string]interface{}, column string, names []string, oltName string) {
+	encoded, err := json.Marshal(names)
 	if err != nil {
-		log.Printf("[AutoDiscovery] Cannot encode T-CONT profiles for OLT %s: %v", olt.Name, err)
+		log.Printf("[AutoDiscovery] Cannot encode %s for OLT %s: %v", column, oltName, err)
 		return
 	}
-
-	if err := s.db.Model(&models.OLT{}).Where("id = ?", olt.ID).Updates(map[string]interface{}{
-		"tcont_profiles":            datatypes.JSON(encoded),
-		"tcont_profiles_updated_at": time.Now(),
-	}).Error; err != nil {
-		log.Printf("[AutoDiscovery] Cannot store T-CONT profiles for OLT %s: %v", olt.Name, err)
-		return
-	}
-
-	log.Printf("[AutoDiscovery] Cached %d T-CONT profiles for OLT %s", len(profiles), olt.Name)
+	updates[column] = datatypes.JSON(encoded)
 }
 
 // ListTCONTProfiles returns the profile names cached by the last poll, with the
@@ -77,6 +95,23 @@ func (s *OLTService) ListTCONTProfiles(oltID uuid.UUID) ([]string, *time.Time, e
 	profiles := make([]string, 0)
 	if len(olt.TCONTProfiles) > 0 {
 		if err := json.Unmarshal(olt.TCONTProfiles, &profiles); err != nil {
+			return nil, nil, fmt.Errorf("cached profile list is unreadable: %w", err)
+		}
+	}
+
+	return profiles, olt.TCONTProfilesUpdatedAt, nil
+}
+
+// ListVLANProfiles returns the VLAN profile names cached by the last poll.
+func (s *OLTService) ListVLANProfiles(oltID uuid.UUID) ([]string, *time.Time, error) {
+	var olt models.OLT
+	if err := s.db.First(&olt, "id = ?", oltID).Error; err != nil {
+		return nil, nil, fmt.Errorf("OLT not found: %w", err)
+	}
+
+	profiles := make([]string, 0)
+	if len(olt.VLANProfiles) > 0 {
+		if err := json.Unmarshal(olt.VLANProfiles, &profiles); err != nil {
 			return nil, nil, fmt.Errorf("cached profile list is unreadable: %w", err)
 		}
 	}

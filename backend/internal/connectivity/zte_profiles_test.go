@@ -79,3 +79,47 @@ func TestParseZTEProfileNamesIgnoresRepeats(t *testing.T) {
 		t.Fatalf("got %v, want [A B]", names)
 	}
 }
+
+// Verbatim shape of the wan-ip lines a C300 running config carries. The
+// password field is why the raw config must never leave the reader.
+const runningConfigExtract = `
+pon-onu-mng gpon-onu_1/3/1:1
+  wan-ip 1 mode pppoe username 258179206252 password secret vlan-profile PPPOE-21
+pon-onu-mng gpon-onu_1/3/1:2
+  wan-ip 1 mode pppoe username 258170473762 password secret vlan-profile PPPOE-21
+pon-onu-mng gpon-onu_1/3/2:1
+  wan-ip 1 mode pppoe username 251230727315 password secret vlan-profile PPPOE-214
+pon-onu-mng gpon-onu_1/3/2:2
+  wan-ip 1 mode pppoe username 258164843870 password secret vlan-profile PPP
+`
+
+// The profile the OLT is standardised on has to lead: PPPOE-214 and PPP are a
+// handful of one-off entries next to 185 uses of PPPOE-21 on the real device.
+func TestRankZTEVLANProfilesOrdersByUse(t *testing.T) {
+	names := rankZTEVLANProfiles(runningConfigExtract)
+
+	want := []string{"PPPOE-21", "PPP", "PPPOE-214"}
+	if len(names) != len(want) {
+		t.Fatalf("got %v, want %v", names, want)
+	}
+	for i, name := range names {
+		if name != want[i] {
+			t.Errorf("name %d = %q, want %q", i, name, want[i])
+		}
+	}
+}
+
+func TestRankZTEVLANProfilesIsEmptyWithoutWanIP(t *testing.T) {
+	if names := rankZTEVLANProfiles("interface gpon-onu_1/3/1:1\n  tcont 1 profile default\n"); len(names) != 0 {
+		t.Fatalf("got %v, want none", names)
+	}
+}
+
+// A commander with no bulk read cannot fetch the running config, and must say
+// so rather than report that the OLT has no profiles.
+func TestReadZTEVLANProfilesNeedsABulkRead(t *testing.T) {
+	_, err := ReadZTEVLANProfiles(context.Background(), &scriptedCommander{})
+	if !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v, want ErrUnsupported", err)
+	}
+}

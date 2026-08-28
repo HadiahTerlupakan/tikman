@@ -9,6 +9,7 @@ import { ZteProvisionModal } from "./ZteProvisionModal";
 vi.mock("@/application/hooks/useOlts", () => ({
   useOltVlans: () => ({ data: [] }),
   useOltTcontProfiles: () => ({ data: [] }),
+  useOltVlanProfiles: () => ({ data: [] }),
 }));
 
 const target = {

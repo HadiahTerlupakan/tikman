@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -42,6 +43,15 @@ func (h *OLTHandler) ListVLANs(c *gin.Context) {
 // ListTCONTProfiles handles GET /api/v1/olts/:id/tcont-profiles. Like the VLAN
 // list this reads the discovery poll's cache, so the form costs no CLI session.
 func (h *OLTHandler) ListTCONTProfiles(c *gin.Context) {
+	h.respondWithProfiles(c, h.service.ListTCONTProfiles)
+}
+
+// ListVLANProfiles handles GET /api/v1/olts/:id/vlan-profiles.
+func (h *OLTHandler) ListVLANProfiles(c *gin.Context) {
+	h.respondWithProfiles(c, h.service.ListVLANProfiles)
+}
+
+func (h *OLTHandler) respondWithProfiles(c *gin.Context, list func(uuid.UUID) ([]string, *time.Time, error)) {
 	oltID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -51,7 +61,7 @@ func (h *OLTHandler) ListTCONTProfiles(c *gin.Context) {
 		return
 	}
 
-	profiles, updatedAt, err := h.service.ListTCONTProfiles(oltID)
+	profiles, updatedAt, err := list(oltID)
 	if err != nil {
 		status, code := http.StatusInternalServerError, "PROFILE_LOOKUP_FAILED"
 		if strings.Contains(err.Error(), "OLT not found") {
