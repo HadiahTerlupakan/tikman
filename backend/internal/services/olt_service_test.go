@@ -715,7 +715,10 @@ func TestOLTService_TryClaimDiscovery_TakesOverAStaleClaim(t *testing.T) {
 
 	abandoned := time.Now().Add(-staleDiscoveryClaim - time.Minute)
 	require.NoError(t, db.Model(&models.OLT{}).Where("id = ?", olt.ID).
-		Update("discovery_started_at", abandoned).Error)
+		Updates(map[string]interface{}{
+			"discovery_started_at":   abandoned,
+			"discovery_heartbeat_at": abandoned,
+		}).Error)
 
 	claimed, err = service.TryClaimDiscovery(olt.ID)
 	require.NoError(t, err)
@@ -770,4 +773,48 @@ func TestOLTService_TryClaimDiscovery_PollsANewOLTImmediately(t *testing.T) {
 	claimed, err := service.TryClaimDiscovery(olt.ID)
 	require.NoError(t, err)
 	assert.True(t, claimed)
+}
+
+// A long walk keeps publishing progress. Judging the claim on when it started
+// would hand a live run's OLT to a second one part way through; judging it on
+// the heartbeat leaves it alone.
+func TestOLTService_TryClaimDiscovery_LeavesAWorkingRunAlone(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "busy", IPAddress: "192.0.2.4", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	// Started long ago, but still reporting instalments a moment ago.
+	require.NoError(t, db.Model(&models.OLT{}).Where("id = ?", olt.ID).
+		Update("discovery_started_at", time.Now().Add(-staleDiscoveryClaim-time.Hour)).Error)
+	service.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_registered": 32})
+
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a run still publishing progress must keep its claim")
+}
+
+// The run that a container restart kills never publishes again, so its claim
+// has to expire on the heartbeat rather than hold the OLT for the whole window.
+func TestOLTService_TryClaimDiscovery_TakesOverAfterASilentRun(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "killed", IPAddress: "192.0.2.5", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	silent := time.Now().Add(-staleDiscoveryClaim - time.Minute)
+	require.NoError(t, db.Model(&models.OLT{}).Where("id = ?", olt.ID).
+		Update("discovery_heartbeat_at", silent).Error)
+
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a run silent for %v must lose its claim", staleDiscoveryClaim)
 }

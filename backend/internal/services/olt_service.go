@@ -252,12 +252,16 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 	return ""
 }
 
-// staleDiscoveryClaim is how long a running discovery may hold its claim before
-// another run may take it over. The claim lives in the database but the run
-// holding it does not: an API restart mid-walk leaves the phase at
-// "discovering" with nobody working on it, and without this the OLT would
-// never be polled again.
-const staleDiscoveryClaim = 30 * time.Minute
+// staleDiscoveryClaim is how long a discovery may go without publishing
+// progress before another run may take its claim over. The claim lives in the
+// database but the run holding it does not: a restart mid-walk leaves the
+// phase at "discovering" with nobody working on it, and without this the OLT
+// would never be polled again.
+//
+// It is measured against the heartbeat, not the start, so it only has to
+// exceed the longest quiet stretch inside a run rather than the whole run.
+// Storing the metrics for a large OLT is that stretch, at well under a minute.
+const staleDiscoveryClaim = 5 * time.Minute
 
 // minDiscoveryInterval is the quiet period after a completed discovery before
 // another one may start. The worker ticks every minute but a full walk of a
@@ -274,8 +278,12 @@ const minDiscoveryInterval = 5 * time.Minute
 // completed one too closely. An OLT that has never been polled has no last
 // poll time, so a newly created one is discovered immediately.
 func (s *OLTService) TryClaimDiscovery(oltID uuid.UUID) (bool, error) {
+	// A run that has never published progress is judged on when it started, so
+	// a claim taken but abandoned before its first instalment still expires.
+	liveness := "COALESCE(discovery_heartbeat_at, discovery_started_at)"
+
 	result := s.db.Model(&models.OLT{}).
-		Where("id = ? AND (discovery_phase NOT IN ? OR discovery_started_at IS NULL OR discovery_started_at < ?)",
+		Where("id = ? AND (discovery_phase NOT IN ? OR "+liveness+" IS NULL OR "+liveness+" < ?)",
 			oltID, []string{"discovering", "polling"}, time.Now().Add(-staleDiscoveryClaim)).
 		Where("discovery_last_poll_at IS NULL OR discovery_last_poll_at < ?",
 			time.Now().Add(-minDiscoveryInterval)).
@@ -283,7 +291,8 @@ func (s *OLTService) TryClaimDiscovery(oltID uuid.UUID) (bool, error) {
 			"discovery_phase": "discovering", "discovery_error": "",
 			// Stamped here, not when the walk starts, so the claim itself carries
 			// the age the takeover above tests against.
-			"discovery_started_at": time.Now(),
+			"discovery_started_at":   time.Now(),
+			"discovery_heartbeat_at": time.Now(),
 		})
 	if result.Error != nil {
 		return false, fmt.Errorf("claim discovery: %w", result.Error)
@@ -472,6 +481,9 @@ func (s *OLTService) registerDiscoveredONTs(
 }
 
 func (s *OLTService) updateDiscoveryProgress(oltID uuid.UUID, updates map[string]interface{}) {
+	// Every progress publish doubles as the claim's heartbeat, so liveness costs
+	// no extra write and cannot drift from the work actually being done.
+	updates["discovery_heartbeat_at"] = time.Now()
 	if err := s.db.Model(&models.OLT{}).Where("id = ?", oltID).Updates(updates).Error; err != nil {
 		log.Printf("[AutoDiscovery] Failed to update progress for OLT %s: %v", oltID, err)
 	}

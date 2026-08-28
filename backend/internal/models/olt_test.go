@@ -39,6 +39,7 @@ func TestOLTColumnNamesMatchTheMigrations(t *testing.T) {
 		"DiscoveryPhase":         "discovery_phase",
 		"DiscoveryStartedAt":     "discovery_started_at",
 		"DiscoveryRegistered":    "discovery_registered",
+		"DiscoveryHeartbeatAt":   "discovery_heartbeat_at",
 	} {
 		assert.Equal(t, want, columns[field], "field %s maps to the wrong column", field)
 	}
