@@ -112,6 +112,29 @@ export function useRefreshOltSystem(oltId: string) {
   });
 }
 
+// Summed traffic under an OLT, or under one PON port. It reads the same tiered
+// stores a per-ONT graph does, so a wide window is answerable.
+export function useOltAggregateTraffic(
+  oltId: string | undefined,
+  period: string,
+  position?: { slot?: number; port?: number },
+) {
+  return useQuery({
+    queryKey: [
+      "olts",
+      oltId,
+      "traffic",
+      period,
+      position?.slot,
+      position?.port,
+    ],
+    queryFn: () =>
+      oltRepository.getAggregateTraffic(oltId as string, period, position),
+    enabled: !!oltId,
+    refetchInterval: OLT_LIST_POLL_INTERVAL,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

@@ -124,6 +124,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.GET("/:id/vlan-profiles", oltHandler.ListVLANProfiles)
 			olts.GET("/:id/onu-types", oltHandler.ListONUTypes)
 			olts.GET("/:id/system", oltHandler.GetSystem)
+			olts.GET("/:id/metrics/traffic", metricsHandler.GetOLTAggregateTraffic)
 			olts.POST("/:id/system/refresh", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.RefreshSystem)
 			olts.POST("/:id/gpon/register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.Register)
 			olts.POST("/:id/gpon/preview", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.PreviewRegister)

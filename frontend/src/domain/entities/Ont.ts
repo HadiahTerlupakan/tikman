@@ -103,3 +103,13 @@ export interface TrafficSeries {
   points: OntMetrics[];
   usage: TrafficUsage;
 }
+
+/** Summed traffic of every ONU under an OLT, or under one of its PON ports. */
+export interface AggregateTrafficPoint {
+  time: string;
+  rxMbps: number;
+  txMbps: number;
+  rxMaxMbps: number;
+  txMaxMbps: number;
+  onlineOnts: number;
+}

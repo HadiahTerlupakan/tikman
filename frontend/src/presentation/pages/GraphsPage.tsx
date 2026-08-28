@@ -12,6 +12,7 @@ import {
   DatePicker,
 } from "antd";
 import { OntTrafficCard } from "@/presentation/components/OntTrafficCard";
+import { OltAggregateCard } from "@/presentation/components/OltAggregateCard";
 import type { Olt } from "@/domain/entities/Olt";
 import { OntStatus, type Ont } from "@/domain/entities/Ont";
 import { useOnts } from "@/application/hooks/useOnts";
@@ -169,6 +170,16 @@ export function GraphsPage() {
           )}
         </div>
       </Card>
+
+      {selectedOlt && !dateRange && (
+        <OltAggregateCard
+          oltId={selectedOlt}
+          oltName={
+            olts?.find((olt: Olt) => olt.id === selectedOlt)?.name ?? "OLT"
+          }
+          period={period}
+        />
+      )}
 
       {isLoading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>

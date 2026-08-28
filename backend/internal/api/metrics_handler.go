@@ -1,8 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -221,4 +223,58 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"points": points, "usage": series.Usage})
+}
+
+// GetOLTAggregateTraffic handles GET /api/v1/olts/:id/metrics/traffic. Without
+// slot and port it sums the whole OLT; with them it sums one PON port, which is
+// what shows whether that port is approaching saturation.
+func (h *MetricsHandler) GetOLTAggregateTraffic(c *gin.Context) {
+	oltID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid OLT ID format",
+		})
+		return
+	}
+
+	slot, err := optionalIntQuery(c, "slot")
+	if err == nil {
+		var port *int
+		port, err = optionalIntQuery(c, "port")
+		if err == nil {
+			points, aggErr := h.metricsService.GetOLTAggregateTraffic(
+				oltID, slot, port, c.DefaultQuery("period", "3h"))
+			if aggErr != nil {
+				log.Printf("[ERROR] GetOLTAggregateTraffic failed for OLT %s: %v", oltID, aggErr)
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Code:  "QUERY_FAILED",
+					Error: aggErr.Error(),
+				})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"olt_id": oltID, "points": points})
+			return
+		}
+	}
+
+	c.JSON(http.StatusBadRequest, ErrorResponse{
+		Code:  "INVALID_QUERY",
+		Error: err.Error(),
+	})
+}
+
+// optionalIntQuery reads a numeric filter that may be absent. An absent filter
+// widens the aggregate rather than defaulting to zero, which would select a
+// card that does not exist.
+func optionalIntQuery(c *gin.Context, name string) (*int, error) {
+	raw := c.Query(name)
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return nil, fmt.Errorf("%s must be a number", name)
+	}
+	return &value, nil
 }

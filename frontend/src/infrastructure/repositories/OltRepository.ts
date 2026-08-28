@@ -9,6 +9,7 @@ import type {
   UnconfiguredOnu,
   OltVlan,
   OltSystemSnapshot,
+  AggregateTrafficPoint,
 } from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
@@ -59,6 +60,20 @@ export class OltRepository implements IOltRepository {
   async getSystem(id: string): Promise<OltSystemSnapshot> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_SYSTEM(id));
     return response.data.data;
+  }
+
+  async getAggregateTraffic(
+    id: string,
+    period: string,
+    position?: { slot?: number; port?: number },
+  ): Promise<AggregateTrafficPoint[]> {
+    const params: Record<string, string> = { period };
+    if (position?.slot !== undefined) params.slot = String(position.slot);
+    if (position?.port !== undefined) params.port = String(position.port);
+    const response = await apiClient.get(API_ENDPOINTS.OLT_TRAFFIC(id), {
+      params,
+    });
+    return response.data.points ?? [];
   }
 
   async refreshSystem(id: string): Promise<OltSystemSnapshot> {
