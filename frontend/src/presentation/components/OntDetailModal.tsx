@@ -6,6 +6,7 @@ import {
 } from "@/application/hooks/useOntMetrics";
 import { ONTEventTimeline } from "./ONTEventTimeline";
 import type { Ont } from "@/domain/entities";
+import { formatBytes, formatRate } from "./trafficFormat";
 
 interface OntWithMetrics extends Ont {
   metrics?: {
@@ -204,39 +205,30 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
 
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="Download Rate">
-              {metrics.txMbps !== undefined && metrics.txMbps !== null
-                ? metrics.txMbps < 1
-                  ? metrics.txMbps * 1000 < 0.01
-                    ? `${(metrics.txMbps * 1000).toFixed(4)} Kbps`
-                    : `${(metrics.txMbps * 1000).toFixed(2)} Kbps`
-                  : `${metrics.txMbps.toFixed(2)} Mbps`
-                : "-"}
+              {formatRate(metrics.txMbps)}
             </Descriptions.Item>
             <Descriptions.Item label="Upload Rate">
-              {metrics.rxMbps !== undefined && metrics.rxMbps !== null
-                ? metrics.rxMbps < 1
-                  ? metrics.rxMbps * 1000 < 0.01
-                    ? `${(metrics.rxMbps * 1000).toFixed(4)} Kbps`
-                    : `${(metrics.rxMbps * 1000).toFixed(2)} Kbps`
-                  : `${metrics.rxMbps.toFixed(2)} Mbps`
-                : "-"}
+              {formatRate(metrics.rxMbps)}
             </Descriptions.Item>
-            <Descriptions.Item label="RX Packets (last snapshot)">
+            <Descriptions.Item label="Downloaded (total)">
+              {formatBytes(metrics.txBytes)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Uploaded (total)">
+              {formatBytes(metrics.rxBytes)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Packets received (total)">
               {(metrics.rxPackets ?? 0).toLocaleString()}
             </Descriptions.Item>
-            <Descriptions.Item label="TX Packets (last snapshot)">
+            <Descriptions.Item label="Packets sent (total)">
               {(metrics.txPackets ?? 0).toLocaleString()}
-            </Descriptions.Item>
-            <Descriptions.Item label="RX Errors (last snapshot)">
-              {(metrics.rxErrors ?? 0).toLocaleString()}
-            </Descriptions.Item>
-            <Descriptions.Item label="TX Errors (last snapshot)">
-              {(metrics.txErrors ?? 0).toLocaleString()}
             </Descriptions.Item>
           </Descriptions>
           <div style={{ marginTop: 10, color: "#8c8c8c", fontSize: 12 }}>
-            Rates are queried live from the OLT every 3 seconds. Packet/error
-            counters are the latest device snapshot and may stay unchanged.
+            Rates are queried live from the OLT every 3 seconds. The totals are
+            the OLT's lifetime counters for this ONU, so usage over a period is
+            the difference between two readings. Error counters are not shown:
+            this OLT exposes no counter for them, and a zero would read as "no
+            errors" rather than "not measured".
           </div>
         </div>
       ) : (
