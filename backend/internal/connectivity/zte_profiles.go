@@ -31,6 +31,12 @@ var zteVLANProfileName = regexp.MustCompile(`vlan-profile\s+(\S+)`)
 
 const zteRunningConfigCommand = "show running-config"
 
+// zteTerminalWidth is the column the CLI wraps at for a session that declined
+// NAWS, which this client does. A wrap splits a value mid-token — the name
+// PPPOE-214 arrives as "PPPOE-21" then "4 host 2" on the next line — so the
+// output has to be rejoined before anything is read out of it.
+const zteTerminalWidth = 80
+
 // bulkCommander reads output the ordinary prompt-bounded read cannot handle.
 type bulkCommander interface {
 	ExecuteBulk(ctx context.Context, cmd string, quiet, max time.Duration) (string, error)
@@ -64,7 +70,7 @@ func ReadZTEVLANProfiles(ctx context.Context, commander OLTCommander) ([]string,
 // the OLT is actually standardised on leads and one-off typos sort last.
 func rankZTEVLANProfiles(config string) []string {
 	counts := make(map[string]int)
-	for _, match := range zteVLANProfileName.FindAllStringSubmatch(config, -1) {
+	for _, match := range zteVLANProfileName.FindAllStringSubmatch(unwrapZTEOutput(config), -1) {
 		if name := strings.TrimSpace(match[1]); name != "" {
 			counts[name]++
 		}
@@ -82,6 +88,25 @@ func rankZTEVLANProfiles(config string) []string {
 	})
 
 	return names
+}
+
+// unwrapZTEOutput rejoins lines the CLI broke at its terminal width. A line of
+// exactly that width continues on the next one; anything shorter ended there.
+func unwrapZTEOutput(output string) string {
+	lines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
+
+	var joined strings.Builder
+	for i, line := range lines {
+		joined.WriteString(line)
+		if i == len(lines)-1 {
+			continue
+		}
+		if len(line) != zteTerminalWidth {
+			joined.WriteString("\n")
+		}
+	}
+
+	return joined.String()
 }
 
 // ReadZTETcontProfiles returns the T-CONT profile names configured on the OLT,

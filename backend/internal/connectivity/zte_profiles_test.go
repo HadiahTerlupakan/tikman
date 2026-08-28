@@ -3,6 +3,7 @@ package connectivity
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -92,6 +93,28 @@ pon-onu-mng gpon-onu_1/3/2:1
 pon-onu-mng gpon-onu_1/3/2:2
   wan-ip 1 mode pppoe username 258164843870 password secret vlan-profile PPP
 `
+
+// Verbatim from the C300, wrapped by the CLI at its 80th column: the name
+// PPPOE-214 is split across two lines, and different username lengths move the
+// break, so a naive read invented PPPOE-21, PPPOE-2 and PPP as separate
+// profiles. Every line below is exactly 80 characters before the break.
+var wrappedRunningConfig = strings.Join([]string{
+	"pon-onu-mng gpon-onu_1/3/1:1",
+	"  service ServiceName gemport 2 vlan 214",
+	"  wan-ip 2 mode pppoe username 258179206252 password 12345 vlan-profile PPPOE-21",
+	"4 host 2",
+	"pon-onu-mng gpon-onu_1/3/1:10",
+	"  wan-ip 1 mode pppoe username 2581692447 password 12345 vlan-profile PPPOE-214 h",
+	"ost 1",
+}, "\n")
+
+func TestRankZTEVLANProfilesRejoinsWrappedLines(t *testing.T) {
+	names := rankZTEVLANProfiles(wrappedRunningConfig)
+
+	if len(names) != 1 || names[0] != "PPPOE-214" {
+		t.Fatalf("got %v, want [PPPOE-214]: the CLI wrap must not split the name", names)
+	}
+}
 
 // The profile the OLT is standardised on has to lead: PPPOE-214 and PPP are a
 // handful of one-off entries next to 185 uses of PPPOE-21 on the real device.
