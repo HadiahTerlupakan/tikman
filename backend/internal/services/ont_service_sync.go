@@ -2,12 +2,22 @@ package services
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
 )
+
+// pruneGracePeriod is how long a freshly created ONT is left alone.
+//
+// An ONU registered moments ago is not in the OLT's tables yet — the walk that
+// runs a minute later does not see it, and pruning then deletes the row the
+// registration wrote, along with its metrics, its events, and the link its
+// provisioning job holds. That is not a stale row; it is a row the OLT has not
+// caught up with.
+const pruneGracePeriod = 15 * time.Minute
 
 // PruneMissingFromDiscovery deletes local ONTs that are no longer reported by the OLT.
 //
@@ -33,11 +43,16 @@ func (s *ONTService) PruneMissingFromDiscovery(oltID uuid.UUID, discovered []con
 	}
 
 	staleIDs := make([]uuid.UUID, 0)
+	newestPrunable := time.Now().Add(-pruneGracePeriod)
 	for _, ont := range localONTs {
 		position := ontPosition{portID: ont.PortID, ontID: ont.ONTID}
-		if _, found := discoveredPositions[position]; !found {
-			staleIDs = append(staleIDs, ont.ID)
+		if _, found := discoveredPositions[position]; found {
+			continue
 		}
+		if ont.CreatedAt.After(newestPrunable) {
+			continue
+		}
+		staleIDs = append(staleIDs, ont.ID)
 	}
 
 	if len(staleIDs) == 0 {

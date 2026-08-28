@@ -1453,6 +1453,10 @@ func TestONTService_PruneMissingFromDiscoveryDeletesStaleONTs(t *testing.T) {
 	require.NoError(t, ontService.Create(kept))
 	require.NoError(t, ontService.Create(stale))
 	require.NoError(t, ontService.Create(otherOLTONT))
+	// Aged past the grace period that protects a just-registered ONT the OLT
+	// has not reported yet.
+	require.NoError(t, db.Model(&models.ONT{}).Where("id = ?", stale.ID).
+		Update("created_at", time.Now().Add(-pruneGracePeriod-time.Hour)).Error)
 	require.NoError(t, db.Exec(`
 		CREATE TABLE ont_metrics (
 			time DATETIME NOT NULL,
