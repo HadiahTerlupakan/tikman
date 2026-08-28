@@ -89,6 +89,25 @@ describe("getOltProgressDisplay", () => {
     });
   });
 
+  // Starting a poll resets discoveryTotal before the status walk reports it.
+  // An OLT already holding 200 polled ONTs must not fall back to "waiting".
+  it("does not blank a known OLT at the top of a poll", () => {
+    expect(
+      getOltProgressDisplay({
+        totalOnts: 200,
+        ontsWithMetrics: 200,
+        percentage: 0,
+        phase: "discovering",
+        discoveryTotal: 0,
+        discoveryRegistered: 0,
+      }),
+    ).toEqual({
+      percent: 100,
+      label: "Polling metrics",
+      count: "200/200 ONTs polled",
+    });
+  });
+
   it("uses fresh metrics after discovery completes", () => {
     expect(
       getOltProgressDisplay({

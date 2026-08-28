@@ -11,7 +11,16 @@ export function getOltProgressDisplay(stats: OltStats): OltProgressDisplay {
   const registered = stats.discoveryRegistered ?? 0;
   const phase = stats.phase ?? "idle";
 
-  if ((phase === "idle" || phase === "discovering") && total === 0) {
+  // Only an OLT TikMan holds nothing for is genuinely waiting. Starting a poll
+  // resets discoveryTotal to zero before the status walk reports it, so this
+  // branch used to blank the bar of a fully polled OLT at the top of every
+  // cycle.
+  const nothingKnown = stats.totalOnts === 0;
+  if (
+    (phase === "idle" || phase === "discovering") &&
+    total === 0 &&
+    nothingKnown
+  ) {
     return { percent: 0, label: "Discovering ONTs…", count: "Waiting for OLT" };
   }
 
