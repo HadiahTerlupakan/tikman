@@ -86,3 +86,46 @@ func TestZTEInventoryUsesTheTargetedPathForAFewONUs(t *testing.T) {
 
 	assert.Equal(t, "HWTCB403E8A0", inventory[loc].SerialNumber)
 }
+
+// A sweep is now the same fetch as a single lookup, so a whole port has to come
+// back complete rather than only its first ONU.
+func TestZTEInventoryReadsEveryRequestedONU(t *testing.T) {
+	_, snmpPort := newUncfgAgent(t, []gosnmp.SnmpPDU{
+		{Name: zteSerialOID(3, 1, 1), Type: gosnmp.OctetString, Value: []byte("RTEGC609E381")},
+		{Name: zteSerialOID(3, 1, 15), Type: gosnmp.OctetString, Value: []byte("HWTCB403E8A0")},
+		{Name: zteSerialOID(3, 2, 4), Type: gosnmp.OctetString, Value: []byte("ZTEGC4556B50")},
+	})
+
+	locations := []ONTLocation{
+		{Slot: 3, Port: 1, ONTID: 1},
+		{Slot: 3, Port: 1, ONTID: 15},
+		{Slot: 3, Port: 2, ONTID: 4},
+	}
+
+	inventory, err := zteDriver{}.Inventory("127.0.0.1", "public", snmpPort, locations)
+	require.NoError(t, err)
+
+	assert.Equal(t, "RTEGC609E381", inventory[locations[0]].SerialNumber)
+	assert.Equal(t, "HWTCB403E8A0", inventory[locations[1]].SerialNumber)
+	assert.Equal(t, "ZTEGC4556B50", inventory[locations[2]].SerialNumber)
+}
+
+// Discovery advances its progress once per instalment, so a sweep that reported
+// everything in one go would leave the bar at zero for the whole of a large OLT.
+func TestZTEInventoryByPortStillReportsPerPort(t *testing.T) {
+	_, snmpPort := newUncfgAgent(t, []gosnmp.SnmpPDU{
+		{Name: zteSerialOID(3, 1, 1), Type: gosnmp.OctetString, Value: []byte("RTEGC609E381")},
+		{Name: zteSerialOID(3, 2, 4), Type: gosnmp.OctetString, Value: []byte("ZTEGC4556B50")},
+	})
+
+	instalments := 0
+	err := zteDriver{}.InventoryByPort("127.0.0.1", "public", snmpPort,
+		[]ONTLocation{{Slot: 3, Port: 1, ONTID: 1}, {Slot: 3, Port: 2, ONTID: 4}},
+		func(locs []ONTLocation, _ map[ONTLocation]ONTInventory) {
+			instalments++
+			assert.Len(t, locs, 1)
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, instalments, "one instalment per PON port")
+}

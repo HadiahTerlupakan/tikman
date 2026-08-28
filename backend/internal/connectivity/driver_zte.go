@@ -2,10 +2,7 @@ package connectivity
 
 import (
 	"context"
-	"strconv"
-	"strings"
 
-	"github.com/gosnmp/gosnmp"
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
@@ -60,21 +57,11 @@ func (zteDriver) WalkUnconfigured(ctx context.Context, ipAddress, community stri
 // and model are indexed per (slot, port) subtree, so those are walked once per
 // PON port; IP, MAC and hardware version live in flat tables walked whole.
 func (d zteDriver) Inventory(ipAddress, community string, snmpPort int, locations []ONTLocation) (map[ONTLocation]ONTInventory, error) {
-	// A caller naming a few ONUs gets them read directly. Going through the
-	// bulk path meant a provisioning snapshot of a single ONU walked the IP,
-	// MAC and hardware-version tables of the whole OLT; on a busy C300 all
-	// three timed out, and the registration waited about a minute for them.
-	if len(locations) > 0 && len(locations) <= targetedInventoryLimit {
-		return queryZTEInventoryFor(ipAddress, community, snmpPort, locations)
-	}
-
-	inventory := make(map[ONTLocation]ONTInventory, len(locations))
-	err := d.InventoryByPort(ipAddress, community, snmpPort, locations, func(_ []ONTLocation, part map[ONTLocation]ONTInventory) {
-		for loc, inv := range part {
-			inventory[loc] = inv
-		}
-	})
-	return inventory, err
+	// One shape for every caller: the fetch is a handful of batched GETs
+	// whether it is asked for one ONU or two hundred. It used to branch on the
+	// count because the bulk path walked whole tables, which a snapshot of a
+	// single ONU had no business doing.
+	return queryZTEInventoryFor(ipAddress, community, snmpPort, locations)
 }
 
 // InventoryByPort reports one PON port per instalment. The flat tables are
@@ -86,105 +73,28 @@ func (zteDriver) InventoryByPort(ipAddress, community string, snmpPort int, loca
 		return nil
 	}
 
-	flat := make(map[ONTLocation]ONTInventory, len(locations))
-	setFlat := func(loc ONTLocation, apply func(*ONTInventory)) {
-		inv := flat[loc]
-		apply(&inv)
-		flat[loc] = inv
-	}
-
-	if ips, err := zteWalkIPAddresses(ipAddress, community, snmpPort); err == nil {
-		for loc, ip := range ips {
-			setFlat(loc, func(inv *ONTInventory) { inv.IPAddress = ip })
-		}
-	}
-	if macs, err := zteWalkMACAddresses(ipAddress, community, snmpPort); err == nil {
-		for loc, mac := range macs {
-			setFlat(loc, func(inv *ONTInventory) { inv.MACAddress = mac })
-		}
-	}
-	if hws, err := zteWalkHardwareVersions(ipAddress, community, snmpPort); err == nil {
-		for loc, hw := range hws {
-			setFlat(loc, func(inv *ONTInventory) { inv.HardwareVersion = hw })
-		}
-	}
-
-	// Per-port tables, grouped so each subtree is walked once.
-	byPort := make(map[ONTLocation][]ONTLocation)
-	for _, loc := range locations {
-		key := ONTLocation{Slot: loc.Slot, Port: loc.Port}
-		byPort[key] = append(byPort[key], loc)
-	}
-
 	client, err := newSNMPClient(ipAddress, community, snmpPort)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Conn.Close() }()
 
-	for key, locs := range byPort {
-		part := make(map[ONTLocation]ONTInventory, len(locs))
-		for _, loc := range locs {
-			if inv, ok := flat[loc]; ok {
-				part[loc] = inv
-			}
+	// Grouped by PON port so discovery still reports one instalment per port,
+	// which is what moves the progress bar on a large OLT.
+	byPort := make(map[ONTLocation][]ONTLocation)
+	order := make([]ONTLocation, 0)
+	for _, loc := range locations {
+		key := ONTLocation{Slot: loc.Slot, Port: loc.Port}
+		if _, seen := byPort[key]; !seen {
+			order = append(order, key)
 		}
-		set := func(loc ONTLocation, apply func(*ONTInventory)) {
-			inv := part[loc]
-			apply(&inv)
-			part[loc] = inv
-		}
+		byPort[key] = append(byPort[key], loc)
+	}
 
-		ifIndexONU := OnuIDIfIndexBase + key.Slot*OnuIDSlotStride + key.Port*OnuIDIncrement
-		ifIndexType := OnuTypeIfIndexBase + key.Slot*OnuTypeSlotStride + key.Port*OnuTypeIncrement
-
-		walkPortColumn(client, BaseOID1+OnuSerialNumberPrefix, ifIndexONU, locs, func(loc ONTLocation, pdu gosnmp.SnmpPDU) {
-			if serial := ExtractSerialNumber(pdu.Value); serial != "" {
-				set(loc, func(inv *ONTInventory) { inv.SerialNumber = serial })
-			}
-		})
-		walkPortColumn(client, BaseOID2+OnuIDNamePrefix, ifIndexType, locs, func(loc ONTLocation, pdu gosnmp.SnmpPDU) {
-			if name := ExtractName(pdu.Value); name != "" {
-				set(loc, func(inv *ONTInventory) { inv.Name = name })
-			}
-		})
-		walkPortColumn(client, BaseOID2+OnuDescriptionPrefix, ifIndexType, locs, func(loc ONTLocation, pdu gosnmp.SnmpPDU) {
-			if desc := ExtractName(pdu.Value); desc != "" {
-				set(loc, func(inv *ONTInventory) { inv.Description = desc })
-			}
-		})
-		walkPortColumn(client, BaseOID2+OnuTypePrefix, ifIndexType, locs, func(loc ONTLocation, pdu gosnmp.SnmpPDU) {
-			if deviceType := ExtractName(pdu.Value); deviceType != "" {
-				set(loc, func(inv *ONTInventory) { inv.DeviceType = deviceType })
-			}
-		})
-
-		report(locs, part)
+	for _, key := range order {
+		locs := byPort[key]
+		report(locs, fetchZTEInventory(client, locs))
 	}
 
 	return nil
-}
-
-// walkPortColumn walks one ZTE table column scoped to a single PON port and
-// hands each value to visit, matched to the ONT whose ID ends the OID.
-func walkPortColumn(client *gosnmp.GoSNMP, tableOID string, ifIndex int, locations []ONTLocation, visit func(ONTLocation, gosnmp.SnmpPDU)) {
-	oid := tableOID + "." + strconv.Itoa(ifIndex)
-
-	_ = client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
-		parts := strings.Split(pdu.Name, ".")
-		if len(parts) < 2 {
-			return nil
-		}
-		onuID, err := strconv.Atoi(parts[len(parts)-1])
-		if err != nil {
-			return nil
-		}
-		for _, loc := range locations {
-			if loc.ONTID == onuID {
-				visit(loc, pdu)
-				break
-			}
-		}
-		return nil
-	})
 }
