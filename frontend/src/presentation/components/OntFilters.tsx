@@ -4,6 +4,15 @@ import type { OntStatus } from "@/domain/entities";
 
 const { Option } = Select;
 
+// Every OLT here is a single shelf, and every command TikMan sends addresses
+// rack 1. Showing it in the label keeps the address readable as rack/card/pon
+// without offering a choice that cannot be made.
+const RACK = 1;
+
+export function ontPositionLabel(slot: number, port?: number) {
+  return port === undefined ? `${RACK}/${slot}` : `${RACK}/${slot}/${port}`;
+}
+
 interface GponPortEntity {
   portId: number;
   onts: Array<{
@@ -111,7 +120,8 @@ export function OntFilters({
             );
             return (
               <Option key={slot.slot} value={slot.slot}>
-                Card {slot.slot} ({totalOnus} ONTs)
+                Card {slot.slot} · {ontPositionLabel(slot.slot)} ({totalOnus}{" "}
+                ONTs)
               </Option>
             );
           })}
@@ -139,8 +149,9 @@ export function OntFilters({
               ).length;
               return (
                 <Option key={port.portId} value={port.portId}>
-                  Port {port.portId} ({port.onts.length} ONTs, {onlineCount}{" "}
-                  online)
+                  PON {port.portId} ·{" "}
+                  {ontPositionLabel(selectedSlotId, port.portId)} (
+                  {port.onts.length} ONTs, {onlineCount} online)
                 </Option>
               );
             });
