@@ -1,6 +1,7 @@
 import { Table, Tag } from "antd";
 import type { Ont, OntStatus } from "@/domain/entities";
 import { OntActions } from "./OntActions";
+import { ontStatusColor, ontStatusLabel } from "./ontStatus";
 
 interface OntTableRow extends Ont {
   metrics?: {
@@ -19,23 +20,6 @@ interface OntTableProps {
   onConfigureService?: (ont: Ont) => void;
   onViewHistory?: (ont: Ont) => void;
 }
-
-const getStatusColor = (status: OntStatus) => {
-  switch (status) {
-    case "online":
-      return "success";
-    case "offline":
-      return "default";
-    case "los":
-      return "warning";
-    case "dying_gasp":
-      return "error";
-    case "unknown":
-      return "default";
-    default:
-      return "default";
-  }
-};
 
 export function OntTable({
   dataSource,
@@ -88,9 +72,7 @@ export function OntTable({
       dataIndex: "status",
       key: "status",
       render: (status: OntStatus) => (
-        <Tag color={getStatusColor(status)}>
-          {status ? status.toUpperCase() : "UNKNOWN"}
-        </Tag>
+        <Tag color={ontStatusColor(status)}>{ontStatusLabel(status)}</Tag>
       ),
     },
     {

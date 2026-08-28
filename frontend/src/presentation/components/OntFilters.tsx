@@ -1,6 +1,7 @@
 import { Space, Select, Button, Input } from "antd";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import type { OntStatus } from "@/domain/entities";
+import { ONT_STATUSES } from "./ontStatus";
 
 const { Option } = Select;
 
@@ -180,11 +181,11 @@ export function OntFilters({
           onChange={setStatusFilter}
           allowClear
         >
-          <Option value="online">Online</Option>
-          <Option value="offline">Offline</Option>
-          <Option value="los">LOS</Option>
-          <Option value="dying_gasp">Dying Gasp</Option>
-          <Option value="unknown">Unknown</Option>
+          {ONT_STATUSES.map((status) => (
+            <Option key={status.value} value={status.value}>
+              {status.label}
+            </Option>
+          ))}
         </Select>
       </Space>
     </Space>
