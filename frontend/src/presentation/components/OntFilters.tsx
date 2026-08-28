@@ -66,13 +66,11 @@ export function OntFilters({
   setStatusFilter,
   onReset,
 }: OntFiltersProps) {
-  const activeSlots = topologyData.filter((slot) =>
-    slot.ports.some((port) => port.onts.length > 0),
-  );
+  // Every fitted card is offered, including one carrying no ONU yet. Hiding
+  // those made a card that is installed and detected look absent.
+  const cards = topologyData;
 
-  const getPortsForSlot = (slot: GPONSlot): GponPortEntity[] => {
-    return slot.ports.filter((port) => port.onts.length > 0);
-  };
+  const getPortsForSlot = (slot: GPONSlot): GponPortEntity[] => slot.ports;
 
   return (
     <Space direction="vertical" style={{ width: "100%" }} size="middle">
@@ -107,13 +105,13 @@ export function OntFilters({
             setSelectedPortId(undefined);
           }}
           allowClear
-          disabled={!selectedOltId || activeSlots.length === 0}
+          disabled={!selectedOltId || cards.length === 0}
           loading={isLoadingTopology}
           notFoundContent={
             isLoadingTopology ? "Loading topology..." : "No slots found"
           }
         >
-          {activeSlots.map((slot: GPONSlot) => {
+          {cards.map((slot: GPONSlot) => {
             const totalOnus = slot.ports.reduce(
               (acc: number, p: GponPortEntity) => acc + p.onts.length,
               0,
@@ -121,7 +119,7 @@ export function OntFilters({
             return (
               <Option key={slot.slot} value={slot.slot}>
                 Card {slot.slot} · {ontPositionLabel(slot.slot)} ({totalOnus}{" "}
-                ONTs)
+                {totalOnus === 1 ? "ONT" : "ONTs"})
               </Option>
             );
           })}

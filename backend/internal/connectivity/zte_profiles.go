@@ -51,6 +51,7 @@ var zteONUTypeName = regexp.MustCompile(`(?m)^\s*onu-type\s+(\S+)`)
 // ONU types the OLT will accept, the VLAN profile names in use, and each ONU's
 // current service.
 type ZTEConfigSnapshot struct {
+	Cards        []ZTECard
 	ONUTypes     []string
 	VLANProfiles []string
 	ONUServices  map[ONTLocation]ZTEONUService
@@ -92,6 +93,7 @@ func ReadZTEConfigSnapshot(ctx context.Context, commander OLTCommander) (ZTEConf
 	}
 
 	return ZTEConfigSnapshot{
+		Cards:        ParseZTECards(output),
 		ONUTypes:     parseZTEONUTypes(output),
 		VLANProfiles: rankZTEVLANProfiles(output),
 		ONUServices:  ParseZTEONUServices(output),

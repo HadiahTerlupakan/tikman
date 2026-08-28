@@ -66,6 +66,11 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 		if len(snapshot.ONUTypes) > 0 {
 			addProfileUpdate(updates, "onu_types", snapshot.ONUTypes, olt.Name)
 		}
+		if len(snapshot.Cards) > 0 {
+			if encoded, err := json.Marshal(snapshot.Cards); err == nil {
+				updates["cards"] = datatypes.JSON(encoded)
+			}
+		}
 		s.storeONUServices(olt, snapshot.ONUServices)
 	}
 
@@ -157,6 +162,24 @@ func (s *OLTService) ListONUTypes(oltID uuid.UUID) ([]string, *time.Time, error)
 	}
 
 	return types, olt.TCONTProfilesUpdatedAt, nil
+}
+
+// ListCards returns the line cards fitted to the OLT, as the last poll read
+// them from its running config.
+func (s *OLTService) ListCards(oltID uuid.UUID) ([]connectivity.ZTECard, error) {
+	var olt models.OLT
+	if err := s.db.First(&olt, "id = ?", oltID).Error; err != nil {
+		return nil, fmt.Errorf("OLT not found: %w", err)
+	}
+
+	cards := make([]connectivity.ZTECard, 0)
+	if len(olt.Cards) > 0 {
+		if err := json.Unmarshal(olt.Cards, &cards); err != nil {
+			return nil, fmt.Errorf("cached card list is unreadable: %w", err)
+		}
+	}
+
+	return cards, nil
 }
 
 // ListVLANProfiles returns the VLAN profile names cached by the last poll.

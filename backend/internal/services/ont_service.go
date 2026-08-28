@@ -301,6 +301,8 @@ func (s *ONTService) GetByOLTAndPosition(oltID uuid.UUID, portID, ontID int) (*m
 // ONTSummary is the projection the discovery handler renders: enough of an
 // ONT row to display discovery results without loading full models.
 type ONTSummary struct {
+	// Slot is the OLT card. Absent for an ONT the poll has not placed yet.
+	Slot         *int   `json:"slot"`
 	PortID       int    `json:"port_id"`
 	ONTID        int    `json:"ont_id"`
 	SerialNumber string `json:"serial_number"`
@@ -315,7 +317,7 @@ type ONTSummary struct {
 func (s *ONTService) ListONTSummariesForOLT(oltID uuid.UUID) ([]ONTSummary, error) {
 	var onts []ONTSummary
 	err := s.db.Table("onts").
-		Select("port_id, ont_id, serial_number, status, name, description").
+		Select("slot, port_id, ont_id, serial_number, status, name, description").
 		Where("olt_id = ?", oltID).
 		Scan(&onts).Error
 	return onts, err

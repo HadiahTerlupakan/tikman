@@ -30,6 +30,7 @@ func TestOLTColumnNamesMatchTheMigrations(t *testing.T) {
 		"TCONTProfiles":          "tcont_profiles",
 		"VLANProfiles":           "vlan_profiles",
 		"ONUTypes":               "onu_types",
+		"Cards":                  "cards",
 		"TCONTProfilesUpdatedAt": "tcont_profiles_updated_at",
 		"SNMPCommunity":          "snmp_community",
 		"DiscoveryPhase":         "discovery_phase",

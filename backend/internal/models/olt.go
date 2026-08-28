@@ -67,7 +67,10 @@ type OLT struct {
 	VLANProfiles datatypes.JSON `gorm:"column:vlan_profiles;type:jsonb" json:"vlan_profiles,omitempty"`
 	// ONUTypes are the names the registration command accepts, which are not the
 	// model strings ONUs report over OMCI.
-	ONUTypes               datatypes.JSON `gorm:"column:onu_types;type:jsonb" json:"onu_types,omitempty"`
+	ONUTypes datatypes.JSON `gorm:"column:onu_types;type:jsonb" json:"onu_types,omitempty"`
+	// Cards are the line cards fitted to the OLT. A card carrying no ONU cannot
+	// be inferred from ONT rows, so the inventory is kept.
+	Cards                  datatypes.JSON `gorm:"column:cards;type:jsonb" json:"cards,omitempty"`
 	TCONTProfilesUpdatedAt *time.Time     `gorm:"column:tcont_profiles_updated_at" json:"tcont_profiles_updated_at,omitempty"`
 	DiscoveryStartedAt     *time.Time     `json:"discovery_started_at,omitempty"`
 	DiscoveryLastPollAt    *time.Time     `json:"discovery_last_poll_at,omitempty"`

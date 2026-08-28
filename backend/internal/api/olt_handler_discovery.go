@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -202,11 +203,28 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 		return
 	}
 
-	// Assume slot 1 for all (since ONT model doesn't have slot_id yet)
+	// Grouped by the ONT's own card. This used to hardcode slot 1 on the
+	// grounds that the model had no slot; it has one, and it is populated, so
+	// the filter was offering "Card 1" for ONUs sitting on card 3.
 	slotMap := make(map[int]map[int][]map[string]interface{})
 
+	// Seeded with every fitted card, so one carrying no ONU still appears. A
+	// card cannot be inferred from where ONUs live.
+	cards, err := h.service.ListCards(oltID)
+	if err != nil {
+		cards = nil
+	}
+	for _, card := range cards {
+		if slotMap[card.Slot] == nil {
+			slotMap[card.Slot] = make(map[int][]map[string]interface{})
+		}
+	}
+
 	for _, ont := range onts {
-		slot := 1
+		if ont.Slot == nil {
+			continue
+		}
+		slot := *ont.Slot
 		if slotMap[slot] == nil {
 			slotMap[slot] = make(map[int][]map[string]interface{})
 		}
@@ -224,13 +242,29 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 		slotMap[slot][ont.PortID] = append(slotMap[slot][ont.PortID], ontData)
 	}
 
-	var topology []map[string]interface{}
-	for slot, ports := range slotMap {
-		var portList []map[string]interface{}
-		for portID, ontList := range ports {
+	// Sorted, because a map's order changes between requests and the card and
+	// PON dropdowns are built straight from this. Empty lists rather than nil:
+	// a fitted card with no ONU must still answer with an array.
+	slots := make([]int, 0, len(slotMap))
+	for slot := range slotMap {
+		slots = append(slots, slot)
+	}
+	sort.Ints(slots)
+
+	topology := make([]map[string]interface{}, 0, len(slots))
+	for _, slot := range slots {
+		ports := slotMap[slot]
+		portIDs := make([]int, 0, len(ports))
+		for portID := range ports {
+			portIDs = append(portIDs, portID)
+		}
+		sort.Ints(portIDs)
+
+		portList := make([]map[string]interface{}, 0, len(portIDs))
+		for _, portID := range portIDs {
 			portList = append(portList, map[string]interface{}{
 				"port_id": portID,
-				"onts":    ontList,
+				"onts":    ports[portID],
 			})
 		}
 
