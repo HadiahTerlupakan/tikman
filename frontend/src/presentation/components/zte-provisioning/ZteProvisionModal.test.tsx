@@ -201,6 +201,31 @@ describe("ZteProvisionModal", () => {
     expect(screen.getByLabelText(/ONU type/i)).toHaveValue("HG8245H5");
   });
 
+  // Submitting before the review was confirmed returned early, so the button
+  // looked broken rather than withheld.
+  it("withholds Submit until the review is confirmed", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <ZteProvisionModal
+        open
+        mode="register"
+        target={target}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await fillInternetService("pass");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    const submit = screen.getByRole("button", { name: "Submit" });
+    expect(submit).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("switch"));
+    expect(submit).toBeEnabled();
+  });
+
   // The wizard unmounts each step as it advances, and antd only returns the
   // fields still mounted. Submitting from the review step therefore has to
   // carry the card and PON entered on the first one.

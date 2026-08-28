@@ -117,6 +117,8 @@ export function ZteProvisionModal({
   const submit = async () => {
     try {
       const data = await form.validateFields();
+      // The button is disabled without it; this is the second lock, for a
+      // submit that arrives any other way.
       if (!confirmed) return;
       onSubmit({ ...buildRequest(data), confirm: true });
     } catch {
@@ -165,6 +167,10 @@ export function ZteProvisionModal({
       }}
       onOk={step === 2 ? submit : next}
       okText={step === 2 ? "Submit" : "Next"}
+      // Submitting before the review is confirmed used to do nothing at all:
+      // the handler returned early, so the button looked broken rather than
+      // withheld. It is disabled until the operator says they have read it.
+      okButtonProps={{ disabled: step === 2 && !confirmed }}
       confirmLoading={loading}
       destroyOnClose
       width={720}
