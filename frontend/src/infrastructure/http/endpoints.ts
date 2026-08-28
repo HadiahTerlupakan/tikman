@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   OLT_TCONT_PROFILES: (id: string) => `/api/v1/olts/${id}/tcont-profiles`,
   OLT_VLAN_PROFILES: (id: string) => `/api/v1/olts/${id}/vlan-profiles`,
   OLT_ONU_TYPES: (id: string) => `/api/v1/olts/${id}/onu-types`,
+  OLT_SYSTEM: (id: string) => `/api/v1/olts/${id}/system`,
   TEST_OLT_CONNECTION: "/api/v1/olts/test-connection",
 
   // ONTs

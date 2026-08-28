@@ -1,5 +1,10 @@
 import { Table, Button, Space, Tag, Popconfirm, Progress } from "antd";
-import { EditOutlined, DeleteOutlined, SyncOutlined } from "@ant-design/icons";
+import {
+  EditOutlined,
+  DeleteOutlined,
+  SyncOutlined,
+  SettingOutlined,
+} from "@ant-design/icons";
 import {
   type Olt,
   OltStatus,
@@ -7,6 +12,7 @@ import {
   OLT_MODELS,
   type OltStats,
 } from "@/domain/entities";
+import { Link } from "react-router-dom";
 import type { ColumnsType } from "antd/es/table";
 import { useOltStats } from "@/application/hooks";
 import { getOltProgressDisplay } from "./oltProgress";
@@ -148,9 +154,14 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       title: "Actions",
       key: "actions",
       fixed: "right",
-      width: 180,
+      width: 250,
       render: (_, record) => (
         <Space>
+          <Link to={`/olts/${record.id}/configuration`}>
+            <Button type="link" icon={<SettingOutlined />}>
+              Settings
+            </Button>
+          </Link>
           <Button
             type="link"
             icon={<EditOutlined />}

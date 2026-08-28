@@ -8,6 +8,7 @@ import DashboardPage from "../pages/Dashboard";
 import UsersPage from "../pages/Users";
 import SitesPage from "../pages/Sites";
 import OltsPage from "../pages/Olts";
+import OltConfigurationPage from "../pages/OltConfigurationPage";
 import OntsPage from "../pages/OntListPage";
 import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
 import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
@@ -46,6 +47,10 @@ export const router = createBrowserRouter([
           {
             path: "olts",
             element: <OltsPage />,
+          },
+          {
+            path: "olts/:id/configuration",
+            element: <OltConfigurationPage />,
           },
           {
             path: "onts",

@@ -87,6 +87,18 @@ export function useOltOnuTypes(oltId?: string) {
   });
 }
 
+// The chassis summary and port inventory the discovery poll reads over SNMP.
+// Cached with the OLT, so the configuration page costs the device nothing to
+// open; it refreshes on the same cadence as the OLT list.
+export function useOltSystem(oltId?: string) {
+  return useQuery({
+    queryKey: ["olts", oltId, "system"],
+    queryFn: () => oltRepository.getSystem(oltId as string),
+    enabled: !!oltId,
+    refetchInterval: OLT_LIST_POLL_INTERVAL,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

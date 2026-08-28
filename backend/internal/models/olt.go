@@ -70,7 +70,12 @@ type OLT struct {
 	ONUTypes datatypes.JSON `gorm:"column:onu_types;type:jsonb" json:"onu_types,omitempty"`
 	// Cards are the line cards fitted to the OLT. A card carrying no ONU cannot
 	// be inferred from ONT rows, so the inventory is kept.
-	Cards                  datatypes.JSON `gorm:"column:cards;type:jsonb" json:"cards,omitempty"`
+	Cards datatypes.JSON `gorm:"column:cards;type:jsonb" json:"cards,omitempty"`
+	// SystemInfo and Ports are the chassis summary and interface inventory read
+	// over standard SNMP MIBs, so the configuration page costs no live walk.
+	SystemInfo             datatypes.JSON `gorm:"column:system_info;type:jsonb" json:"system_info,omitempty"`
+	Ports                  datatypes.JSON `gorm:"column:ports;type:jsonb" json:"ports,omitempty"`
+	SystemUpdatedAt        *time.Time     `gorm:"column:system_updated_at" json:"system_updated_at,omitempty"`
 	TCONTProfilesUpdatedAt *time.Time     `gorm:"column:tcont_profiles_updated_at" json:"tcont_profiles_updated_at,omitempty"`
 	DiscoveryStartedAt     *time.Time     `json:"discovery_started_at,omitempty"`
 	DiscoveryLastPollAt    *time.Time     `json:"discovery_last_poll_at,omitempty"`

@@ -8,6 +8,7 @@ import type {
   OltStats,
   UnconfiguredOnu,
   OltVlan,
+  OltSystemSnapshot,
 } from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
@@ -53,6 +54,11 @@ export class OltRepository implements IOltRepository {
   async getVlanProfiles(id: string): Promise<string[]> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_VLAN_PROFILES(id));
     return response.data.data ?? [];
+  }
+
+  async getSystem(id: string): Promise<OltSystemSnapshot> {
+    const response = await apiClient.get(API_ENDPOINTS.OLT_SYSTEM(id));
+    return response.data.data;
   }
 
   async getOnuTypes(id: string): Promise<string[]> {

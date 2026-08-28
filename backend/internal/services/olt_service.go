@@ -309,6 +309,7 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 	}
 
 	s.refreshVLANCache(olt)
+	s.refreshSystemCache(olt)
 	s.refreshProfileCache(olt)
 
 	// Enumerate ONTs before the slower optical-metrics walk so the UI can show
