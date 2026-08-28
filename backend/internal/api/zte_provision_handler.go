@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -162,5 +163,10 @@ func writeZTEServiceError(c *gin.Context, err error) {
 }
 
 func writeZTEError(c *gin.Context, status int, code, message string) {
+	// A rejected provisioning attempt left no trace on the server, so a 400 in
+	// an operator's browser could not be diagnosed from the logs. The message
+	// is written by this package and names a field, never a value, so it
+	// carries no subscriber credential.
+	log.Printf("[ZTEProvision] Rejected %s %s: %s (%s)", c.Request.Method, c.Request.URL.Path, message, code)
 	c.JSON(status, ErrorResponse{Code: code, Error: message})
 }
