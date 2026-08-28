@@ -96,14 +96,14 @@ func buildZTEServicePort(req models.ZTEGPONRegisterRequest) string {
 	return fmt.Sprintf("service-port 1 vport 1 user-vlan %d vlan %d", req.VLANID, req.VLANID)
 }
 
-// buildZTEManagementSection writes the OMCI service and WAN. A bridged ONU, or
-// one whose WAN is set up on the ONT itself, gets neither: the OLT only has to
-// carry its traffic.
+// buildZTEManagementSection writes the ONU-side service, and the WAN when the
+// OLT is the one configuring it.
+//
+// The service line is not optional, even for a bridge. It is what creates the
+// vport that the interface section's service-port binds to: without it the OLT
+// answers the service-port command with a bare failure. Every working ONU on a
+// live C300 pairs "service X gemport N vlan V" with "service-port N vport N".
 func buildZTEManagementSection(req models.ZTEGPONRegisterRequest, onuID int, includePassword bool) []string {
-	if req.ServiceType == models.ZTEServiceBridge || req.WANMode != models.ZTEWANModeWANIP {
-		return nil
-	}
-
 	commands := []string{
 		fmt.Sprintf("pon-onu-mng gpon-onu_1/%d/%d:%d", req.Card, req.PON, onuID),
 		buildZTEONUService(req),
@@ -114,6 +114,12 @@ func buildZTEManagementSection(req models.ZTEGPONRegisterRequest, onuID int, inc
 	// up once that port is bound. The OLT names it veip_1.
 	if req.UseVEIP {
 		commands = append(commands, fmt.Sprintf("vlan port veip_1 mode tag vlan %d", req.VLANID))
+	}
+
+	// A bridge, and a WAN set up on the ONT itself, stop here: the OLT carries
+	// the traffic and configures no WAN over OMCI.
+	if req.ServiceType == models.ZTEServiceBridge || req.WANMode != models.ZTEWANModeWANIP {
+		return append(commands, "exit")
 	}
 
 	switch req.WANIPMode {

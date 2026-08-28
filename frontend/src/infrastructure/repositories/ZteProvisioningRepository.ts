@@ -7,6 +7,12 @@ import type {
   ZteCommandPreviewResult,
 } from "@/domain/entities";
 
+// Provisioning opens a CLI session to the OLT, runs the command set, and rolls
+// back if one fails. That runs past the client's default 30s, and when the
+// browser gave up first the operator saw UNKNOWN_ERROR instead of the reason
+// the server had already worked out.
+const PROVISIONING_TIMEOUT_MS = 180_000;
+
 export class ZteProvisioningRepository {
   async register(
     oltId: string,
@@ -15,6 +21,7 @@ export class ZteProvisioningRepository {
     const response = await apiClient.post<ZteProvisionResponse>(
       API_ENDPOINTS.ZTE_GPON_REGISTER(oltId),
       data,
+      { timeout: PROVISIONING_TIMEOUT_MS },
     );
     return response.data;
   }
@@ -50,6 +57,7 @@ export class ZteProvisioningRepository {
     const response = await apiClient.post<ZteProvisionResponse>(
       API_ENDPOINTS.ZTE_GPON_CONFIGURE(ontId),
       data,
+      { timeout: PROVISIONING_TIMEOUT_MS },
     );
     return response.data;
   }

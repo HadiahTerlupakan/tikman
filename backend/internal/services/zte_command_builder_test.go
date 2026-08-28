@@ -72,8 +72,9 @@ func TestBuildZTEGPONRegisterCommandsForUntaggedService(t *testing.T) {
 
 	joined := strings.Join(commands, "\n")
 	require.Contains(t, joined, "service-port 1 vport 1 user-vlan untagged vlan 100")
+	// The service line stays: it creates the vport the service-port binds to.
+	require.Contains(t, joined, "service internet gemport 1 untag")
 	require.NotContains(t, joined, "wan-ip")
-	require.NotContains(t, joined, "pon-onu-mng")
 }
 
 // A bridged ONU carries traffic and nothing else: no OMCI service, no WAN.
@@ -91,6 +92,9 @@ func TestBuildZTEGPONRegisterCommandsForBridgeService(t *testing.T) {
 
 	joined := strings.Join(commands, "\n")
 	require.Contains(t, joined, "tcont 1 name bridge profile 100M")
+	// Without this the OLT refused the service-port line with a bare failure,
+	// leaving a registered ONU carrying no configuration at all.
+	require.Contains(t, joined, "service bridge gemport 1 vlan 100")
 	require.NotContains(t, joined, "wan 1 service")
 	require.NotContains(t, joined, "wan-ip")
 }
