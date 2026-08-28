@@ -4,8 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { InternetServiceForm } from "./InternetServiceForm";
 
 const useOltVlans = vi.hoisted(() => vi.fn());
+const useOltTcontProfiles = vi.hoisted(() => vi.fn());
 
-vi.mock("@/application/hooks/useOlts", () => ({ useOltVlans }));
+vi.mock("@/application/hooks/useOlts", () => ({
+  useOltVlans,
+  useOltTcontProfiles,
+}));
 
 function renderForm() {
   render(
@@ -17,6 +21,7 @@ function renderForm() {
 
 describe("InternetServiceForm", () => {
   it("offers the VLANs the OLT poll cached", () => {
+    useOltTcontProfiles.mockReturnValue({ data: [] });
     useOltVlans.mockReturnValue({
       data: [
         { vlanId: 99, name: "VLAN0099-PPP" },
@@ -35,6 +40,7 @@ describe("InternetServiceForm", () => {
   // An OLT that has never been polled, or was unreachable on its last poll, has
   // no cached list; the operator must still be able to type a VLAN ID.
   it("falls back to a typed VLAN ID when nothing is cached", () => {
+    useOltTcontProfiles.mockReturnValue({ data: [] });
     useOltVlans.mockReturnValue({ data: [] });
 
     renderForm();
@@ -43,5 +49,26 @@ describe("InternetServiceForm", () => {
       screen.getByText("VLANs appear here once the OLT has been polled."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Select a VLAN")).not.toBeInTheDocument();
+  });
+
+  it("offers the T-CONT profiles for both bandwidth fields", () => {
+    useOltVlans.mockReturnValue({ data: [] });
+    useOltTcontProfiles.mockReturnValue({ data: ["default", "1G"] });
+
+    renderForm();
+
+    // One for the download profile, one for the upload profile.
+    expect(screen.getAllByText("Select a T-CONT profile")).toHaveLength(2);
+  });
+
+  it("falls back to typed profile names when nothing is cached", () => {
+    useOltVlans.mockReturnValue({ data: [] });
+    useOltTcontProfiles.mockReturnValue({ data: [] });
+
+    renderForm();
+
+    expect(
+      screen.getByText("Profiles appear here once the OLT has been polled."),
+    ).toBeInTheDocument();
   });
 });

@@ -36,9 +36,13 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 
 	router.GET("/health", NewHealthHandler(db, authStore).Check)
 
+	// Created before the services because the OLT service uses it to read CLI
+	// profile lists during discovery.
+	commanderFactory := connectivity.NewCommanderFactoryWithEncryption(5*time.Second, cfg.EncryptionKey)
+
 	userService := services.NewUserService(db)
 	siteService := services.NewSiteService(db)
-	oltService := services.NewOLTService(db, cfg.EncryptionKey)
+	oltService := services.NewOLTServiceWithCommander(db, cfg.EncryptionKey, commanderFactory)
 	oltValidatorService := services.NewOLTValidatorService(db)
 	ontService := services.NewONTService(db)
 	metricsService := services.NewMetricsService(db)
@@ -58,9 +62,8 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
 	configTemplateHandler := NewConfigTemplateHandler(configTemplateService)
 
-	// Provisioning pipeline: factory creates per-OLT commanders since each OLT
-	// has its own address and credentials.
-	commanderFactory := connectivity.NewCommanderFactoryWithEncryption(5*time.Second, cfg.EncryptionKey)
+	// Provisioning pipeline: the factory above creates per-OLT commanders since
+	// each OLT has its own address and credentials.
 	provisionJobService := services.NewJobService(db, auditService)
 	snapshotService := services.NewSnapshotServiceWithCommander(db, connectivity.DriverFor, logger, commanderFactory)
 	rollbackEngine := services.NewRollbackEngineForOLTs(commanderFactory, logger)
@@ -118,6 +121,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			olts.GET("/:id/stats", metricsHandler.GetOltsStats)
 			olts.GET("/:id/unconfigured-onus", unconfiguredONUHandler.ListByOLT)
 			olts.GET("/:id/vlans", oltHandler.ListVLANs)
+			olts.GET("/:id/tcont-profiles", oltHandler.ListTCONTProfiles)
 			olts.POST("/:id/gpon/register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.Register)
 		}
 

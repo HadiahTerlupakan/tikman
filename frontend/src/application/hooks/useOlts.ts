@@ -57,6 +57,16 @@ export function useOltVlans(oltId?: string) {
   });
 }
 
+// T-CONT profile names, read from the OLT's CLI by the discovery poll and
+// stored with the OLT, so the form needs no session of its own.
+export function useOltTcontProfiles(oltId?: string) {
+  return useQuery({
+    queryKey: ["olts", oltId, "tcont-profiles"],
+    queryFn: () => oltRepository.getTcontProfiles(oltId as string),
+    enabled: !!oltId,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

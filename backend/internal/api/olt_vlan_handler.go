@@ -38,3 +38,33 @@ func (h *OLTHandler) ListVLANs(c *gin.Context) {
 		"updated_at": updatedAt,
 	})
 }
+
+// ListTCONTProfiles handles GET /api/v1/olts/:id/tcont-profiles. Like the VLAN
+// list this reads the discovery poll's cache, so the form costs no CLI session.
+func (h *OLTHandler) ListTCONTProfiles(c *gin.Context) {
+	oltID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_ID",
+			Error: "Invalid OLT ID format",
+		})
+		return
+	}
+
+	profiles, updatedAt, err := h.service.ListTCONTProfiles(oltID)
+	if err != nil {
+		status, code := http.StatusInternalServerError, "PROFILE_LOOKUP_FAILED"
+		if strings.Contains(err.Error(), "OLT not found") {
+			status, code = http.StatusNotFound, "NOT_FOUND"
+		}
+		c.JSON(status, ErrorResponse{Code: code, Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"olt_id":     oltID,
+		"data":       profiles,
+		"total":      len(profiles),
+		"updated_at": updatedAt,
+	})
+}

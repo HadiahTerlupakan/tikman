@@ -15,8 +15,18 @@ import (
 
 // OLTService handles OLT operations
 type OLTService struct {
-	db            *gorm.DB
-	encryptionKey []byte
+	db               *gorm.DB
+	encryptionKey    []byte
+	commanderFactory CommanderFactory
+}
+
+// NewOLTServiceWithCommander adds CLI access, which the discovery poll uses to
+// read profile lists the OLT does not publish over SNMP. Without a factory the
+// service still works and simply skips them.
+func NewOLTServiceWithCommander(db *gorm.DB, encryptionKey string, factory CommanderFactory) *OLTService {
+	service := NewOLTService(db, encryptionKey)
+	service.commanderFactory = factory
+	return service
 }
 
 // NewOLTService creates a new OLT service
@@ -299,6 +309,7 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 	}
 
 	s.refreshVLANCache(olt)
+	s.refreshTCONTProfileCache(olt)
 
 	// Enumerate ONTs before the slower optical-metrics walk so the UI can show
 	// a discovery total as soon as the OLT reports its status table.

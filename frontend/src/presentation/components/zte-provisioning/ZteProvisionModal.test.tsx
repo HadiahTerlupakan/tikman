@@ -8,6 +8,7 @@ import { ZteProvisionModal } from "./ZteProvisionModal";
 // form, not the fetch, so the list is stubbed rather than served by a client.
 vi.mock("@/application/hooks/useOlts", () => ({
   useOltVlans: () => ({ data: [] }),
+  useOltTcontProfiles: () => ({ data: [] }),
 }));
 
 const target = {

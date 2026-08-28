@@ -14,6 +14,7 @@ export interface IOltRepository {
   getStats(id: string): Promise<OltStats>;
   getUnconfiguredOnus(id: string): Promise<UnconfiguredOnu[]>;
   getVlans(id: string): Promise<OltVlan[]>;
+  getTcontProfiles(id: string): Promise<string[]>;
   create(data: CreateOltDto): Promise<Olt>;
   update(id: string, data: UpdateOltDto): Promise<Olt>;
   delete(id: string): Promise<void>;

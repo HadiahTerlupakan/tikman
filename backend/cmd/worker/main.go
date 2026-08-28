@@ -42,7 +42,8 @@ func main() {
 	}
 
 	ontService := services.NewONTService(db)
-	oltService := services.NewOLTService(db, cfg.EncryptionKey)
+	commanderFactory := connectivity.NewCommanderFactoryWithEncryption(5*time.Second, cfg.EncryptionKey)
+	oltService := services.NewOLTServiceWithCommander(db, cfg.EncryptionKey, commanderFactory)
 	metricsService := services.NewMetricsService(db)
 	// Status history was never recorded by the running worker: the only writer of
 	// ont_events was the /admin/seed-events endpoint, so an ONT's Events tab and

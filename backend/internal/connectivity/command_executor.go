@@ -26,6 +26,10 @@ type OLTCommander interface {
 	BatchExecute(ctx context.Context, cmds []string) ([]*CommandResult, error)
 }
 
+// loginPromptWait bounds each step of the login handshake. A C300 answers
+// option negotiation and prints its banner well inside this.
+const loginPromptWait = 8 * time.Second
+
 // TelnetCommander implements OLTCommander via Telnet session
 type TelnetCommander struct {
 	conn     net.Conn
@@ -67,10 +71,15 @@ func (tc *TelnetCommander) connect() error {
 	tc.reader = bufio.NewReader(conn)
 	_ = tc.conn.SetDeadline(time.Now().Add(tc.timeout))
 
-	// Read banner and wait for username prompt
-	banner, err := tc.readUntilPatterns([]string{"username:", "login:", "user:"}, 3*time.Second)
-	if err != nil || banner == "" {
-		return fmt.Errorf("failed to read banner")
+	// Read banner and wait for username prompt. The prompt has to actually
+	// appear: treating any bytes as the prompt sent the username into a session
+	// still negotiating options, and the login never recovered.
+	banner, err := tc.readUntilPatterns([]string{"username:", "login:", "user:"}, loginPromptWait)
+	if err != nil {
+		return fmt.Errorf("failed to read banner: %w", err)
+	}
+	if !containsAnyFold(banner, []string{"username:", "login:", "user:"}) {
+		return fmt.Errorf("no username prompt after %s", loginPromptWait)
 	}
 
 	// Send username
@@ -79,7 +88,7 @@ func (tc *TelnetCommander) connect() error {
 	}
 
 	// Wait for password prompt
-	pwPrompt, err := tc.readUntilPatterns([]string{"password:"}, 2*time.Second)
+	pwPrompt, err := tc.readUntilPatterns([]string{"password:"}, loginPromptWait)
 	if err != nil || !strings.Contains(strings.ToLower(pwPrompt), "password") {
 		return fmt.Errorf("expected password prompt")
 	}
@@ -168,7 +177,21 @@ func (tc *TelnetCommander) BatchExecute(ctx context.Context, cmds []string) ([]*
 
 // writeLine writes a line terminated with \r\n
 func (tc *TelnetCommander) writeLine(line string) (int, error) {
+	// connect set one deadline for the whole connection; refresh it per write so
+	// a session held open past that timeout can still send commands.
+	_ = tc.conn.SetWriteDeadline(time.Now().Add(tc.timeout))
 	return tc.conn.Write([]byte(line + "\r\n"))
+}
+
+// containsAnyFold reports whether s contains any of the substrings, ignoring case.
+func containsAnyFold(s string, substrings []string) bool {
+	lower := strings.ToLower(s)
+	for _, substring := range substrings {
+		if strings.Contains(lower, strings.ToLower(substring)) {
+			return true
+		}
+	}
+	return false
 }
 
 // readUntilPatterns reads until one of the patterns is found
@@ -188,6 +211,21 @@ func (tc *TelnetCommander) readUntilPatterns(patterns []string, maxWait time.Dur
 				continue
 			}
 			return buffer.String(), err
+		}
+
+		if b == telnetIAC {
+			_ = tc.conn.SetWriteDeadline(time.Now().Add(tc.timeout))
+			data, keep, negErr := negotiateTelnetOption(tc.reader, tc.conn)
+			if negErr != nil {
+				if netErr, ok := negErr.(net.Error); ok && netErr.Timeout() {
+					continue
+				}
+				return buffer.String(), negErr
+			}
+			if !keep {
+				continue
+			}
+			b = data
 		}
 
 		buffer.WriteByte(b)

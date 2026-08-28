@@ -45,6 +45,11 @@ export class OltRepository implements IOltRepository {
     return response.data.data ?? [];
   }
 
+  async getTcontProfiles(id: string): Promise<string[]> {
+    const response = await apiClient.get(API_ENDPOINTS.OLT_TCONT_PROFILES(id));
+    return response.data.data ?? [];
+  }
+
   async create(data: CreateOltDto): Promise<Olt> {
     const response = await apiClient.post(API_ENDPOINTS.OLTS, data);
     return response.data;

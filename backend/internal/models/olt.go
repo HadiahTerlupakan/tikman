@@ -56,13 +56,17 @@ type OLT struct {
 	// The column names are explicit: GORM derives "vla_ns" from VLANs, because
 	// the trailing lowercase s defeats its acronym handling, and reads would
 	// then silently miss the column the migration actually created.
-	VLANs               datatypes.JSON `gorm:"column:vlans;type:jsonb" json:"vlans,omitempty"`
-	VLANsUpdatedAt      *time.Time     `gorm:"column:vlans_updated_at" json:"vlans_updated_at,omitempty"`
-	DiscoveryStartedAt  *time.Time     `json:"discovery_started_at,omitempty"`
-	DiscoveryLastPollAt *time.Time     `json:"discovery_last_poll_at,omitempty"`
-	LastSeen            *time.Time
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	VLANs          datatypes.JSON `gorm:"column:vlans;type:jsonb" json:"vlans,omitempty"`
+	VLANsUpdatedAt *time.Time     `gorm:"column:vlans_updated_at" json:"vlans_updated_at,omitempty"`
+	// TCONTProfiles caches the CLI's T-CONT profile names, which the ZTE
+	// provisioning command references as "tcont ... profile-name X".
+	TCONTProfiles          datatypes.JSON `gorm:"column:tcont_profiles;type:jsonb" json:"tcont_profiles,omitempty"`
+	TCONTProfilesUpdatedAt *time.Time     `gorm:"column:tcont_profiles_updated_at" json:"tcont_profiles_updated_at,omitempty"`
+	DiscoveryStartedAt     *time.Time     `json:"discovery_started_at,omitempty"`
+	DiscoveryLastPollAt    *time.Time     `json:"discovery_last_poll_at,omitempty"`
+	LastSeen               *time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 func (o *OLT) BeforeCreate(tx *gorm.DB) error {

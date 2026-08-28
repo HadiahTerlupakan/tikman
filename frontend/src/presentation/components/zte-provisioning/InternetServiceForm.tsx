@@ -1,5 +1,5 @@
 import { Form, Input, InputNumber, Radio, Select } from "antd";
-import { useOltVlans } from "@/application/hooks/useOlts";
+import { useOltTcontProfiles, useOltVlans } from "@/application/hooks/useOlts";
 
 interface InternetServiceFormProps {
   oltId?: string;
@@ -7,6 +7,11 @@ interface InternetServiceFormProps {
 
 export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
   const { data: vlans } = useOltVlans(oltId);
+  const { data: profiles } = useOltTcontProfiles(oltId);
+  const profileOptions = profiles?.map((name) => ({
+    value: name,
+    label: name,
+  }));
 
   return (
     <>
@@ -55,23 +60,48 @@ export function InternetServiceForm({ oltId }: InternetServiceFormProps) {
           <InputNumber min={1} max={4094} style={{ width: "100%" }} />
         )}
       </Form.Item>
+      {/* Both fields offer the OLT's T-CONT profiles: the command references one
+          name, and the validator requires the two to match. */}
       <Form.Item
         name="downloadProfile"
         label="Download profile"
         rules={[{ required: true }]}
+        extra={
+          profileOptions?.length
+            ? undefined
+            : "Profiles appear here once the OLT has been polled."
+        }
       >
-        <Input />
+        {profileOptions?.length ? (
+          <Select
+            showSearch
+            placeholder="Select a T-CONT profile"
+            options={profileOptions}
+          />
+        ) : (
+          <Input />
+        )}
       </Form.Item>
       <Form.Item
         name="uploadProfile"
         label="Upload profile"
         rules={[{ required: true }]}
       >
-        <Input />
+        {profileOptions?.length ? (
+          <Select
+            showSearch
+            placeholder="Select a T-CONT profile"
+            options={profileOptions}
+          />
+        ) : (
+          <Input />
+        )}
       </Form.Item>
       <Form.Item name="wanMode" label="WAN mode" initialValue="pppoe">
         <Radio.Group disabled options={[{ value: "pppoe", label: "PPPoE" }]} />
       </Form.Item>
+      {/* Stays typed: a C300 V2.1.0 has no listing command for it — "show gpon
+          profile ?" offers only tcont and traffic. */}
       <Form.Item
         name="vlanProfile"
         label="VLAN profile"

@@ -25,12 +25,14 @@ func TestOLTColumnNamesMatchTheMigrations(t *testing.T) {
 	}
 
 	for field, want := range map[string]string{
-		"VLANs":               "vlans",
-		"VLANsUpdatedAt":      "vlans_updated_at",
-		"SNMPCommunity":       "snmp_community",
-		"DiscoveryPhase":      "discovery_phase",
-		"DiscoveryStartedAt":  "discovery_started_at",
-		"DiscoveryRegistered": "discovery_registered",
+		"VLANs":                  "vlans",
+		"VLANsUpdatedAt":         "vlans_updated_at",
+		"TCONTProfiles":          "tcont_profiles",
+		"TCONTProfilesUpdatedAt": "tcont_profiles_updated_at",
+		"SNMPCommunity":          "snmp_community",
+		"DiscoveryPhase":         "discovery_phase",
+		"DiscoveryStartedAt":     "discovery_started_at",
+		"DiscoveryRegistered":    "discovery_registered",
 	} {
 		assert.Equal(t, want, columns[field], "field %s maps to the wrong column", field)
 	}
