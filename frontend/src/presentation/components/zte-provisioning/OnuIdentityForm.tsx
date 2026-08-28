@@ -4,20 +4,28 @@ import { useOltOnuTypes } from "@/application/hooks/useOlts";
 
 interface OnuIdentityFormProps {
   target: ZteProvisionTarget;
+  mode: "register" | "configure";
 }
 
-export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
-  const mode = Form.useWatch("onuIdMode");
+export function OnuIdentityForm({ target, mode }: OnuIdentityFormProps) {
+  const onuIdMode = Form.useWatch("onuIdMode");
   const { data: onuTypes } = useOltOnuTypes(target.oltId);
 
   // The OLT reports a model over OMCI — an F609 announces itself as F609V9 —
   // but the registration command takes one of the OLT's own onu-type names and
   // rejects anything else. The detected model is shown so the operator can
   // match it, rather than pre-selected as if it were valid.
+  // Only registration sends "onu N type X sn Y". Configuring an ONU the OLT
+  // already knows never mentions the type, so holding the operator to the
+  // OLT's list there would block them on a field that goes nowhere.
+  const typeIsSent = mode === "register";
+
   const detected = target.onuType?.trim();
-  const typeHint = detected
-    ? `The OLT reports this ONU as ${detected}. Pick the matching type it accepts.`
-    : undefined;
+  const typeHint = !typeIsSent
+    ? "Not sent when configuring an ONU the OLT already knows."
+    : detected
+      ? `The OLT reports this ONU as ${detected}. Pick the matching type it accepts.`
+      : undefined;
   return (
     <>
       <Form.Item name="card" label="Card" rules={[{ required: true }]}>
@@ -39,7 +47,7 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
       {/* Auto sends a zero for the OLT-side allocator to replace. Showing that
           zero in a disabled box told the operator nothing and read like a
           validation error. */}
-      {mode === "custom" ? (
+      {onuIdMode === "custom" ? (
         <Form.Item name="onuId" label="ONU ID" rules={[{ required: true }]}>
           <InputNumber min={1} max={127} style={{ width: "100%" }} />
         </Form.Item>
@@ -62,7 +70,7 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
         name="onuType"
         label="ONU type"
         extra={
-          onuTypes?.length
+          onuTypes?.length || !typeIsSent
             ? typeHint
             : "ONU types appear here once the OLT has been polled."
         }
@@ -70,7 +78,10 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
           { required: true },
           {
             validator: (_, value: string) =>
-              !onuTypes?.length || !value || onuTypes.includes(value)
+              !typeIsSent ||
+              !onuTypes?.length ||
+              !value ||
+              onuTypes.includes(value)
                 ? Promise.resolve()
                 : Promise.reject(
                     new Error(`The OLT does not accept the type ${value}.`),

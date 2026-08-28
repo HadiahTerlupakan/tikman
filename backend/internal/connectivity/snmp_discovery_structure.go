@@ -43,6 +43,10 @@ func buildTopologyStructure(slotMap map[int]map[int][]ONTLocation, statuses map[
 
 				inv := inventory[loc]
 				ont := DiscoveredONT{
+					// Dropping the slot here left the worker's sync path storing
+					// ONTs without one. The auto ONU ID allocator matches on it,
+					// and the configure form fills its Card from it.
+					Slot:            loc.Slot,
 					PortID:          loc.Port,
 					ONTID:           loc.ONTID,
 					SerialNumber:    inv.SerialNumber,

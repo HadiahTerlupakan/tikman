@@ -82,3 +82,25 @@ func TestBuildTopologyStructure(t *testing.T) {
 		})
 	}
 }
+
+// The worker's sync path flattens this topology straight into ONT rows. Losing
+// the slot there stored ONTs without one, which the auto ONU ID allocator
+// cannot see and the configure form filled its Card from.
+func TestBuildTopologyStructureKeepsTheSlot(t *testing.T) {
+	loc := ONTLocation{Slot: 3, Port: 1, ONTID: 15}
+	slotMap := map[int]map[int][]ONTLocation{3: {1: {loc}}}
+
+	topology := buildTopologyStructure(
+		slotMap,
+		map[ONTLocation]int{loc: PhaseStateOnline},
+		map[ONTLocation]ONTInventory{loc: {SerialNumber: "HWTCB403E8A0"}},
+		map[ONTLocation]ONTMetrics{},
+	)
+
+	if len(topology) != 1 || len(topology[0].Ports) != 1 || len(topology[0].Ports[0].ONTs) != 1 {
+		t.Fatalf("unexpected topology shape: %+v", topology)
+	}
+	if got := topology[0].Ports[0].ONTs[0].Slot; got != 3 {
+		t.Errorf("ONT slot = %d, want 3", got)
+	}
+}

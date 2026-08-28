@@ -24,7 +24,10 @@ beforeEach(() => {
 // Validation is driven through the form instance rather than a click: antd's
 // stylesheet makes jsdom's selector engine throw on pointer interaction, and
 // the rule is what these tests are about.
-function renderForm(onuType?: string) {
+function renderForm(
+  onuType?: string,
+  mode: "register" | "configure" = "register",
+) {
   const captured: { form?: FormInstance } = {};
 
   function Harness() {
@@ -32,7 +35,7 @@ function renderForm(onuType?: string) {
     captured.form = form;
     return (
       <Form form={form} initialValues={{ onuIdMode: "auto", onuType }}>
-        <OnuIdentityForm target={target} />
+        <OnuIdentityForm target={target} mode={mode} />
       </Form>
     );
   }
@@ -88,5 +91,23 @@ describe("OnuIdentityForm", () => {
     await expect(
       captured.form?.validateFields(["onuType"]),
     ).resolves.toMatchObject({ onuType: "F609V9" });
+  });
+
+  // Configuring an ONU the OLT already knows never sends "onu N type X sn Y",
+  // so holding the operator to the OLT's list there blocks them on a field
+  // that goes nowhere.
+  it("does not police the type when configuring an existing ONU", async () => {
+    useOltOnuTypes.mockReturnValue({ data: ["ZTEG-F609"] });
+
+    const captured = renderForm("HWTC", "configure");
+
+    await expect(
+      captured.form?.validateFields(["onuType"]),
+    ).resolves.toMatchObject({ onuType: "HWTC" });
+    expect(
+      screen.getByText(
+        "Not sent when configuring an ONU the OLT already knows.",
+      ),
+    ).toBeInTheDocument();
   });
 });

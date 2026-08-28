@@ -191,7 +191,7 @@ export function ZteProvisionModal({
       />
       <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
         <div style={{ display: step === 0 ? "block" : "none" }}>
-          <OnuIdentityForm target={target} />
+          <OnuIdentityForm target={target} mode={mode} />
         </div>
         <div style={{ display: step === 1 ? "block" : "none" }}>
           <InternetServiceForm oltId={target.oltId} />
