@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -74,7 +75,7 @@ func (s *ZTEGPONRegisterService) RegisterAndConfigure(ctx context.Context, req m
 		}
 		ont = models.ONT{OLTID: req.OLTID, PortID: req.PON, ONTID: onuID, Slot: &req.Card, SerialNumber: req.SerialNumber, Name: req.Name, Description: req.Description, DeviceType: req.ONUType, Status: models.ONTStatusUnknown}
 		if err := tx.Create(&ont).Error; err != nil {
-			return fmt.Errorf("reserve ONU position: %w", err)
+			return reserveONUError(tx, req.SerialNumber, err)
 		}
 		return nil
 	})
@@ -358,4 +359,34 @@ func resolveZTEONUIDLocked(ctx context.Context, db *gorm.DB, oltID uuid.UUID, sl
 		}
 	}
 	return 0, fmt.Errorf("no free ONU IDs remain on this port")
+}
+
+// reserveONUError turns the serial index's rejection into something an operator
+// can act on. A registration against a busy OLT can take minutes, so an
+// operator who reloads and submits again lands here; the raw constraint
+// violation read as a fault in TikMan rather than as the first attempt still
+// running.
+func reserveONUError(tx *gorm.DB, serial string, cause error) error {
+	if !errors.Is(cause, gorm.ErrDuplicatedKey) && !strings.Contains(cause.Error(), "idx_onts_serial_number") {
+		return fmt.Errorf("reserve ONU position: %w", cause)
+	}
+
+	var existing models.ONT
+	if err := tx.Where("serial_number = ?", serial).First(&existing).Error; err != nil {
+		return fmt.Errorf("serial %s is already registered", serial)
+	}
+
+	var running int64
+	tx.Model(&models.ProvisioningJob{}).
+		Where("ont_id = ? AND status = ?", existing.ID, "running").
+		Count(&running)
+	if running > 0 {
+		return fmt.Errorf("a registration for %s is already running; wait for it to finish rather than starting another", serial)
+	}
+
+	position := "an unknown position"
+	if existing.Slot != nil {
+		position = fmt.Sprintf("1/%d/%d:%d", *existing.Slot, existing.PortID, existing.ONTID)
+	}
+	return fmt.Errorf("serial %s is already registered at %s", serial, position)
 }

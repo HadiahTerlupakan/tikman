@@ -14,10 +14,14 @@ import (
 // The registration lives under the PON interface as "onu N type X sn Y", so the
 // removal is issued in that context. Removing the ONU takes its per-ONU
 // interface and management config with it, which is why neither is addressed
-// separately; a leftover would surface as the serial still appearing in the
-// running config, which the caller checks.
+// separately.
+//
+// "configure terminal" comes first for the same reason the registration builder
+// sends it: from the exec prompt a C300 answers "interface gpon-olt_1/3/1" with
+// "%Error 20200: Invalid input detected ... Invalid command".
 func BuildZTEONURemovalCommands(card, pon, onuID int) []string {
 	return []string{
+		"configure terminal",
 		fmt.Sprintf("interface gpon-olt_1/%d/%d", card, pon),
 		fmt.Sprintf("no onu %d", onuID),
 		"exit",
