@@ -61,6 +61,11 @@ export class OltRepository implements IOltRepository {
     return response.data.data;
   }
 
+  async refreshSystem(id: string): Promise<OltSystemSnapshot> {
+    const response = await apiClient.post(API_ENDPOINTS.OLT_SYSTEM_REFRESH(id));
+    return response.data.data;
+  }
+
   async getOnuTypes(id: string): Promise<string[]> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_ONU_TYPES(id));
     return response.data.data ?? [];

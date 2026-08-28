@@ -31,6 +31,20 @@ func (s *OLTService) refreshSystemCache(olt *models.OLT) {
 		}
 	}
 
+	health, err := connectivity.WalkCardHealth(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	switch {
+	case err != nil:
+		log.Printf("[AutoDiscovery] Card health walk failed for OLT %s: %v", olt.Name, err)
+	case len(health) == 0:
+		log.Printf("[AutoDiscovery] Card health walk returned nothing for OLT %s; keeping the cached list", olt.Name)
+	default:
+		if encoded, err := json.Marshal(health); err == nil {
+			updates["card_health"] = datatypes.JSON(encoded)
+		} else {
+			log.Printf("[AutoDiscovery] Cannot encode card health for OLT %s: %v", olt.Name, err)
+		}
+	}
+
 	ports, err := connectivity.WalkPorts(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	switch {
 	case err != nil:
@@ -58,14 +72,32 @@ func (s *OLTService) refreshSystemCache(olt *models.OLT) {
 	log.Printf("[AutoDiscovery] Cached %d chassis entities and %d ports for OLT %s", len(info.Entities), len(ports), olt.Name)
 }
 
+// RefreshSystem re-reads the chassis, ports and card health from the OLT now
+// and returns the fresh snapshot. Every read is SNMP, so this costs the device
+// three short walks and never opens a CLI session.
+func (s *OLTService) RefreshSystem(oltID uuid.UUID) (OLTSystemSnapshot, error) {
+	var olt models.OLT
+	if err := s.db.First(&olt, "id = ?", oltID).Error; err != nil {
+		return OLTSystemSnapshot{}, fmt.Errorf("OLT not found: %w", err)
+	}
+
+	s.refreshSystemCache(&olt)
+	s.refreshVLANCache(&olt)
+
+	return s.GetSystemSnapshot(oltID)
+}
+
 // OLTSystemSnapshot is everything the configuration page reads in one request:
 // the chassis summary, the port inventory, and the fitted cards the CLI poll
 // recorded separately.
 type OLTSystemSnapshot struct {
-	System    connectivity.OLTSystemInfo `json:"system"`
-	Ports     []connectivity.OLTPort     `json:"ports"`
-	Cards     []connectivity.ZTECard     `json:"cards"`
-	UpdatedAt *time.Time                 `json:"updated_at,omitempty"`
+	System     connectivity.OLTSystemInfo     `json:"system"`
+	Ports      []connectivity.OLTPort         `json:"ports"`
+	Cards      []connectivity.ZTECard         `json:"cards"`
+	CardHealth []connectivity.CardHealth      `json:"card_health"`
+	ONUTypes   []connectivity.ZTEONUType      `json:"onu_types"`
+	Speeds     []connectivity.ZTETcontProfile `json:"speed_profiles"`
+	UpdatedAt  *time.Time                     `json:"updated_at,omitempty"`
 }
 
 // GetSystemSnapshot returns the cached chassis and port inventory. An OLT that
@@ -78,9 +110,12 @@ func (s *OLTService) GetSystemSnapshot(oltID uuid.UUID) (OLTSystemSnapshot, erro
 	}
 
 	snapshot := OLTSystemSnapshot{
-		Ports:     make([]connectivity.OLTPort, 0),
-		Cards:     make([]connectivity.ZTECard, 0),
-		UpdatedAt: olt.SystemUpdatedAt,
+		Ports:      make([]connectivity.OLTPort, 0),
+		Cards:      make([]connectivity.ZTECard, 0),
+		CardHealth: make([]connectivity.CardHealth, 0),
+		ONUTypes:   make([]connectivity.ZTEONUType, 0),
+		Speeds:     make([]connectivity.ZTETcontProfile, 0),
+		UpdatedAt:  olt.SystemUpdatedAt,
 	}
 
 	if len(olt.SystemInfo) > 0 {
@@ -99,6 +134,21 @@ func (s *OLTService) GetSystemSnapshot(oltID uuid.UUID) (OLTSystemSnapshot, erro
 	if len(olt.Cards) > 0 {
 		if err := json.Unmarshal(olt.Cards, &snapshot.Cards); err != nil {
 			return OLTSystemSnapshot{}, fmt.Errorf("cached card list is unreadable: %w", err)
+		}
+	}
+	if len(olt.CardHealth) > 0 {
+		if err := json.Unmarshal(olt.CardHealth, &snapshot.CardHealth); err != nil {
+			return OLTSystemSnapshot{}, fmt.Errorf("cached card health is unreadable: %w", err)
+		}
+	}
+	if len(olt.ONUTypeDetails) > 0 {
+		if err := json.Unmarshal(olt.ONUTypeDetails, &snapshot.ONUTypes); err != nil {
+			return OLTSystemSnapshot{}, fmt.Errorf("cached ONU type details are unreadable: %w", err)
+		}
+	}
+	if len(olt.TCONTProfileDetails) > 0 {
+		if err := json.Unmarshal(olt.TCONTProfileDetails, &snapshot.Speeds); err != nil {
+			return OLTSystemSnapshot{}, fmt.Errorf("cached speed profiles are unreadable: %w", err)
 		}
 	}
 

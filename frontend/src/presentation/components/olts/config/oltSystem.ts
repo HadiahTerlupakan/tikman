@@ -76,3 +76,12 @@ export function isCardEntity(entity: ChassisEntity): boolean {
     entity.class === ENTITY_CLASS_CHASSIS
   );
 }
+
+const KBPS_PER_MBPS = 1000;
+
+// The OLT reports bandwidth in kbps. Mbps is what a speed is sold and discussed
+// in, and the profile's name is only a label: "1G" grants 1024000 kbps.
+export function formatBandwidth(kbps: number): string {
+  if (kbps <= 0) return "—";
+  return `${Math.round(kbps / KBPS_PER_MBPS)} Mbps`;
+}

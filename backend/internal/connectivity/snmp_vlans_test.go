@@ -28,7 +28,7 @@ func TestWalkVLANsReadsTheStaticVLANTable(t *testing.T) {
 		t.Fatalf("got %d VLANs %+v, want %d", len(vlans), vlans, len(want))
 	}
 	for i, vlan := range vlans {
-		if vlan != want[i] {
+		if vlan.VLANID != want[i].VLANID || vlan.Name != want[i].Name {
 			t.Errorf("VLAN %d = %+v, want %+v", i, vlan, want[i])
 		}
 	}

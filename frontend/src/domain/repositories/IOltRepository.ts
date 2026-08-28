@@ -19,6 +19,7 @@ export interface IOltRepository {
   getVlanProfiles(id: string): Promise<string[]>;
   getOnuTypes(id: string): Promise<string[]>;
   getSystem(id: string): Promise<OltSystemSnapshot>;
+  refreshSystem(id: string): Promise<OltSystemSnapshot>;
   create(data: CreateOltDto): Promise<Olt>;
   update(id: string, data: UpdateOltDto): Promise<Olt>;
   delete(id: string): Promise<void>;

@@ -38,21 +38,21 @@ Profile name :1G
  
 BRAS-PANCORANMAS-DPK#`
 
-func TestReadZTETcontProfiles(t *testing.T) {
+func TestReadZTETcontProfileDetails(t *testing.T) {
 	commander := &scriptedCommander{outputs: map[string]string{zteTcontProfileCommand: tcontListing}}
 
-	profiles, err := ReadZTETcontProfiles(context.Background(), commander)
+	profiles, err := ReadZTETcontProfileDetails(context.Background(), commander)
 	if err != nil {
-		t.Fatalf("ReadZTETcontProfiles: %v", err)
+		t.Fatalf("ReadZTETcontProfileDetails: %v", err)
 	}
 
 	want := []string{"default", "1G"}
 	if len(profiles) != len(want) {
 		t.Fatalf("got %v, want %v", profiles, want)
 	}
-	for i, name := range profiles {
-		if name != want[i] {
-			t.Errorf("profile %d = %q, want %q", i, name, want[i])
+	for i, profile := range profiles {
+		if profile.Name != want[i] {
+			t.Errorf("profile %d = %q, want %q", i, profile.Name, want[i])
 		}
 	}
 
@@ -62,22 +62,14 @@ func TestReadZTETcontProfiles(t *testing.T) {
 	}
 }
 
-func TestReadZTETcontProfilesRejectsACLIError(t *testing.T) {
+func TestReadZTETcontProfileDetailsRejectsACLIError(t *testing.T) {
 	commander := &scriptedCommander{
 		outputs:  map[string]string{zteTcontProfileCommand: "%Error 20200: Invalid input detected"},
 		failures: map[string]string{zteTcontProfileCommand: "Invalid input detected"},
 	}
 
-	if _, err := ReadZTETcontProfiles(context.Background(), commander); err == nil {
+	if _, err := ReadZTETcontProfileDetails(context.Background(), commander); err == nil {
 		t.Fatal("a CLI error must not be reported as an empty profile list")
-	}
-}
-
-func TestParseZTEProfileNamesIgnoresRepeats(t *testing.T) {
-	names := parseZTEProfileNames("Profile name :A\nProfile name :A\nProfile name :B\n")
-
-	if len(names) != 2 || names[0] != "A" || names[1] != "B" {
-		t.Fatalf("got %v, want [A B]", names)
 	}
 }
 

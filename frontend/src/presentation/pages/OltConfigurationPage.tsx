@@ -1,48 +1,49 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  App,
   Alert,
   Button,
-  Empty,
   Space,
   Spin,
-  Table,
   Tabs,
+  Tooltip,
   Typography,
 } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   useOlt,
-  useOltOnuTypes,
   useOltSystem,
-  useOltTcontProfiles,
   useOltVlanProfiles,
   useOltVlans,
+  useRefreshOltSystem,
 } from "@/application/hooks/useOlts";
 import { useOnts } from "@/application/hooks/useOnts";
 import { OltChassisTable } from "../components/olts/config/OltChassisTable";
 import { OltConfigHeader } from "../components/olts/config/OltConfigHeader";
+import { OltOnuTypeTable } from "../components/olts/config/OltOnuTypeTable";
 import { OltPortGrid } from "../components/olts/config/OltPortGrid";
 import { OltProfileList } from "../components/olts/config/OltProfileList";
+import { OltSpeedTable } from "../components/olts/config/OltSpeedTable";
+import { OltVlanTable } from "../components/olts/config/OltVlanTable";
 
 const { Title, Text } = Typography;
 
 export default function OltConfigurationPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { message } = App.useApp();
 
   const { data: olt } = useOlt(id);
   const { data: snapshot, isLoading } = useOltSystem(id);
   const { data: vlans } = useOltVlans(id);
-  const { data: onuTypes } = useOltOnuTypes(id);
   const { data: vlanProfiles } = useOltVlanProfiles(id);
-  const { data: tcontProfiles } = useOltTcontProfiles(id);
-  // 500 is the list endpoint's ceiling; the header says so when an OLT
-  // carries more ONUs than one page holds.
   const { data: ontPage } = useOnts({ oltId: id, limit: 500 });
+  const refresh = useRefreshOltSystem(id);
 
   const onts = useMemo(() => ontPage?.data ?? [], [ontPage]);
   const ports = snapshot?.ports ?? [];
+  const cardHealth = snapshot?.cardHealth ?? [];
 
   const cardType = useMemo(() => {
     const bySlot = new Map(
@@ -56,6 +57,13 @@ export default function OltConfigurationPage() {
     return type ? `${prefix} ${slot} · ${type}` : `${prefix} ${slot}`;
   };
 
+  const onRefresh = () => {
+    refresh.mutate(undefined, {
+      onSuccess: () => message.success("Re-read from the OLT"),
+      onError: (error: Error) => message.error(error.message),
+    });
+  };
+
   if (isLoading) {
     return (
       <div style={{ padding: 24, textAlign: "center" }}>
@@ -66,20 +74,29 @@ export default function OltConfigurationPage() {
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
+      <Space style={{ marginBottom: 16 }} wrap>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/olts")}>
           Back
         </Button>
         <Title level={4} style={{ margin: 0 }}>
           {olt?.name ?? "OLT"} configuration
         </Title>
+        <Tooltip title="Re-reads the chassis, ports, card health and VLANs over SNMP. The profile lists come from a CLI read that runs on its own schedule.">
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={onRefresh}
+            loading={refresh.isPending}
+          >
+            Refresh now
+          </Button>
+        </Tooltip>
       </Space>
 
       <Alert
         type="info"
         showIcon
         message="Read-only view"
-        description="Everything here is read from the OLT by the discovery poll, over SNMP where the device supports it. This page does not send any command to the OLT."
+        description="Everything here is read from the OLT, over SNMP wherever the device supports it. This page does not send any command to the OLT."
         style={{ marginBottom: 16 }}
       />
 
@@ -98,6 +115,7 @@ export default function OltConfigurationPage() {
               <OltPortGrid
                 ports={ports}
                 kind="uplink"
+                cardHealth={cardHealth}
                 cardLabel={label("Slot")}
                 emptyText="No uplink ports reported by the last poll"
               />
@@ -110,6 +128,7 @@ export default function OltConfigurationPage() {
               <OltPortGrid
                 ports={ports}
                 kind="pon"
+                cardHealth={cardHealth}
                 cardLabel={label("Card")}
                 emptyText="No PON ports reported by the last poll"
               />
@@ -118,33 +137,12 @@ export default function OltConfigurationPage() {
           {
             key: "vlans",
             label: "VLANs",
-            children:
-              (vlans ?? []).length === 0 ? (
-                <Empty description="No VLANs read from the OLT yet" />
-              ) : (
-                <Table
-                  size="small"
-                  rowKey="vlanId"
-                  dataSource={vlans}
-                  pagination={false}
-                  columns={[
-                    { title: "VLAN ID", dataIndex: "vlanId", width: 120 },
-                    { title: "Name", dataIndex: "name" },
-                  ]}
-                />
-              ),
+            children: <OltVlanTable vlans={vlans ?? []} />,
           },
           {
             key: "onu-types",
             label: "ONU types",
-            children: (
-              <OltProfileList
-                title="ONU type"
-                names={onuTypes ?? []}
-                emptyText="No ONU types read from the OLT yet"
-                note="These are the names the OLT accepts in a registration command, not the models ONUs announce over OMCI."
-              />
-            ),
+            children: <OltOnuTypeTable types={snapshot?.onuTypes ?? []} />,
           },
           {
             key: "wan-ip",
@@ -154,7 +152,7 @@ export default function OltConfigurationPage() {
                 title="VLAN profile"
                 names={vlanProfiles ?? []}
                 emptyText="No VLAN profiles in use on this OLT"
-                note="Recovered from the ONU configurations, because the CLI has no command that lists them."
+                note="Recovered from the ONU configurations, because the CLI has no command that lists them. The C300 exposes no CVLAN for these."
               />
             ),
           },
@@ -162,11 +160,7 @@ export default function OltConfigurationPage() {
             key: "speed",
             label: "Speed profiles",
             children: (
-              <OltProfileList
-                title="T-CONT profile"
-                names={tcontProfiles ?? []}
-                emptyText="No T-CONT profiles read from the OLT yet"
-              />
+              <OltSpeedTable profiles={snapshot?.speedProfiles ?? []} />
             ),
           },
           {

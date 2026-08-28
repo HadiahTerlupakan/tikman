@@ -35,9 +35,35 @@ export interface OltCard {
   type: string;
 }
 
+export interface CardHealth {
+  slot: number;
+  temperatureC?: number;
+  cpuPercent?: number;
+  memoryPercent?: number;
+}
+
+export interface ZteOnuType {
+  name: string;
+  pon: string;
+  description?: string;
+  maxTcont?: number;
+  maxGemport?: number;
+}
+
+export interface TcontProfile {
+  name: string;
+  type: number;
+  fixedBwKbps: number;
+  assuredBwKbps: number;
+  maxBwKbps: number;
+}
+
 export interface OltSystemSnapshot {
   system: OltSystemInfo;
   ports: OltPort[];
   cards: OltCard[];
+  cardHealth: CardHealth[];
+  onuTypes: ZteOnuType[];
+  speedProfiles: TcontProfile[];
   updatedAt?: string;
 }

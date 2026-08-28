@@ -73,7 +73,16 @@ type OLT struct {
 	Cards datatypes.JSON `gorm:"column:cards;type:jsonb" json:"cards,omitempty"`
 	// SystemInfo and Ports are the chassis summary and interface inventory read
 	// over standard SNMP MIBs, so the configuration page costs no live walk.
-	SystemInfo             datatypes.JSON `gorm:"column:system_info;type:jsonb" json:"system_info,omitempty"`
+	SystemInfo datatypes.JSON `gorm:"column:system_info;type:jsonb" json:"system_info,omitempty"`
+	// CardHealth is per-slot temperature, CPU and memory, read from the ZTE
+	// enterprise tables because this C300 leaves entPhySensorTable empty.
+	CardHealth datatypes.JSON `gorm:"column:card_health;type:jsonb" json:"card_health,omitempty"`
+	// TCONTProfileDetails carries the bandwidths behind the profile names, which
+	// are only labels and can disagree with what the profile grants.
+	TCONTProfileDetails datatypes.JSON `gorm:"column:tcont_profile_details;type:jsonb" json:"tcont_profile_details,omitempty"`
+	// ONUTypeDetails is what the running config says about each ONU type, which
+	// the plain name list cannot carry.
+	ONUTypeDetails         datatypes.JSON `gorm:"column:onu_type_details;type:jsonb" json:"onu_type_details,omitempty"`
 	Ports                  datatypes.JSON `gorm:"column:ports;type:jsonb" json:"ports,omitempty"`
 	SystemUpdatedAt        *time.Time     `gorm:"column:system_updated_at" json:"system_updated_at,omitempty"`
 	TCONTProfilesUpdatedAt *time.Time     `gorm:"column:tcont_profiles_updated_at" json:"tcont_profiles_updated_at,omitempty"`

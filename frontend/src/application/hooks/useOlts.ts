@@ -99,6 +99,19 @@ export function useOltSystem(oltId?: string) {
   });
 }
 
+// Re-reads the OLT over SNMP now instead of waiting for the discovery poll.
+export function useRefreshOltSystem(oltId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => oltRepository.refreshSystem(oltId),
+    onSuccess: (snapshot) => {
+      queryClient.setQueryData(["olts", oltId, "system"], snapshot);
+      queryClient.invalidateQueries({ queryKey: ["olts", oltId, "vlans"] });
+    },
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

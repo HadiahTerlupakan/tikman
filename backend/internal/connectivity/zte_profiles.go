@@ -51,10 +51,11 @@ var zteONUTypeName = regexp.MustCompile(`(?m)^\s*onu-type\s+(\S+)`)
 // ONU types the OLT will accept, the VLAN profile names in use, and each ONU's
 // current service.
 type ZTEConfigSnapshot struct {
-	Cards        []ZTECard
-	ONUTypes     []string
-	VLANProfiles []string
-	ONUServices  map[ONTLocation]ZTEONUService
+	Cards          []ZTECard
+	ONUTypes       []string
+	ONUTypeDetails []ZTEONUType
+	VLANProfiles   []string
+	ONUServices    map[ONTLocation]ZTEONUService
 }
 
 // parseZTEONUTypes lists the registered ONU types in alphabetical order.
@@ -93,10 +94,11 @@ func ReadZTEConfigSnapshot(ctx context.Context, commander OLTCommander) (ZTEConf
 	}
 
 	return ZTEConfigSnapshot{
-		Cards:        ParseZTECards(output),
-		ONUTypes:     parseZTEONUTypes(output),
-		VLANProfiles: rankZTEVLANProfiles(output),
-		ONUServices:  ParseZTEONUServices(output),
+		Cards:          ParseZTECards(output),
+		ONUTypes:       parseZTEONUTypes(output),
+		ONUTypeDetails: ParseZTEONUTypeDetails(output),
+		VLANProfiles:   rankZTEVLANProfiles(output),
+		ONUServices:    ParseZTEONUServices(output),
 	}, nil
 }
 
@@ -141,40 +143,4 @@ func unwrapZTEOutput(output string) string {
 	}
 
 	return joined.String()
-}
-
-// ReadZTETcontProfiles returns the T-CONT profile names configured on the OLT,
-// in the order the CLI lists them.
-func ReadZTETcontProfiles(ctx context.Context, commander OLTCommander) ([]string, error) {
-	if _, err := commander.ExecuteCommand(ctx, disablePagingCommand); err != nil {
-		return nil, fmt.Errorf("disable paging: %w", err)
-	}
-
-	result, err := commander.ExecuteCommand(ctx, zteTcontProfileCommand)
-	if err != nil {
-		return nil, fmt.Errorf("list T-CONT profiles: %w", err)
-	}
-	if result == nil {
-		return nil, fmt.Errorf("list T-CONT profiles: no output")
-	}
-	if result.Error != "" {
-		return nil, fmt.Errorf("list T-CONT profiles: %s", result.Error)
-	}
-
-	return parseZTEProfileNames(result.Output), nil
-}
-
-func parseZTEProfileNames(output string) []string {
-	matches := zteProfileName.FindAllStringSubmatch(output, -1)
-	names := make([]string, 0, len(matches))
-	seen := make(map[string]bool, len(matches))
-	for _, match := range matches {
-		name := match[1]
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		names = append(names, name)
-	}
-	return names
 }

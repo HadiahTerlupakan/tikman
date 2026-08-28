@@ -42,14 +42,24 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 	ctx := context.Background()
 	updates := make(map[string]interface{}, 3)
 
-	tcont, err := connectivity.ReadZTETcontProfiles(ctx, commander)
+	// One read serves both: the names the provisioning form offers and the
+	// bandwidths the configuration page shows, so the profile listing is not
+	// fetched twice in the same session.
+	details, err := connectivity.ReadZTETcontProfileDetails(ctx, commander)
+	tcont := make([]string, 0, len(details))
+	for _, profile := range details {
+		tcont = append(tcont, profile.Name)
+	}
 	switch {
 	case err != nil:
 		log.Printf("[AutoDiscovery] T-CONT profile read failed for OLT %s: %v", olt.Name, err)
-	case len(tcont) == 0:
+	case len(details) == 0:
 		log.Printf("[AutoDiscovery] T-CONT profile read returned nothing for OLT %s", olt.Name)
 	default:
 		addProfileUpdate(updates, "tcont_profiles", tcont, olt.Name)
+		if encoded, err := json.Marshal(details); err == nil {
+			updates["tcont_profile_details"] = datatypes.JSON(encoded)
+		}
 	}
 
 	snapshot, err := connectivity.ReadZTEConfigSnapshot(ctx, commander)
@@ -65,6 +75,11 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 	if err == nil {
 		if len(snapshot.ONUTypes) > 0 {
 			addProfileUpdate(updates, "onu_types", snapshot.ONUTypes, olt.Name)
+		}
+		if len(snapshot.ONUTypeDetails) > 0 {
+			if encoded, err := json.Marshal(snapshot.ONUTypeDetails); err == nil {
+				updates["onu_type_details"] = datatypes.JSON(encoded)
+			}
 		}
 		if len(snapshot.Cards) > 0 {
 			if encoded, err := json.Marshal(snapshot.Cards); err == nil {
