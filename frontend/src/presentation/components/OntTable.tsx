@@ -1,11 +1,6 @@
-import { Table, Tag, Button, Popconfirm, Space } from "antd";
-import {
-  DeleteOutlined,
-  EyeOutlined,
-  HistoryOutlined,
-  ThunderboltOutlined,
-} from "@ant-design/icons";
+import { Table, Tag } from "antd";
 import type { Ont, OntStatus } from "@/domain/entities";
+import { OntActions } from "./OntActions";
 
 interface OntTableRow extends Ont {
   metrics?: {
@@ -137,50 +132,17 @@ export function OntTable({
     {
       title: "Actions",
       key: "actions",
+      width: 132,
+      align: "right" as const,
       render: (_: unknown, record: Ont) => (
-        <Space>
-          {onProvision && (
-            <Button
-              type="link"
-              icon={<ThunderboltOutlined />}
-              onClick={() => onProvision(record)}
-            >
-              Provision
-            </Button>
-          )}
-          {onConfigureService && (
-            <Button type="link" onClick={() => onConfigureService(record)}>
-              Configure Service
-            </Button>
-          )}
-          {onViewHistory && (
-            <Button
-              type="link"
-              icon={<HistoryOutlined />}
-              onClick={() => onViewHistory(record)}
-            >
-              History
-            </Button>
-          )}
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            onClick={() => onViewDetail(record)}
-          >
-            View
-          </Button>
-          <Popconfirm
-            title="Hapus ONT ini?"
-            description="Data metrics dan event ONT ini juga akan dihapus"
-            onConfirm={() => onDelete(record.id)}
-            okText="Ya"
-            cancelText="Tidak"
-          >
-            <Button type="link" danger icon={<DeleteOutlined />}>
-              Delete
-            </Button>
-          </Popconfirm>
-        </Space>
+        <OntActions
+          ont={record}
+          onViewDetail={onViewDetail}
+          onDelete={onDelete}
+          onProvision={onProvision}
+          onConfigureService={onConfigureService}
+          onViewHistory={onViewHistory}
+        />
       ),
     },
   ];
