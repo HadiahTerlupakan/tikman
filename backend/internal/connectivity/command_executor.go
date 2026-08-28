@@ -26,9 +26,15 @@ type OLTCommander interface {
 	BatchExecute(ctx context.Context, cmds []string) ([]*CommandResult, error)
 }
 
-// loginPromptWait bounds each step of the login handshake. A C300 answers
-// option negotiation and prints its banner well inside this.
-const loginPromptWait = 8 * time.Second
+// loginPromptWait bounds each step of the login handshake.
+//
+// An idle C300 negotiates options and prints its banner in about fifteen
+// milliseconds, so this is not a delay anyone waits out: the read returns the
+// moment the prompt arrives. It is a ceiling for a busy one. While the
+// discovery poll has the OLT's management plane saturated its SNMP walks time
+// out too, and a provisioning request that happened to land in that window was
+// refused outright rather than waiting a few seconds longer.
+const loginPromptWait = 30 * time.Second
 
 // TelnetCommander implements OLTCommander via Telnet session
 type TelnetCommander struct {
@@ -41,17 +47,25 @@ type TelnetCommander struct {
 	password string
 	prompt   string // Expected prompt after login (> or #)
 	hostname string // Fixed part of the CLI prompt, learned at login
+	// loginWait bounds each handshake step. Held per commander rather than read
+	// from the constant so a test can use a budget it does not have to wait out.
+	loginWait time.Duration
 }
 
 // NewTelnetCommander creates a new TelnetCommander and establishes connection
 func NewTelnetCommander(host string, port int, username, password string, timeout time.Duration) (*TelnetCommander, error) {
+	return newTelnetCommander(host, port, username, password, timeout, loginPromptWait)
+}
+
+func newTelnetCommander(host string, port int, username, password string, timeout, loginWait time.Duration) (*TelnetCommander, error) {
 	tc := &TelnetCommander{
-		host:     host,
-		port:     port,
-		timeout:  timeout,
-		username: username,
-		password: password,
-		prompt:   ">", // Default ZTE-style prompt
+		loginWait: loginWait,
+		host:      host,
+		port:      port,
+		timeout:   timeout,
+		username:  username,
+		password:  password,
+		prompt:    ">", // Default ZTE-style prompt
 	}
 
 	if err := tc.connect(); err != nil {
@@ -70,17 +84,21 @@ func (tc *TelnetCommander) connect() error {
 	}
 	tc.conn = conn
 	tc.reader = bufio.NewReader(conn)
-	_ = tc.conn.SetDeadline(time.Now().Add(tc.timeout))
+	// Sized to the handshake rather than to one command. The read loop sets its
+	// own deadline each pass so this is not what bounds a login today, but a
+	// connect-time deadline shorter than the handshake it covers is a trap
+	// waiting for the first step that does not poll.
+	_ = tc.conn.SetDeadline(time.Now().Add(3 * tc.loginWait))
 
 	// Read banner and wait for username prompt. The prompt has to actually
 	// appear: treating any bytes as the prompt sent the username into a session
 	// still negotiating options, and the login never recovered.
-	banner, err := tc.readUntilPatterns([]string{"username:", "login:", "user:"}, loginPromptWait)
+	banner, err := tc.readUntilPatterns([]string{"username:", "login:", "user:"}, tc.loginWait)
 	if err != nil {
 		return fmt.Errorf("failed to read banner: %w", err)
 	}
 	if !containsAnyFold(banner, []string{"username:", "login:", "user:"}) {
-		return fmt.Errorf("no username prompt after %s", loginPromptWait)
+		return fmt.Errorf("no username prompt after %s", tc.loginWait)
 	}
 
 	// Send username
@@ -89,7 +107,7 @@ func (tc *TelnetCommander) connect() error {
 	}
 
 	// Wait for password prompt
-	pwPrompt, err := tc.readUntilPatterns([]string{"password:"}, loginPromptWait)
+	pwPrompt, err := tc.readUntilPatterns([]string{"password:"}, tc.loginWait)
 	if err != nil || !strings.Contains(strings.ToLower(pwPrompt), "password") {
 		return fmt.Errorf("expected password prompt")
 	}

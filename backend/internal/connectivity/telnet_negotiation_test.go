@@ -113,11 +113,15 @@ func TestTelnetLoginFailsWithoutAUsernamePrompt(t *testing.T) {
 		}
 		defer func() { _ = conn.Close() }()
 		_, _ = conn.Write(c300Greeting)
-		time.Sleep(9 * time.Second)
+		// Held open past the budget below, so the login gives up on the missing
+		// prompt rather than on the server hanging up.
+		time.Sleep(2 * time.Second)
 	}()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	commander, err := NewTelnetCommander("127.0.0.1", port, "admin", "secret", 5*time.Second)
+	// A short budget: the real one is thirty seconds, which this would otherwise
+	// spend waiting for a prompt the fake server never sends.
+	commander, err := newTelnetCommander("127.0.0.1", port, "admin", "secret", 5*time.Second, 500*time.Millisecond)
 	if err == nil {
 		_ = commander.Close()
 		t.Fatal("login reported success without ever seeing a username prompt")
