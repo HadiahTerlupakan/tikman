@@ -46,7 +46,7 @@ func TestProvisionHandler_ProvisionOnt_RejectsInvalidUUID(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
 
-	handler := NewProvisionHandler(nil, nil)
+	handler := NewProvisionHandler(nil)
 
 	c, w := setupProvisionTestContext(t, "POST", "/provision", map[string]interface{}{
 		"template_id":   uuid.New().String(),
@@ -65,7 +65,7 @@ func TestProvisionHandler_ProvisionOnt_RejectsInvalidUUID(t *testing.T) {
 }
 
 func TestProvisionHandler_ProvisionOnt_RejectsMissingConfirm(t *testing.T) {
-	handler := NewProvisionHandler(nil, nil)
+	handler := NewProvisionHandler(nil)
 
 	c, w := setupProvisionTestContext(t, "POST", "/provision", map[string]interface{}{
 		"template_id":   uuid.New().String(),
@@ -81,38 +81,6 @@ func TestProvisionHandler_ProvisionOnt_RejectsMissingConfirm(t *testing.T) {
 	var response map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, "NOT_CONFIRMED", response["code"])
-}
-
-func TestProvisionHandler_BatchProvision_RejectsMissingConfirm(t *testing.T) {
-	handler := NewProvisionHandler(nil, nil)
-
-	c, w := setupProvisionTestContext(t, "POST", "/batch-provision", map[string]interface{}{
-		"template_id": uuid.New().String(),
-		"ont_ids":     []string{uuid.New().String()},
-		"confirm":     false,
-	})
-
-	handler.BatchProvision(c)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-
-	var response map[string]interface{}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	assert.Equal(t, "NOT_CONFIRMED", response["code"])
-}
-
-func TestProvisionHandler_BatchProvision_RejectsEmptyONTList(t *testing.T) {
-	handler := NewProvisionHandler(nil, nil)
-
-	c, w := setupProvisionTestContext(t, "POST", "/batch-provision", map[string]interface{}{
-		"template_id": uuid.New().String(),
-		"ont_ids":     []string{},
-		"confirm":     true,
-	})
-
-	handler.BatchProvision(c)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // paginationParams defaults are exercised indirectly through every list

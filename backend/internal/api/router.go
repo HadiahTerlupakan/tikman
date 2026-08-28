@@ -68,8 +68,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	snapshotService := services.NewSnapshotServiceWithCommander(db, connectivity.DriverFor, logger, commanderFactory)
 	rollbackEngine := services.NewRollbackEngineForOLTs(commanderFactory, logger)
 	ontProvisioningService := services.NewOntProvisioningServiceWithTemplates(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, auditService, logger, configTemplateService)
-	batchExecutor := services.NewBatchExecutor(db, ontProvisioningService, provisionJobService, snapshotService, logger)
-	provisionHandler := NewProvisionHandler(ontProvisioningService, batchExecutor)
+	provisionHandler := NewProvisionHandler(ontProvisioningService)
 	zteProvisioner := services.NewZTEGPONRegisterService(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, logger)
 	zteProvisionHandler := NewZTEProvisionHandler(zteProvisioner, provisionJobService)
 
@@ -158,12 +157,6 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			configTemplates.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), configTemplateHandler.Delete)
 		}
 
-		batchJobs := api.Group("/batch-jobs")
-		batchJobs.Use(middleware.AuthMiddleware(authStore, logger))
-		{
-			batchJobs.GET("/:id", provisionHandler.GetBatchJob)
-		}
-
 		provisionJobs := api.Group("/provision-jobs")
 		provisionJobs.Use(middleware.AuthMiddleware(authStore, logger))
 		{
@@ -172,8 +165,6 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 
 		onts.POST("/:id/provision", middleware.AuthMiddleware(authStore, logger), middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), provisionHandler.ProvisionOnt)
 		onts.GET("/:id/provision-jobs", middleware.AuthMiddleware(authStore, logger), provisionHandler.ListProvisionJobsByONT)
-
-		api.POST("/batch-provision", middleware.AuthMiddleware(authStore, logger), middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), provisionHandler.BatchProvision)
 
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthMiddleware(authStore, logger))

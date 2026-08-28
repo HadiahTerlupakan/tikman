@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
@@ -208,7 +209,7 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 	if err == nil {
 		for i, result := range results {
 			if result == nil || !result.Success {
-				err = fmt.Errorf("command %d failed", i)
+				err = failedZTECommand(commands, i, result)
 				break
 			}
 		}
@@ -224,6 +225,26 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 	}
 	job.Status = models.ProvisioningStatusSuccess
 	return job, nil
+}
+
+// failedZTECommand names the command the OLT refused and quotes what it said
+// back. "command 2 failed" alone left an operator, and the log, with no way to
+// tell a rejected serial from a mistyped profile.
+//
+// Both the command and the reply are redacted: a failing wan-ip line carries
+// the subscriber's PPPoE password.
+func failedZTECommand(commands []string, index int, result *connectivity.CommandResult) error {
+	command := ""
+	if index < len(commands) {
+		command = RedactZTECommands([]string{commands[index]})[0]
+	}
+
+	reply := "no reply"
+	if result != nil && strings.TrimSpace(result.Error) != "" {
+		reply = RedactZTECommands([]string{strings.TrimSpace(result.Error)})[0]
+	}
+
+	return fmt.Errorf("command %d %q failed: %s", index, command, reply)
 }
 
 func (s *ZTEGPONRegisterService) verify(req models.ZTEGPONRegisterRequest, ont models.ONT) error {

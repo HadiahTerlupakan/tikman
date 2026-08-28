@@ -12,15 +12,14 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
-// ProvisionHandler handles single and batch ONT provisioning HTTP requests.
+// ProvisionHandler handles single ONT provisioning HTTP requests.
 type ProvisionHandler struct {
 	provisioner *services.OntProvisioningService
-	batch       *services.BatchExecutor
 }
 
 // NewProvisionHandler creates a new provisioning handler.
-func NewProvisionHandler(provisioner *services.OntProvisioningService, batch *services.BatchExecutor) *ProvisionHandler {
-	return &ProvisionHandler{provisioner: provisioner, batch: batch}
+func NewProvisionHandler(provisioner *services.OntProvisioningService) *ProvisionHandler {
+	return &ProvisionHandler{provisioner: provisioner}
 }
 
 // provisionRequest is the payload for single ONT provisioning.
@@ -134,63 +133,6 @@ type batchProvisionRequest struct {
 	Confirm      bool                   `json:"confirm"`
 }
 
-// BatchProvision handles POST /api/v1/batch-provision
-func (h *ProvisionHandler) BatchProvision(c *gin.Context) {
-	var req batchProvisionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Code: "INVALID_REQUEST", Error: err.Error()})
-		return
-	}
-
-	if !req.Confirm {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Code: "NOT_CONFIRMED", Error: "batch provisioning requires explicit confirm=true"})
-		return
-	}
-
-	userID, _ := middleware.GetUserID(c)
-	config := services.BatchConfig{
-		TemplateID:   req.TemplateID,
-		ManualConfig: req.ManualConfig,
-		UserID:       userID,
-		ONTIDs:       req.ONTIDs,
-	}
-
-	result, err := h.batch.Execute(c.Request.Context(), config)
-	if err != nil {
-		status, code := mapProvisionError(err)
-		c.JSON(status, ErrorResponse{Code: code, Error: err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"job_id":      result.Job.ID,
-		"status":      result.Job.Status,
-		"succeeded":   result.Succeeded,
-		"failed":      result.Failed,
-		"rolled_back": result.RolledBack,
-		"details":     result.Details,
-	})
-}
-
-// GetBatchJob handles GET /api/v1/batch-jobs/:id
-func (h *ProvisionHandler) GetBatchJob(c *gin.Context) {
-	jobID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Code: "INVALID_ID", Error: "Invalid job ID format"})
-		return
-	}
-
-	job, err := h.batch.GetBatchResult(jobID)
-	if err != nil {
-		status, code := mapProvisionError(err)
-		c.JSON(status, ErrorResponse{Code: code, Error: err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"data": job})
-}
-
-// mapProvisionError converts provisioning service errors into HTTP status codes.
 func mapProvisionError(err error) (int, string) {
 	switch {
 	case strings.Contains(err.Error(), "not found"):

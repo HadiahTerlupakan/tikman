@@ -13,19 +13,3 @@ export interface ProvisionRequest {
   manualConfig?: Record<string, unknown>;
   confirm: boolean;
 }
-
-export interface BatchProvisionRequest {
-  templateId: string;
-  ontIds: string[];
-  manualConfig?: Record<string, unknown>;
-  confirm: boolean;
-}
-
-export interface BatchProvisionResult {
-  jobId: string;
-  status: string;
-  succeeded: string[];
-  failed: string[];
-  rolledBack: string[];
-  details: Record<string, { status: string; error?: string }>;
-}

@@ -38,8 +38,6 @@ export const API_ENDPOINTS = {
   ONT_PROVISION: (id: string) => `/api/v1/onts/${id}/provision`,
   ONT_PROVISION_JOBS: (id: string) => `/api/v1/onts/${id}/provision-jobs`,
   PROVISION_JOB_BY_ID: (id: string) => `/api/v1/provision-jobs/${id}`,
-  BATCH_PROVISION: "/api/v1/batch-provision",
-  BATCH_JOB_BY_ID: (id: string) => `/api/v1/batch-jobs/${id}`,
   ZTE_GPON_REGISTER: (id: string) => `/api/v1/olts/${id}/gpon/register`,
   ZTE_GPON_CONFIGURE: (id: string) => `/api/v1/onts/${id}/gpon/configure`,
   ZTE_GPON_PREVIEW_REGISTER: (id: string) => `/api/v1/olts/${id}/gpon/preview`,

@@ -3,8 +3,6 @@ import { apiClient } from "@/infrastructure/http/apiClient";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import type {
   ProvisionRequest,
-  BatchProvisionRequest,
-  BatchProvisionResult,
   ProvisionJob,
 } from "@/domain/entities/Provisioning";
 
@@ -13,16 +11,6 @@ export function useProvisionOnt() {
     mutationFn: ({ ontId, data }: { ontId: string; data: ProvisionRequest }) =>
       apiClient.post<{ job_id: string; status: string; message: string }>(
         API_ENDPOINTS.ONT_PROVISION(ontId),
-        data,
-      ),
-  });
-}
-
-export function useBatchProvision() {
-  return useMutation({
-    mutationFn: (data: BatchProvisionRequest) =>
-      apiClient.post<{ data: BatchProvisionResult }>(
-        API_ENDPOINTS.BATCH_PROVISION,
         data,
       ),
   });
