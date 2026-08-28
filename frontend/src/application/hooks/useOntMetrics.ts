@@ -28,13 +28,22 @@ export function useOntMetricsHistory(id: string, start?: string, end?: string) {
   });
 }
 
+// The OLT recomputes its octet-rate gauges on its own schedule, measured at
+// about fifteen seconds: polling every three returned the identical value four
+// or five times in a row, which is why the rate looked frozen. Matching the
+// device shows a fresh figure on nearly every poll and asks the OLT for a fifth
+// as much.
+const REALTIME_POLL_INTERVAL = 15000;
+
 export function useOntMetricsRealtime(id: string, enabled = true) {
   return useQuery({
     queryKey: ["onts", id, "metrics-realtime"],
     queryFn: () => ontRepository.getRealtimeMetrics(id),
     enabled: enabled && !!id,
-    refetchInterval: 3000,
-    refetchIntervalInBackground: true,
+    refetchInterval: REALTIME_POLL_INTERVAL,
+    // Each poll is a live SNMP round trip to the OLT. Nobody is reading the
+    // modal behind a hidden tab, so it stops rather than keeps the device busy.
+    refetchIntervalInBackground: false,
     staleTime: 0,
     retry: false,
   });

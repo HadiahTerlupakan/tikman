@@ -224,11 +224,12 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
             </Descriptions.Item>
           </Descriptions>
           <div style={{ marginTop: 10, color: "#8c8c8c", fontSize: 12 }}>
-            Rates are queried live from the OLT every 3 seconds. The totals are
-            the OLT's lifetime counters for this ONU, so usage over a period is
-            the difference between two readings. Error counters are not shown:
-            this OLT exposes no counter for them, and a zero would read as "no
-            errors" rather than "not measured".
+            Rates are queried live from the OLT every 15 seconds, which is how
+            often it recomputes them. The totals are the OLT's lifetime counters
+            for this ONU, so usage over a period is the difference between two
+            readings. Error counters are not shown: this OLT exposes no counter
+            for them, and a zero would read as "no errors" rather than "not
+            measured".
           </div>
         </div>
       ) : (
