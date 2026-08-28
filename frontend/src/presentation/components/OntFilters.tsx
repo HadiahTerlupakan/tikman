@@ -2,17 +2,9 @@ import { Space, Select, Button, Input } from "antd";
 import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import type { OntStatus } from "@/domain/entities";
 import { ONT_STATUSES } from "./ontStatus";
+import { ontPositionLabel } from "./ontAddress";
 
 const { Option } = Select;
-
-// Every OLT here is a single shelf, and every command TikMan sends addresses
-// rack 1. Showing it in the label keeps the address readable as rack/card/pon
-// without offering a choice that cannot be made.
-const RACK = 1;
-
-export function ontPositionLabel(slot: number, port?: number) {
-  return port === undefined ? `${RACK}/${slot}` : `${RACK}/${slot}/${port}`;
-}
 
 interface GponPortEntity {
   portId: number;
