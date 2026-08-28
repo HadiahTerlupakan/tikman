@@ -35,9 +35,10 @@ export function OntActions({
   // the overflow menu.
   const confirmDelete = () =>
     Modal.confirm({
-      title: `Delete ONT ${ont.serialNumber}?`,
-      content: "Its metrics and event history are deleted with it.",
-      okText: "Delete",
+      title: `Remove ${ont.serialNumber} from TikMan?`,
+      content:
+        "Its metrics and event history go with it. The ONU stays configured on the OLT, so the next discovery poll will list it again once it comes back online. To take it off the OLT, delete it there first.",
+      okText: "Remove",
       okButtonProps: { danger: true },
       cancelText: "Cancel",
       onOk: () => onDelete(ont.id),
