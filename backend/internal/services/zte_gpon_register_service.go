@@ -268,8 +268,12 @@ func failedZTECommand(commands []string, index int, result *connectivity.Command
 		reply = RedactZTECommands([]string{strings.TrimSpace(result.Error)})[0]
 	}
 
-	return fmt.Errorf("command %d %q failed: %s%s", index, command, reply, zteFailureHint(command))
+	return fmt.Errorf("command %d %q failed: %s%s", index, command, reply, zteFailureHint(command, reply))
 }
+
+// zteDeviceRefusal marks a reply the OLT actually sent to refuse a command, as
+// opposed to no reply at all.
+var zteDeviceRefusal = regexp.MustCompile(`(?i)\[Failed\]|%Error`)
 
 // zteRegistrationLine matches the command that binds a serial to an ONU ID.
 var zteRegistrationLine = regexp.MustCompile(`^onu \d+ type (\S+) sn \S+`)
@@ -281,7 +285,14 @@ var zteRegistrationLine = regexp.MustCompile(`^onu \d+ type (\S+) sn \S+`)
 // check the hardware against the type. Observed directly — "type HG8245H5" was
 // refused for an ONU that was offline, and "type ALL" for the same serial on
 // the same port was accepted seconds later.
-func zteFailureHint(command string) string {
+func zteFailureHint(command, reply string) string {
+	// Only when the OLT actually answered and refused. A timeout means the
+	// reply never came, and explaining it as a rejected ONU type gave a
+	// confident diagnosis of something that had not happened.
+	if !zteDeviceRefusal.MatchString(reply) {
+		return ""
+	}
+
 	match := zteRegistrationLine.FindStringSubmatch(command)
 	if match == nil || strings.EqualFold(match[1], "ALL") {
 		return ""

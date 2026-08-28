@@ -2,7 +2,6 @@ package connectivity
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
@@ -99,29 +98,34 @@ func formatZTEMACAddress(value any) string {
 		raw[0], raw[1], raw[2], raw[3], raw[4], raw[5])
 }
 
-// firstStringUnder returns the first non-empty value one ONU has in a table
-// column, decoded by extract.
+// firstStringUnder returns the value one ONU has in a table column.
 //
-// The walk starts at the PON port's subtree rather than at the ONU's exact
-// leaf: a walk begins with a GETNEXT, so starting from the leaf would step
-// straight past the value being asked for. Walking one port covers the ONUs on
-// that port, not the whole OLT, and the ONU element is matched here.
+// The exact instance is fetched first, which is what the tables indexed by
+// ifIndex.onuID hold. IP and MAC carry a further element after the ONU, so a
+// GET there finds nothing and the ONU's own subtree is walked instead.
+//
+// Walking the whole PON port was the first attempt and was wrong twice over:
+// it pulled fifty ONUs' rows to read one, and on a busy OLT the walk died part
+// way through and returned nothing at all. Individually these OIDs answer in
+// milliseconds.
 func firstStringUnder(client *gosnmp.GoSNMP, tableOID string, ifIndex, onuID int, extract func(any) string) (string, bool) {
-	base := strings.TrimPrefix(fmt.Sprintf("%s.%d", tableOID, ifIndex), ".")
-	wanted := strconv.Itoa(onuID)
+	instance := fmt.Sprintf("%s.%d.%d", tableOID, ifIndex, onuID)
+
+	if result, err := client.Get([]string{instance}); err == nil && len(result.Variables) > 0 {
+		pdu := result.Variables[0]
+		if pdu.Type != gosnmp.NoSuchInstance && pdu.Type != gosnmp.NoSuchObject {
+			if value := extract(pdu.Value); value != "" {
+				return value, true
+			}
+		}
+	}
 
 	var found string
-	_ = client.Walk("."+base, func(pdu gosnmp.SnmpPDU) error {
-		if found != "" {
-			return nil
-		}
-		suffix := strings.TrimPrefix(strings.TrimPrefix(pdu.Name, "."), base+".")
-		// Without this an adjacent ONU on the same port answers in its place.
-		if strings.SplitN(suffix, ".", 2)[0] != wanted {
-			return nil
-		}
-		if value := extract(pdu.Value); value != "" {
-			found = value
+	_ = client.Walk(instance, func(pdu gosnmp.SnmpPDU) error {
+		if found == "" {
+			if value := extract(pdu.Value); value != "" {
+				found = value
+			}
 		}
 		return nil
 	})

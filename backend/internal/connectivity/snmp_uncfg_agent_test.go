@@ -70,7 +70,14 @@ func (a *uncfgAgent) serve() {
 			RequestID: request.RequestID,
 		}
 
+		// A GET asks for one exact instance and a GetNext asks for the one
+		// after it. Answering both as GetNext made the double lie: code that
+		// fetches an instance directly got its neighbour's value back.
 		for _, requested := range request.Variables {
+			if request.PDUType == gosnmp.GetRequest {
+				response.Variables = append(response.Variables, a.exact(requested.Name))
+				continue
+			}
 			response.Variables = append(response.Variables, a.next(requested.Name))
 		}
 
@@ -80,6 +87,18 @@ func (a *uncfgAgent) serve() {
 		}
 		_, _ = a.conn.WriteToUDP(out, addr)
 	}
+}
+
+// exact answers a Get, reporting noSuchInstance when the OID is not one the
+// agent holds.
+func (a *uncfgAgent) exact(requested string) gosnmp.SnmpPDU {
+	target := normaliseOID(requested)
+	for _, oid := range a.oids {
+		if compareOIDs(oid, target) == 0 {
+			return a.values[oid]
+		}
+	}
+	return gosnmp.SnmpPDU{Name: requested, Type: gosnmp.NoSuchInstance}
 }
 
 // next answers a GetNext by returning the first OID strictly greater than the

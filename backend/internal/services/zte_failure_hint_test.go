@@ -46,3 +46,17 @@ func TestFailedZTECommandLeavesOtherFailuresAlone(t *testing.T) {
 	assert.Contains(t, err.Error(), "%Error 20200")
 	assert.NotContains(t, err.Error(), "type ALL")
 }
+
+// A timeout means the OLT never answered. Explaining it as a rejected ONU type
+// offered a confident diagnosis of something that had not happened.
+func TestFailedZTECommandDoesNotDiagnoseATimeout(t *testing.T) {
+	err := failedZTECommand(
+		[]string{"configure terminal", "interface gpon-olt_1/3/1", "onu 15 type HG8245H5 sn HWTCB403E8A0"},
+		2,
+		&connectivity.CommandResult{Error: "timeout waiting for response: no prompt after 20s"},
+	)
+
+	assert.Contains(t, err.Error(), "no prompt after 20s")
+	assert.NotContains(t, err.Error(), "type ALL")
+	assert.NotContains(t, err.Error(), "cannot see")
+}
