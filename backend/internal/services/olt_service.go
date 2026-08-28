@@ -259,13 +259,26 @@ func (s *OLTService) SiteNameForOLT(siteID uuid.UUID) string {
 // never be polled again.
 const staleDiscoveryClaim = 30 * time.Minute
 
+// minDiscoveryInterval is the quiet period after a completed discovery before
+// another one may start. The worker ticks every minute but a full walk of a
+// populated OLT takes several, so without this the run that just finished was
+// restarted on the next tick: the progress bar reset to zero over and over and
+// never showed a completed poll, and the OLT was walked continuously. ONT
+// status does not depend on this — the metrics cycle walks it separately every
+// minute.
+const minDiscoveryInterval = 5 * time.Minute
+
 // TryClaimDiscovery atomically claims an OLT for one discovery run. The
 // database claim prevents the API-triggered run and worker fallback from
-// polling the same OLT concurrently.
+// polling the same OLT concurrently, and holds off a run that would follow a
+// completed one too closely. An OLT that has never been polled has no last
+// poll time, so a newly created one is discovered immediately.
 func (s *OLTService) TryClaimDiscovery(oltID uuid.UUID) (bool, error) {
 	result := s.db.Model(&models.OLT{}).
 		Where("id = ? AND (discovery_phase NOT IN ? OR discovery_started_at IS NULL OR discovery_started_at < ?)",
 			oltID, []string{"discovering", "polling"}, time.Now().Add(-staleDiscoveryClaim)).
+		Where("discovery_last_poll_at IS NULL OR discovery_last_poll_at < ?",
+			time.Now().Add(-minDiscoveryInterval)).
 		Updates(map[string]interface{}{
 			"discovery_phase": "discovering", "discovery_error": "",
 			// Stamped here, not when the walk starts, so the claim itself carries

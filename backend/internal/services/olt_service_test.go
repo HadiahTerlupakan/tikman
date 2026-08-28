@@ -726,3 +726,48 @@ func TestOLTService_TryClaimDiscovery_TakesOverAStaleClaim(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, claimed)
 }
+
+// The worker ticks every minute, but a full walk of a populated OLT takes
+// longer than that. Without a quiet period the finished run was restarted on
+// the next tick, so the discovery progress reset to zero before an operator
+// ever saw it reach the end.
+func TestOLTService_TryClaimDiscovery_WaitsAfterACompletedPoll(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "recent", IPAddress: "192.0.2.2", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	// A poll that has just finished: the claim is released but the OLT was
+	// walked a moment ago.
+	justPolled := time.Now().Add(-time.Minute)
+	require.NoError(t, db.Model(&models.OLT{}).Where("id = ?", olt.ID).
+		Updates(map[string]interface{}{
+			"discovery_phase":        "completed",
+			"discovery_last_poll_at": justPolled,
+		}).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a poll %v old must not be repeated yet", time.Since(justPolled))
+
+	settled := time.Now().Add(-minDiscoveryInterval - time.Minute)
+	require.NoError(t, db.Model(&models.OLT{}).Where("id = ?", olt.ID).
+		Update("discovery_last_poll_at", settled).Error)
+
+	claimed, err = service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a poll older than %v must be repeatable", minDiscoveryInterval)
+}
+
+// An OLT that was only just created has never been polled, so nothing may hold
+// its first discovery back.
+func TestOLTService_TryClaimDiscovery_PollsANewOLTImmediately(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewOLTService(db, testEncryptionKey)
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "fresh", IPAddress: "192.0.2.3", Model: models.OLTModelZTEC300, Username: "admin", Password: "pass"}
+	require.NoError(t, db.Create(olt).Error)
+
+	claimed, err := service.TryClaimDiscovery(olt.ID)
+	require.NoError(t, err)
+	assert.True(t, claimed)
+}
