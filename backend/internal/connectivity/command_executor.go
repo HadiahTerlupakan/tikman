@@ -36,6 +36,12 @@ type OLTCommander interface {
 // refused outright rather than waiting a few seconds longer.
 const loginPromptWait = 30 * time.Second
 
+// commandPromptWait bounds one command. The read returns the moment the prompt
+// arrives, so this is a ceiling rather than a delay: five seconds was under
+// what "onu N type X sn Y" takes on an OLT whose management plane is busy, and
+// giving up early is what desynchronised the session.
+const commandPromptWait = 20 * time.Second
+
 // TelnetCommander implements OLTCommander via Telnet session
 type TelnetCommander struct {
 	conn     net.Conn
@@ -164,7 +170,7 @@ func (tc *TelnetCommander) ExecuteCommand(ctx context.Context, cmd string) (*Com
 	}
 
 	// Wait for response (look for prompt or EOF)
-	output, err := tc.waitForPrompt(5 * time.Second)
+	output, err := tc.waitForPrompt(commandPromptWait)
 	if err != nil {
 		return nil, fmt.Errorf("timeout waiting for response: %w", err)
 	}
@@ -325,10 +331,26 @@ func (tc *TelnetCommander) ExecuteBulk(ctx context.Context, cmd string, quiet, m
 }
 
 // waitForPrompt reads until the CLI has finished and printed its prompt again.
+// waitForPrompt reads until the device prompt returns, and reports it when it
+// does not.
+//
+// readUntil hands back whatever arrived when its deadline passes, without an
+// error. Treating that as a finished command was how a slow one desynchronised
+// the session: the OLT was still writing, the next command went into the tail
+// of that output, and from there every reply was matched against the wrong
+// command. It surfaced as "name ..." being refused at the exec prompt, five
+// commands after the one that actually ran long.
 func (tc *TelnetCommander) waitForPrompt(maxWait time.Duration) (string, error) {
-	return tc.readUntil(func(buffer string) bool {
+	output, err := tc.readUntil(func(buffer string) bool {
 		return endsWithDevicePrompt(buffer, tc.hostname)
 	}, maxWait)
+	if err != nil {
+		return output, err
+	}
+	if !endsWithDevicePrompt(output, tc.hostname) {
+		return output, fmt.Errorf("no prompt after %s; the OLT is still answering the previous command", maxWait)
+	}
+	return output, nil
 }
 
 // discardPending throws away anything the OLT is still writing, so a command
