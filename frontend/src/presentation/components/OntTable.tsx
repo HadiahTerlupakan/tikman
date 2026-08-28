@@ -1,7 +1,9 @@
 import { Table, Tag } from "antd";
+import { useState } from "react";
 import type { Ont, OntStatus } from "@/domain/entities";
 import { OntActions } from "./OntActions";
 import { ontStatusColor, ontStatusLabel } from "./ontStatus";
+import { DEFAULT_ONT_PAGE_SIZE, ontPageSizeOptions } from "./ontPageSize";
 
 interface OntTableRow extends Ont {
   metrics?: {
@@ -30,6 +32,8 @@ export function OntTable({
   onConfigureService,
   onViewHistory,
 }: OntTableProps) {
+  const [pageSize, setPageSize] = useState(DEFAULT_ONT_PAGE_SIZE);
+
   const columns = [
     {
       title: "Serial Number",
@@ -137,10 +141,14 @@ export function OntTable({
       loading={isLoading}
       pagination={{
         position: ["bottomCenter"],
-        total: dataSource.length,
-        pageSize: 5,
+        // Held in state and updated on change. Passing pageSize without a
+        // handler made it a controlled prop Ant Design could not move, so the
+        // size selector reset to five every time it was used.
+        pageSize,
+        onShowSizeChange: (_, size) => setPageSize(size),
+        onChange: (_, size) => setPageSize(size),
         showSizeChanger: true,
-        pageSizeOptions: ["5", "10", "20", "all"],
+        pageSizeOptions: ontPageSizeOptions(dataSource.length),
         showTotal: (total) => `Total ${total} ONTs`,
       }}
     />

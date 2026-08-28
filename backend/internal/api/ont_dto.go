@@ -103,9 +103,20 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 func ToONTResponseWithMetrics(ont *models.ONT, metrics *services.ONTMetricsRow) ONTResponse {
 	resp := ToONTResponse(ont)
 	if metrics != nil {
-		resp.Distance = &metrics.Distance
-		resp.RxPower = metrics.RxPower
-		resp.TxPower = metrics.TxPower
+		// A reading the walk did not return must not replace the one already
+		// stored on the ONT. The OLT drops varbinds under load, so an
+		// unguarded overlay blanked the distance and optical power of rows that
+		// had perfectly good values a minute earlier — the list appeared to
+		// lose data at random.
+		if metrics.Distance != 0 {
+			resp.Distance = &metrics.Distance
+		}
+		if metrics.RxPower != nil {
+			resp.RxPower = metrics.RxPower
+		}
+		if metrics.TxPower != nil {
+			resp.TxPower = metrics.TxPower
+		}
 		if metrics.Temperature != 0 {
 			resp.Temperature = &metrics.Temperature
 		}
