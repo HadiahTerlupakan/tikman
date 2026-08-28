@@ -118,9 +118,10 @@ func TestBuildZTEGPONRegisterCommandsOmitsTheVEIPPortWhenOff(t *testing.T) {
 	require.NotContains(t, strings.Join(commands, "\n"), "veip")
 }
 
-// The binding lives in a section a bridge never gets, so the request must be
-// refused rather than quietly dropping the toggle.
-func TestBuildZTEGPONRegisterCommandsRejectsVEIPOnABridge(t *testing.T) {
+// The binding describes the ONU's own port, so it applies to a bridged HGU
+// too. It was refused there only because the management section used to be
+// skipped for a bridge, which it no longer is.
+func TestBuildZTEGPONRegisterCommandsBindsTheVEIPPortOnABridge(t *testing.T) {
 	req := validZTECommandRequest()
 	req.UseVEIP = true
 	req.ServiceType = models.ZTEServiceBridge
@@ -131,8 +132,11 @@ func TestBuildZTEGPONRegisterCommandsRejectsVEIPOnABridge(t *testing.T) {
 	req.PPPoEPassword = ""
 
 	commands, err := BuildZTEGPONRegisterCommands(req, 7)
-	require.Error(t, err)
-	require.Nil(t, commands)
+	require.NoError(t, err)
+
+	joined := strings.Join(commands, "\n")
+	require.Contains(t, joined, "vlan port veip_1 mode tag vlan 100")
+	require.NotContains(t, joined, "wan-ip")
 }
 
 // A DHCP WAN needs no credentials, and none must appear on the line.

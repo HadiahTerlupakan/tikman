@@ -110,8 +110,9 @@ func buildZTEManagementSection(req models.ZTEGPONRegisterRequest, onuID int, inc
 	}
 
 	// An HGU from Fiberhome, VSOL or Huawei presents a virtual Ethernet port
-	// instead of physical ones, and its internal router only picks the service
-	// up once that port is bound. The OLT names it veip_1.
+	// instead of physical ones, and only picks the service up once that port is
+	// bound. The OLT names it veip_1. It applies whatever the service is: the
+	// binding describes the ONU's own port, not who configures the WAN.
 	if req.UseVEIP {
 		commands = append(commands, fmt.Sprintf("vlan port veip_1 mode tag vlan %d", req.VLANID))
 	}
@@ -195,12 +196,6 @@ func validateZTECommandRequest(req models.ZTEGPONRegisterRequest, onuID int) err
 	}
 	if req.WANMode != models.ZTEWANModeWANIP && req.WANMode != models.ZTEWANModeSetupViaONT {
 		return fmt.Errorf("unsupported WAN mode %q", req.WANMode)
-	}
-	// The VEIP binding lives in the management section, which a bridge and an
-	// ONT-configured WAN do not get. Rejecting is better than writing a toggle
-	// the generated commands would ignore.
-	if req.UseVEIP && (req.ServiceType == models.ZTEServiceBridge || req.WANMode != models.ZTEWANModeWANIP) {
-		return fmt.Errorf("VEIP applies only to an OLT-configured internet service")
 	}
 	if req.WANMode == models.ZTEWANModeWANIP {
 		switch req.WANIPMode {
