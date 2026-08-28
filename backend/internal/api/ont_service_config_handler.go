@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,18 +33,7 @@ func (h *ONTHandler) GetServiceConfig(c *gin.Context) {
 	// error: the form simply opens empty, as it did before.
 	var payload gin.H
 	if service != nil {
-		payload = gin.H{
-			"onu_type":       service.ONUType,
-			"vlan_id":        service.VLANID,
-			"vlan_mode":      service.VLANMode,
-			"service_type":   service.ServiceType,
-			"tcont_profile":  service.TCONTProfile,
-			"wan_mode":       service.WANMode,
-			"wan_ip_mode":    service.WANIPMode,
-			"vlan_profile":   service.VLANProfile,
-			"pppoe_username": service.PPPoEUsername,
-			"pppoe_password": service.PPPoEPassword,
-		}
+		payload = serviceConfigPayload(*service)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -51,4 +41,23 @@ func (h *ONTHandler) GetServiceConfig(c *gin.Context) {
 		"data":       payload,
 		"updated_at": updatedAt,
 	})
+}
+
+// serviceConfigPayload is the shape the configure form reads back.
+func serviceConfigPayload(service connectivity.ZTEONUService) gin.H {
+	return gin.H{
+		"onu_type":      service.ONUType,
+		"vlan_id":       service.VLANID,
+		"vlan_mode":     service.VLANMode,
+		"service_type":  service.ServiceType,
+		"tcont_profile": service.TCONTProfile,
+		"wan_mode":      service.WANMode,
+		"wan_ip_mode":   service.WANIPMode,
+		"vlan_profile":  service.VLANProfile,
+		// Left out, the form could only ever open with the VEIP toggle off, and
+		// saving from there dropped it on an ONU that had it.
+		"use_veip":       service.UseVEIP,
+		"pppoe_username": service.PPPoEUsername,
+		"pppoe_password": service.PPPoEPassword,
+	}
 }
