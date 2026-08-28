@@ -16,12 +16,17 @@ import type { Olt } from "@/domain/entities/Olt";
 import { OntStatus, type Ont } from "@/domain/entities/Ont";
 import { useOnts } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
-import { filterOntsByQuery } from "./graphsFilter";
+import { describeOntCoverage, filterOntsByQuery } from "./graphsFilter";
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 type TrafficBucket = "hour" | "day" | "month";
+
+// The list endpoint's ceiling. Without asking for it the page took the default
+// of 20, so an OLT with 200 ONTs graphed the first 20 and the search box could
+// not find any of the rest.
+const ONT_FETCH_LIMIT = 500;
 
 function getTrafficBucket(): TrafficBucket {
   // Always use "hour" (5-minute buckets) for custom ranges to match period views
@@ -46,11 +51,14 @@ export function GraphsPage() {
   const { data: ontsData, isLoading } = useOnts({
     oltId: selectedOlt,
     status: selectedStatus,
+    limit: ONT_FETCH_LIMIT,
   });
 
-  const filteredOnts = useMemo(() => {
-    return filterOntsByQuery(ontsData?.data || [], searchText);
-  }, [ontsData, searchText]);
+  const loadedOnts = useMemo(() => ontsData?.data || [], [ontsData]);
+  const filteredOnts = useMemo(
+    () => filterOntsByQuery(loadedOnts, searchText),
+    [loadedOnts, searchText],
+  );
   const totalOnts = filteredOnts.length;
 
   useEffect(() => {
@@ -153,7 +161,12 @@ export function GraphsPage() {
         }
       >
         <div style={{ fontSize: 12, color: "#666" }}>
-          Showing {paginatedOnts.length} of {totalOnts} ONTs
+          {describeOntCoverage(
+            paginatedOnts.length,
+            totalOnts,
+            loadedOnts.length,
+            ontsData?.total ?? loadedOnts.length,
+          )}
         </div>
       </Card>
 
