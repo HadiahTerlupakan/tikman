@@ -7,6 +7,7 @@ import {
 } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import { OntRepository } from "@/infrastructure/repositories/OntRepository";
+import { matchesOntFilters } from "./ontFilters";
 import type { Ont, CreateOntDto, OntStatus } from "@/domain/entities";
 
 const ontRepository = new OntRepository();
@@ -79,28 +80,15 @@ export function useOntListLogic() {
   const createMutation = useCreateOnt();
   const deleteMutation = useDeleteOnt();
 
-  const filteredOnts = (ontsData?.data || []).filter((ont: Ont) => {
-    if (selectedOltId && ont.oltId !== selectedOltId) {
-      return false;
-    }
-
-    if (selectedPortId !== undefined && ont.portId !== selectedPortId) {
-      return false;
-    }
-
-    if (
-      searchText &&
-      !ont.serialNumber.toLowerCase().includes(searchText.toLowerCase())
-    ) {
-      return false;
-    }
-
-    if (statusFilter && ont.status !== statusFilter) {
-      return false;
-    }
-
-    return true;
-  });
+  const filteredOnts = (ontsData?.data || []).filter((ont: Ont) =>
+    matchesOntFilters(ont, {
+      oltId: selectedOltId,
+      slot: selectedSlotId,
+      portId: selectedPortId,
+      searchText,
+      status: statusFilter,
+    }),
+  );
 
   // Fetch topology when OLT is selected
   useEffect(() => {
