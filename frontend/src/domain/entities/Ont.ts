@@ -92,3 +92,14 @@ export interface TopologyOntResponse {
   status?: string;
   lastSeenAt?: string | null;
 }
+
+export interface TrafficUsage {
+  downloadBytes: number;
+  uploadBytes: number;
+}
+
+/** A consolidated traffic series with the volume moved over its window. */
+export interface TrafficSeries {
+  points: OntMetrics[];
+  usage: TrafficUsage;
+}

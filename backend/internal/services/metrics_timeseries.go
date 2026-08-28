@@ -7,34 +7,66 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *MetricsService) GetONTTrafficTimeSeries(ontID uuid.UUID, period string) ([]ONTMetricsRow, error) {
-	interval, duration := trafficPeriodSettings(period)
-	endTime := time.Now().UTC()
-	startTime := endTime.Add(-duration)
-	return s.getONTTrafficTimeSeriesDurationBucket(ontID, startTime, endTime, interval)
+// TrafficSeries is a consolidated series with the data used over its window.
+type TrafficSeries struct {
+	Points []ONTMetricsRow
+	Usage  TrafficUsage
 }
 
-func trafficPeriodSettings(period string) (time.Duration, time.Duration) {
+// GetONTTrafficSeries returns the series for a period together with the volume
+// moved over it, which the counters give and the rates cannot.
+func (s *MetricsService) GetONTTrafficSeries(ontID uuid.UUID, period string) (TrafficSeries, error) {
+	points, err := s.GetONTTrafficTimeSeries(ontID, period)
+	if err != nil {
+		return TrafficSeries{}, err
+	}
+	return TrafficSeries{Points: points, Usage: trafficUsageOver(points, trafficTierFor(trafficPeriodWindow(period)).step)}, nil
+}
+
+func (s *MetricsService) GetONTTrafficSeriesRange(ontID uuid.UUID, startTime, endTime time.Time, bucket string) (TrafficSeries, error) {
+	points, err := s.GetONTTrafficTimeSeriesRangeBucket(ontID, startTime, endTime, bucket)
+	if err != nil {
+		return TrafficSeries{}, err
+	}
+	step, _, _, err := trafficBucketBounds(startTime, endTime, bucket)
+	if err != nil {
+		return TrafficSeries{}, err
+	}
+	return TrafficSeries{Points: points, Usage: trafficUsageOver(points, step)}, nil
+}
+
+func (s *MetricsService) GetONTTrafficTimeSeries(ontID uuid.UUID, period string) ([]ONTMetricsRow, error) {
+	endTime := time.Now().UTC()
+	startTime := endTime.Add(-trafficPeriodWindow(period))
+	return s.getONTTrafficTimeSeriesDurationBucket(ontID, startTime, endTime, 0)
+}
+
+func trafficPeriodWindow(period string) time.Duration {
 	switch period {
-	case "3h":
-		return 5 * time.Minute, 3 * time.Hour
 	case "6h":
-		return 5 * time.Minute, 6 * time.Hour
+		return 6 * time.Hour
 	case "1d":
-		return 5 * time.Minute, 24 * time.Hour
+		return 24 * time.Hour
 	case "3d":
-		return 5 * time.Minute, 3 * 24 * time.Hour
+		return 3 * 24 * time.Hour
 	case "7d":
-		return 5 * time.Minute, 7 * 24 * time.Hour
+		return 7 * 24 * time.Hour
 	case "30d":
-		return 5 * time.Minute, 30 * 24 * time.Hour
+		return 30 * 24 * time.Hour
 	default:
-		return 5 * time.Minute, 3 * time.Hour
+		return 3 * time.Hour
 	}
 }
 
+// step of 0 lets the tier choose, which is what a period button wants; an
+// explicit step is honoured so a custom range keeps the caller's resolution.
 func (s *MetricsService) getONTTrafficTimeSeriesDurationBucket(ontID uuid.UUID, startTime, endTime time.Time, step time.Duration) ([]ONTMetricsRow, error) {
-	rows, err := s.GetONTTrafficTimeSeriesRange(ontID, startTime, endTime)
+	tier := trafficTierFor(endTime.Sub(startTime))
+	if step == 0 {
+		step = tier.step
+	}
+
+	rows, err := s.queryTrafficRows(ontID, startTime, endTime, tier)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +162,10 @@ type trafficTotals struct {
 	rxSum, txSum float64
 	rxMax, txMax float64
 	count        int
+	// Both ends of the bucket's counters, so usage can be measured across the
+	// consolidated series rather than only over the stored one.
+	firstRx, lastRx *uint64
+	firstTx, lastTx *uint64
 }
 
 func accumulateTraffic(byBucket map[time.Time]*trafficTotals, bucketTime time.Time, row ONTMetricsRow) {
@@ -147,17 +183,30 @@ func accumulateTraffic(byBucket map[time.Time]*trafficTotals, bucketTime time.Ti
 	}
 	if row.RxRateMbps != nil {
 		total.rxSum += *row.RxRateMbps
-		if *row.RxRateMbps > total.rxMax {
-			total.rxMax = *row.RxRateMbps
+		if peak := trafficPeak(row.RxMaxMbps, *row.RxRateMbps); peak > total.rxMax {
+			total.rxMax = peak
 		}
 	}
 	if row.TxRateMbps != nil {
 		total.txSum += *row.TxRateMbps
-		if *row.TxRateMbps > total.txMax {
-			total.txMax = *row.TxRateMbps
+		if peak := trafficPeak(row.TxMaxMbps, *row.TxRateMbps); peak > total.txMax {
+			total.txMax = peak
 		}
 	}
 	total.count++
+
+	if row.FirstRxBytes != nil && total.firstRx == nil {
+		total.firstRx = row.FirstRxBytes
+	}
+	if row.LastRxBytes != nil {
+		total.lastRx = row.LastRxBytes
+	}
+	if row.FirstTxBytes != nil && total.firstTx == nil {
+		total.firstTx = row.FirstTxBytes
+	}
+	if row.LastTxBytes != nil {
+		total.lastTx = row.LastTxBytes
+	}
 }
 
 func buildTrafficRow(ontID uuid.UUID, bucketTime time.Time, total *trafficTotals) ONTMetricsRow {
@@ -171,12 +220,16 @@ func buildTrafficRow(ontID uuid.UUID, bucketTime time.Time, total *trafficTotals
 	rxMax := total.rxMax
 	txMax := total.txMax
 	return ONTMetricsRow{
-		Time:       bucketTime,
-		ONTID:      ontID,
-		RxRateMbps: &rx,
-		TxRateMbps: &tx,
-		RxMaxMbps:  &rxMax,
-		TxMaxMbps:  &txMax,
+		Time:         bucketTime,
+		ONTID:        ontID,
+		RxRateMbps:   &rx,
+		TxRateMbps:   &tx,
+		RxMaxMbps:    &rxMax,
+		TxMaxMbps:    &txMax,
+		FirstRxBytes: total.firstRx,
+		LastRxBytes:  total.lastRx,
+		FirstTxBytes: total.firstTx,
+		LastTxBytes:  total.lastTx,
 	}
 }
 
@@ -215,4 +268,84 @@ func addTrafficBucket(value time.Time, step time.Duration, bucket string) time.T
 		return value.AddDate(0, 1, 0)
 	}
 	return value.Add(step)
+}
+
+// trafficPeak prefers the peak a rollup already recorded. Deriving one from
+// averages would flatten a spike that lasted less than the source bucket.
+func trafficPeak(recorded *float64, average float64) float64 {
+	if recorded != nil && *recorded > average {
+		return *recorded
+	}
+	return average
+}
+
+// TrafficUsage is the data an ONU moved over a window, measured from the OLT's
+// cumulative counters.
+type TrafficUsage struct {
+	DownloadBytes uint64 `json:"download_bytes"`
+	UploadBytes   uint64 `json:"upload_bytes"`
+}
+
+// gponLineRateBps is the downstream line rate of a GPON PON, used as the
+// ceiling for what one ONU could physically have moved in a bucket. The
+// upstream is half that, so the same figure is a safe bound for both.
+const gponLineRateBps = 2_488_320_000
+
+// trafficUsageOver sums the counter's forward movement across the window.
+//
+// Two discontinuities are excluded rather than counted. A counter that goes
+// backwards means the ONU restarted. A jump larger than the link could carry
+// in the elapsed time is not traffic either: replacing an ONU, or the day this
+// system started reading the right OID, moves the counter by hundreds of
+// gigabytes in one step and would otherwise be billed as usage.
+func trafficUsageOver(rows []ONTMetricsRow, step time.Duration) TrafficUsage {
+	ceiling := plausibleBytes(step)
+
+	var usage TrafficUsage
+	var prevRx, prevTx *uint64
+
+	for i := range rows {
+		usage.UploadBytes += counterAdvance(prevRx, rows[i].FirstRxBytes, rows[i].LastRxBytes, ceiling)
+		usage.DownloadBytes += counterAdvance(prevTx, rows[i].FirstTxBytes, rows[i].LastTxBytes, ceiling)
+		if rows[i].LastRxBytes != nil {
+			prevRx = rows[i].LastRxBytes
+		}
+		if rows[i].LastTxBytes != nil {
+			prevTx = rows[i].LastTxBytes
+		}
+	}
+
+	return usage
+}
+
+// plausibleBytes is the most one ONU could move in a bucket, used to tell
+// traffic from a counter discontinuity.
+func plausibleBytes(step time.Duration) uint64 {
+	if step <= 0 {
+		return 0
+	}
+	return uint64(step.Seconds() * gponLineRateBps / 8)
+}
+
+// counterAdvance measures one bucket's contribution: the traffic since the
+// previous bucket's last reading, plus the movement within this one. A step
+// beyond what the link could carry is dropped, not clamped: the true figure is
+// unknown, and a ceiling reported as fact would be worse than a gap.
+func counterAdvance(previous, first, last *uint64, ceiling uint64) uint64 {
+	if first == nil || last == nil || *last < *first {
+		return 0
+	}
+
+	advance := *last - *first
+	if ceiling > 0 && advance > ceiling {
+		return 0
+	}
+
+	if previous != nil && *first >= *previous {
+		gap := *first - *previous
+		if ceiling == 0 || gap <= ceiling {
+			advance += gap
+		}
+	}
+	return advance
 }

@@ -108,4 +108,10 @@ type ONTMetricsRow struct {
 	TxRateMbps    *float64
 	RxMaxMbps     *float64
 	TxMaxMbps     *float64
+	// Both ends of the bucket's cumulative counters, so data used over a window
+	// can be measured across buckets without reading every sample.
+	FirstRxBytes *uint64
+	LastRxBytes  *uint64
+	FirstTxBytes *uint64
+	LastTxBytes  *uint64
 }

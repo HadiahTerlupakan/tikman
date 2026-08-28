@@ -11,6 +11,8 @@ import {
 } from "recharts";
 import { Ont } from "@/domain/entities/Ont";
 import { useOntTrafficTimeSeries } from "@/application/hooks/useOntMetrics";
+import { formatBytes } from "./trafficFormat";
+import { percentile95 } from "./trafficStats";
 
 interface OntTrafficCardProps {
   ont: Ont;
@@ -79,11 +81,13 @@ function getAxisTicks(
 }
 
 export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
-  const { data: timeSeries, isLoading } = useOntTrafficTimeSeries(
+  const { data: series, isLoading } = useOntTrafficTimeSeries(
     ont.id,
     period,
     range,
   );
+  const timeSeries = series?.points;
+  const usage = series?.usage;
   const isCustomRange = !!range;
 
   const chartData =
@@ -114,6 +118,8 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
     activeUploadPeaks.length > 0 ? activeUploadPeaks : activeUploadValues;
 
   const stats = {
+    percentile95Download: percentile95(activeDownloadValues),
+    percentile95Upload: percentile95(activeUploadValues),
     download: {
       current:
         downloadValues.length > 0
@@ -298,6 +304,10 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
               <span>Current: {formatSpeed(stats.download.current)}</span>
               <span>Average: {formatSpeed(stats.download.average)}</span>
               <span>Maximum: {formatSpeed(stats.download.maximum)}</span>
+              {stats.percentile95Download !== undefined && (
+                <span>95th: {formatSpeed(stats.percentile95Download)}</span>
+              )}
+              <span>Total: {formatBytes(usage?.downloadBytes)}</span>
             </div>
             <div style={{ display: "flex", gap: 16 }}>
               <span style={{ color: "#4169e1", fontWeight: 500 }}>
@@ -308,6 +318,10 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
               </span>
               <span>Average: {formatSpeed(stats.upload.average)}</span>
               <span>Maximum: {formatSpeed(stats.upload.maximum)}</span>
+              {stats.percentile95Upload !== undefined && (
+                <span>95th: {formatSpeed(stats.percentile95Upload)}</span>
+              )}
+              <span>Total: {formatBytes(usage?.uploadBytes)}</span>
             </div>
           </div>
         </>

@@ -7,15 +7,20 @@ import type { ReactNode } from "react";
 vi.mock("@/application/hooks/useOntMetrics", () => ({
   useOntTrafficTimeSeries: () => ({
     isLoading: false,
-    data: [
-      {
-        time: "2026-08-21T09:55:00.000Z",
-        txMbps: 1,
-        rxMbps: 2,
-        txMaxMbps: 12,
-        rxMaxMbps: 8,
-      },
-    ],
+    // The endpoint returns the consolidated points together with the volume
+    // moved over the window, which the rates alone cannot give.
+    data: {
+      points: [
+        {
+          time: "2026-08-21T09:55:00.000Z",
+          txMbps: 1,
+          rxMbps: 2,
+          txMaxMbps: 12,
+          rxMaxMbps: 8,
+        },
+      ],
+      usage: { downloadBytes: 1_500_000_000, uploadBytes: 250_000_000 },
+    },
   }),
 }));
 
@@ -119,5 +124,25 @@ describe("OntTrafficCard", () => {
     // Download peak = txMaxMbps (12 Mbps), Upload peak = rxMaxMbps (8 Mbps).
     expect(screen.getByText("Maximum: 12.00 Mbps")).toBeInTheDocument();
     expect(screen.getByText("Maximum: 8.00 Mbps")).toBeInTheDocument();
+  });
+});
+
+describe("OntTrafficCard totals", () => {
+  it("reports the volume moved over the window, not only the rates", () => {
+    render(
+      <OntTrafficCard
+        ont={
+          {
+            id: "ont-1",
+            serialNumber: "HWTC1",
+            status: OntStatus.ONLINE,
+          } as never
+        }
+        period="3h"
+      />,
+    );
+
+    expect(screen.getByText("Total: 1.40 GB")).toBeInTheDocument();
+    expect(screen.getByText("Total: 238.42 MB")).toBeInTheDocument();
   });
 });

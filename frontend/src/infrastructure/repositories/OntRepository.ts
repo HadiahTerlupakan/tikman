@@ -6,6 +6,7 @@ import type {
   CreateOntDto,
   UpdateOntDto,
   OntMetrics,
+  TrafficSeries,
   ONTEventsResponse,
   AvailabilityStats,
   TopologySlotResponse,
@@ -117,7 +118,7 @@ export class OntRepository implements IOntRepository {
     id: string,
     period: string,
     range?: { start: string; end: string; bucket?: "hour" | "day" | "month" },
-  ): Promise<OntMetrics[]> {
+  ): Promise<TrafficSeries> {
     const params: Record<string, string> = range
       ? { start: range.start, end: range.end, bucket: range.bucket || "hour" }
       : { period };

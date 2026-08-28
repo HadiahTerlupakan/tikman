@@ -162,7 +162,7 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 	period := c.DefaultQuery("period", "3h")
 
 	startStr, endStr := c.Query("start"), c.Query("end")
-	var timeSeries []services.ONTMetricsRow
+	var series services.TrafficSeries
 	if startStr != "" && endStr != "" {
 		startTime, errStart := time.Parse(time.RFC3339, startStr)
 		endTime, errEnd := time.Parse(time.RFC3339, endStr)
@@ -181,9 +181,9 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 			return
 		}
 		bucket := c.DefaultQuery("bucket", "day")
-		timeSeries, err = h.metricsService.GetONTTrafficTimeSeriesRangeBucket(id, startTime, endTime, bucket)
+		series, err = h.metricsService.GetONTTrafficSeriesRange(id, startTime, endTime, bucket)
 	} else {
-		timeSeries, err = h.metricsService.GetONTTrafficTimeSeries(id, period)
+		series, err = h.metricsService.GetONTTrafficSeries(id, period)
 	}
 	if err != nil {
 		log.Printf("[ERROR] GetTrafficTimeSeries failed for ONT %s: %v", id, err)
@@ -194,8 +194,8 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 		return
 	}
 
-	response := make([]ONTTrafficTimeSeriesResponse, len(timeSeries))
-	for i, point := range timeSeries {
+	points := make([]ONTTrafficTimeSeriesResponse, len(series.Points))
+	for i, point := range series.Points {
 		var rxMbps, txMbps, rxMax, txMax float64
 		if point.RxRateMbps != nil {
 			rxMbps = *point.RxRateMbps
@@ -209,7 +209,7 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 		if point.TxMaxMbps != nil {
 			txMax = *point.TxMaxMbps
 		}
-		response[i] = ONTTrafficTimeSeriesResponse{
+		points[i] = ONTTrafficTimeSeriesResponse{
 			Time:    point.Time,
 			RxBytes: point.RxBytes,
 			TxBytes: point.TxBytes,
@@ -220,5 +220,5 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{"points": points, "usage": series.Usage})
 }
