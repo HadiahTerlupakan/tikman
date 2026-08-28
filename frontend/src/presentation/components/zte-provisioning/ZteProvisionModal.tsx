@@ -80,6 +80,38 @@ export function ZteProvisionModal({
     });
   }, [form, mode, ontId, open, serviceConfig, target]);
 
+  // Ant Design validates and returns only the fields still mounted. Unmounting
+  // a step as the wizard advances therefore emptied the payload: submitting
+  // from the review step sent nothing but the confirmation, and the OLT
+  // rejected it on the first field it checked. The steps stay mounted and are
+  // hidden instead.
+  const stepFields: string[][] = [
+    ["card", "pon", "onuIdMode", "onuId", "serialNumber", "onuType"],
+    [
+      "vlanMode",
+      "serviceType",
+      "vlanId",
+      "downloadProfile",
+      "uploadProfile",
+      "wanMode",
+      "wanIpMode",
+      "vlanProfile",
+      "pppoeUsername",
+      "pppoePassword",
+    ],
+  ];
+
+  // Checked per step so a missing field is reported where it can be corrected,
+  // not two screens later.
+  const next = async () => {
+    try {
+      await form.validateFields(stepFields[step]);
+      setStep((current) => current + 1);
+    } catch {
+      // Ant Design displays field-level validation errors.
+    }
+  };
+
   const submit = async () => {
     try {
       const data = await form.validateFields();
@@ -112,7 +144,7 @@ export function ZteProvisionModal({
         setConfirmed(false);
         onClose();
       }}
-      onOk={step === 2 ? submit : () => setStep((current) => current + 1)}
+      onOk={step === 2 ? submit : next}
       okText={step === 2 ? "Submit" : "Next"}
       confirmLoading={loading}
       destroyOnClose
@@ -144,8 +176,12 @@ export function ZteProvisionModal({
         ]}
       />
       <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
-        {step === 0 && <OnuIdentityForm target={target} />}
-        {step === 1 && <InternetServiceForm oltId={target.oltId} />}
+        <div style={{ display: step === 0 ? "block" : "none" }}>
+          <OnuIdentityForm target={target} />
+        </div>
+        <div style={{ display: step === 1 ? "block" : "none" }}>
+          <InternetServiceForm oltId={target.oltId} />
+        </div>
         {step === 2 && (
           <ZteCommandPreview request={previewRequest} onuId={onuId} />
         )}

@@ -29,6 +29,17 @@ const target = {
   onuType: "HG8245H5",
 };
 
+// The service step is required in full before the wizard will advance, so both
+// tests that need the review step have to fill it.
+async function fillInternetService(password: string) {
+  await userEvent.type(screen.getByLabelText(/VLAN ID/i), "214");
+  await userEvent.type(screen.getByLabelText(/Download profile/i), "1G");
+  await userEvent.type(screen.getByLabelText(/Upload profile/i), "1G");
+  await userEvent.type(screen.getByLabelText(/VLAN profile/i), "PPPOE-214");
+  await userEvent.type(screen.getByLabelText(/PPPoE username/i), "user");
+  await userEvent.type(screen.getByLabelText(/^PPPoE password$/i), password);
+}
+
 describe("ZteProvisionModal", () => {
   it("renders identity and one Internet service form", async () => {
     render(
@@ -78,8 +89,9 @@ describe("ZteProvisionModal", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.type(screen.getByLabelText(/^PPPoE password$/i), "secret-pass");
+    await fillInternetService("secret-pass");
     await user.click(screen.getByRole("button", { name: "Next" }));
+
     expect(screen.getByText(/password <redacted>/i)).toBeInTheDocument();
     expect(screen.queryByText("secret-pass")).not.toBeInTheDocument();
   });
@@ -120,5 +132,30 @@ describe("ZteProvisionModal", () => {
     // Without this the operator would need a password the OLT already has, and
     // a reconfigure that omitted it would break the subscriber's session.
     expect(screen.getByLabelText(/^PPPoE password$/i)).toHaveValue("12345");
+  });
+
+  // The wizard unmounts each step as it advances, and antd only returns the
+  // fields still mounted. Submitting from the review step therefore has to
+  // carry the card and PON entered on the first one.
+  it("submits the identity entered on the first step", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <ZteProvisionModal
+        open
+        mode="register"
+        target={target}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await fillInternetService("pass");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onSubmit).toHaveBeenCalled();
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ card: 3, pon: 1 });
   });
 });
