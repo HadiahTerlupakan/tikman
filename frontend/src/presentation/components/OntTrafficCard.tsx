@@ -12,7 +12,7 @@ import {
 import { Ont } from "@/domain/entities/Ont";
 import { useOntTrafficTimeSeries } from "@/application/hooks/useOntMetrics";
 import { formatBytes } from "./trafficFormat";
-import { percentile95 } from "./trafficStats";
+import { formatRateTick, percentile95, rateScaleFor } from "./trafficStats";
 
 interface OntTrafficCardProps {
   ont: Ont;
@@ -145,6 +145,14 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
     },
   };
 
+  // One unit for the whole axis, taken from the largest value it has to show.
+  const rateScale = rateScaleFor(
+    Math.max(
+      0,
+      ...chartData.map((point) => Math.max(point.download, point.upload)),
+    ),
+  );
+
   const rangeDomain: [number, number] | undefined = range
     ? [new Date(range.start).getTime(), new Date(range.end).getTime()]
     : getPeriodDomain(period);
@@ -265,9 +273,15 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
               <YAxis
                 tick={{ fontSize: 10 }}
                 tickLine={false}
-                tickFormatter={(value) =>
-                  value < 1 ? `${(value * 1000).toFixed(0)}K` : value.toFixed(1)
+                tickFormatter={(value: number) =>
+                  formatRateTick(value, rateScale)
                 }
+                label={{
+                  value: rateScale.unit,
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { fontSize: 10 },
+                }}
               />
               <Tooltip
                 contentStyle={{ fontSize: 11 }}

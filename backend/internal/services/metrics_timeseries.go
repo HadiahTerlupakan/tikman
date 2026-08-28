@@ -91,40 +91,6 @@ func (s *MetricsService) getONTTrafficTimeSeriesDurationBucket(ontID uuid.UUID, 
 	return results, nil
 }
 
-// GetONTTrafficTimeSeriesRange retrieves traffic rates for an ONT within an explicit time range.
-func (s *MetricsService) GetONTTrafficTimeSeriesRange(ontID uuid.UUID, startTime, endTime time.Time) ([]ONTMetricsRow, error) {
-	var results []ONTMetricsRow
-	query := `
-		SELECT
-			time,
-			ont_id,
-			rx_power,
-			tx_power,
-			temperature,
-			voltage,
-			distance,
-			rx_bytes,
-			tx_bytes,
-			rx_packets,
-			tx_packets,
-			rx_errors,
-			tx_errors,
-			rx_rate_mbps,
-			tx_rate_mbps
-		FROM ont_metrics
-		WHERE ont_id = ?
-		  AND time >= ?
-		  AND time <= ?
-		ORDER BY time ASC
-	`
-
-	if err := s.db.Raw(query, ontID, startTime, endTime).Scan(&results).Error; err != nil {
-		return nil, fmt.Errorf("failed to query time series range: %w", err)
-	}
-
-	return results, nil
-}
-
 // GetONTTrafficTimeSeriesRangeBucket retrieves bucketed traffic rates for an explicit range.
 func (s *MetricsService) GetONTTrafficTimeSeriesRangeBucket(ontID uuid.UUID, startTime, endTime time.Time, bucket string) ([]ONTMetricsRow, error) {
 	step, startBucket, endBucket, err := trafficBucketBounds(startTime, endTime, bucket)
@@ -132,7 +98,10 @@ func (s *MetricsService) GetONTTrafficTimeSeriesRangeBucket(ontID uuid.UUID, sta
 		return nil, err
 	}
 
-	rows, err := s.GetONTTrafficTimeSeriesRange(ontID, startTime, endTime)
+	// A custom range reads the same tiered stores a period does. Reading only
+	// the raw table meant a range wider than its 7-day retention silently
+	// returned a week, and its counters never reached the usage total.
+	rows, err := s.queryTrafficRows(ontID, startTime, endTime, trafficTierFor(endTime.Sub(startTime)))
 	if err != nil {
 		return nil, err
 	}

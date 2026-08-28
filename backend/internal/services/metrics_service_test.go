@@ -2,6 +2,7 @@ package services
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -43,6 +44,30 @@ func setupMetricsTestDB(t *testing.T) *gorm.DB {
 		)
 	`).Error
 	require.NoError(t, err)
+
+	// The rollups are TimescaleDB continuous aggregates, which SQLite has no
+	// equivalent for. These stand-ins expose the same column names over the raw
+	// rows so a query against a wider window reads something. They pre-aggregate
+	// nothing, which costs the tests nothing: the consolidation into plotted
+	// buckets is done by the code under test, not by the view.
+	for _, rollup := range []string{"ont_metrics_5min", "ont_metrics_hourly"} {
+		err = db.Exec(fmt.Sprintf(`
+			CREATE VIEW IF NOT EXISTS %s AS
+			SELECT
+				time AS bucket,
+				ont_id,
+				rx_rate_mbps AS avg_rx_mbps,
+				rx_rate_mbps AS max_rx_mbps,
+				tx_rate_mbps AS avg_tx_mbps,
+				tx_rate_mbps AS max_tx_mbps,
+				rx_bytes AS first_rx_bytes,
+				rx_bytes AS last_rx_bytes,
+				tx_bytes AS first_tx_bytes,
+				tx_bytes AS last_tx_bytes
+			FROM ont_metrics
+		`, rollup)).Error
+		require.NoError(t, err)
+	}
 
 	return db
 }
@@ -555,7 +580,7 @@ func TestMetricsService_GetONTTrafficTimeSeriesCustomRange(t *testing.T) {
 	start := base.Add(-24 * time.Hour)
 	end := base.Add(-time.Hour)
 
-	rows, err := service.GetONTTrafficTimeSeriesRange(ontID, start, end)
+	rows, err := service.queryTrafficRows(ontID, start, end, trafficTierFor(end.Sub(start)))
 
 	require.NoError(t, err)
 	require.NotEmpty(t, rows)
@@ -581,7 +606,7 @@ func TestMetricsService_GetONTTrafficTimeSeriesCustomRange_NoDataInRange(t *test
 		VALUES (?, ?, ?, ?)`,
 		base.Add(-100*time.Hour), ontID.String(), 1.5, 2.5)
 
-	rows, err := service.GetONTTrafficTimeSeriesRange(ontID, base.Add(-24*time.Hour), base)
+	rows, err := service.queryTrafficRows(ontID, base.Add(-24*time.Hour), base, trafficTierFor(24*time.Hour))
 
 	require.NoError(t, err)
 	assert.Empty(t, rows)
