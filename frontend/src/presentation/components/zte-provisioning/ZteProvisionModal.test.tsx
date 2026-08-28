@@ -188,6 +188,15 @@ describe("ZteProvisionModal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     expect(onSubmit).toHaveBeenCalled();
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ card: 3, pon: 1 });
+    // oltId and serviceEnabled have no control on the form, so they were being
+    // dropped from the request and the OLT refused it.
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      card: 3,
+      pon: 1,
+      oltId: "olt-1",
+      serviceEnabled: true,
+      onuId: 0,
+      confirm: true,
+    });
   });
 });

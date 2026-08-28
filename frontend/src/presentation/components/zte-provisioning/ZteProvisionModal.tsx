@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Form, Modal, Steps, Switch } from "antd";
 import type {
   ZteGPONRegisterRequest,
@@ -40,7 +40,6 @@ export function ZteProvisionModal({
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
   const watchedValues = Form.useWatch([], form);
-  const values = useMemo(() => watchedValues || {}, [watchedValues]);
 
   useEffect(() => {
     if (!open) {
@@ -114,11 +113,7 @@ export function ZteProvisionModal({
     try {
       const data = await form.validateFields();
       if (!confirmed) return;
-      onSubmit({
-        ...data,
-        confirm: true,
-        onuId: data.onuIdMode === "auto" ? 0 : data.onuId,
-      });
+      onSubmit({ ...buildRequest(data), confirm: true });
     } catch {
       // Ant Design displays field-level validation errors.
     }
@@ -128,14 +123,30 @@ export function ZteProvisionModal({
     mode === "register"
       ? "Register ZTE GPON ONU"
       : "Configure ZTE Internet Service";
+  // Built from the registered fields only, the same set validateFields returns,
+  // so the preview and the submitted request cannot differ. Reading the whole
+  // store instead would carry values whose field has since been hidden — the
+  // PPPoE details of a service switched to bridge, say — and the server would
+  // reject a preview the operator could not correct.
+  const buildRequest = useCallback(
+    (values: Partial<ZteGPONRegisterRequest>): ZteGPONRegisterRequest =>
+      ({
+        ...values,
+        oltId: target.oltId,
+        // Neither has a control on the form: this flow provisions exactly one
+        // enabled service, and auto sends a zero for the OLT-side allocator to
+        // replace. Both were being dropped from the request entirely.
+        serviceEnabled: true,
+        onuId: values.onuIdMode === "auto" ? 0 : values.onuId ?? 0,
+        confirm: false,
+      }) as ZteGPONRegisterRequest,
+    [target.oltId],
+  );
+
   const previewRequest = useMemo(
-    () => ({
-      ...(values as ZteGPONRegisterRequest),
-      oltId: target.oltId,
-      onuId: values.onuIdMode === "auto" ? 0 : values.onuId,
-      confirm: false,
-    }),
-    [target.oltId, values],
+    () => buildRequest(form.getFieldsValue()),
+    // watchedValues is the re-render trigger; the values come from the form.
+    [buildRequest, form, watchedValues],
   );
 
   return (
