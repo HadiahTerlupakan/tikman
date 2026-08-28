@@ -72,9 +72,16 @@ describe("ZteProvisionModal", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/ONU ID/i)).toBeDisabled();
+    // Auto has no ID to show yet, so it says so rather than displaying the
+    // zero it sends for the allocator to replace.
+    expect(screen.getByDisplayValue("Assigned automatically")).toBeDisabled();
+
     fireEvent.click(screen.getByRole("radio", { name: "Custom" }));
-    expect(screen.getByLabelText(/ONU ID/i)).toBeEnabled();
+
+    expect(
+      screen.queryByDisplayValue("Assigned automatically"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^ONU ID$/i)).toBeEnabled();
   });
 
   it("never puts the PPPoE password in the command preview", async () => {

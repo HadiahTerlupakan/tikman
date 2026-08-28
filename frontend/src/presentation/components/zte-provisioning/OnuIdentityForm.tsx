@@ -36,14 +36,21 @@ export function OnuIdentityForm({ target }: OnuIdentityFormProps) {
           <Radio value="custom">Custom</Radio>
         </Radio.Group>
       </Form.Item>
-      <Form.Item name="onuId" label="ONU ID">
-        <InputNumber
-          min={1}
-          max={127}
-          disabled={mode !== "custom"}
-          style={{ width: "100%" }}
-        />
-      </Form.Item>
+      {/* Auto sends a zero for the OLT-side allocator to replace. Showing that
+          zero in a disabled box told the operator nothing and read like a
+          validation error. */}
+      {mode === "custom" ? (
+        <Form.Item name="onuId" label="ONU ID" rules={[{ required: true }]}>
+          <InputNumber min={1} max={127} style={{ width: "100%" }} />
+        </Form.Item>
+      ) : (
+        <Form.Item
+          label="ONU ID"
+          extra="The lowest free ID on this PON port is assigned."
+        >
+          <Input disabled value="Assigned automatically" />
+        </Form.Item>
+      )}
       <Form.Item
         name="serialNumber"
         label="Serial number"

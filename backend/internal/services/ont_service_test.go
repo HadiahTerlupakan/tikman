@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/gorm"
 )
 
 func ptrFloat64(f float64) *float64 {
@@ -1507,4 +1508,76 @@ func TestONTService_PruneMissingFromDiscoveryKeepsONTsWhenDiscoveryIsEmpty(t *te
 	var count int64
 	require.NoError(t, db.Model(&models.ONT{}).Where("id = ?", ont.ID).Count(&count).Error)
 	assert.Equal(t, int64(1), count, "an empty discovery must not delete the inventory")
+}
+
+func seedDiscoveryOLT(t *testing.T, db *gorm.DB) uuid.UUID {
+	t.Helper()
+
+	site, err := NewSiteService(db).Create("Test Site", "Test Location", "Test Description")
+	require.NoError(t, err)
+
+	olt := &models.OLT{
+		ID: uuid.New(), SiteID: site.ID, Name: "Depok", IPAddress: "192.0.2.1",
+		SNMPCommunity: "public", Username: "admin", Password: "encrypted",
+		PreferredProtocol: models.OLTProtocolTelnet,
+	}
+	require.NoError(t, db.Create(olt).Error)
+
+	return olt.ID
+}
+
+// The auto ONU ID allocator looks up used IDs by OLT, slot and port. An ONT
+// stored without a slot is invisible to that lookup, so the allocator can hand
+// out an ID that is already serving a subscriber.
+func TestONTService_BulkRegisterFromDiscoveryRecordsTheSlot(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := seedDiscoveryOLT(t, db)
+
+	ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		{Slot: 3, PortID: 6, ONTID: 19, SerialNumber: "RTEGC609DA61"},
+	})
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "serial_number = ?", "RTEGC609DA61").Error)
+	require.NotNil(t, stored.Slot, "a discovered ONT must carry its slot")
+	assert.Equal(t, 3, *stored.Slot)
+}
+
+// Rows created before discovery carried a slot have to be filled in, or they
+// stay invisible to the allocator forever.
+func TestONTService_BulkRegisterFromDiscoveryBackfillsAMissingSlot(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := seedDiscoveryOLT(t, db)
+
+	require.NoError(t, db.Create(&models.ONT{
+		ID: uuid.New(), OLTID: oltID, PortID: 6, ONTID: 19,
+		SerialNumber: "RTEGC609DA61", Status: models.ONTStatusUnknown,
+	}).Error)
+
+	ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		{Slot: 3, PortID: 6, ONTID: 19, SerialNumber: "RTEGC609DA61"},
+	})
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "serial_number = ?", "RTEGC609DA61").Error)
+	require.NotNil(t, stored.Slot)
+	assert.Equal(t, 3, *stored.Slot)
+}
+
+// An OLT that reports no slot must leave the column null rather than claim
+// slot zero, which is not a real card.
+func TestONTService_BulkRegisterFromDiscoveryLeavesAnUnknownSlotNull(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := seedDiscoveryOLT(t, db)
+
+	ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		{PortID: 6, ONTID: 20, SerialNumber: "RTEGC609DA62"},
+	})
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "serial_number = ?", "RTEGC609DA62").Error)
+	assert.Nil(t, stored.Slot)
 }

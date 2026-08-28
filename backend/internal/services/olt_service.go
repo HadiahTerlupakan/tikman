@@ -431,7 +431,7 @@ func (s *OLTService) registerDiscoveredONTs(
 
 	discovered := make([]connectivity.DiscoveredONT, 0, len(locs))
 	for _, loc := range locs {
-		item := connectivity.DiscoveredONT{PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
+		item := connectivity.DiscoveredONT{Slot: loc.Slot, PortID: loc.Port, ONTID: loc.ONTID, RunState: statuses[loc]}
 		if inv, ok := inventory[loc]; ok {
 			item.SerialNumber = inv.SerialNumber
 			item.Name = inv.Name

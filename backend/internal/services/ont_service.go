@@ -336,6 +336,16 @@ type BulkRegisterResult struct {
 }
 
 // BulkRegisterFromDiscovery registers multiple ONTs from discovery results
+// discoveredSlot keeps a slot the OLT did not report out of the row, so an
+// unknown slot stays null rather than becoming a real-looking zero.
+func discoveredSlot(ont connectivity.DiscoveredONT) *int {
+	if ont.Slot <= 0 {
+		return nil
+	}
+	slot := ont.Slot
+	return &slot
+}
+
 func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []connectivity.DiscoveredONT) *BulkRegisterResult {
 	result := &BulkRegisterResult{
 		Errors: make([]string, 0),
@@ -375,6 +385,13 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 				updates["mac_address"] = ont.MACAddress
 				needsUpdate = true
 			}
+			// Backfills rows registered before discovery carried a slot. The auto
+			// ONU ID allocator matches on it, and a null one hides the ONT from
+			// that lookup, which can hand out an ID already in use.
+			if ont.Slot > 0 && existing.Slot == nil {
+				updates["slot"] = ont.Slot
+				needsUpdate = true
+			}
 
 			if needsUpdate {
 				updates["updated_at"] = time.Now()
@@ -389,6 +406,7 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 
 		newONT := &models.ONT{
 			OLTID:           oltID,
+			Slot:            discoveredSlot(ont),
 			PortID:          ont.PortID,
 			ONTID:           ont.ONTID,
 			SerialNumber:    ont.SerialNumber,

@@ -6,6 +6,10 @@ import (
 
 // DiscoveredONT represents an ONT discovered via SNMP with full details
 type DiscoveredONT struct {
+	// Slot completes the ONT's address. Without it a discovered ONT cannot be
+	// matched against a card, and the auto ONU ID allocator — which looks up
+	// used IDs by slot, port and OLT — cannot see it.
+	Slot            int       `json:"slot"`
 	PortID          int       `json:"port_id"`
 	ONTID           int       `json:"ont_id"`
 	SerialNumber    string    `json:"serial_number"`
