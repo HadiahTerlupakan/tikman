@@ -40,6 +40,15 @@ type ZTEGPONRegisterService struct {
 	commanderFactory CommanderFactory
 	rollback         ZTERollbacker
 	logger           *zap.Logger
+	encryptionKey    []byte
+}
+
+// WithEncryptionKey lets the service seal a PPPoE password when it records the
+// service a job applied. Without one the service is still stored, minus the
+// password, which the next running-config read supplies.
+func (s *ZTEGPONRegisterService) WithEncryptionKey(key string) *ZTEGPONRegisterService {
+	s.encryptionKey = []byte(key)
+	return s
 }
 
 // NewZTEGPONRegisterService constructs the ZTE registration service.
@@ -227,6 +236,13 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 	}
 	if err := s.verify(req, ont); err != nil {
 		return s.failJob(ctx, job, ont, before, createdONU, err)
+	}
+	// Recorded from the request rather than waited for: the discovery poll that
+	// reads services back off the OLT is gated at thirty minutes, so the form
+	// reopened empty for most of that window.
+	if err := recordZTEService(s.db, s.encryptionKey, ont, req); err != nil {
+		s.logger.Error("could not record the applied ZTE service",
+			zap.String("ont_id", ont.ID.String()), zap.Error(err))
 	}
 	if err := s.jobs.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusSuccess, nil); err != nil {
 		return nil, err

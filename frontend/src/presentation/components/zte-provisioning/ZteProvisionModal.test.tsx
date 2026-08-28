@@ -143,6 +143,7 @@ describe("ZteProvisionModal", () => {
         vlanProfile: "PPPOE-214",
         pppoeUsername: "258179206252",
         pppoePassword: "12345",
+        useVeip: true,
       },
     });
 
@@ -182,6 +183,7 @@ describe("ZteProvisionModal", () => {
         vlanProfile: "PPPOE-214",
         pppoeUsername: "258179206252",
         pppoePassword: "12345",
+        useVeip: true,
       },
     });
 
@@ -232,4 +234,37 @@ describe("ZteProvisionModal", () => {
       confirm: true,
     });
   });
+});
+
+// The toggle used to be hardcoded off, so reopening the form showed VEIP
+// disabled however the ONU was set up — and saving from there dropped it.
+it("opens with VEIP as the ONU has it", async () => {
+  useOntServiceConfig.mockReturnValue({
+    data: {
+      onuType: "HG8245H5",
+      vlanId: 214,
+      vlanMode: "tag",
+      serviceType: "bridge",
+      tcontProfile: "1G",
+      wanMode: "setup_via_ont",
+      wanIpMode: "",
+      vlanProfile: "",
+      pppoeUsername: "",
+      pppoePassword: "",
+      useVeip: true,
+    },
+  });
+
+  render(
+    <ZteProvisionModal
+      open
+      mode="configure"
+      target={target}
+      ontId="ont-1"
+      onClose={vi.fn()}
+      onSubmit={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByLabelText(/use veip/i)).toBeChecked();
 });

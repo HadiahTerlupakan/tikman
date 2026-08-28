@@ -69,6 +69,7 @@ export default function OntListPage() {
   // Held here rather than in the row, because the dialog fetches the commands
   // a removal would send and has to outlive the menu that opened it.
   const [ontPendingRemoval, setOntPendingRemoval] = useState<Ont | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const { data: templates } = useConfigTemplates();
   const provisionMutation = useProvisionOnt();
@@ -174,12 +175,20 @@ export default function OntListPage() {
       <OntRemoveDialog
         ont={ontPendingRemoval}
         open={!!ontPendingRemoval}
+        // Removing from the OLT takes seconds. Closing the dialog first left
+        // no sign anything was happening, so it was pressed again.
+        loading={isRemoving}
         onCancel={() => setOntPendingRemoval(null)}
         onConfirm={async (removeFromOlt) => {
           const target = ontPendingRemoval;
           if (!target) return;
-          setOntPendingRemoval(null);
-          await handleDelete(target.id, removeFromOlt);
+          setIsRemoving(true);
+          try {
+            await handleDelete(target.id, removeFromOlt);
+            setOntPendingRemoval(null);
+          } finally {
+            setIsRemoving(false);
+          }
         }}
       />
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, Checkbox, Modal, Spin, Typography } from "antd";
+import { LoadingOutlined } from "@ant-design/icons";
 import { useOntRemovalPreview } from "@/application/hooks/useOnts";
 import type { Ont } from "@/domain/entities";
 
@@ -33,9 +34,15 @@ export function OntRemoveDialog({
     <Modal
       title={`Remove ${ont?.serialNumber ?? "ONT"}?`}
       open={open}
-      okText="Remove"
+      okText={loading ? "Removing…" : "Remove"}
       okButtonProps={{ danger: true }}
       confirmLoading={loading}
+      // Neither closing nor cancelling mid-flight: the OLT is being changed,
+      // and a dismissed dialog invites a second attempt against a job that is
+      // still running.
+      cancelButtonProps={{ disabled: loading }}
+      closable={!loading}
+      maskClosable={!loading}
       onCancel={onCancel}
       onOk={() => onConfirm(removeFromOlt)}
       destroyOnClose
@@ -44,6 +51,16 @@ export function OntRemoveDialog({
         TikMan&apos;s record of this ONT goes, along with its metrics and event
         history.
       </Paragraph>
+
+      {loading && (
+        <Alert
+          type="info"
+          showIcon
+          icon={<LoadingOutlined />}
+          style={{ marginBottom: 12 }}
+          message="Talking to the OLT. This takes a few seconds — leave it running."
+        />
+      )}
 
       <Checkbox
         checked={removeFromOlt}

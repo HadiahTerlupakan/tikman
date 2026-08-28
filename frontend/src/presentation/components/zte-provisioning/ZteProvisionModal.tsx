@@ -62,7 +62,10 @@ export function ZteProvisionModal({
       // Prefers what the OLT was registered with over the model the ONU
       // announces over OMCI, which the OLT will not accept back.
       onuType: serviceConfig?.onuType || target.onuType || "",
-      useVeip: false,
+      // Read back from the ONU's own configuration. Hardcoding false reopened
+      // the form with the toggle off however the ONU was actually set up, and
+      // saving from there dropped the setting.
+      useVeip: serviceConfig?.useVeip ?? false,
       name: target.name || "",
       description: target.description || "",
       serviceEnabled: true,

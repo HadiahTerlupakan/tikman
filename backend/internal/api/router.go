@@ -70,7 +70,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	rollbackEngine := services.NewRollbackEngineForOLTs(commanderFactory, logger)
 	ontProvisioningService := services.NewOntProvisioningServiceWithTemplates(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, auditService, logger, configTemplateService)
 	provisionHandler := NewProvisionHandler(ontProvisioningService)
-	zteProvisioner := services.NewZTEGPONRegisterService(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, logger)
+	zteProvisioner := services.NewZTEGPONRegisterService(db, provisionJobService, snapshotService, commanderFactory, rollbackEngine, logger).WithEncryptionKey(cfg.EncryptionKey)
 	zteProvisionHandler := NewZTEProvisionHandler(zteProvisioner, provisionJobService)
 
 	api := router.Group("/api/v1")

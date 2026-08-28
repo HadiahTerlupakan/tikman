@@ -19,14 +19,19 @@ type ZTEONUService struct {
 	// ONUType is the name the OLT was registered with, which is not the model
 	// the ONU announces over OMCI: a Huawei HG8245H5 announces itself as HWTC.
 	// Only the former is a name the OLT accepts back.
-	ONUType       string `json:"onu_type"`
-	VLANID        int    `json:"vlan_id"`
-	VLANMode      string `json:"vlan_mode"`
-	ServiceType   string `json:"service_type"`
-	TCONTProfile  string `json:"tcont_profile"`
-	WANMode       string `json:"wan_mode"`
-	WANIPMode     string `json:"wan_ip_mode"`
-	VLANProfile   string `json:"vlan_profile"`
+	ONUType      string `json:"onu_type"`
+	VLANID       int    `json:"vlan_id"`
+	VLANMode     string `json:"vlan_mode"`
+	ServiceType  string `json:"service_type"`
+	TCONTProfile string `json:"tcont_profile"`
+	WANMode      string `json:"wan_mode"`
+	WANIPMode    string `json:"wan_ip_mode"`
+	VLANProfile  string `json:"vlan_profile"`
+	// UseVEIP records whether the ONU's traffic is bound to its virtual
+	// Ethernet interface. Without reading it back, the configure form reopened
+	// with the toggle off however the ONU was actually set up, and saving
+	// silently dropped it.
+	UseVEIP       bool   `json:"use_veip"`
 	PPPoEUsername string `json:"pppoe_username"`
 	PPPoEPassword string `json:"-"`
 }
@@ -44,6 +49,8 @@ var (
 	zteWanIPUser       = regexp.MustCompile(`\busername (\S+)`)
 	zteWanIPPassword   = regexp.MustCompile(`\bpassword (\S+)`)
 	zteWanIPProfile    = regexp.MustCompile(`\bvlan-profile (\S+)`)
+	// The VEIP line the provisioning form writes when "Use VEIP" is on.
+	zteVEIPLine = regexp.MustCompile(`^vlan port veip_1\b`)
 )
 
 // ParseZTEONUServices reads every ONU's current service out of a running
@@ -154,6 +161,9 @@ func applyZTEServiceLine(service *ZTEONUService, line string, gemportTcont map[i
 		} else if vlan, err := strconv.Atoi(match[1]); err == nil {
 			service.VLANID = vlan
 		}
+
+	case zteVEIPLine.MatchString(line):
+		service.UseVEIP = true
 
 	case zteServiceLine.MatchString(line):
 		match := zteServiceLine.FindStringSubmatch(line)

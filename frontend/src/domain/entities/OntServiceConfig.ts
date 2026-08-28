@@ -14,6 +14,8 @@ export interface OntServiceConfig {
   wanMode: "wan_ip" | "setup_via_ont";
   wanIpMode: ZteWanIpMode | "";
   vlanProfile: string;
+  /** Whether the ONU's traffic is bound to its virtual Ethernet interface. */
+  useVeip: boolean;
   pppoeUsername: string;
   pppoePassword: string;
 }
