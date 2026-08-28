@@ -24,9 +24,13 @@ type UpdateONTRequest struct {
 }
 
 type ONTResponse struct {
-	ID                   uuid.UUID        `json:"id"`
-	OLTID                uuid.UUID        `json:"olt_id"`
-	OLTName              string           `json:"olt_name"`
+	ID      uuid.UUID `json:"id"`
+	OLTID   uuid.UUID `json:"olt_id"`
+	OLTName string    `json:"olt_name"`
+	// Slot is the OLT card. The ONU's address reads card/port:id, and the
+	// configure form fills its Card from this; leaving it out of the response
+	// had the form fall back to card 1 for an ONU on card 3.
+	Slot                 *int             `json:"slot,omitempty"`
 	PortID               int              `json:"port_id"`
 	ONTID                int              `json:"ont_id"`
 	SerialNumber         string           `json:"serial_number"`
@@ -70,6 +74,7 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 		ID:                   ont.ID,
 		OLTID:                ont.OLTID,
 		OLTName:              "",
+		Slot:                 ont.Slot,
 		PortID:               ont.PortID,
 		ONTID:                ont.ONTID,
 		SerialNumber:         ont.SerialNumber,

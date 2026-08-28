@@ -35,7 +35,9 @@ export interface ZteGPONRegisterRequest {
 export interface ZteProvisionTarget {
   oltId: string;
   oltModel?: OltModel | string;
-  card: number;
+  // Absent when the poll has not placed the ONT on a card yet. Left empty
+  // rather than defaulted: a guessed card provisions the wrong line card.
+  card?: number;
   pon: number;
   serialNumber: string;
   onuId?: number;

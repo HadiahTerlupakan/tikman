@@ -85,7 +85,7 @@ export default function OntListPage() {
       ont,
       target: {
         oltId: ont.oltId,
-        card: ont.slot || 1,
+        card: ont.slot,
         pon: ont.portId,
         onuId: ont.ontId,
         serialNumber: ont.serialNumber,
