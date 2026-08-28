@@ -1,4 +1,10 @@
-import type { Ont, CreateOntDto, UpdateOntDto, OntMetrics } from "../entities";
+import type {
+  Ont,
+  CreateOntDto,
+  UpdateOntDto,
+  OntMetrics,
+  OntServiceConfig,
+} from "../entities";
 
 export interface IOntRepository {
   getAll(params?: {
@@ -10,6 +16,7 @@ export interface IOntRepository {
     offset?: number;
   }): Promise<{ data: Ont[]; total: number }>;
   getById(id: string): Promise<Ont>;
+  getServiceConfig(id: string): Promise<OntServiceConfig | null>;
   create(data: CreateOntDto): Promise<Ont>;
   update(id: string, data: UpdateOntDto): Promise<Ont>;
   delete(id: string): Promise<void>;

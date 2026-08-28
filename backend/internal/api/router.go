@@ -139,6 +139,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.GET("/:id/metrics/timeseries", metricsHandler.GetTrafficTimeSeries)
 			onts.GET("/:id/metrics/history", metricsHandler.GetHistory)
 			onts.GET("/:id/metrics", metricsHandler.GetLatest)
+			onts.GET("/:id/service-config", ontHandler.GetServiceConfig)
 			onts.GET("/:id/events", eventHandler.GetEvents)
 			onts.GET("/:id/availability", eventHandler.GetAvailability)
 			onts.POST("/:id/gpon/configure", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.ConfigureExisting)

@@ -2,10 +2,17 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { OntServiceConfig } from "@/domain/entities";
 import { ZteProvisionModal } from "./ZteProvisionModal";
 
 // The service step reads the OLT's cached VLAN list. These tests are about the
 // form, not the fetch, so the list is stubbed rather than served by a client.
+const useOntServiceConfig = vi.hoisted(() =>
+  vi.fn<() => { data: OntServiceConfig | null }>(() => ({ data: null })),
+);
+
+vi.mock("@/application/hooks/useOnts", () => ({ useOntServiceConfig }));
+
 vi.mock("@/application/hooks/useOlts", () => ({
   useOltVlans: () => ({ data: [] }),
   useOltTcontProfiles: () => ({ data: [] }),
@@ -75,5 +82,41 @@ describe("ZteProvisionModal", () => {
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText(/password <redacted>/i)).toBeInTheDocument();
     expect(screen.queryByText("secret-pass")).not.toBeInTheDocument();
+  });
+
+  // Configuring an existing ONT opens on what it is already running, so the
+  // operator changes one field instead of retyping the whole service.
+  it("opens pre-filled with the ONT's stored service", async () => {
+    useOntServiceConfig.mockReturnValue({
+      data: {
+        vlanId: 214,
+        vlanMode: "tag",
+        serviceType: "internet",
+        tcontProfile: "1G",
+        wanMode: "wan_ip",
+        wanIpMode: "pppoe",
+        vlanProfile: "PPPOE-214",
+        pppoeUsername: "258179206252",
+      },
+    });
+
+    render(
+      <ZteProvisionModal
+        open
+        mode="configure"
+        target={target}
+        ontId="ont-1"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByLabelText(/PPPoE username/i)).toHaveValue(
+      "258179206252",
+    );
+    // The OLT holds the password in clear text; it is never read back.
+    expect(screen.getByLabelText(/^PPPoE password$/i)).toHaveValue("");
   });
 });

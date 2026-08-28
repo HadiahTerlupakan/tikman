@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Form, Modal, Steps, Switch } from "antd";
 import type {
   ZteGPONRegisterRequest,
   ZteProvisionTarget,
 } from "@/domain/entities";
+import { useOntServiceConfig } from "@/application/hooks/useOnts";
 import { InternetServiceForm } from "./InternetServiceForm";
 import { OnuIdentityForm } from "./OnuIdentityForm";
 import { ZteCommandPreview } from "./ZteCommandPreview";
@@ -12,6 +13,9 @@ interface ZteProvisionModalProps {
   open: boolean;
   mode: "register" | "configure";
   target: ZteProvisionTarget;
+  // Configuring an existing ONT opens on what it is already running, which is
+  // read from this ONT's stored service config.
+  ontId?: string;
   onClose: () => void;
   onSubmit: (data: ZteGPONRegisterRequest) => void;
   loading?: boolean;
@@ -22,12 +26,17 @@ export function ZteProvisionModal({
   open,
   mode,
   target,
+  ontId,
   onClose,
   onSubmit,
   loading = false,
   error,
 }: ZteProvisionModalProps) {
   const [form] = Form.useForm<ZteGPONRegisterRequest>();
+  const prefilled = useRef(false);
+  const { data: serviceConfig } = useOntServiceConfig(
+    mode === "configure" ? ontId : undefined,
+  );
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
   const watchedValues = Form.useWatch([], form);
@@ -36,26 +45,41 @@ export function ZteProvisionModal({
     values.onuIdMode === "custom" ? values.onuId : target.onuId || 1;
 
   useEffect(() => {
-    if (open) {
-      form.setFieldsValue({
-        oltId: target.oltId,
-        card: target.card,
-        pon: target.pon,
-        onuIdMode: mode === "configure" ? "custom" : "auto",
-        onuId: target.onuId || 0,
-        serialNumber: target.serialNumber,
-        onuType: target.onuType || "",
-        useVeip: false,
-        name: target.name || "",
-        description: target.description || "",
-        serviceEnabled: true,
-        vlanMode: "tag",
-        serviceType: "internet",
-        wanMode: "wan_ip",
-        wanIpMode: "pppoe",
-      });
+    if (!open) {
+      prefilled.current = false;
+      return;
     }
-  }, [form, mode, open, target]);
+    // Applied once per opening: the stored service arrives a moment after the
+    // modal does, and reapplying it would wipe out anything already typed.
+    if (prefilled.current) return;
+    if (mode === "configure" && ontId && serviceConfig === undefined) return;
+    prefilled.current = true;
+
+    form.setFieldsValue({
+      oltId: target.oltId,
+      card: target.card,
+      pon: target.pon,
+      onuIdMode: mode === "configure" ? "custom" : "auto",
+      onuId: target.onuId || 0,
+      serialNumber: target.serialNumber,
+      onuType: target.onuType || "",
+      useVeip: false,
+      name: target.name || "",
+      description: target.description || "",
+      serviceEnabled: true,
+      vlanMode: serviceConfig?.vlanMode ?? "tag",
+      serviceType: serviceConfig?.serviceType ?? "internet",
+      vlanId: serviceConfig?.vlanId,
+      downloadProfile: serviceConfig?.tcontProfile ?? "",
+      uploadProfile: serviceConfig?.tcontProfile ?? "",
+      wanMode: serviceConfig?.wanMode ?? "wan_ip",
+      wanIpMode: serviceConfig?.wanIpMode ?? "pppoe",
+      vlanProfile: serviceConfig?.vlanProfile ?? "",
+      // The password is never read back from the OLT, so it is always retyped.
+      pppoeUsername: serviceConfig?.pppoeUsername ?? "",
+      pppoePassword: "",
+    });
+  }, [form, mode, ontId, open, serviceConfig, target]);
 
   const submit = async () => {
     try {

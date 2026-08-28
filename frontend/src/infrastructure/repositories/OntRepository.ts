@@ -9,6 +9,7 @@ import type {
   ONTEventsResponse,
   AvailabilityStats,
   TopologySlotResponse,
+  OntServiceConfig,
 } from "@/domain/entities";
 
 export class OntRepository implements IOntRepository {
@@ -40,6 +41,11 @@ export class OntRepository implements IOntRepository {
   async getById(id: string): Promise<Ont> {
     const response = await apiClient.get(API_ENDPOINTS.ONT_BY_ID(id));
     return response.data;
+  }
+
+  async getServiceConfig(id: string): Promise<OntServiceConfig | null> {
+    const response = await apiClient.get(API_ENDPOINTS.ONT_SERVICE_CONFIG(id));
+    return response.data.data ?? null;
   }
 
   async create(data: CreateOntDto): Promise<Ont> {

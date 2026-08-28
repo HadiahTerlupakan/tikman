@@ -202,6 +202,7 @@ export default function OntListPage() {
           open
           mode="configure"
           target={serviceTarget.target}
+          ontId={serviceTarget.ont.id}
           onClose={() => setServiceTarget(null)}
           onSubmit={(request) => {
             serviceMutation.mutate(

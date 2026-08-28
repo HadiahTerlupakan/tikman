@@ -42,28 +42,38 @@ type bulkCommander interface {
 	ExecuteBulk(ctx context.Context, cmd string, quiet, max time.Duration) (string, error)
 }
 
-// ReadZTEVLANProfiles returns the VLAN profile names configured on the OLT's
-// ONUs, most used first.
+// ZTEConfigSnapshot is everything one pass over the running config yields: the
+// VLAN profile names in use, and each ONU's current service.
+type ZTEConfigSnapshot struct {
+	VLANProfiles []string
+	ONUServices  map[ONTLocation]ZTEONUService
+}
+
+// ReadZTEConfigSnapshot reads the OLT's running config once and returns only
+// what the provisioning form needs from it.
 //
-// The running config it reads carries PPPoE passwords in clear text. Only the
-// profile names leave this function: the body is never returned, logged or
-// stored.
-func ReadZTEVLANProfiles(ctx context.Context, commander OLTCommander) ([]string, error) {
+// The config carries PPPoE passwords in clear text. Nothing but parsed values
+// leaves this function: the body is never returned, logged or stored, and the
+// parsed service deliberately has no password field.
+func ReadZTEConfigSnapshot(ctx context.Context, commander OLTCommander) (ZTEConfigSnapshot, error) {
 	bulk, ok := commander.(bulkCommander)
 	if !ok {
-		return nil, ErrUnsupported
+		return ZTEConfigSnapshot{}, ErrUnsupported
 	}
 
 	if _, err := commander.ExecuteCommand(ctx, disablePagingCommand); err != nil {
-		return nil, fmt.Errorf("disable paging: %w", err)
+		return ZTEConfigSnapshot{}, fmt.Errorf("disable paging: %w", err)
 	}
 
 	output, err := bulk.ExecuteBulk(ctx, zteRunningConfigCommand, 3*time.Second, 90*time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("read running config: %w", err)
+		return ZTEConfigSnapshot{}, fmt.Errorf("read running config: %w", err)
 	}
 
-	return rankZTEVLANProfiles(output), nil
+	return ZTEConfigSnapshot{
+		VLANProfiles: rankZTEVLANProfiles(output),
+		ONUServices:  ParseZTEONUServices(output),
+	}, nil
 }
 
 // rankZTEVLANProfiles orders names by how many ONUs use them, so the profile

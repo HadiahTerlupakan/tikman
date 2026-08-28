@@ -51,14 +51,18 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 		addProfileUpdate(updates, "tcont_profiles", tcont, olt.Name)
 	}
 
-	vlan, err := connectivity.ReadZTEVLANProfiles(ctx, commander)
+	snapshot, err := connectivity.ReadZTEConfigSnapshot(ctx, commander)
+	vlan := snapshot.VLANProfiles
 	switch {
 	case err != nil:
-		log.Printf("[AutoDiscovery] VLAN profile read failed for OLT %s: %v", olt.Name, err)
+		log.Printf("[AutoDiscovery] Running config read failed for OLT %s: %v", olt.Name, err)
 	case len(vlan) == 0:
 		log.Printf("[AutoDiscovery] No VLAN profiles in use on OLT %s", olt.Name)
 	default:
 		addProfileUpdate(updates, "vlan_profiles", vlan, olt.Name)
+	}
+	if err == nil {
+		s.storeONUServices(olt, snapshot.ONUServices)
 	}
 
 	if len(updates) == 0 {
@@ -72,6 +76,28 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 	}
 
 	log.Printf("[AutoDiscovery] Cached %d T-CONT and %d VLAN profiles for OLT %s", len(tcont), len(vlan), olt.Name)
+}
+
+// storeONUServices records each ONU's current service against its ONT row, so
+// the configure form can open pre-filled. ONUs the OLT reports but TikMan has
+// not registered are skipped: there is no row to attach them to.
+func (s *OLTService) storeONUServices(olt *models.OLT, services map[connectivity.ONTLocation]connectivity.ZTEONUService) {
+	stored, now := 0, time.Now()
+	for location, service := range services {
+		encoded, err := json.Marshal(service)
+		if err != nil {
+			continue
+		}
+		result := s.db.Model(&models.ONT{}).
+			Where("olt_id = ? AND port_id = ? AND ont_id = ?", olt.ID, location.Port, location.ONTID).
+			Updates(map[string]interface{}{"service_config": datatypes.JSON(encoded), "service_config_at": now})
+		if result.Error != nil {
+			log.Printf("[AutoDiscovery] Cannot store service config for OLT %s: %v", olt.Name, result.Error)
+			return
+		}
+		stored += int(result.RowsAffected)
+	}
+	log.Printf("[AutoDiscovery] Stored service config for %d ONTs on OLT %s", stored, olt.Name)
 }
 
 func addProfileUpdate(updates map[string]interface{}, column string, names []string, oltName string) {

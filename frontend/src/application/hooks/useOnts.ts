@@ -69,3 +69,13 @@ export function useDeleteOnt() {
     },
   });
 }
+
+// The ONU's service as the last OLT poll read it, used to open the configure
+// form on what is actually running rather than on blank fields.
+export function useOntServiceConfig(ontId?: string) {
+  return useQuery({
+    queryKey: ["onts", ontId, "service-config"],
+    queryFn: () => ontRepository.getServiceConfig(ontId as string),
+    enabled: !!ontId,
+  });
+}

@@ -140,8 +140,8 @@ func TestRankZTEVLANProfilesIsEmptyWithoutWanIP(t *testing.T) {
 
 // A commander with no bulk read cannot fetch the running config, and must say
 // so rather than report that the OLT has no profiles.
-func TestReadZTEVLANProfilesNeedsABulkRead(t *testing.T) {
-	_, err := ReadZTEVLANProfiles(context.Background(), &scriptedCommander{})
+func TestReadZTEConfigSnapshotNeedsABulkRead(t *testing.T) {
+	_, err := ReadZTEConfigSnapshot(context.Background(), &scriptedCommander{})
 	if !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("err = %v, want ErrUnsupported", err)
 	}
