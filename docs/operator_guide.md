@@ -174,3 +174,40 @@ sudah ditempel, perangkat menyala, dan internet site hidup.
 **Site tidak bisa dihapus karena masih punya tunnel.** Hapus dulu tunnel site
 tersebut di halaman VPN. Menghapus site lebih dulu akan meninggalkan tunnel yang
 masih aktif di kernel dan menahan subnetnya.
+
+## Deploy ke VPS lewat Jenkins
+
+`Jenkinsfile` di root repo menjalankan pipeline di VPS tempat Jenkins berada:
+build image, jalankan stack, lalu pastikan API sehat dan route VPN benar-benar
+terpasang. Tidak ada registry di jalurnya, jadi tidak ada kredensial image yang
+perlu dijaga.
+
+Pipeline memakai `docker-compose.vps.yml` sebagai override. Isinya tiga hal:
+port 8080 tidak dipublikasikan (Jenkins biasanya sudah memakainya, dan frontend
+mem-proxy `/api` secara internal), frontend tidak dipublikasikan sama sekali
+karena diakses lewat Cloudflare Tunnel, dan container `cloudflared` ditambahkan.
+
+### Sekali di awal
+
+1. Muat modul kernel dan buat permanen:
+   `sudo modprobe wireguard && echo wireguard | sudo tee /etc/modules-load.d/wireguard.conf`
+2. Buat `/opt/tikman/.env` berisi nilai dari `.env.example` — termasuk
+   `ENCRYPTION_KEY` 32 byte, `SESSION_SECRET`, password database, dan
+   `CLOUDFLARE_TUNNEL_TOKEN`. Berkas ini tidak pernah masuk repo maupun Jenkins.
+3. Di Jenkins, buat Pipeline job yang menunjuk ke repo ini dengan
+   *Script Path* `Jenkinsfile`. Biarkan pemicunya manual.
+
+### Dua catatan DNS yang mudah terlewat
+
+Cloudflare Tunnel hanya membawa HTTP dan HTTPS. Handshake WireGuard adalah UDP
+dan tidak bisa lewat sana, sehingga port UDP tetap harus terbuka langsung ke
+internet.
+
+Karena itu perlu dua nama yang berbeda:
+
+- **Web UI** diarahkan lewat tunnel (dikonfigurasi di dasbor Cloudflare Zero
+  Trust, bukan sebagai A record).
+- **Endpoint VPN** perlu A record tersendiri yang menunjuk ke IP VPS dengan
+  **proxy dimatikan** (awan abu-abu). Nama inilah yang diisi di halaman VPN.
+  Memakai nama yang di-proxy akan menunjuk ke server Cloudflare, dan tidak ada
+  satu pun site yang bisa terhubung.

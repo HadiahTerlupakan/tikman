@@ -1,0 +1,32 @@
+# Override for the VPS, where the web UI is reached through a Cloudflare Tunnel.
+# Nothing but the WireGuard port is published to the internet.
+#
+#   docker compose --env-file /opt/tikman/.env \
+#     -f docker-compose.yml -f docker-compose.vps.yml up -d
+#
+# `!override` replaces the base file's port list instead of appending to it,
+# which is what lets this file take a published port away.
+
+services:
+  api:
+    # Jenkins already holds 8080 on this host, and nothing outside the compose
+    # network needs the API: the frontend proxies /api to it internally.
+    # WireGuard stays published — a Cloudflare Tunnel carries HTTP, not the UDP
+    # handshake a site behind NAT has to send.
+    ports: !override
+      - "${WIREGUARD_PORT:-51820}:${WIREGUARD_PORT:-51820}/udp"
+
+  frontend:
+    # Reached only by cloudflared, over the compose network.
+    ports: !override []
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.2
+    container_name: tikman-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks:
+      - tikman-network
+    restart: unless-stopped
