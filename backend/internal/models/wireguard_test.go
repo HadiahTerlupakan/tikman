@@ -64,3 +64,19 @@ func TestWireGuardServerDefaultsPersist(t *testing.T) {
 	require.Equal(t, "10.88.0.0/24", loaded.TunnelSubnet)
 	require.Equal(t, 51820, loaded.ListenPort)
 }
+
+func TestWireGuardPeerRequiresAllowedIPs(t *testing.T) {
+	db := newWireGuardTestDB(t)
+
+	peer := &WireGuardPeer{
+		SiteID:        uuid.New(),
+		Name:          "Site A",
+		PublicKey:     "pub",
+		PrivateKey:    "enc",
+		TunnelAddress: "10.88.0.5",
+	}
+
+	// A peer with no subnets routes nothing, so the write must fail rather than
+	// store a tunnel that can never carry traffic.
+	require.Error(t, db.Create(peer).Error)
+}

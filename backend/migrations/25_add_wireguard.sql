@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS wireguard_peers (
     private_key TEXT NOT NULL,
     preshared_key TEXT,
     tunnel_address VARCHAR(45) NOT NULL UNIQUE,
-    allowed_ips JSONB NOT NULL DEFAULT '[]'::jsonb,
+    allowed_ips JSONB NOT NULL,
     persistent_keepalive INTEGER NOT NULL DEFAULT 25,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     last_handshake_at TIMESTAMPTZ,
