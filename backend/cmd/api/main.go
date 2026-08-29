@@ -15,12 +15,17 @@ import (
 	"github.com/tikman/olt-provisioning/internal/api"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/database"
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 )
+
+// wireguardStatusInterval is comfortably below the three-minute liveness grace,
+// so a peer that drops is noticed within one cycle.
+const wireguardStatusInterval = 30 * time.Second
 
 func main() {
 	cfg, err := config.Load()
@@ -79,6 +84,14 @@ func main() {
 
 	sessionStore := auth.NewStore(redisClient, 24*time.Hour)
 
+	wgService := services.NewWireGuardService(db, cfg.EncryptionKey, connectivity.NewWireGuardDevice())
+	// A tunnel that cannot come up must not stop the API: the operator needs the
+	// UI precisely to fix it.
+	if err := wgService.Reconcile(); err != nil {
+		log.Warn("Failed to apply WireGuard configuration at startup", zap.Error(err))
+	}
+	go wgService.RunStatusRefresher(context.Background(), wireguardStatusInterval, log)
+
 	engine := gin.Default()
 	// Do not widen: gin's default trusts every proxy, making c.ClientIP() equal
 	// to any X-Forwarded-For the caller sends, which bypasses the per-IP rate
@@ -90,7 +103,7 @@ func main() {
 		log.Fatal("Failed to set trusted proxies", zap.Error(err))
 	}
 
-	router := api.Setup(engine, cfg, db, sessionStore, log)
+	router := api.Setup(engine, cfg, db, sessionStore, log, wgService)
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))

@@ -28,7 +28,7 @@ const (
 	loginRequestsPerMinute = 10
 )
 
-func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger) *gin.Engine {
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService) *gin.Engine {
 	router := ginEngine
 
 	router.Use(corsMiddleware(cfg.AllowedOrigins))
@@ -62,6 +62,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	unconfiguredONUHandler := NewUnconfiguredONUHandler(unconfiguredONUService)
 	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
 	configTemplateHandler := NewConfigTemplateHandler(configTemplateService)
+	wireguardHandler := NewWireGuardHandler(wgService, auditService)
 
 	// Provisioning pipeline: the factory above creates per-OLT commanders since
 	// each OLT has its own address and credentials.
@@ -160,6 +161,19 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			configTemplates.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), configTemplateHandler.Create)
 			configTemplates.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), configTemplateHandler.Update)
 			configTemplates.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), configTemplateHandler.Delete)
+		}
+
+		wireguard := api.Group("/wireguard")
+		wireguard.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			wireguard.GET("/server", wireguardHandler.GetServer)
+			wireguard.PUT("/server", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.SaveServer)
+			wireguard.GET("/peers", wireguardHandler.ListPeers)
+			wireguard.POST("/peers", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.CreatePeer)
+			wireguard.PUT("/peers/:id", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.UpdatePeer)
+			wireguard.DELETE("/peers/:id", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.DeletePeer)
+			wireguard.GET("/peers/:id/config", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.GetPeerConfig)
+			wireguard.GET("/sites/:site_id/suggested-subnets", wireguardHandler.SuggestSubnets)
 		}
 
 		provisionJobs := api.Group("/provision-jobs")

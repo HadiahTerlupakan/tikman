@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -33,7 +35,8 @@ func newMiddlewareTestRouter(t *testing.T, allowedOrigins string) *gin.Engine {
 		AllowedOrigins: allowedOrigins,
 	}
 
-	return Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger)
+	return Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 }
 
 func TestCORSEchoesConfiguredOrigin(t *testing.T) {

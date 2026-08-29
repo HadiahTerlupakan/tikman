@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -35,7 +37,8 @@ func TestHealthEndpoint(t *testing.T) {
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 
-	router := Setup(gin.New(), cfg, db, sessionStore, logger)
+	router := Setup(gin.New(), cfg, db, sessionStore, logger,
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -72,7 +75,8 @@ func TestHealthEndpoint_ReportsDatabaseDown(t *testing.T) {
 		AllowedOrigins: "http://localhost:3000",
 	}
 
-	router := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger)
+	router := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 
 	// Closing the pool makes every query fail, standing in for an unreachable
 	// Postgres without needing one in the test environment.
@@ -111,7 +115,8 @@ func TestRouterSetup(t *testing.T) {
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 
-	router := Setup(gin.New(), cfg, db, sessionStore, logger)
+	router := Setup(gin.New(), cfg, db, sessionStore, logger,
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 
 	assert.NotNil(t, router)
 }
@@ -135,7 +140,8 @@ func TestTestConnectionRouteIsRegisteredWithoutID(t *testing.T) {
 		AllowedOrigins: "http://localhost:3000",
 	}
 
-	router := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger)
+	router := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 
 	req := httptest.NewRequest("POST", "/api/v1/olts/test-connection", nil)
 	w := httptest.NewRecorder()
