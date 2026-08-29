@@ -35,8 +35,8 @@ Backend, dibuat baru:
 | `internal/services/wireguard_render.go` | Generator konfigurasi wg-quick dan MikroTik. |
 | `internal/services/wireguard_status.go` | Aturan "terhubung" dan goroutine pembaruan status. |
 | `internal/services/wireguard_service.go` | CRUD, orkestrasi, dan `Reconcile`. |
-| `internal/services/wireguard_device.go` | Definisi tipe dan interface `TunnelDevice`. |
-| `internal/services/wireguard_device_memory.go` | Implementasi in-memory yang dipakai test. |
+| `internal/connectivity/wireguard_device.go` | Definisi tipe dan interface `TunnelDevice`. |
+| `internal/connectivity/wireguard_device_memory.go` | Implementasi in-memory yang dipakai test. |
 | `internal/connectivity/wireguard_device_linux.go` | Netlink dan wgctrl. Hanya Linux. |
 | `internal/connectivity/wireguard_device_other.go` | Pengganti non-Linux yang mengembalikan error. |
 | `internal/api/wireguard_dto.go` | Request dan response. |
@@ -1000,8 +1000,8 @@ git commit -m "feat(vpn): decide peer liveness from the last handshake"
 ### Task 6: Service, interface perangkat, dan rekonsiliasi
 
 **Files:**
-- Create: `backend/internal/services/wireguard_device.go`
-- Create: `backend/internal/services/wireguard_device_memory.go`
+- Create: `backend/internal/connectivity/wireguard_device.go`
+- Create: `backend/internal/connectivity/wireguard_device_memory.go`
 - Create: `backend/internal/services/wireguard_service.go`
 - Test: `backend/internal/services/wireguard_service_test.go`
 - Modify: `backend/go.mod`, `backend/go.sum`
@@ -1009,12 +1009,8 @@ git commit -m "feat(vpn): decide peer liveness from the last handshake"
 **Interfaces:**
 - Consumes: seluruh fungsi dari Task 2 sampai 5, dan model dari Task 1.
 - Produces:
-  - `type TunnelPeerConfig struct { PublicKey, PresharedKey string; AllowedIPs []string; Keepalive time.Duration }`
-  - `type TunnelConfig struct { InterfaceName, PrivateKey, Address string; ListenPort int; Peers []TunnelPeerConfig }`
-  - `type TunnelPeerStatus struct { PublicKey string; LastHandshakeAt *time.Time; RxBytes, TxBytes int64 }`
-  - `type TunnelDevice interface { Apply(TunnelConfig) error; Status(interfaceName string) ([]TunnelPeerStatus, error) }`
-  - `type MemoryTunnelDevice struct { Applied TunnelConfig; Statuses []TunnelPeerStatus; ApplyErr error }`
-  - `func NewWireGuardService(db *gorm.DB, encryptionKey string, device TunnelDevice) *WireGuardService`
+  - Dalam paket `connectivity`: `TunnelPeerConfig{PublicKey, PresharedKey string; AllowedIPs []string; Keepalive time.Duration}`, `TunnelConfig{InterfaceName, PrivateKey, Address string; ListenPort int; Peers []TunnelPeerConfig}`, `TunnelPeerStatus{PublicKey string; LastHandshakeAt *time.Time; RxBytes, TxBytes int64}`, `TunnelDevice interface { Apply(TunnelConfig) error; Status(interfaceName string) ([]TunnelPeerStatus, error) }`, dan `MemoryTunnelDevice{Applied TunnelConfig; Statuses []TunnelPeerStatus; ApplyErr error}`.
+  - `func NewWireGuardService(db *gorm.DB, encryptionKey string, device connectivity.TunnelDevice) *WireGuardService`
   - `func (s *WireGuardService) EnsureServer(endpointHost string) (*models.WireGuardServer, error)`
   - `func (s *WireGuardService) GetServer() (*models.WireGuardServer, error)`
   - `func (s *WireGuardService) UpdateServer(endpointHost string, listenPort int) (*models.WireGuardServer, error)`
@@ -1050,6 +1046,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -1057,12 +1054,12 @@ import (
 
 const wgTestEncryptionKey = "12345678901234567890123456789012"
 
-func newWireGuardService(t *testing.T) (*WireGuardService, *MemoryTunnelDevice, *gorm.DB) {
+func newWireGuardService(t *testing.T) (*WireGuardService, *connectivity.MemoryTunnelDevice, *gorm.DB) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
 
-	device := &MemoryTunnelDevice{}
+	device := &connectivity.MemoryTunnelDevice{}
 	return NewWireGuardService(db, wgTestEncryptionKey, device), device, db
 }
 
@@ -1188,7 +1185,7 @@ func TestRefreshStatusStoresHandshake(t *testing.T) {
 	require.NoError(t, err)
 
 	seen := time.Now().Add(-30 * time.Second).UTC()
-	device.Statuses = []TunnelPeerStatus{
+	device.Statuses = []connectivity.TunnelPeerStatus{
 		{PublicKey: peer.PublicKey, LastHandshakeAt: &seen, RxBytes: 1024, TxBytes: 2048},
 	}
 	require.NoError(t, service.RefreshStatus())
@@ -1221,7 +1218,7 @@ func TestReconcileRebuildsDeviceStateFromDatabase(t *testing.T) {
 	_, err = service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
 	require.NoError(t, err)
 
-	device.Applied = TunnelConfig{}
+	device.Applied = connectivity.TunnelConfig{}
 	require.NoError(t, service.Reconcile())
 	require.Len(t, device.Applied.Peers, 1, "reconcile must restore the full state, not a delta")
 	require.Equal(t, "wg0", device.Applied.InterfaceName)
@@ -1294,10 +1291,14 @@ Expected: FAIL, `undefined: NewWireGuardService`.
 
 - [ ] **Step 4: Tulis tipe perangkat**
 
-Buat `backend/internal/services/wireguard_device.go`:
+Tipe ini berada di paket `connectivity`, bukan `services`. `services` sudah
+mengimpor `connectivity`; menaruh interface di `services` dan implementasinya di
+`connectivity` akan membuat import cycle yang ditolak Go.
+
+Buat `backend/internal/connectivity/wireguard_device.go`:
 
 ```go
-package services
+package connectivity
 
 import "time"
 
@@ -1334,10 +1335,10 @@ type TunnelDevice interface {
 }
 ```
 
-Buat `backend/internal/services/wireguard_device_memory.go`:
+Buat `backend/internal/connectivity/wireguard_device_memory.go`:
 
 ```go
-package services
+package connectivity
 
 // MemoryTunnelDevice records what would have been applied. It is the device the
 // tests use, so service behaviour can be asserted without a kernel.
@@ -1373,6 +1374,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/utils"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -1397,10 +1399,10 @@ var ErrServerNotConfigured = errors.New("wireguard server is not configured")
 type WireGuardService struct {
 	db            *gorm.DB
 	encryptionKey string
-	device        TunnelDevice
+	device        connectivity.TunnelDevice
 }
 
-func NewWireGuardService(db *gorm.DB, encryptionKey string, device TunnelDevice) *WireGuardService {
+func NewWireGuardService(db *gorm.DB, encryptionKey string, device connectivity.TunnelDevice) *WireGuardService {
 	return &WireGuardService{db: db, encryptionKey: encryptionKey, device: device}
 }
 
@@ -1674,7 +1676,7 @@ func (s *WireGuardService) Reconcile() error {
 		return err
 	}
 
-	cfg := TunnelConfig{
+	cfg := connectivity.TunnelConfig{
 		InterfaceName: server.InterfaceName,
 		PrivateKey:    privateKey,
 		Address:       addressWithSubnetPrefix(server.Address, server.TunnelSubnet),
@@ -1688,7 +1690,7 @@ func (s *WireGuardService) Reconcile() error {
 		if err != nil {
 			return err
 		}
-		cfg.Peers = append(cfg.Peers, TunnelPeerConfig{
+		cfg.Peers = append(cfg.Peers, connectivity.TunnelPeerConfig{
 			PublicKey:  peer.PublicKey,
 			AllowedIPs: allowedIPs,
 			Keepalive:  time.Duration(peer.PersistentKeepalive) * time.Second,
@@ -1767,7 +1769,7 @@ Expected: PASS, empat belas test.
 
 ```bash
 cd backend && gofmt -s -l . && go vet ./... && go test ./internal/services/ -race
-git add backend/internal/services/wireguard_device.go backend/internal/services/wireguard_device_memory.go backend/internal/services/wireguard_service.go backend/internal/services/wireguard_service_test.go backend/go.mod backend/go.sum
+git add backend/internal/connectivity/wireguard_device.go backend/internal/connectivity/wireguard_device_memory.go backend/internal/services/wireguard_service.go backend/internal/services/wireguard_service_test.go backend/go.mod backend/go.sum
 git commit -m "feat(vpn): manage peers and reconcile tunnel state from the database"
 ```
 
@@ -1781,8 +1783,8 @@ git commit -m "feat(vpn): manage peers and reconcile tunnel state from the datab
 - Modify: `backend/go.mod`, `backend/go.sum`
 
 **Interfaces:**
-- Consumes: `services.TunnelConfig`, `services.TunnelPeerStatus` dari Task 6.
-- Produces: `func NewWireGuardDevice() *WireGuardDevice`, dengan metode `Apply(services.TunnelConfig) error` dan `Status(string) ([]services.TunnelPeerStatus, error)`.
+- Consumes: `TunnelConfig` dan `TunnelPeerStatus` dari Task 6, yang berada di paket yang sama (`connectivity`).
+- Produces: `func NewWireGuardDevice() *WireGuardDevice`, dengan metode `Apply(TunnelConfig) error` dan `Status(string) ([]TunnelPeerStatus, error)`.
 
 Task ini adalah satu-satunya yang menyentuh kernel. Tidak ada unit test: `netlink` menuntut `CAP_NET_ADMIN` dan hanya dibangun di Linux. Verifikasinya adalah kompilasi silang dan pemasangan nyata. Ini pengecualian kode network-bound yang sudah tertulis di CLAUDE.md.
 
@@ -1807,7 +1809,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/tikman/olt-provisioning/internal/services"
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -1821,7 +1822,7 @@ func NewWireGuardDevice() *WireGuardDevice {
 	return &WireGuardDevice{}
 }
 
-func (d *WireGuardDevice) Apply(cfg services.TunnelConfig) error {
+func (d *WireGuardDevice) Apply(cfg TunnelConfig) error {
 	link, err := ensureLink(cfg.InterfaceName)
 	if err != nil {
 		return err
@@ -1877,7 +1878,7 @@ func ensureAddress(link netlink.Link, address string) error {
 	return nil
 }
 
-func applyWireGuardConfig(cfg services.TunnelConfig) error {
+func applyWireGuardConfig(cfg TunnelConfig) error {
 	client, err := wgctrl.New()
 	if err != nil {
 		return fmt.Errorf("open wireguard control: %w", err)
@@ -1932,7 +1933,7 @@ func parseAllowedIPs(entries []string) ([]net.IPNet, error) {
 // syncRoutes makes the routing table match the peers. The kernel's allowed-ips
 // do not create routes by themselves, and a route left behind by a deleted peer
 // would blackhole that subnet.
-func syncRoutes(link netlink.Link, cfg services.TunnelConfig) error {
+func syncRoutes(link netlink.Link, cfg TunnelConfig) error {
 	wanted := make(map[string]*net.IPNet)
 	for _, peer := range cfg.Peers {
 		for _, entry := range peer.AllowedIPs {
@@ -1971,7 +1972,7 @@ func syncRoutes(link netlink.Link, cfg services.TunnelConfig) error {
 	return nil
 }
 
-func (d *WireGuardDevice) Status(interfaceName string) ([]services.TunnelPeerStatus, error) {
+func (d *WireGuardDevice) Status(interfaceName string) ([]TunnelPeerStatus, error) {
 	client, err := wgctrl.New()
 	if err != nil {
 		return nil, fmt.Errorf("open wireguard control: %w", err)
@@ -1983,9 +1984,9 @@ func (d *WireGuardDevice) Status(interfaceName string) ([]services.TunnelPeerSta
 		return nil, fmt.Errorf("read device %s: %w", interfaceName, err)
 	}
 
-	statuses := make([]services.TunnelPeerStatus, 0, len(device.Peers))
+	statuses := make([]TunnelPeerStatus, 0, len(device.Peers))
 	for _, peer := range device.Peers {
-		status := services.TunnelPeerStatus{
+		status := TunnelPeerStatus{
 			PublicKey: peer.PublicKey.String(),
 			RxBytes:   peer.ReceiveBytes,
 			TxBytes:   peer.TransmitBytes,
@@ -2009,11 +2010,7 @@ Buat `backend/internal/connectivity/wireguard_device_other.go`:
 
 package connectivity
 
-import (
-	"errors"
-
-	"github.com/tikman/olt-provisioning/internal/services"
-)
+import "errors"
 
 // errWireGuardUnsupported keeps development on macOS building. The kernel
 // interface only exists on the Linux host the API is deployed to.
@@ -2025,11 +2022,11 @@ func NewWireGuardDevice() *WireGuardDevice {
 	return &WireGuardDevice{}
 }
 
-func (d *WireGuardDevice) Apply(services.TunnelConfig) error {
+func (d *WireGuardDevice) Apply(TunnelConfig) error {
 	return errWireGuardUnsupported
 }
 
-func (d *WireGuardDevice) Status(string) ([]services.TunnelPeerStatus, error) {
+func (d *WireGuardDevice) Status(string) ([]TunnelPeerStatus, error) {
 	return nil, errWireGuardUnsupported
 }
 ```
@@ -2578,13 +2575,13 @@ Tambahkan di akhir `backend/internal/api/test_helpers.go`:
 // device, so peer behaviour can be asserted without a kernel interface.
 func SetupWireGuardHandlerTest(t *testing.T) (*WireGuardHandler, *services.WireGuardService, *gorm.DB) {
 	db := TestDB(t)
-	service := services.NewWireGuardService(db, testEncryptionKey, &services.MemoryTunnelDevice{})
+	service := services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{})
 	handler := NewWireGuardHandler(service, nil) // nil audit service for tests
 	return handler, service, db
 }
 ```
 
-Berkas ini sudah mengimpor `services`, `gorm`, `testing`, dan `utils`; tidak ada impor baru.
+Berkas ini sudah mengimpor `services`, `gorm`, `testing`, dan `utils`; tambahkan impor `github.com/tikman/olt-provisioning/internal/connectivity`.
 
 - [ ] **Step 6: Jalankan test, pastikan lulus**
 
@@ -2635,6 +2632,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
@@ -2657,7 +2655,7 @@ func newWireguardRouter(t *testing.T) (*gin.Engine, *auth.Store) {
 		AllowedOrigins: "http://localhost:3000",
 	}
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
-	wgService := services.NewWireGuardService(db, testEncryptionKey, &services.MemoryTunnelDevice{})
+	wgService := services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{})
 
 	return Setup(gin.New(), cfg, db, sessionStore, logger, wgService), sessionStore
 }
@@ -2779,14 +2777,15 @@ Tambahkan grup route setelah grup `configTemplates`:
 Di `internal/api/router_test.go` (baris 38, 75, 114, 138) dan `internal/api/router_middleware_test.go` (baris 36), tambahkan argumen terakhir:
 
 ```go
-	services.NewWireGuardService(db, testEncryptionKey, &services.MemoryTunnelDevice{})
+	services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{})
 ```
 
-Contoh untuk `router_middleware_test.go`:
+Contoh untuk `router_middleware_test.go` (tambahkan impor `services` dan
+`connectivity` di berkas itu):
 
 ```go
 	return Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
-		services.NewWireGuardService(db, testEncryptionKey, &services.MemoryTunnelDevice{}))
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 ```
 
 - [ ] **Step 6: Wiring di main**

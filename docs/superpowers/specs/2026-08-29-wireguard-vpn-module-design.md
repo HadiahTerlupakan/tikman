@@ -299,10 +299,12 @@ Backend:
 - `internal/services/wireguard_render.go` — generator kedua format konfigurasi.
 - `internal/services/wireguard_status.go` — aturan "terhubung".
 - `internal/services/wireguard_refresher.go` — goroutine pembaruan status.
-- `internal/services/wireguard_device.go` — tipe dan interface `TunnelDevice`,
-  batas antara keputusan dan kernel.
-- `internal/services/wireguard_device_memory.go` — implementasi in-memory yang
-  dipakai test.
+- `internal/connectivity/wireguard_device.go` — tipe dan interface
+  `TunnelDevice`, batas antara keputusan dan kernel. Berada di `connectivity`
+  dan bukan `services` karena `services` sudah mengimpor `connectivity`;
+  arah sebaliknya akan menjadi import cycle.
+- `internal/connectivity/wireguard_device_memory.go` — implementasi in-memory
+  yang dipakai test.
 - `internal/connectivity/wireguard_device_linux.go` dan
   `wireguard_device_other.go` — lapisan tipis yang menyentuh netlink dan
   wgctrl. Dipisah build tag karena `netlink` hanya dapat dibangun di Linux
