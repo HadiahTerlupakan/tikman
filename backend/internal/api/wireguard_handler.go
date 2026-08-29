@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -235,7 +236,13 @@ func wireguardFailure(c *gin.Context, err error, message string) {
 			Code:  "NOT_CONFIGURED",
 		})
 	case errors.Is(err, services.ErrValidation):
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: message, Code: "INVALID_CONFIGURATION", Details: err.Error()})
+		// The service's sentence is the actionable half — which subnet clashes
+		// with what, and why. Putting it in Details left the operator staring at
+		// a generic "failed", because that is the field the UI shows.
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+			Code:  "INVALID_CONFIGURATION",
+		})
 	default:
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: message, Code: "INTERNAL_ERROR"})
 	}

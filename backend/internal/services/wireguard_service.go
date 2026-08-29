@@ -40,6 +40,9 @@ type WireGuardService struct {
 	// pingHost is a field so the reachability test can be exercised without a
 	// live network; production always gets the real prober.
 	pingHost func(address string, timeout time.Duration) error
+	// localSubnets is a field for the same reason as pingHost: the reachability
+	// of the host is not something a unit test can have.
+	localSubnets func(excludeInterface string) []string
 
 	// mu makes a reconcile a single read-then-apply step. Without it a
 	// reconcile running alongside a mutation can apply a peer set read before
@@ -56,6 +59,7 @@ func NewWireGuardService(db *gorm.DB, encryptionKey string, device connectivity.
 		encryptionKey: encryptionKey,
 		device:        device,
 		pingHost:      connectivity.PingTest,
+		localSubnets:  connectivity.LocalSubnets,
 	}
 }
 
@@ -117,6 +121,10 @@ func (s *WireGuardService) UpdateServer(endpointHost string, listenPort int) (*m
 		return nil, err
 	}
 	original := *server
+
+	if err := ValidateEndpointHost(endpointHost); err != nil {
+		return nil, err
+	}
 
 	server.EndpointHost = endpointHost
 	server.ListenPort = listenPort

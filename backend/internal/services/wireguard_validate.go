@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -18,9 +19,10 @@ const (
 // instead of reporting a server fault.
 var ErrValidation = errors.New("invalid configuration")
 
-// DefaultReservedSubnets covers the Docker bridge range. Routing it into a
-// tunnel would cut the API off from postgres and redis.
-var DefaultReservedSubnets = []string{"172.16.0.0/12"}
+// The networks to keep out of a tunnel are read from the live interfaces at
+// call time — see connectivity.LocalSubnets. A constant wide enough to cover
+// every network Docker might hand out also swallows the private range ISPs
+// commonly use for their own management networks.
 
 // PeerNetwork is the subset of an existing peer that validation needs. The site
 // name travels with it so a conflict can be reported by name.
@@ -144,4 +146,42 @@ func parseCIDR(value string) (*net.IPNet, error) {
 
 func networksOverlap(a, b *net.IPNet) bool {
 	return a.Contains(b.IP) || b.Contains(a.IP)
+}
+
+// ValidateEndpointHost accepts an IP address or a hostname and nothing else.
+// The value is interpolated into a RouterOS command and a wg-quick config, both
+// of which an operator pastes into a privileged context, so a value carrying a
+// separator is a command they did not intend to run.
+func ValidateEndpointHost(host string) error {
+	if net.ParseIP(host) != nil {
+		return nil
+	}
+	if len(host) == 0 || len(host) > 253 {
+		return fmt.Errorf("%w: the public address must be an IP or a hostname", ErrValidation)
+	}
+	for _, label := range strings.Split(strings.TrimSuffix(host, "."), ".") {
+		if len(label) == 0 || len(label) > 63 {
+			return fmt.Errorf("%w: %q is not a valid hostname", ErrValidation, host)
+		}
+		for i, r := range label {
+			isAlphaNum := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+			if isAlphaNum || (r == '-' && i > 0 && i < len(label)-1) {
+				continue
+			}
+			return fmt.Errorf("%w: %q is not a valid hostname", ErrValidation, host)
+		}
+	}
+	return nil
+}
+
+// ValidateSiteLabel keeps a peer's name printable on one line. The name is
+// written into the config the site pastes into its router, where a newline
+// starts a new command.
+func ValidateSiteLabel(name string) error {
+	for _, r := range name {
+		if r == '\n' || r == '\r' || r < 0x20 || r == 0x7f {
+			return fmt.Errorf("%w: the site name cannot contain line breaks or control characters", ErrValidation)
+		}
+	}
+	return nil
 }

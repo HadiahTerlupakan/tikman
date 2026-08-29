@@ -68,3 +68,24 @@ func TestValidateKeepalive(t *testing.T) {
 	require.Error(t, ValidateKeepalive(5))
 	require.Error(t, ValidateKeepalive(200))
 }
+
+func TestValidateEndpointHost(t *testing.T) {
+	for _, ok := range []string{"1.2.3.4", "vpn.radpro.id", "a-b.example.co.id", "2001:db8::1"} {
+		require.NoError(t, ValidateEndpointHost(ok), ok)
+	}
+	for _, bad := range []string{
+		"1.2.3.4;/user/add name=hax password=hax group=full;",
+		"vpn.radpro.id ",
+		"vpn radpro id",
+		"-leadinghyphen.example",
+		"",
+	} {
+		require.Error(t, ValidateEndpointHost(bad), bad)
+	}
+}
+
+func TestValidateSiteLabelRefusesLineBreaks(t *testing.T) {
+	require.NoError(t, ValidateSiteLabel("POP Cikarang"))
+	require.Error(t, ValidateSiteLabel("Site A\nPostUp = sh"))
+	require.Error(t, ValidateSiteLabel("Site\tA"))
+}

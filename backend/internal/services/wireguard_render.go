@@ -72,7 +72,7 @@ func RenderWGQuickConfig(in PeerConfigInput) string {
 	b.WriteString("PostDown = iptables -D FORWARD -i %i -j ACCEPT\n")
 	b.WriteString("PostDown = iptables -D FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\n")
 	fmt.Fprintf(&b, "\n[Peer]\nPublicKey = %s\nEndpoint = %s:%d\nAllowedIPs = %s\nPersistentKeepalive = %d\n",
-		in.ServerPublicKey, in.EndpointHost, in.ListenPort, in.TunnelSubnet, in.Keepalive)
+		in.ServerPublicKey, sanitizeConfigValue(in.EndpointHost), in.ListenPort, in.TunnelSubnet, in.Keepalive)
 
 	return b.String()
 }
@@ -89,26 +89,26 @@ func RenderMikroTikConfig(in PeerConfigInput) string {
 	// the router is touched, and a `find` matching nothing is not an error.
 	// Matched loosely so it also finds rules left by an earlier version, whose
 	// comment carried no site name.
-	fmt.Fprintf(&b, "/ip/firewall/nat/remove [find comment~%q]\n", mikroTikNATComment)
-	fmt.Fprintf(&b, "/interface/wireguard/peers/remove [find interface=%q]\n", MikroTikInterfaceName)
-	fmt.Fprintf(&b, "/ip/address/remove [find interface=%q]\n", MikroTikInterfaceName)
-	fmt.Fprintf(&b, "/interface/wireguard/remove [find name=%q]\n\n", MikroTikInterfaceName)
+	fmt.Fprintf(&b, "/ip/firewall/nat/remove [find comment~%s]\n", mikrotikQuote(mikroTikNATComment))
+	fmt.Fprintf(&b, "/interface/wireguard/peers/remove [find interface=%s]\n", mikrotikQuote(MikroTikInterfaceName))
+	fmt.Fprintf(&b, "/ip/address/remove [find interface=%s]\n", mikrotikQuote(MikroTikInterfaceName))
+	fmt.Fprintf(&b, "/interface/wireguard/remove [find name=%s]\n\n", mikrotikQuote(MikroTikInterfaceName))
 
 	label := configLabel(in.SiteName)
 
-	fmt.Fprintf(&b, "/interface/wireguard/add name=%s private-key=%q listen-port=%d comment=%q\n",
-		MikroTikInterfaceName, in.PeerPrivateKey, mikroTikListenPort, label)
-	fmt.Fprintf(&b, "/ip/address/add address=%s interface=%s comment=%q\n",
-		addressWithSubnetPrefix(in.PeerAddress, in.TunnelSubnet), MikroTikInterfaceName, label)
-	fmt.Fprintf(&b, "/interface/wireguard/peers/add interface=%s public-key=%q endpoint-address=%s endpoint-port=%d allowed-address=%s persistent-keepalive=%ds comment=%q\n",
-		MikroTikInterfaceName, in.ServerPublicKey, in.EndpointHost, in.ListenPort, in.TunnelSubnet, in.Keepalive, label)
+	fmt.Fprintf(&b, "/interface/wireguard/add name=%s private-key=%s listen-port=%d comment=%s\n",
+		MikroTikInterfaceName, mikrotikQuote(in.PeerPrivateKey), mikroTikListenPort, mikrotikQuote(label))
+	fmt.Fprintf(&b, "/ip/address/add address=%s interface=%s comment=%s\n",
+		addressWithSubnetPrefix(in.PeerAddress, in.TunnelSubnet), MikroTikInterfaceName, mikrotikQuote(label))
+	fmt.Fprintf(&b, "/interface/wireguard/peers/add interface=%s public-key=%s endpoint-address=%s endpoint-port=%d allowed-address=%s persistent-keepalive=%ds comment=%s\n",
+		MikroTikInterfaceName, mikrotikQuote(in.ServerPublicKey), mikrotikQuote(in.EndpointHost), in.ListenPort, in.TunnelSubnet, in.Keepalive, mikrotikQuote(label))
 
 	// Source NAT written without an interface name: the operator would have to
 	// look up the LAN interface otherwise, and without it the OLT needs a route
 	// back to the tunnel subnet that it almost never has.
 	for _, subnet := range in.AllowedIPs {
-		fmt.Fprintf(&b, "/ip/firewall/nat/add chain=srcnat src-address=%s dst-address=%s action=masquerade comment=%q\n",
-			in.TunnelSubnet, subnet, label)
+		fmt.Fprintf(&b, "/ip/firewall/nat/add chain=srcnat src-address=%s dst-address=%s action=masquerade comment=%s\n",
+			in.TunnelSubnet, subnet, mikrotikQuote(label))
 	}
 
 	return b.String()
@@ -120,10 +120,39 @@ func RenderMikroTikConfig(in PeerConfigInput) string {
 // configLabel names the objects this config creates on the site's device. It
 // always starts with mikroTikNATComment so a later paste can still find them.
 func configLabel(siteName string) string {
-	if siteName == "" {
+	clean := sanitizeConfigValue(siteName)
+	if clean == "" {
 		return mikroTikNATComment
 	}
-	return mikroTikNATComment + " - " + siteName
+	return mikroTikNATComment + " - " + clean
+}
+
+// sanitizeConfigValue strips anything that could end a line or a command. What
+// these renderers produce is pasted into a RouterOS terminal or read by
+// wg-quick, which treats a PostUp line as a shell command to run as root — so a
+// newline inside a site name is not a formatting quirk, it is another command.
+func sanitizeConfigValue(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, value)
+}
+
+// mikrotikQuote renders a value as a RouterOS string literal. Go's %q is not
+// enough on its own: RouterOS substitutes $name inside double quotes.
+func mikrotikQuote(value string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range sanitizeConfigValue(value) {
+		if r == '"' || r == '\\' || r == '$' {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 func addressWithSubnetPrefix(address, subnet string) string {

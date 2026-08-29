@@ -60,6 +60,10 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 		return nil, err
 	}
 
+	if err := ValidateSiteLabel(name); err != nil {
+		return nil, err
+	}
+
 	peers, err := s.ListPeers()
 	if err != nil {
 		return nil, err
@@ -135,7 +139,7 @@ func (s *WireGuardService) resolveNewPeerNetwork(server *models.WireGuardServer,
 	if err != nil {
 		return "", err
 	}
-	if err := ValidateAllowedIPs(allowedIPs, networks, server.TunnelSubnet, DefaultReservedSubnets); err != nil {
+	if err := ValidateAllowedIPs(allowedIPs, networks, server.TunnelSubnet, s.reservedSubnets(server)); err != nil {
 		return "", err
 	}
 
@@ -176,7 +180,7 @@ func (s *WireGuardService) UpdatePeer(id uuid.UUID, name *string, allowedIPs []s
 		if err != nil {
 			return nil, err
 		}
-		if err := ValidateAllowedIPs(allowedIPs, networks, server.TunnelSubnet, DefaultReservedSubnets); err != nil {
+		if err := ValidateAllowedIPs(allowedIPs, networks, server.TunnelSubnet, s.reservedSubnets(server)); err != nil {
 			return nil, err
 		}
 		if err := peer.SetAllowedIPs(allowedIPs); err != nil {
@@ -184,6 +188,9 @@ func (s *WireGuardService) UpdatePeer(id uuid.UUID, name *string, allowedIPs []s
 		}
 	}
 	if name != nil {
+		if err := ValidateSiteLabel(*name); err != nil {
+			return nil, err
+		}
 		peer.Name = *name
 	}
 	if enabled != nil {
@@ -281,6 +288,12 @@ func (s *WireGuardService) peerNetworks(peers []models.WireGuardPeer, exclude uu
 		})
 	}
 	return networks, nil
+}
+
+// reservedSubnets are the networks this container already reaches directly.
+// Routing one into a tunnel would cut the API off from its own database.
+func (s *WireGuardService) reservedSubnets(server *models.WireGuardServer) []string {
+	return s.localSubnets(server.InterfaceName)
 }
 
 func takenAddresses(peers []models.WireGuardPeer) []string {
