@@ -79,6 +79,8 @@ func main() {
 func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *services.OLTService, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
 	logger.Info("Starting metrics collection cycle")
 
+	blockedOLTs := oltsBehindDownTunnel(db, time.Now(), logger)
+
 	// Discover and register ONTs for every configured OLT before querying
 	// metrics. This makes a newly added OLT self-populate without requiring
 	// an operator to press Discover manually.
@@ -87,6 +89,9 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *se
 		logger.Error("Failed to list OLTs for discovery", zap.Error(err))
 	} else {
 		for i := range olts {
+			if blockedOLTs[olts[i].ID] {
+				continue
+			}
 			go oltService.AutoDiscoverONTMetrics(&olts[i])
 		}
 	}
@@ -106,6 +111,10 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *se
 	oltRatesCache := make(map[string]map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
 
 	for _, ont := range onts {
+		if blockedOLTs[ont.OLTID] {
+			continue
+		}
+
 		oltKey, olt, ok := getOrInitOLT(db, ont, &oltMetricsCache, &oltStatusCache, &oltStatusWalkOK, &oltRatesCache, logger)
 		if !ok {
 			continue
