@@ -17,6 +17,9 @@ func TestPeerConnected(t *testing.T) {
 	require.False(t, PeerConnected(&stale, now))
 
 	require.False(t, PeerConnected(nil, now), "a peer that never handshook is not connected")
+
+	zero := time.Time{}
+	require.False(t, PeerConnected(&zero, now), "an unmarshalled zero timestamp is not a handshake")
 }
 
 func TestPeerConnectedToleratesOneMissedRehandshake(t *testing.T) {
