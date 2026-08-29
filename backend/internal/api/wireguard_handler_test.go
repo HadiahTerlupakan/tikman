@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
@@ -182,4 +183,60 @@ func TestDeletePeerReturnsNoContent(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Model(&models.WireGuardPeer{}).Count(&count).Error)
 	require.Zero(t, count)
+}
+
+func TestUpdatePeerTogglesEnabled(t *testing.T) {
+	handler, service, db := SetupWireGuardHandlerTest(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createHandlerTestSite(t, db, "Site A")
+	peer, err := service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.NoError(t, err)
+
+	disabled := false
+	w, c := SetupTestContext(http.MethodPut, "/api/v1/wireguard/peers/"+peer.ID.String(), UpdateWireguardPeerRequest{
+		Enabled: &disabled,
+	})
+	c.Params = gin.Params{{Key: "id", Value: peer.ID.String()}}
+	handler.UpdatePeer(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response WireguardPeerResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	require.False(t, response.Enabled)
+	require.False(t, response.Connected, "a disabled peer is never reported as connected")
+	require.NotContains(t, w.Body.String(), "private")
+}
+
+func TestUpdatePeerReportsUnknownPeerAsNotFound(t *testing.T) {
+	handler, service, _ := SetupWireGuardHandlerTest(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+
+	missing := uuid.New().String()
+	name := "Site A"
+	w, c := SetupTestContext(http.MethodPut, "/api/v1/wireguard/peers/"+missing, UpdateWireguardPeerRequest{
+		Name: &name,
+	})
+	c.Params = gin.Params{{Key: "id", Value: missing}}
+	handler.UpdatePeer(c)
+
+	require.Equal(t, http.StatusNotFound, w.Code,
+		"a peer that does not exist must not read as bad input")
+}
+
+func TestCreatePeerReportsMissingServerAsBadRequest(t *testing.T) {
+	handler, _, db := SetupWireGuardHandlerTest(t)
+	site := createHandlerTestSite(t, db, "Site A")
+
+	w, c := SetupTestContext(http.MethodPost, "/api/v1/wireguard/peers", CreateWireguardPeerRequest{
+		SiteID:     site.ID.String(),
+		Name:       "Site A",
+		AllowedIPs: []string{"10.10.10.0/24"},
+	})
+	handler.CreatePeer(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "NOT_CONFIGURED")
 }

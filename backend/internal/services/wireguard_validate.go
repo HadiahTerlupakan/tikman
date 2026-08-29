@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
@@ -11,6 +12,11 @@ const (
 	minKeepaliveSeconds = 10
 	maxKeepaliveSeconds = 120
 )
+
+// ErrValidation marks a failure caused by the caller's input rather than by
+// something going wrong inside the system, so the HTTP layer can answer 400
+// instead of reporting a server fault.
+var ErrValidation = errors.New("invalid configuration")
 
 // DefaultReservedSubnets covers the Docker bridge range. Routing it into a
 // tunnel would cut the API off from postgres and redis.
@@ -29,7 +35,7 @@ type PeerNetwork struct {
 // overlap with a subnet another site already claims.
 func ValidateAllowedIPs(candidate []string, others []PeerNetwork, tunnelSubnet string, reserved []string) error {
 	if len(candidate) == 0 {
-		return fmt.Errorf("at least one local subnet is required")
+		return fmt.Errorf("%w: at least one local subnet is required", ErrValidation)
 	}
 
 	parsed := make([]*net.IPNet, 0, len(candidate))
@@ -39,7 +45,7 @@ func ValidateAllowedIPs(candidate []string, others []PeerNetwork, tunnelSubnet s
 			return err
 		}
 		if ones, bits := network.Mask.Size(); ones == 0 && bits > 0 {
-			return fmt.Errorf("%s is a default route: it would send all VPS traffic into one site", entry)
+			return fmt.Errorf("%w: %s is a default route: it would send all VPS traffic into one site", ErrValidation, entry)
 		}
 		parsed = append(parsed, network)
 	}
@@ -61,7 +67,7 @@ func rejectOverlapWith(candidate []*net.IPNet, subnets []string, label string) e
 		}
 		for _, entry := range candidate {
 			if networksOverlap(entry, network) {
-				return fmt.Errorf("%s overlaps the %s %s", entry.String(), label, subnet)
+				return fmt.Errorf("%w: %s overlaps the %s %s", ErrValidation, entry.String(), label, subnet)
 			}
 		}
 	}
@@ -85,7 +91,7 @@ func rejectOverlapWithPeer(candidate []*net.IPNet, other PeerNetwork) error {
 		}
 		for _, own := range candidate {
 			if networksOverlap(own, network) {
-				return fmt.Errorf("%s overlaps %s, already used by site %s", own.String(), entry, other.SiteName)
+				return fmt.Errorf("%w: %s overlaps %s, already used by site %s", ErrValidation, own.String(), entry, other.SiteName)
 			}
 		}
 	}
@@ -97,7 +103,7 @@ func rejectOverlapWithPeer(candidate []*net.IPNet, other PeerNetwork) error {
 func ValidateTunnelAddress(address, tunnelSubnet, serverAddress string, taken []string) error {
 	ip := net.ParseIP(address)
 	if ip == nil {
-		return fmt.Errorf("%q is not a valid IP address", address)
+		return fmt.Errorf("%w: %q is not a valid IP address", ErrValidation, address)
 	}
 
 	network, err := parseCIDR(tunnelSubnet)
@@ -105,14 +111,14 @@ func ValidateTunnelAddress(address, tunnelSubnet, serverAddress string, taken []
 		return err
 	}
 	if !network.Contains(ip) {
-		return fmt.Errorf("%s is outside the tunnel subnet %s", address, tunnelSubnet)
+		return fmt.Errorf("%w: %s is outside the tunnel subnet %s", ErrValidation, address, tunnelSubnet)
 	}
 	if address == serverAddress {
-		return fmt.Errorf("%s is the server address", address)
+		return fmt.Errorf("%w: %s is the server address", ErrValidation, address)
 	}
 	for _, used := range taken {
 		if used == address {
-			return fmt.Errorf("%s is already assigned to another site", address)
+			return fmt.Errorf("%w: %s is already assigned to another site", ErrValidation, address)
 		}
 	}
 	return nil
@@ -123,7 +129,7 @@ func ValidateTunnelAddress(address, tunnelSubnet, serverAddress string, taken []
 // server notices.
 func ValidateKeepalive(seconds int) error {
 	if seconds < minKeepaliveSeconds || seconds > maxKeepaliveSeconds {
-		return fmt.Errorf("keepalive must be between %d and %d seconds", minKeepaliveSeconds, maxKeepaliveSeconds)
+		return fmt.Errorf("%w: keepalive must be between %d and %d seconds", ErrValidation, minKeepaliveSeconds, maxKeepaliveSeconds)
 	}
 	return nil
 }
@@ -131,7 +137,7 @@ func ValidateKeepalive(seconds int) error {
 func parseCIDR(value string) (*net.IPNet, error) {
 	_, network, err := net.ParseCIDR(value)
 	if err != nil {
-		return nil, fmt.Errorf("%q is not a valid subnet in CIDR form, for example 10.10.10.0/24", value)
+		return nil, fmt.Errorf("%w: %q is not a valid subnet in CIDR form, for example 10.10.10.0/24", ErrValidation, value)
 	}
 	return network, nil
 }

@@ -53,12 +53,12 @@ func (h *WireGuardHandler) SaveServer(c *gin.Context) {
 	}
 
 	if _, err := h.service.EnsureServer(req.EndpointHost); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to initialise server", Code: "SETUP_FAILED", Details: err.Error()})
+		wireguardFailure(c, err, "Failed to initialise server")
 		return
 	}
 	server, err := h.service.UpdateServer(req.EndpointHost, req.ListenPort)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to save server", Code: "SAVE_FAILED", Details: err.Error()})
+		wireguardFailure(c, err, "Failed to save server")
 		return
 	}
 
@@ -101,7 +101,7 @@ func (h *WireGuardHandler) CreatePeer(c *gin.Context) {
 
 	peer, err := h.service.CreatePeer(siteID, req.Name, req.AllowedIPs, req.TunnelAddress)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Failed to create peer", Code: "CREATE_FAILED", Details: err.Error()})
+		wireguardFailure(c, err, "Failed to create peer")
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *WireGuardHandler) UpdatePeer(c *gin.Context) {
 
 	peer, err := h.service.UpdatePeer(id, req.Name, req.AllowedIPs, req.Enabled)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Failed to update peer", Code: "UPDATE_FAILED", Details: err.Error()})
+		wireguardFailure(c, err, "Failed to update peer")
 		return
 	}
 
@@ -147,7 +147,7 @@ func (h *WireGuardHandler) DeletePeer(c *gin.Context) {
 	}
 
 	if err := h.service.DeletePeer(id); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to delete peer", Code: "DELETE_FAILED"})
+		wireguardFailure(c, err, "Failed to delete peer")
 		return
 	}
 
@@ -168,7 +168,7 @@ func (h *WireGuardHandler) GetPeerConfig(c *gin.Context) {
 	format := c.DefaultQuery("format", services.ConfigFormatWGQuick)
 	config, err := h.service.PeerConfig(id, format)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Failed to render config", Code: "CONFIG_FAILED", Details: err.Error()})
+		wireguardFailure(c, err, "Failed to render config")
 		return
 	}
 
@@ -191,6 +191,26 @@ func (h *WireGuardHandler) SuggestSubnets(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, SuggestedSubnetsResponse{Subnets: subnets})
+}
+
+// wireguardFailure answers with the status the error actually deserves. A
+// caller's bad input must not read as a server fault, and an internal failure
+// must not read as bad input — the frontend and any monitoring both branch on
+// this.
+func wireguardFailure(c *gin.Context, err error, message string) {
+	switch {
+	case errors.Is(err, services.ErrPeerNotFound):
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Peer not found", Code: "NOT_FOUND"})
+	case errors.Is(err, services.ErrServerNotConfigured):
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Set up the WireGuard server first",
+			Code:  "NOT_CONFIGURED",
+		})
+	case errors.Is(err, services.ErrValidation):
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: message, Code: "INVALID_CONFIGURATION", Details: err.Error()})
+	default:
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: message, Code: "INTERNAL_ERROR"})
+	}
 }
 
 func (h *WireGuardHandler) audit(c *gin.Context, action, resource string, id uuid.UUID, newValue map[string]interface{}) {

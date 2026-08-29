@@ -29,7 +29,7 @@ func AllocateTunnelAddress(tunnelSubnet, serverAddress string, taken []string) (
 			return candidate.String(), nil
 		}
 	}
-	return "", fmt.Errorf("no free address left in tunnel subnet %s", tunnelSubnet)
+	return "", fmt.Errorf("%w: no free address left in tunnel subnet %s", ErrValidation, tunnelSubnet)
 }
 
 // SuggestAllowedIPs turns the OLT addresses already registered for a site into

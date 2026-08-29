@@ -10,6 +10,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// ErrPeerNotFound lets the HTTP layer answer 404 without reaching for GORM's
+// error types or matching on message text.
+var ErrPeerNotFound = errors.New("peer not found")
+
 // ListPeers returns every peer, ordered by name.
 func (s *WireGuardService) ListPeers() ([]models.WireGuardPeer, error) {
 	var peers []models.WireGuardPeer
@@ -24,7 +28,7 @@ func (s *WireGuardService) GetPeer(id uuid.UUID) (*models.WireGuardPeer, error) 
 	var peer models.WireGuardPeer
 	if err := s.db.First(&peer, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("peer not found: %w", err)
+			return nil, fmt.Errorf("%w: %s", ErrPeerNotFound, id)
 		}
 		return nil, fmt.Errorf("database error: %w", err)
 	}
@@ -58,7 +62,7 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 	}
 	for _, existing := range peers {
 		if existing.SiteID == siteID {
-			return nil, fmt.Errorf("this site already has a tunnel")
+			return nil, fmt.Errorf("%w: this site already has a tunnel", ErrValidation)
 		}
 	}
 
@@ -235,7 +239,7 @@ func (s *WireGuardService) PeerConfig(id uuid.UUID, format string) (string, erro
 	case ConfigFormatMikroTik:
 		return RenderMikroTikConfig(input), nil
 	default:
-		return "", fmt.Errorf("unsupported format %q", format)
+		return "", fmt.Errorf("%w: unsupported format %q", ErrValidation, format)
 	}
 }
 
