@@ -24,8 +24,11 @@ func TestRenderWGQuickConfig(t *testing.T) {
 	expected := `[Interface]
 PrivateKey = PEERPRIV
 Address = 10.88.0.5/24
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostUp = iptables -A FORWARD -i %i -j ACCEPT
 PostUp = iptables -t nat -A POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
 PostDown = iptables -t nat -D POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT
 
 [Peer]
 PublicKey = SERVERPUB
@@ -41,9 +44,25 @@ func TestRenderWGQuickConfigOneRulePerSubnet(t *testing.T) {
 	in.AllowedIPs = []string{"10.10.10.0/24", "192.168.88.0/24"}
 
 	output := RenderWGQuickConfig(in)
-	require.Equal(t, 2, strings.Count(output, "PostUp ="))
-	require.Equal(t, 2, strings.Count(output, "PostDown ="))
+	require.Equal(t, 2, strings.Count(output, "-A POSTROUTING"))
+	require.Equal(t, 2, strings.Count(output, "-D POSTROUTING"))
 	require.Contains(t, output, "-d 192.168.88.0/24 -j MASQUERADE")
+}
+
+// Without forwarding the masquerade rules never run: POSTROUTING is reached
+// only after the routing decision, and the packet is dropped before that.
+func TestRenderWGQuickConfigEnablesForwarding(t *testing.T) {
+	output := RenderWGQuickConfig(renderInput())
+
+	forwarding := strings.Index(output, "net.ipv4.ip_forward=1")
+	accept := strings.Index(output, "iptables -A FORWARD -i %i -j ACCEPT")
+	masquerade := strings.Index(output, "-A POSTROUTING")
+
+	require.NotEqual(t, -1, forwarding)
+	require.NotEqual(t, -1, accept)
+	require.Less(t, forwarding, masquerade, "forwarding must be on before the NAT rules are installed")
+	require.Less(t, accept, masquerade)
+	require.Contains(t, output, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")
 }
 
 func TestRenderWGQuickConfigNeverTunnelsAllTraffic(t *testing.T) {

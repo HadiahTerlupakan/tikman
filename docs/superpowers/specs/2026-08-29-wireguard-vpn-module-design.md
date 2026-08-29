@@ -223,8 +223,11 @@ adalah contoh untuk site dengan subnet lokal `10.10.10.0/24` dan alamat tunnel
 [Interface]
 PrivateKey = <private key peer>
 Address = 10.88.0.5/24
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostUp = iptables -A FORWARD -i %i -j ACCEPT
 PostUp = iptables -t nat -A POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
 PostDown = iptables -t nat -D POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT
 
 [Peer]
 PublicKey = <public key server>
@@ -244,6 +247,15 @@ PersistentKeepalive = 25
 /ip/firewall/nat/add chain=srcnat src-address=10.88.0.0/24 dst-address=10.10.10.0/24 \
     action=masquerade comment="TikMan VPN"
 ```
+
+Dua baris pertama pada `PostUp` bukan pelengkap. Paket yang masuk lewat `wg0`
+harus diteruskan ke LAN site, sedangkan `POSTROUTING` baru dilalui sesudah
+keputusan routing. Dengan `net.ipv4.ip_forward=0` — bawaan sebagian besar
+distribusi — dan kebijakan `FORWARD` `DROP` yang otomatis dipasang Docker,
+paket sudah hilang sebelum sampai ke tabel NAT. MikroTik meneruskan secara
+bawaan sehingga tidak memerlukan padanannya. `ip_forward` sengaja tidak
+dikembalikan pada `PostDown`: mesin itu bisa jadi sudah meneruskan trafik lain
+sebelum tunnel ini ada.
 
 Baris masquerade adalah bagian yang membuat pemasangan cukup sekali tempel.
 Tanpa itu OLT harus punya rute balik ke subnet tunnel, dan pada kebanyakan
