@@ -230,3 +230,49 @@ func validZTECommandRequest() models.ZTEGPONRegisterRequest {
 		PPPoEPassword:   "secret-password",
 	}
 }
+
+// The OLT writes its own description onto an ONU registered without one, and
+// the poll reads that back over the operator's. The line has to be sent for the
+// stored description to survive a cycle.
+func TestBuildZTEGPONRegisterCommandsSendsDescription(t *testing.T) {
+	req := validZTECommandRequest()
+	req.Name = "258179206252-Saraswati"
+	req.Description = "Blok C no 14"
+
+	commands, err := BuildZTEGPONRegisterCommands(req, 7)
+	require.NoError(t, err)
+
+	// Directly after the name and inside the ONU interface, which is where the
+	// C300's own running config keeps it.
+	nameAt := indexOfCommand(t, commands, "name 258179206252-Saraswati")
+	require.Equal(t, "interface gpon-onu_1/3/1:7", commands[nameAt-1])
+	require.Equal(t, "description Blok C no 14", commands[nameAt+1])
+}
+
+func TestBuildZTEGPONRegisterCommandsOmitsEmptyDescription(t *testing.T) {
+	req := validZTECommandRequest()
+	req.Description = "   "
+
+	commands, err := BuildZTEGPONRegisterCommands(req, 7)
+	require.NoError(t, err)
+	require.NotContains(t, strings.Join(commands, "\n"), "description")
+}
+
+func TestBuildZTEGPONRegisterCommandsRejectsDescriptionMetacharacters(t *testing.T) {
+	req := validZTECommandRequest()
+	req.Description = "Blok C; no 14"
+
+	_, err := BuildZTEGPONRegisterCommands(req, 7)
+	require.ErrorContains(t, err, "unsupported characters")
+}
+
+func indexOfCommand(t *testing.T, commands []string, want string) int {
+	t.Helper()
+	for i, command := range commands {
+		if command == want {
+			return i
+		}
+	}
+	t.Fatalf("command %q not found in %v", want, commands)
+	return -1
+}

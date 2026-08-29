@@ -78,6 +78,12 @@ func buildZTEInterfaceSection(req models.ZTEGPONRegisterRequest, onuID int) []st
 	if name := strings.TrimSpace(req.Name); name != "" {
 		commands = append(commands, fmt.Sprintf("name %s", name))
 	}
+	// Sent for the same reason as the name: the poll reads both back off the OLT
+	// and writes them over the stored row. A description kept only in TikMan was
+	// therefore replaced by whatever the OLT held for that ONU on the next cycle.
+	if description := strings.TrimSpace(req.Description); description != "" {
+		commands = append(commands, fmt.Sprintf("description %s", description))
+	}
 
 	// "profile", not "profile-name": the latter is rejected as invalid input on
 	// a C300 V2.1.0, whose own running config reads "tcont 1 name X profile Y".
@@ -184,7 +190,9 @@ func validateZTECommandRequest(req models.ZTEGPONRegisterRequest, onuID int) err
 	if strings.TrimSpace(req.ONUType) == "" {
 		return fmt.Errorf("ONU type is required")
 	}
-	if (strings.TrimSpace(req.Name) != "" && !isZTEName(req.Name)) || !isZTECommandToken(req.ONUType) || !isZTECommandToken(req.DownloadProfile) || !isZTECommandToken(req.UploadProfile) {
+	if (strings.TrimSpace(req.Name) != "" && !isZTEName(req.Name)) ||
+		(strings.TrimSpace(req.Description) != "" && !isZTEName(req.Description)) ||
+		!isZTECommandToken(req.ONUType) || !isZTECommandToken(req.DownloadProfile) || !isZTECommandToken(req.UploadProfile) {
 		return fmt.Errorf("command fields contain unsupported characters")
 	}
 	if req.DownloadProfile != req.UploadProfile {

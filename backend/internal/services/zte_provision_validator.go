@@ -46,6 +46,9 @@ func ValidateZTEGPONRegister(req models.ZTEGPONRegisterRequest, olt *models.OLT)
 	if strings.TrimSpace(req.Name) != "" && !isZTEName(req.Name) {
 		return fmt.Errorf("ONU name contains unsupported characters")
 	}
+	if strings.TrimSpace(req.Description) != "" && !isZTEName(req.Description) {
+		return fmt.Errorf("ONU description contains unsupported characters")
+	}
 	if req.VLANMode != models.ZTEVLANModeTag && req.VLANMode != models.ZTEVLANModeUntag {
 		return fmt.Errorf("VLAN mode must be tag or untag")
 	}

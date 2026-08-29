@@ -259,6 +259,33 @@ describe("ZteProvisionModal", () => {
       confirm: true,
     });
   });
+
+  // The description reached the OLT nowhere and the row it was stored in was
+  // overwritten by the poll, so the wizard's own half of the trip is asserted
+  // here rather than inferred from what the device ended up holding.
+  it("carries the description typed on the identity step", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <ZteProvisionModal
+        open
+        mode="register"
+        target={target}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/Description/i), "Blok C no 14");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await fillInternetService("pass");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      description: "Blok C no 14",
+    });
+  });
 });
 
 // The toggle used to be hardcoded off, so reopening the form showed VEIP

@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/connectivity"
@@ -46,6 +47,15 @@ func recordZTEService(db *gorm.DB, encryptionKey []byte, ont models.ONT, req mod
 	updates := map[string]interface{}{
 		"service_config":    datatypes.JSON(encoded),
 		"service_config_at": time.Now(),
+	}
+	// Registration reserves the row with these, but configuring an existing ONU
+	// wrote them nowhere: an operator who corrected a name or a description from
+	// the configure form saw the OLT take it and the row keep the old value.
+	if name := strings.TrimSpace(req.Name); name != "" {
+		updates["name"] = name
+	}
+	if description := strings.TrimSpace(req.Description); description != "" {
+		updates["description"] = description
 	}
 	// Sealed with the same key as the OLT's own credentials. The marshalled
 	// service deliberately carries no password field.

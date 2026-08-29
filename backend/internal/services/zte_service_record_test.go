@@ -56,3 +56,41 @@ func TestRecordZTEServiceKeepsThePasswordOutOfTheJSON(t *testing.T) {
 	assert.NotEmpty(t, stored.PPPoEPassword)
 	assert.NotContains(t, stored.PPPoEPassword, "secret")
 }
+
+// Configuring an existing ONU sent the name and description to the OLT and
+// left the row holding whatever it held before.
+func TestRecordZTEServiceStoresNameAndDescription(t *testing.T) {
+	db := setupTestDB(t)
+	ont := models.ONT{
+		ID: uuid.New(), OLTID: uuid.New(), PortID: 1, ONTID: 15,
+		SerialNumber: "HWTCB403E8A0", Name: "lama", Description: "ONU-115",
+	}
+	require.NoError(t, db.Create(&ont).Error)
+
+	req := registerRequest()
+	req.Name = "258179206252-Saraswati"
+	req.Description = "Blok C no 14"
+	require.NoError(t, recordZTEService(db, []byte(testEncryptionKey), ont, req))
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
+	assert.Equal(t, "258179206252-Saraswati", stored.Name)
+	assert.Equal(t, "Blok C no 14", stored.Description)
+}
+
+// A job that carries neither must not blank what the row already holds.
+func TestRecordZTEServiceKeepsExistingIdentityWhenUnset(t *testing.T) {
+	db := setupTestDB(t)
+	ont := models.ONT{
+		ID: uuid.New(), OLTID: uuid.New(), PortID: 1, ONTID: 15,
+		SerialNumber: "HWTCB403E8A0", Name: "258179206252-Saraswati", Description: "Blok C no 14",
+	}
+	require.NoError(t, db.Create(&ont).Error)
+
+	require.NoError(t, recordZTEService(db, []byte(testEncryptionKey), ont, registerRequest()))
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
+	assert.Equal(t, "258179206252-Saraswati", stored.Name)
+	assert.Equal(t, "Blok C no 14", stored.Description)
+}
