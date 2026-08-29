@@ -225,9 +225,11 @@ PrivateKey = <private key peer>
 Address = 10.88.0.5/24
 PostUp = sysctl -w net.ipv4.ip_forward=1
 PostUp = iptables -A FORWARD -i %i -j ACCEPT
+PostUp = iptables -A FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 PostUp = iptables -t nat -A POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
 PostDown = iptables -t nat -D POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT
+PostDown = iptables -D FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 [Peer]
 PublicKey = <public key server>
@@ -248,14 +250,23 @@ PersistentKeepalive = 25
     action=masquerade comment="TikMan VPN"
 ```
 
-Dua baris pertama pada `PostUp` bukan pelengkap. Paket yang masuk lewat `wg0`
+Tiga baris pertama pada `PostUp` bukan pelengkap. Paket yang masuk lewat `wg0`
 harus diteruskan ke LAN site, sedangkan `POSTROUTING` baru dilalui sesudah
 keputusan routing. Dengan `net.ipv4.ip_forward=0` — bawaan sebagian besar
 distribusi — dan kebijakan `FORWARD` `DROP` yang otomatis dipasang Docker,
-paket sudah hilang sebelum sampai ke tabel NAT. MikroTik meneruskan secara
-bawaan sehingga tidak memerlukan padanannya. `ip_forward` sengaja tidak
-dikembalikan pada `PostDown`: mesin itu bisa jadi sudah meneruskan trafik lain
-sebelum tunnel ini ada.
+paket sudah hilang sebelum sampai ke tabel NAT.
+
+Aturan `-i %i` saja hanya membuka satu arah. Balasan OLT sudah di-un-SNAT oleh
+conntrack sebelum keputusan routing, sehingga rantai `FORWARD` melihatnya
+sebagai in=LAN out=`wg0` dan tidak ada aturan yang cocok: dengan kebijakan
+`DROP` balasan itu ikut hilang. Karena itu arah balik memakai aturannya
+sendiri. Dipilih `-m conntrack --ctstate ESTABLISHED,RELATED` alih-alih
+`-o %i -j ACCEPT` polos supaya LAN site tidak bisa memulai koneksi masuk ke
+tunnel.
+
+MikroTik meneruskan secara bawaan sehingga tidak memerlukan padanannya.
+`ip_forward` sengaja tidak dikembalikan pada `PostDown`: mesin itu bisa jadi
+sudah meneruskan trafik lain sebelum tunnel ini ada.
 
 Baris masquerade adalah bagian yang membuat pemasangan cukup sekali tempel.
 Tanpa itu OLT harus punya rute balik ke subnet tunnel, dan pada kebanyakan

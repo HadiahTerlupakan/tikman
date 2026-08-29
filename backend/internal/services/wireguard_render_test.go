@@ -26,9 +26,11 @@ PrivateKey = PEERPRIV
 Address = 10.88.0.5/24
 PostUp = sysctl -w net.ipv4.ip_forward=1
 PostUp = iptables -A FORWARD -i %i -j ACCEPT
+PostUp = iptables -A FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 PostUp = iptables -t nat -A POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
 PostDown = iptables -t nat -D POSTROUTING -s 10.88.0.0/24 -d 10.10.10.0/24 -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT
+PostDown = iptables -D FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 [Peer]
 PublicKey = SERVERPUB
@@ -63,6 +65,24 @@ func TestRenderWGQuickConfigEnablesForwarding(t *testing.T) {
 	require.Less(t, forwarding, masquerade, "forwarding must be on before the NAT rules are installed")
 	require.Less(t, accept, masquerade)
 	require.Contains(t, output, "PostDown = iptables -D FORWARD -i %i -j ACCEPT")
+}
+
+// The OLT's reply is un-SNATted by conntrack before the routing decision, so
+// the FORWARD chain sees it as in=LAN out=%i: the inbound rule never matches
+// it and a DROP policy takes it. Only a return-direction rule lets the reply
+// through, and only ESTABLISHED,RELATED keeps the site's LAN from initiating
+// into the tunnel on the back of it.
+func TestRenderWGQuickConfigAcceptsTheReturnDirection(t *testing.T) {
+	output := RenderWGQuickConfig(renderInput())
+
+	accept := strings.Index(output, "PostUp = iptables -A FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
+	masquerade := strings.Index(output, "-A POSTROUTING")
+
+	require.NotEqual(t, -1, accept, "without the return rule the OLT answers and the reply is dropped")
+	require.Less(t, accept, masquerade)
+	require.NotContains(t, output, "FORWARD -o %i -j ACCEPT",
+		"a blanket return rule would let the site's LAN initiate into the tunnel")
+	require.Contains(t, output, "PostDown = iptables -D FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
 }
 
 func TestRenderWGQuickConfigNeverTunnelsAllTraffic(t *testing.T) {

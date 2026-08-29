@@ -43,10 +43,16 @@ func RenderWGQuickConfig(in PeerConfigInput) string {
 	// Forwarding has to be enabled and the packet has to survive the FORWARD
 	// chain before it ever reaches POSTROUTING. Most distributions ship
 	// net.ipv4.ip_forward=0, and a box with Docker installed also has a FORWARD
-	// policy of DROP, so without these two lines the masquerade rules below
-	// never run: the tunnel looks alive while the OLT stays unreachable.
+	// policy of DROP, so without these lines the masquerade rules below never
+	// run: the tunnel looks alive while the OLT stays unreachable.
+	//
+	// The reply needs its own rule. conntrack un-SNATs it before the routing
+	// decision, so the FORWARD chain sees in=LAN out=%i and the -i rule above
+	// does not match it. Matching on ESTABLISHED,RELATED rather than accepting
+	// everything leaving %i keeps the site's LAN from initiating into the tunnel.
 	b.WriteString("PostUp = sysctl -w net.ipv4.ip_forward=1\n")
 	b.WriteString("PostUp = iptables -A FORWARD -i %i -j ACCEPT\n")
+	b.WriteString("PostUp = iptables -A FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\n")
 	for _, subnet := range in.AllowedIPs {
 		fmt.Fprintf(&b, "PostUp = iptables -t nat -A POSTROUTING -s %s -d %s -j MASQUERADE\n", in.TunnelSubnet, subnet)
 	}
@@ -56,6 +62,7 @@ func RenderWGQuickConfig(in PeerConfigInput) string {
 	// ip_forward is deliberately not turned back off: the box may be routing for
 	// something else that was relying on it long before this tunnel existed.
 	b.WriteString("PostDown = iptables -D FORWARD -i %i -j ACCEPT\n")
+	b.WriteString("PostDown = iptables -D FORWARD -o %i -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\n")
 	fmt.Fprintf(&b, "\n[Peer]\nPublicKey = %s\nEndpoint = %s:%d\nAllowedIPs = %s\nPersistentKeepalive = %d\n",
 		in.ServerPublicKey, in.EndpointHost, in.ListenPort, in.TunnelSubnet, in.Keepalive)
 
