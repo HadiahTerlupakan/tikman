@@ -10,6 +10,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// ErrSiteHasTunnel is returned when a site cannot be deleted because a
+// WireGuard peer still points at it.
+var ErrSiteHasTunnel = errors.New("site still has a VPN tunnel")
+
 type SiteService struct {
 	db *gorm.DB
 }
@@ -69,7 +73,18 @@ func (s *SiteService) Update(id uuid.UUID, updates map[string]interface{}) error
 	return nil
 }
 
+// Delete removes a site, refusing while it still has a VPN tunnel. Deleting it
+// anyway would leave the peer row applied to the kernel and holding its subnet,
+// with nothing left in the UI to remove it from.
 func (s *SiteService) Delete(id uuid.UUID) error {
+	var tunnels int64
+	if err := s.db.Model(&models.WireGuardPeer{}).Where("site_id = ?", id).Count(&tunnels).Error; err != nil {
+		return fmt.Errorf("failed to check site tunnels: %w", err)
+	}
+	if tunnels > 0 {
+		return fmt.Errorf("%w: remove the site's tunnel on the VPN page first", ErrSiteHasTunnel)
+	}
+
 	if err := s.db.Delete(&models.Site{}, "id = ?", id).Error; err != nil {
 		return fmt.Errorf("failed to delete site: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -219,6 +220,17 @@ func TestCreatePeerFailsWithoutServer(t *testing.T) {
 	_, err := service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "server is not configured")
+}
+
+func TestCreatePeerRejectsUnknownSite(t *testing.T) {
+	service, _, _ := newWireGuardService(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+
+	_, err = service.CreatePeer(uuid.New(), "Site Hantu", []string{"10.10.10.0/24"}, "")
+	require.ErrorIs(t, err, ErrValidation)
+	require.Contains(t, err.Error(), "does not exist",
+		"an orphan peer holds a subnet under a name no site answers to")
 }
 
 func TestCreatePeerRollsBackWhenDeviceRejects(t *testing.T) {

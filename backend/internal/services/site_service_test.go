@@ -15,7 +15,7 @@ func setupSiteTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = db.AutoMigrate(&models.Site{}, &models.OLT{})
+	err = db.AutoMigrate(&models.Site{}, &models.OLT{}, &models.WireGuardPeer{})
 	require.NoError(t, err)
 
 	return db
@@ -174,5 +174,31 @@ func TestSiteService_Delete(t *testing.T) {
 	t.Run("non-existent", func(t *testing.T) {
 		err := service.Delete(uuid.New())
 		assert.NoError(t, err) // GORM doesn't error on delete of non-existent records
+	})
+
+	// The FK the schema declares never reaches a real deployment: AutoMigrate
+	// creates wireguard_peers from the struct tags before migration 25's
+	// CREATE TABLE IF NOT EXISTS can add it. Without this guard the site goes
+	// and its peer keeps holding a subnet in the kernel.
+	t.Run("refuses while the site still has a tunnel", func(t *testing.T) {
+		site, err := service.Create("Tunnelled", "Location", "Desc")
+		require.NoError(t, err)
+
+		peer := &models.WireGuardPeer{
+			SiteID:        site.ID,
+			Name:          site.Name,
+			PublicKey:     "pub",
+			PrivateKey:    "enc",
+			TunnelAddress: "10.88.0.9",
+		}
+		require.NoError(t, peer.SetAllowedIPs([]string{"10.10.10.0/24"}))
+		require.NoError(t, db.Create(peer).Error)
+
+		err = service.Delete(site.ID)
+		require.ErrorIs(t, err, ErrSiteHasTunnel)
+		assert.Contains(t, err.Error(), "VPN page")
+
+		_, err = service.GetByID(site.ID)
+		assert.NoError(t, err, "the site must survive the refused delete")
 	})
 }

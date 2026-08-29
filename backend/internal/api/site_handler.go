@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -212,6 +213,14 @@ func (h *SiteHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.service.Delete(id); err != nil {
+		if errors.Is(err, services.ErrSiteHasTunnel) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error:   "Site still has a VPN tunnel",
+				Code:    "SITE_HAS_TUNNEL",
+				Details: err.Error(),
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to delete site",
 			Code:  "DELETE_FAILED",

@@ -317,4 +317,30 @@ func TestSiteHandler_Delete(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("site with a tunnel is a bad request, not a server fault", func(t *testing.T) {
+		service := services.NewSiteService(db)
+		site, err := service.Create("Tunnelled", "Location", "Desc")
+		require.NoError(t, err)
+
+		peer := &models.WireGuardPeer{
+			SiteID:        site.ID,
+			Name:          site.Name,
+			PublicKey:     "pub",
+			PrivateKey:    "enc",
+			TunnelAddress: "10.88.0.9",
+		}
+		require.NoError(t, peer.SetAllowedIPs([]string{"10.10.10.0/24"}))
+		require.NoError(t, db.Create(peer).Error)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodDelete, "/api/sites/"+site.ID.String(), nil)
+		c.Params = gin.Params{{Key: "id", Value: site.ID.String()}}
+
+		handler.Delete(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "SITE_HAS_TUNNEL")
+	})
 }

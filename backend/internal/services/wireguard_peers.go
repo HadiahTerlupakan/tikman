@@ -56,6 +56,10 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 		return nil, err
 	}
 
+	if err := s.requireSite(siteID); err != nil {
+		return nil, err
+	}
+
 	peers, err := s.ListPeers()
 	if err != nil {
 		return nil, err
@@ -98,6 +102,19 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 		return nil, s.rollbackRejectedPeer(peer.ID, err)
 	}
 	return peer, nil
+}
+
+// requireSite refuses a peer for a site that does not exist. Without it any
+// UUID mints a tunnel that holds a subnet and shows a name no site answers to.
+func (s *WireGuardService) requireSite(siteID uuid.UUID) error {
+	var count int64
+	if err := s.db.Model(&models.Site{}).Where("id = ?", siteID).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to look up site: %w", err)
+	}
+	if count == 0 {
+		return fmt.Errorf("%w: site %s does not exist", ErrValidation, siteID)
+	}
+	return nil
 }
 
 // rollbackRejectedPeer removes a peer the device refused, so a later reconcile
