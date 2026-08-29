@@ -1,0 +1,116 @@
+import { useState } from "react";
+import { Badge, Button, Card, Popconfirm, Space, Table, Tooltip } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import {
+  useDeleteWireguardPeer,
+  useUpdateWireguardPeer,
+  useWireguardPeers,
+} from "@/application/hooks";
+import type { WireguardPeer } from "@/domain/entities";
+import { PageHeader } from "../components/common/PageHeader";
+import { VpnConfigModal } from "./vpn/VpnConfigModal";
+import { VpnPeerFormModal } from "./vpn/VpnPeerFormModal";
+import { VpnServerCard } from "./vpn/VpnServerCard";
+import { describeTunnel } from "./vpn/vpnStatus";
+
+export default function VpnPage() {
+  const [formOpen, setFormOpen] = useState(false);
+  const [configPeerId, setConfigPeerId] = useState<string | null>(null);
+  const { data: peers, isLoading } = useWireguardPeers();
+  const updatePeer = useUpdateWireguardPeer();
+  const deletePeer = useDeleteWireguardPeer();
+
+  const columns = [
+    { title: "Site", dataIndex: "name", key: "name" },
+    {
+      title: "Alamat tunnel",
+      dataIndex: "tunnelAddress",
+      key: "tunnelAddress",
+    },
+    {
+      title: "Subnet site",
+      dataIndex: "allowedIps",
+      key: "allowedIps",
+      render: (allowedIps: string[]) => allowedIps.join(", "),
+    },
+    {
+      title: "Status",
+      key: "status",
+      render: (_: unknown, peer: WireguardPeer) => {
+        const described = describeTunnel(peer, new Date());
+        return (
+          <Tooltip title={described.hint}>
+            <Badge status={described.tone} text={described.label} />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "Aksi",
+      key: "actions",
+      render: (_: unknown, peer: WireguardPeer) => (
+        <Space>
+          <Button size="small" onClick={() => setConfigPeerId(peer.id)}>
+            Konfigurasi
+          </Button>
+          <Button
+            size="small"
+            onClick={() =>
+              updatePeer.mutate({
+                id: peer.id,
+                data: { enabled: !peer.enabled },
+              })
+            }
+          >
+            {peer.enabled ? "Nonaktifkan" : "Aktifkan"}
+          </Button>
+          <Popconfirm
+            title="Hapus tunnel site ini?"
+            okText="Hapus"
+            cancelText="Batal"
+            onConfirm={() => deletePeer.mutate(peer.id)}
+          >
+            <Button size="small" danger>
+              Hapus
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <PageHeader
+        title="VPN"
+        description="Akses site yang tidak punya IP publik"
+      />
+      <VpnServerCard />
+      <Card
+        title="Site terhubung"
+        extra={
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setFormOpen(true)}
+          >
+            Tambah site
+          </Button>
+        }
+      >
+        <Table
+          rowKey="id"
+          loading={isLoading}
+          dataSource={peers}
+          columns={columns}
+          pagination={false}
+        />
+      </Card>
+      <VpnPeerFormModal open={formOpen} onClose={() => setFormOpen(false)} />
+      <VpnConfigModal
+        peerId={configPeerId}
+        onClose={() => setConfigPeerId(null)}
+      />
+    </Space>
+  );
+}
