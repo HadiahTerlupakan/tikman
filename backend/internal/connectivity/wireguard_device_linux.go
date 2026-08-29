@@ -64,13 +64,23 @@ func ensureAddress(link netlink.Link, address string) error {
 	if err != nil {
 		return fmt.Errorf("list addresses: %w", err)
 	}
-	for _, current := range existing {
-		if current.Equal(*addr) {
-			return nil
+
+	// The whole list is scanned rather than stopping at the first match: an
+	// address left behind by a previous configuration would leave the
+	// interface answering on two subnets.
+	found := false
+	for i := range existing {
+		if existing[i].Equal(*addr) {
+			found = true
+			continue
 		}
-		if err := netlink.AddrDel(link, &current); err != nil {
-			return fmt.Errorf("remove stale address: %w", err)
+		if err := netlink.AddrDel(link, &existing[i]); err != nil {
+			return fmt.Errorf("remove stale address %s: %w", existing[i].IPNet, err)
 		}
+	}
+
+	if found {
+		return nil
 	}
 	if err := netlink.AddrAdd(link, addr); err != nil {
 		return fmt.Errorf("add address %s: %w", address, err)
@@ -145,13 +155,21 @@ func syncRoutes(link netlink.Link, cfg TunnelConfig) error {
 		}
 	}
 
+	// The kernel installs a connected route for the interface's own address
+	// when the link comes up. It belongs to no peer and must survive, or the
+	// VPS loses its route to every peer's tunnel address.
+	_, connected, err := net.ParseCIDR(cfg.Address)
+	if err != nil {
+		return fmt.Errorf("parse interface address %s: %w", cfg.Address, err)
+	}
+
 	existing, err := netlink.RouteList(link, netlink.FAMILY_V4)
 	if err != nil {
 		return fmt.Errorf("list routes: %w", err)
 	}
 	for i := range existing {
 		route := existing[i]
-		if route.Dst == nil {
+		if route.Dst == nil || route.Dst.String() == connected.String() {
 			continue
 		}
 		if _, keep := wanted[route.Dst.String()]; keep {
