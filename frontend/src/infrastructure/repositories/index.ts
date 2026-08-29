@@ -5,3 +5,4 @@ export * from "./OltRepository";
 export * from "./OntRepository";
 export * from "./HealthRepository";
 export * from "./ZteProvisioningRepository";
+export * from "./WireguardRepository";

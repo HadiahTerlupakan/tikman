@@ -10,3 +10,4 @@ export * from "./useHealth";
 export * from "./useConfigTemplates";
 export * from "./useProvisioning";
 export * from "./useZteProvisioning";
+export * from "./useWireguard";

@@ -9,3 +9,4 @@ export * from "./OltSystem";
 export * from "./OntServiceConfig";
 export * from "./Health";
 export * from "./ZteProvisioning";
+export * from "./Wireguard";

@@ -50,4 +50,13 @@ export const API_ENDPOINTS = {
   // Config Templates
   CONFIG_TEMPLATES: "/api/v1/config-templates",
   CONFIG_TEMPLATE_BY_ID: (id: string) => `/api/v1/config-templates/${id}`,
+
+  // WireGuard VPN
+  WIREGUARD_SERVER: "/api/v1/wireguard/server",
+  WIREGUARD_PEERS: "/api/v1/wireguard/peers",
+  WIREGUARD_PEER_BY_ID: (id: string) => `/api/v1/wireguard/peers/${id}`,
+  WIREGUARD_PEER_CONFIG: (id: string, format: string) =>
+    `/api/v1/wireguard/peers/${id}/config?format=${format}`,
+  WIREGUARD_SUGGESTED_SUBNETS: (siteId: string) =>
+    `/api/v1/wireguard/sites/${siteId}/suggested-subnets`,
 } as const;
