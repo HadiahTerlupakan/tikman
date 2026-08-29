@@ -7,6 +7,7 @@ import {
   Space,
   Table,
   Tooltip,
+  Typography,
   message,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
@@ -16,6 +17,7 @@ import {
   useWireguardPeers,
 } from "@/application/hooks";
 import type { WireguardPeer } from "@/domain/entities";
+import { formatBytes } from "../components/trafficFormat";
 import { PageHeader } from "../components/common/PageHeader";
 import { VpnConfigModal } from "./vpn/VpnConfigModal";
 import { VpnPeerFormModal } from "./vpn/VpnPeerFormModal";
@@ -50,10 +52,33 @@ export default function VpnPage() {
         const described = describeTunnel(peer, new Date());
         return (
           <Tooltip title={described.hint}>
-            <Badge status={described.tone} text={described.label} />
+            <div>
+              <Badge status={described.tone} text={described.label} />
+              {described.detail && (
+                <div>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {described.detail}
+                  </Typography.Text>
+                </div>
+              )}
+            </div>
           </Tooltip>
         );
       },
+    },
+    {
+      title: "Trafik",
+      key: "traffic",
+      render: (_: unknown, peer: WireguardPeer) => (
+        // Counters are what separate "the tunnel came up" from "data is
+        // actually crossing it" — a handshake alone proves only the former.
+        <Tooltip title="Diterima dari site / dikirim ke site sejak tunnel dibuat">
+          <Typography.Text style={{ fontSize: 12 }}>
+            &darr; {formatBytes(peer.rxBytes)} &nbsp; &uarr;{" "}
+            {formatBytes(peer.txBytes)}
+          </Typography.Text>
+        </Tooltip>
+      ),
     },
     {
       title: "Aksi",
