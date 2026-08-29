@@ -5,8 +5,13 @@ services:
     image: timescale/timescaledb:latest-pg15
     container_name: tikman-postgres
     volumes:
+      # The migrations directory is deliberately not mounted into
+      # /docker-entrypoint-initdb.d. Postgres runs every file there on first
+      # init, including the .down.sql rollbacks, and one of those drops columns
+      # from a table nothing has created yet — which aborts initialisation and
+      # leaves a half-built data directory. The API applies these migrations at
+      # startup instead, skipping rollback scripts and recording what it ran.
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_DB: tikman
       POSTGRES_USER: tikman
