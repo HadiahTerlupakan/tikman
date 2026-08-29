@@ -131,7 +131,17 @@ func determineOntStatus(ont models.ONT, oltStatusMap map[connectivity.ONTLocatio
 		slotMatch := ont.Slot == nil || loc.Slot == *ont.Slot
 
 		if portMatch && ontIDMatch && slotMatch {
-			newStatus = mapRunStateToStatus(runState)
+			mapped := mapRunStateToStatus(runState)
+			// A phase the ONU passes through while it comes up is not a verdict.
+			// Writing it as "unknown" threw away the status the row already had
+			// and stamped a last_offline the ONU never had, for a device that
+			// was online a minute later.
+			if mapped == models.ONTStatusUnknown {
+				logger.Info("Transitional phase state; leaving the row",
+					zap.String("serial", ont.SerialNumber), zap.Int("runState", runState))
+				break
+			}
+			newStatus = mapped
 			foundStatus = true
 			logger.Info("Status from SNMP", zap.String("serial", ont.SerialNumber), zap.Int("runState", runState), zap.String("status", string(newStatus)))
 			break

@@ -24,8 +24,10 @@ var (
 	onuSettleWindow = 8 * time.Second
 	// How long the read carries on for after the request has answered. The ONU
 	// is on the OLT either way, so this only decides whether the row says so
-	// within the minute or at the next poll.
-	onuSettleBackstop = 90 * time.Second
+	// within a couple of minutes or at the next poll. Sized off a measured
+	// registration: that ONU reached "online" a hundred and thirty-four seconds
+	// after its job was created.
+	onuSettleBackstop = 3 * time.Minute
 )
 
 // resolveONUStatusAfterProvision reads one ONU's phase state straight off the
@@ -55,10 +57,18 @@ func storeSettledONUStatus(db *gorm.DB, querier connectivity.StatusQuerier, olt 
 	locations := []connectivity.ONTLocation{location}
 	deadline := time.Now().Add(window)
 
+	// An ONU takes a minute or two to come up, and the OLT names what it is
+	// passing through on the way: offline nine seconds in, a phase this does not
+	// map a minute later, online after that. Stopping at the first state the OLT
+	// named stored a booting ONU as offline, so online is what settles the wait;
+	// anything else is remembered, stored as the truth of that moment, and
+	// reported unsettled so the caller keeps watching.
+	lastSettled := connectivity.PhaseStateUnknown
+
 	for attempt := 0; ; attempt++ {
 		if attempt > 0 {
 			if time.Now().After(deadline) {
-				return false, nil
+				break
 			}
 			time.Sleep(onuSettleInterval)
 		}
@@ -67,9 +77,19 @@ func storeSettledONUStatus(db *gorm.DB, querier connectivity.StatusQuerier, olt 
 			return false, err
 		}
 		state, found := statuses[location]
-		if !found || state == connectivity.PhaseStateUnknown {
+		if !found {
 			continue
 		}
-		return true, NewONTService(db).UpdateStatus(ont.ID, models.ONTStatus(connectivity.PhaseStateName(state)))
+		if state == connectivity.PhaseStateOnline {
+			return true, NewONTService(db).UpdateStatus(ont.ID, models.ONTStatusOnline)
+		}
+		if models.ONTStatus(connectivity.PhaseStateName(state)) != models.ONTStatusUnknown {
+			lastSettled = state
+		}
 	}
+
+	if lastSettled == connectivity.PhaseStateUnknown {
+		return false, nil
+	}
+	return false, NewONTService(db).UpdateStatus(ont.ID, models.ONTStatus(connectivity.PhaseStateName(lastSettled)))
 }

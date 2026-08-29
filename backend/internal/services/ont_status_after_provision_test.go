@@ -69,22 +69,6 @@ func TestStoreSettledONUStatusWaitsForTheONUToRange(t *testing.T) {
 	assert.NotNil(t, stored.LastOnline)
 }
 
-func TestStoreSettledONUStatusStoresLOS(t *testing.T) {
-	db := setupTestDB(t)
-	ont, olt := provisionedONT(t)
-	require.NoError(t, db.Create(&ont).Error)
-
-	querier := &stubStatusQuerier{replies: []int{connectivity.PhaseStateLOS}}
-	resolved, err := storeSettledONUStatus(db, querier, olt, ont, time.Second)
-	require.NoError(t, err)
-	assert.True(t, resolved)
-
-	var stored models.ONT
-	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
-	assert.Equal(t, models.ONTStatusLOS, stored.Status)
-	assert.Equal(t, 1, querier.calls)
-}
-
 // An ONU the OLT never reports on is left for the backstop and the poll, not
 // written as something the device did not say. The caller needs to be told, so
 // it can carry on reading after the request has answered.
@@ -126,4 +110,44 @@ func TestStoreSettledONUStatusRefusesONTWithoutSlot(t *testing.T) {
 
 	_, err := storeSettledONUStatus(db, &stubStatusQuerier{}, olt, ont, time.Second)
 	require.ErrorContains(t, err, "no slot")
+}
+
+// The OLT names what the ONU is passing through, not only where it ends up: a
+// registration measured against the live OLT read offline nine seconds in and
+// online two minutes later. Stopping at the first state it named stored the
+// booting ONU as offline and never looked again.
+func TestStoreSettledONUStatusWaitsPastATransitionalOffline(t *testing.T) {
+	db := setupTestDB(t)
+	ont, olt := provisionedONT(t)
+	require.NoError(t, db.Create(&ont).Error)
+
+	querier := &stubStatusQuerier{replies: []int{
+		connectivity.PhaseStateOffline,
+		connectivity.PhaseStateOffline,
+		connectivity.PhaseStateOnline,
+	}}
+	resolved, err := storeSettledONUStatus(db, querier, olt, ont, time.Second)
+	require.NoError(t, err)
+	assert.True(t, resolved)
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
+	assert.Equal(t, models.ONTStatusOnline, stored.Status)
+}
+
+// An ONU that never comes up is still reported as the OLT last had it, and the
+// caller is told it did not settle so the backstop carries on watching.
+func TestStoreSettledONUStatusStoresTheLastStateAndStaysUnsettled(t *testing.T) {
+	db := setupTestDB(t)
+	ont, olt := provisionedONT(t)
+	require.NoError(t, db.Create(&ont).Error)
+
+	querier := &stubStatusQuerier{replies: []int{connectivity.PhaseStateLOS, connectivity.PhaseStateLOS}}
+	resolved, err := storeSettledONUStatus(db, querier, olt, ont, 20*time.Millisecond)
+	require.NoError(t, err)
+	assert.False(t, resolved)
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
+	assert.Equal(t, models.ONTStatusLOS, stored.Status)
 }

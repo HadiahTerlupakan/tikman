@@ -63,3 +63,19 @@ func TestDetermineOntStatusFallsBackToRxPower(t *testing.T) {
 
 	assert.Equal(t, models.ONTStatusOnline, status)
 }
+
+// A ZTE OLT reports phases an ONU only passes through while it comes up, and
+// the run state map names four. Writing the rest as "unknown" threw away the
+// status the row already had and stamped a last_offline the ONU never had: a
+// freshly registered ONU read as one of these a minute in, and was online a
+// minute after that.
+func TestDetermineOntStatusIgnoresATransitionalPhase(t *testing.T) {
+	const ranging = 2
+	statuses := map[connectivity.ONTLocation]int{
+		{Slot: 3, Port: 1, ONTID: 1}: ranging,
+	}
+
+	status := determineOntStatus(onlineONT(), statuses, nil, zap.NewNop())
+
+	assert.Equal(t, models.ONTStatus(""), status)
+}
