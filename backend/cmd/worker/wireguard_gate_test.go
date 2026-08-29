@@ -43,13 +43,6 @@ func createGatePeer(t *testing.T, db *gorm.DB, siteID uuid.UUID, handshake *time
 	}
 	require.NoError(t, peer.SetAllowedIPs([]string{"10.10.10.0/24"}))
 	require.NoError(t, db.Create(&peer).Error)
-
-	// Enabled carries a gorm "default:true" tag, so Create silently drops the
-	// column and lets the DB default win whenever the Go zero value (false) is
-	// passed in. A follow-up column update writes the exact value instead.
-	if !enabled {
-		require.NoError(t, db.Model(&peer).Update("enabled", false).Error)
-	}
 }
 
 func TestOLTsBehindDownTunnelBlocksStalePeer(t *testing.T) {

@@ -49,12 +49,16 @@ type WireGuardPeer struct {
 	TunnelAddress       string         `gorm:"type:varchar(45);not null;uniqueIndex"`
 	AllowedIPs          datatypes.JSON `gorm:"column:allowed_ips;type:jsonb;not null"`
 	PersistentKeepalive int            `gorm:"not null;default:25"`
-	Enabled             bool           `gorm:"not null;default:true"`
-	LastHandshakeAt     *time.Time
-	RxBytes             int64 `gorm:"not null;default:0"`
-	TxBytes             int64 `gorm:"not null;default:0"`
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// No `default:` tag: GORM omits a zero-valued field from the INSERT when one
+	// is present, so an explicitly disabled peer would silently be stored
+	// enabled. The migration keeps its DEFAULT TRUE for rows inserted outside
+	// GORM.
+	Enabled         bool `gorm:"not null"`
+	LastHandshakeAt *time.Time
+	RxBytes         int64 `gorm:"not null;default:0"`
+	TxBytes         int64 `gorm:"not null;default:0"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (p *WireGuardPeer) BeforeCreate(tx *gorm.DB) error {
