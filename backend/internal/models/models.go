@@ -13,5 +13,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&ConfigTemplate{},
 		&ProvisioningJob{},
 		&BatchJob{},
+		&WireGuardServer{},
+		&WireGuardPeer{},
 	)
 }
