@@ -128,8 +128,8 @@ jobs:
       - name: Build binary
         working-directory: backend
         run: |
-          go build -v -o api cmd/api/main.go
-          go build -v -o worker cmd/worker/main.go
+          go build -v -o api ./cmd/api
+          go build -v -o worker ./cmd/worker
 
   # Frontend Jobs
   frontend-test:

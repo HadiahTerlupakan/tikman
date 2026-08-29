@@ -27,7 +27,7 @@ go run cmd/api/main.go
 **Build:**
 ```bash
 cd backend
-go build -o api cmd/api/main.go
+go build -o api ./cmd/api
 ```
 
 **Tests:**
