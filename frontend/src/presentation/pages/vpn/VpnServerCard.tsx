@@ -1,81 +1,64 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Descriptions,
-  Form,
-  Input,
-  InputNumber,
-  message,
-} from "antd";
-import {
-  useSaveWireguardServer,
-  useWireguardServer,
-} from "@/application/hooks";
-import type { SaveWireguardServerDto } from "@/domain/entities";
+import { useState } from "react";
+import { Alert, Button, Card, Descriptions } from "antd";
+import { useWireguardServer } from "@/application/hooks";
+import { ApiError } from "@/infrastructure/http";
+import { VpnServerForm } from "./VpnServerForm";
 
-const DEFAULT_LISTEN_PORT = 51820;
+// GET /wireguard/server answers 404 with code NOT_CONFIGURED only before the
+// one-time setup has run; the shared error mapper collapses every 404 into
+// NOT_FOUND, so the status is what survives to key on. A transient 500 must not
+// be read as "no server yet": the setup form would offer to overwrite a working
+// endpoint and port.
+function isNotConfigured(error: unknown): boolean {
+  return error instanceof ApiError && error.statusCode === 404;
+}
 
 export function VpnServerCard() {
-  const { data: server, isLoading } = useWireguardServer();
-  const saveServer = useSaveWireguardServer();
-  const [form] = Form.useForm<SaveWireguardServerDto>();
+  const { data: server, isLoading, error } = useWireguardServer();
+  const [editing, setEditing] = useState(false);
 
   if (isLoading) {
     return <Card loading title="Server VPN" />;
   }
 
-  if (!server) {
+  if (isNotConfigured(error)) {
     return (
       <Card title="Aktifkan VPN">
+        <VpnServerForm />
+      </Card>
+    );
+  }
+
+  if (!server) {
+    return (
+      <Card title="Server VPN">
         <Alert
-          type="info"
+          type="error"
           showIcon
-          style={{ marginBottom: 16 }}
-          message="Isi sekali saja"
-          description="Kunci server dibuat otomatis. Port UDP di bawah harus sama dengan WIREGUARD_PORT di berkas .env deployment dan dibuka di firewall penyedia VPS."
+          message="Gagal memuat pengaturan server VPN"
+          description="Muat ulang halaman. Jangan isi ulang formulir aktivasi selama pengaturan belum tampil: konfigurasi yang sudah berjalan bisa tertimpa."
         />
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            endpointHost: window.location.hostname,
-            listenPort: DEFAULT_LISTEN_PORT,
-          }}
-          onFinish={(values) =>
-            saveServer.mutate(values, {
-              onError: () => message.error("Gagal mengaktifkan VPN"),
-            })
-          }
-        >
-          <Form.Item
-            name="endpointHost"
-            label="Alamat publik VPS"
-            rules={[{ required: true, message: "Alamat publik wajib diisi" }]}
-          >
-            <Input placeholder="vpn.contoh.id" />
-          </Form.Item>
-          <Form.Item
-            name="listenPort"
-            label="Port UDP"
-            rules={[{ required: true, message: "Port wajib diisi" }]}
-          >
-            <InputNumber min={1} max={65535} style={{ width: "100%" }} />
-          </Form.Item>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={saveServer.isPending}
-          >
-            Aktifkan
-          </Button>
-        </Form>
+      </Card>
+    );
+  }
+
+  if (editing) {
+    return (
+      <Card title="Server VPN">
+        <VpnServerForm server={server} onDone={() => setEditing(false)} />
       </Card>
     );
   }
 
   return (
-    <Card title="Server VPN">
+    <Card
+      title="Server VPN"
+      extra={
+        <Button size="small" onClick={() => setEditing(true)}>
+          Ubah
+        </Button>
+      }
+    >
       <Descriptions column={2} size="small">
         <Descriptions.Item label="Alamat publik">
           {server.endpointHost}:{server.listenPort}

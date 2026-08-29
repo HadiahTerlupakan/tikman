@@ -24,6 +24,7 @@ import { describeTunnel } from "./vpn/vpnStatus";
 
 export default function VpnPage() {
   const [formOpen, setFormOpen] = useState(false);
+  const [editingPeer, setEditingPeer] = useState<WireguardPeer | null>(null);
   const [configPeerId, setConfigPeerId] = useState<string | null>(null);
   const { data: peers, isLoading } = useWireguardPeers();
   const updatePeer = useUpdateWireguardPeer();
@@ -59,6 +60,15 @@ export default function VpnPage() {
       key: "actions",
       render: (_: unknown, peer: WireguardPeer) => (
         <Space>
+          <Button
+            size="small"
+            onClick={() => {
+              setEditingPeer(peer);
+              setFormOpen(true);
+            }}
+          >
+            Sunting
+          </Button>
           <Button size="small" onClick={() => setConfigPeerId(peer.id)}>
             Konfigurasi
           </Button>
@@ -107,7 +117,10 @@ export default function VpnPage() {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setFormOpen(true)}
+            onClick={() => {
+              setEditingPeer(null);
+              setFormOpen(true);
+            }}
           >
             Tambah site
           </Button>
@@ -121,7 +134,14 @@ export default function VpnPage() {
           pagination={false}
         />
       </Card>
-      <VpnPeerFormModal open={formOpen} onClose={() => setFormOpen(false)} />
+      <VpnPeerFormModal
+        open={formOpen}
+        peer={editingPeer}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingPeer(null);
+        }}
+      />
       <VpnConfigModal
         peerId={configPeerId}
         onClose={() => setConfigPeerId(null)}
