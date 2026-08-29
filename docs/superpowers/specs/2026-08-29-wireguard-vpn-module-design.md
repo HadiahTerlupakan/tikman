@@ -154,8 +154,7 @@ secara berurutan:
 
 `Reconcile` dipanggil saat `api` start dan sesudah setiap perubahan peer atau
 konfigurasi server. Tidak ada jalur kode "tambahkan satu peer" yang terpisah,
-sehingga keadaan kernel tidak dapat menyimpang dari database walaupun container
-di-restart atau seseorang mengubah `wg0` dari shell.
+sehingga keadaan kernel sesuai database saat startup dan setelah setiap mutasi. Perubahan yang dibuat langsung pada interface—misalnya dengan `wg set` atau `ip link del`—tidak terdeteksi dan hanya diperbaiki saat restart atau ketika mutasi berikutnya memicu sinkronisasi ulang.
 
 ### Pembaruan status
 
