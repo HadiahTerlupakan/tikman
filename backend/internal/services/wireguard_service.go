@@ -37,6 +37,9 @@ type WireGuardService struct {
 	db            *gorm.DB
 	encryptionKey string
 	device        connectivity.TunnelDevice
+	// pingHost is a field so the reachability test can be exercised without a
+	// live network; production always gets the real prober.
+	pingHost func(address string, timeout time.Duration) error
 
 	// mu makes a reconcile a single read-then-apply step. Without it a
 	// reconcile running alongside a mutation can apply a peer set read before
@@ -48,7 +51,12 @@ type WireGuardService struct {
 // NewWireGuardService constructs a WireGuardService backed by db and device,
 // encrypting and decrypting private keys with encryptionKey.
 func NewWireGuardService(db *gorm.DB, encryptionKey string, device connectivity.TunnelDevice) *WireGuardService {
-	return &WireGuardService{db: db, encryptionKey: encryptionKey, device: device}
+	return &WireGuardService{
+		db:            db,
+		encryptionKey: encryptionKey,
+		device:        device,
+		pingHost:      connectivity.PingTest,
+	}
 }
 
 // GetServer loads the single server row, or ErrServerNotConfigured if the

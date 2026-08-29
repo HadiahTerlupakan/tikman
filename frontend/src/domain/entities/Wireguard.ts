@@ -48,3 +48,10 @@ export interface UpdateWireguardPeerDto {
   allowedIps?: string[];
   enabled?: boolean;
 }
+
+export interface ReachabilityResult {
+  reachable: boolean;
+  /** False when the address is outside the subnets this tunnel carries. */
+  routed: boolean;
+  message: string;
+}

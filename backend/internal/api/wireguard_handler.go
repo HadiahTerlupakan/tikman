@@ -178,6 +178,34 @@ func (h *WireGuardHandler) GetPeerConfig(c *gin.Context) {
 
 // SuggestSubnets proposes allowed-IP subnets for a site based on its
 // registered OLTs.
+// TestReachability probes one address through a site's tunnel. It is a
+// diagnostic rather than a mutation, so technicians may run it.
+func (h *WireGuardHandler) TestReachability(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid peer ID", Code: "INVALID_ID"})
+		return
+	}
+
+	var req TestReachabilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body", Code: "INVALID_REQUEST", Details: err.Error()})
+		return
+	}
+
+	result, err := h.service.TestPeerReachability(id, req.Address)
+	if err != nil {
+		wireguardFailure(c, err, "Failed to test the address")
+		return
+	}
+
+	c.JSON(http.StatusOK, ReachabilityResponse{
+		Reachable: result.Reachable,
+		Routed:    result.Routed,
+		Message:   result.Message,
+	})
+}
+
 func (h *WireGuardHandler) SuggestSubnets(c *gin.Context) {
 	siteID, err := uuid.Parse(c.Param("site_id"))
 	if err != nil {

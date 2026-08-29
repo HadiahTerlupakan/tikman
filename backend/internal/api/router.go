@@ -173,6 +173,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			wireguard.PUT("/peers/:id", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.UpdatePeer)
 			wireguard.DELETE("/peers/:id", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.DeletePeer)
 			wireguard.GET("/peers/:id/config", middleware.RequireRole(models.UserRoleAdmin), wireguardHandler.GetPeerConfig)
+			wireguard.POST("/peers/:id/test", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), wireguardHandler.TestReachability)
 			wireguard.GET("/sites/:site_id/suggested-subnets", wireguardHandler.SuggestSubnets)
 		}
 

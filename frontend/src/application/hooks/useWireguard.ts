@@ -84,3 +84,10 @@ export function usePeerConfig() {
       repository.getPeerConfig(id, format),
   });
 }
+
+export function useTestReachability() {
+  return useMutation({
+    mutationFn: ({ id, address }: { id: string; address: string }) =>
+      repository.testReachability(id, address),
+  });
+}

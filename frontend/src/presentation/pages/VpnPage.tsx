@@ -20,6 +20,7 @@ import type { WireguardPeer } from "@/domain/entities";
 import { formatBytes } from "../components/trafficFormat";
 import { PageHeader } from "../components/common/PageHeader";
 import { VpnConfigModal } from "./vpn/VpnConfigModal";
+import { VpnReachabilityModal } from "./vpn/VpnReachabilityModal";
 import { VpnPeerFormModal } from "./vpn/VpnPeerFormModal";
 import { VpnServerCard } from "./vpn/VpnServerCard";
 import { describeTunnel } from "./vpn/vpnStatus";
@@ -28,6 +29,7 @@ export default function VpnPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingPeer, setEditingPeer] = useState<WireguardPeer | null>(null);
   const [configPeerId, setConfigPeerId] = useState<string | null>(null);
+  const [testPeer, setTestPeer] = useState<WireguardPeer | null>(null);
   const { data: peers, isLoading } = useWireguardPeers();
   const updatePeer = useUpdateWireguardPeer();
   const deletePeer = useDeleteWireguardPeer();
@@ -96,6 +98,9 @@ export default function VpnPage() {
           </Button>
           <Button size="small" onClick={() => setConfigPeerId(peer.id)}>
             Konfigurasi
+          </Button>
+          <Button size="small" onClick={() => setTestPeer(peer)}>
+            Uji koneksi
           </Button>
           <Button
             size="small"
@@ -170,6 +175,12 @@ export default function VpnPage() {
       <VpnConfigModal
         peerId={configPeerId}
         onClose={() => setConfigPeerId(null)}
+      />
+      <VpnReachabilityModal
+        peerId={testPeer?.id ?? null}
+        siteName={testPeer?.name ?? ""}
+        subnets={testPeer?.allowedIps ?? []}
+        onClose={() => setTestPeer(null)}
       />
     </Space>
   );

@@ -240,3 +240,45 @@ func TestCreatePeerReportsMissingServerAsBadRequest(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.Contains(t, w.Body.String(), "NOT_CONFIGURED")
 }
+
+func TestTestReachabilityExplainsAnAddressOutsideTheSubnet(t *testing.T) {
+	handler, service, db := SetupWireGuardHandlerTest(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createHandlerTestSite(t, db, "Site A")
+	peer, err := service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.NoError(t, err)
+
+	w, c := SetupTestContext(http.MethodPost, "/api/v1/wireguard/peers/"+peer.ID.String()+"/test",
+		TestReachabilityRequest{Address: "192.168.1.5"})
+	c.Params = gin.Params{{Key: "id", Value: peer.ID.String()}}
+	handler.TestReachability(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response ReachabilityResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	require.False(t, response.Routed)
+	require.False(t, response.Reachable)
+	// Naming both the address and the configured subnet is the whole point: the
+	// operator cannot tell which of the two is the mistake otherwise.
+	require.Contains(t, response.Message, "192.168.1.5")
+	require.Contains(t, response.Message, "10.10.10.0/24")
+}
+
+func TestTestReachabilityRejectsSomethingThatIsNotAnAddress(t *testing.T) {
+	handler, service, db := SetupWireGuardHandlerTest(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createHandlerTestSite(t, db, "Site A")
+	peer, err := service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.NoError(t, err)
+
+	w, c := SetupTestContext(http.MethodPost, "/api/v1/wireguard/peers/"+peer.ID.String()+"/test",
+		TestReachabilityRequest{Address: "bukan-ip"})
+	c.Params = gin.Params{{Key: "id", Value: peer.ID.String()}}
+	handler.TestReachability(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "INVALID_CONFIGURATION")
+}

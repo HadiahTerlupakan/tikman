@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from "../http/endpoints";
 import type {
   CreateWireguardPeerDto,
   PeerConfigFormat,
+  ReachabilityResult,
   SaveWireguardServerDto,
   UpdateWireguardPeerDto,
   WireguardPeer,
@@ -52,6 +53,19 @@ export class WireguardRepository {
   ): Promise<WireguardPeerConfig> {
     const response = await apiClient.get(
       API_ENDPOINTS.WIREGUARD_PEER_CONFIG(id, format),
+    );
+    return response.data;
+  }
+
+  async testReachability(
+    id: string,
+    address: string,
+  ): Promise<ReachabilityResult> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.WIREGUARD_PEER_TEST(id),
+      {
+        address,
+      },
     );
     return response.data;
   }

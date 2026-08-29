@@ -65,6 +65,19 @@ type WireguardPeerResponse struct {
 
 // WireguardPeerConfigResponse carries a rendered peer configuration. This is
 // the only response in the package that contains key material.
+// TestReachabilityRequest asks whether one address can be reached through a
+// site's tunnel. It is the operator's way of telling a mistyped subnet apart
+// from a device that is simply not answering.
+type TestReachabilityRequest struct {
+	Address string `json:"address" binding:"required,max=45"`
+}
+
+type ReachabilityResponse struct {
+	Reachable bool   `json:"reachable"`
+	Routed    bool   `json:"routed"`
+	Message   string `json:"message"`
+}
+
 type WireguardPeerConfigResponse struct {
 	Format string `json:"format"`
 	Config string `json:"config"`
