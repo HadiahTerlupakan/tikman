@@ -5,7 +5,6 @@ import {
   EnvironmentOutlined,
   ApiOutlined,
   UserOutlined,
-  CloudServerOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/application/stores";
 import { UserRole } from "@/domain/entities";
@@ -36,12 +35,6 @@ export function Sidebar() {
       icon: <ApiOutlined />,
       label: "OLTs",
       onClick: () => navigate("/olts"),
-    },
-    {
-      key: "/vpn",
-      icon: <CloudServerOutlined />,
-      label: "VPN",
-      onClick: () => navigate("/vpn"),
     },
   ];
 

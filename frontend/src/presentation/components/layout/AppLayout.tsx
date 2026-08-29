@@ -1,22 +1,11 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ProLayout } from "@ant-design/pro-components";
-import {
-  DashboardOutlined,
-  EnvironmentOutlined,
-  ApiOutlined,
-  UserOutlined,
-  LogoutOutlined,
-  BellOutlined,
-  MonitorOutlined,
-  BarChartOutlined,
-  QuestionCircleOutlined,
-  FileTextOutlined,
-} from "@ant-design/icons";
+import { UserOutlined, LogoutOutlined, BellOutlined } from "@ant-design/icons";
 import { Dropdown, Avatar, Badge, App } from "antd";
 import type { MenuProps } from "antd";
 import { useAuthStore } from "@/application/stores";
 import { useLogout } from "@/application/hooks";
-import { UserRole } from "@/domain/entities";
+import { buildNavigationRoutes } from "./navigationRoutes";
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -44,52 +33,7 @@ export function AppLayout() {
     },
   ];
 
-  const routes = [
-    {
-      path: "/",
-      name: "Dashboard",
-      icon: <DashboardOutlined />,
-    },
-    {
-      path: "/sites",
-      name: "Sites",
-      icon: <EnvironmentOutlined />,
-    },
-    {
-      path: "/olts",
-      name: "OLTs",
-      icon: <ApiOutlined />,
-    },
-    {
-      path: "/onts",
-      name: "ONT Monitoring",
-      icon: <MonitorOutlined />,
-    },
-    {
-      path: "/unconfigured-onus",
-      name: "Unconfigured ONU",
-      icon: <QuestionCircleOutlined />,
-    },
-    {
-      path: "/config-templates",
-      name: "Config Templates",
-      icon: <FileTextOutlined />,
-    },
-    {
-      path: "/graphs",
-      name: "Graphs",
-      icon: <BarChartOutlined />,
-    },
-    ...(user?.role === UserRole.ADMIN
-      ? [
-          {
-            path: "/users",
-            name: "Users",
-            icon: <UserOutlined />,
-          },
-        ]
-      : []),
-  ];
+  const routes = buildNavigationRoutes(user?.role);
 
   return (
     <div
