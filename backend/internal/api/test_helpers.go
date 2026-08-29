@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"github.com/tikman/olt-provisioning/internal/utils"
@@ -77,6 +78,15 @@ func SetupAuthHandlerTest(t *testing.T) (*AuthHandler, *services.UserService, *g
 	userService := services.NewUserService(db)
 	handler := NewAuthHandler(userService, nil, false)
 	return handler, userService, db
+}
+
+// SetupWireGuardHandlerTest creates the VPN handler with an in-memory tunnel
+// device, so peer behaviour can be asserted without a kernel interface.
+func SetupWireGuardHandlerTest(t *testing.T) (*WireGuardHandler, *services.WireGuardService, *gorm.DB) {
+	db := TestDB(t)
+	service := services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{})
+	handler := NewWireGuardHandler(service, nil) // nil audit service for tests
+	return handler, service, db
 }
 
 // CreateTestOLT creates an OLT directly in the database, bypassing validation.
