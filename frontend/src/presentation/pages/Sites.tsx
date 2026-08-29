@@ -62,8 +62,8 @@ export default function SitesPage() {
       onSuccess: () => {
         message.success("Site deleted successfully");
       },
-      onError: () => {
-        message.error("Failed to delete site");
+      onError: (error: Error) => {
+        message.error(error.message || "Failed to delete site");
       },
     });
   };

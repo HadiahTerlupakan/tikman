@@ -92,6 +92,25 @@ describe("Error Mapper", () => {
     expect(result.message).toBe("OLT not found");
   });
 
+  it("should keep the server error text on a 400 that carries details", () => {
+    const axiosError = {
+      response: {
+        status: 400,
+        data: {
+          code: "SITE_HAS_TUNNEL",
+          error: "Site still has a VPN tunnel",
+          details:
+            "site still has a VPN tunnel: remove the site's tunnel first",
+        },
+      },
+    } as AxiosError;
+
+    const result = mapApiError(axiosError);
+
+    expect(result).toBeInstanceOf(ValidationError);
+    expect(result.message).toBe("Site still has a VPN tunnel");
+  });
+
   it("should fall back to the code when the server sends no error text", () => {
     const axiosError = {
       response: { status: 500, data: { code: "SCAN_FAILED" } },

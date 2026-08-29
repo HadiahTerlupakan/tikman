@@ -127,7 +127,8 @@ Rollback bersifat idempotent — menjalankan ulang snapshot restore menghasilkan
 
 Interface `wg0` dibuat oleh container `api`, tetapi modul kernel WireGuard hanya
 bisa dimuat dari host. Tanpa modul itu, `Reconcile` saat startup gagal dengan
-`create wg0: operation not supported`, API tetap hidup, dan halaman VPN
+`create wg0 (load the wireguard kernel module on the VPS host: modprobe
+wireguard): operation not supported`, API tetap hidup, dan halaman VPN
 melaporkan semua site "Belum pernah terhubung" walaupun perangkat di site sudah
 benar.
 

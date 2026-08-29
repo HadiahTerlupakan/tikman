@@ -21,8 +21,11 @@ export class ApiError extends Error {
 }
 
 export class ValidationError extends ApiError {
-  constructor(public fields: Record<string, string>) {
-    super(400, "VALIDATION_ERROR", fields);
+  constructor(
+    public fields: Record<string, string>,
+    message?: string,
+  ) {
+    super(400, "VALIDATION_ERROR", fields, message);
     this.name = "ValidationError";
   }
 }
@@ -54,7 +57,7 @@ export function mapApiError(error: AxiosError): ApiError {
   }
 
   if (error.response?.status === 400 && response?.details) {
-    return new ValidationError(response.details);
+    return new ValidationError(response.details, response.error);
   }
 
   return new ApiError(
