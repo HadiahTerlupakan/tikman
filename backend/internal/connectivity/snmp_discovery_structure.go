@@ -29,17 +29,7 @@ func buildTopologyStructure(slotMap map[int]map[int][]ONTLocation, statuses map[
 		for _, port := range ports {
 			onts := make([]DiscoveredONT, 0, len(slotMap[slot][port]))
 			for _, loc := range slotMap[slot][port] {
-				statusStr := "unknown"
-				switch statuses[loc] {
-				case PhaseStateOnline:
-					statusStr = "online"
-				case PhaseStateDyingGasp:
-					statusStr = "dying_gasp"
-				case PhaseStateOffline:
-					statusStr = "offline"
-				case PhaseStateLOS:
-					statusStr = "los"
-				}
+				statusStr := PhaseStateName(statuses[loc])
 
 				inv := inventory[loc]
 				ont := DiscoveredONT{

@@ -24,6 +24,23 @@ const (
 	PhaseStateOffline   = 6
 )
 
+// PhaseStateName is the status vocabulary the ONT rows and the UI use. An
+// unmapped state stays "unknown" rather than being guessed at.
+func PhaseStateName(state int) string {
+	switch state {
+	case PhaseStateOnline:
+		return "online"
+	case PhaseStateDyingGasp:
+		return "dying_gasp"
+	case PhaseStateOffline:
+		return "offline"
+	case PhaseStateLOS:
+		return "los"
+	default:
+		return "unknown"
+	}
+}
+
 // ONTInventory is the identity data a driver can read for a single ONT. An
 // empty field means the vendor exposes no OID for it, not that the ONT lacks
 // the value.

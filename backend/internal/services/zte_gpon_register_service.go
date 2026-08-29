@@ -244,6 +244,12 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 		s.logger.Error("could not record the applied ZTE service",
 			zap.String("ont_id", ont.ID.String()), zap.Error(err))
 	}
+	// Read straight off the OLT rather than left at "unknown" for the discovery
+	// poll to notice. Failing here costs the row nothing: the poll still runs.
+	if err := resolveONUStatusAfterProvision(s.db, *olt, ont); err != nil {
+		s.logger.Warn("could not read the ONU status after provisioning",
+			zap.String("ont_id", ont.ID.String()), zap.Error(err))
+	}
 	if err := s.jobs.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusSuccess, nil); err != nil {
 		return nil, err
 	}
