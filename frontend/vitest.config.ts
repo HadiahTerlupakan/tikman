@@ -8,6 +8,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    // Driving an antd Modal through userEvent takes seconds in jsdom, and CI
+    // runners are slower than a dev machine: at the 5s default those tests pass
+    // locally and time out there.
+    testTimeout: 15000,
   },
   resolve: {
     alias: {
