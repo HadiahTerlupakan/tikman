@@ -118,3 +118,58 @@ Template dipakai job historis. Tidak bisa dihapus — ini by design untuk menjag
 Rollback berjalan otomatis pada kegagalan. Operator tidak perlu manual rollback. Job yang di-rollback berstatus `rolled_back` dengan error message aslinya tetap tercatat.
 
 Rollback bersifat idempotent — menjalankan ulang snapshot restore menghasilkan state akhir yang sama.
+
+---
+
+## VPN Site (WireGuard)
+
+### Prasyarat sekali jalan di host VPS
+
+Interface `wg0` dibuat oleh container `api`, tetapi modul kernel WireGuard hanya
+bisa dimuat dari host. Tanpa modul itu, `Reconcile` saat startup gagal dengan
+`create wg0: operation not supported`, API tetap hidup, dan halaman VPN
+melaporkan semua site "Belum pernah terhubung" walaupun perangkat di site sudah
+benar.
+
+Jalankan di host VPS, bukan di dalam container:
+
+```bash
+# Muat modul sekarang
+sudo modprobe wireguard
+
+# Pastikan termuat kembali setiap reboot
+echo wireguard | sudo tee /etc/modules-load.d/wireguard.conf
+
+# Verifikasi
+lsmod | grep wireguard
+```
+
+Bila `modprobe` gagal, kernel VPS belum punya modulnya. Pada Debian/Ubuntu
+pasang `wireguard-tools` beserta paket header kernel yang sesuai, lalu ulangi.
+
+### Port UDP
+
+Port UDP harus sama di tiga tempat, dan salah satu saja berbeda membuat tidak
+ada site yang bisa handshake:
+
+1. `WIREGUARD_PORT` pada berkas `.env` deployment (dipublikasikan oleh
+   `docker-compose.yml`).
+2. Port yang disimpan pada halaman VPN di TikMan.
+3. Aturan izin UDP masuk di firewall penyedia VPS (Security Group, Cloud
+   Firewall, atau sejenisnya).
+
+Nilai bawaan `51820`. Bila penyedia hanya mengizinkan port lain, ubah ketiganya
+bersamaan lalu jalankan ulang `docker compose up -d`.
+
+### Troubleshooting
+
+**Semua site "Belum pernah terhubung" sejak awal.** Hampir selalu masalah di
+sisi VPS, bukan site: periksa modul kernel dan port UDP di atas sebelum
+memeriksa perangkat di lokasi.
+
+**Satu site saja yang tidak terhubung.** Baru periksa sisi site: konfigurasi
+sudah ditempel, perangkat menyala, dan internet site hidup.
+
+**Site tidak bisa dihapus karena masih punya tunnel.** Hapus dulu tunnel site
+tersebut di halaman VPN. Menghapus site lebih dulu akan meninggalkan tunnel yang
+masih aktif di kernel dan menahan subnetnya.

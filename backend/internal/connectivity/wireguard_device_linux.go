@@ -3,8 +3,10 @@
 package connectivity
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"golang.zx2c4.com/wireguard/wgctrl"
@@ -44,12 +46,19 @@ func ensureLink(name string) (netlink.Link, error) {
 	if err == nil {
 		return link, nil
 	}
+	// Only a genuinely absent interface justifies creating one. A permission or
+	// netlink failure reported here would otherwise be answered with LinkAdd,
+	// whose "file exists" points the operator at the wrong problem entirely.
+	var notFound netlink.LinkNotFoundError
+	if !errors.As(err, &notFound) {
+		return nil, fmt.Errorf("look up %s: %w", name, err)
+	}
 
 	attrs := netlink.NewLinkAttrs()
 	attrs.Name = name
 	wg := &netlink.Wireguard{LinkAttrs: attrs}
 	if err := netlink.LinkAdd(wg); err != nil {
-		return nil, fmt.Errorf("create %s: %w", name, err)
+		return nil, fmt.Errorf("create %s (load the wireguard kernel module on the VPS host: modprobe wireguard): %w", name, err)
 	}
 	return netlink.LinkByName(name)
 }
@@ -184,6 +193,11 @@ func syncRoutes(link netlink.Link, cfg TunnelConfig) error {
 	for _, network := range wanted {
 		route := &netlink.Route{LinkIndex: link.Attrs().Index, Dst: network}
 		if err := netlink.RouteAdd(route); err != nil {
+			// Deliberately not RouteReplace: a peer subnet that collides with an
+			// existing host route must fail loudly rather than hijack it.
+			if errors.Is(err, syscall.EEXIST) {
+				return fmt.Errorf("add route %s: already routed via another interface, remove the conflicting route or change the peer's subnet: %w", network, err)
+			}
 			return fmt.Errorf("add route %s: %w", network, err)
 		}
 	}
