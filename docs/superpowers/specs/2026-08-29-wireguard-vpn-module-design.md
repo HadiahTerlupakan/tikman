@@ -83,12 +83,18 @@ Satu baris. Menyimpan identitas server di VPS.
 | `private_key` | text | terenkripsi AES-256-GCM |
 | `public_key` | text | |
 | `endpoint_host` | varchar(255) | alamat publik VPS untuk konfigurasi sisi site |
-| `tunnel_subnet` | cidr | default `10.88.0.0/24` |
-| `address` | inet | alamat server di tunnel, default `10.88.0.1` |
+| `tunnel_subnet` | varchar(45) | default `10.88.0.0/24` |
+| `address` | varchar(45) | alamat server di tunnel, default `10.88.0.1` |
 | `created_at`, `updated_at` | timestamptz | |
 
 Keypair dibuat aplikasi saat baris pertama dibuat, sehingga private key tidak
 pernah melewati input pengguna.
+
+Tipe kolom mengikuti pola yang sudah dipakai repo: alamat disimpan sebagai
+`varchar(45)` seperti `OLT.IPAddress`, dan daftar disimpan sebagai `jsonb`
+lewat `datatypes.JSON` seperti `OLT.VLANs`. Tipe khusus PostgreSQL seperti
+`inet` dan `text[]` dihindari karena test backend memakai SQLite in-memory
+melalui `models.AutoMigrate`.
 
 ### `wireguard_peers`
 
@@ -102,8 +108,8 @@ Satu peer per site.
 | `public_key` | text | |
 | `private_key` | text | terenkripsi; disimpan agar konfigurasi sisi site dapat diambil ulang |
 | `preshared_key` | text, nullable | terenkripsi |
-| `tunnel_address` | inet, unique | dialokasikan otomatis |
-| `allowed_ips` | text[] | subnet lokal site yang boleh dijangkau |
+| `tunnel_address` | varchar(45), unique | dialokasikan otomatis |
+| `allowed_ips` | jsonb | daftar subnet lokal site yang boleh dijangkau |
 | `persistent_keepalive` | int | default 25 |
 | `enabled` | boolean | default true |
 | `last_handshake_at` | timestamptz, nullable | hasil pembacaan kernel |
@@ -192,6 +198,7 @@ Grup route baru mengikuti pola `router.go` yang ada.
 | `PUT /api/v1/wireguard/peers/:id` | Admin | |
 | `DELETE /api/v1/wireguard/peers/:id` | Admin | |
 | `GET /api/v1/wireguard/peers/:id/config` | Admin | parameter `format=wg-quick\|mikrotik` |
+| `GET /api/v1/wireguard/sites/:site_id/suggested-subnets` | semua role | subnet yang disarankan dari alamat OLT site |
 
 Seluruh mutasi dibatasi Admin, bukan Admin dan Technician seperti pada OLT.
 Peer VPN adalah jalan masuk ke jaringan pelanggan, dan `allowed_ips` yang salah
@@ -290,10 +297,16 @@ Backend:
 - `internal/services/wireguard_alloc.go` — alokasi alamat tunnel dan saran
   subnet dari alamat OLT.
 - `internal/services/wireguard_render.go` — generator kedua format konfigurasi.
-- `internal/services/wireguard_status.go` — aturan "terhubung" dan goroutine
-  pembaruan status.
-- `internal/connectivity/wireguard_device.go` — lapisan tipis yang menyentuh
-  netlink dan wgctrl.
+- `internal/services/wireguard_status.go` — aturan "terhubung".
+- `internal/services/wireguard_refresher.go` — goroutine pembaruan status.
+- `internal/services/wireguard_device.go` — tipe dan interface `TunnelDevice`,
+  batas antara keputusan dan kernel.
+- `internal/services/wireguard_device_memory.go` — implementasi in-memory yang
+  dipakai test.
+- `internal/connectivity/wireguard_device_linux.go` dan
+  `wireguard_device_other.go` — lapisan tipis yang menyentuh netlink dan
+  wgctrl. Dipisah build tag karena `netlink` hanya dapat dibangun di Linux
+  sementara pengembangan berjalan di macOS.
 - `internal/api/wireguard_handler.go`, `internal/api/wireguard_dto.go`.
 
 Lapisan yang menyentuh kernel sengaja dipisah dan dibuat setipis mungkin,
