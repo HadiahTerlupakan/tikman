@@ -24,13 +24,27 @@ export function VpnPeerFormModal({ open, onClose }: Props) {
   const { data: suggested } = useSuggestedSubnets(siteId);
   const createPeer = useCreateWireguardPeer();
 
+  const handleSiteChange = (value: string) => {
+    setSiteId(value);
+    // Clear immediately: a suggestion derived from the previous site must never
+    // sit in the field under a different site's name.
+    form.setFieldValue("allowedIps", "");
+  };
+
   // The suggestion comes from the OLT addresses already registered for the site,
   // so the operator confirms a value instead of inventing one.
   useEffect(() => {
-    if (suggested?.length) {
-      form.setFieldValue("allowedIps", suggested.join(", "));
+    if (!suggested) {
+      return;
     }
+    form.setFieldValue("allowedIps", suggested.join(", "));
   }, [suggested, form]);
+
+  const closeAndReset = () => {
+    form.resetFields();
+    setSiteId(undefined);
+    onClose();
+  };
 
   const submit = async () => {
     const values = await form.validateFields();
@@ -38,12 +52,13 @@ export function VpnPeerFormModal({ open, onClose }: Props) {
     await createPeer.mutateAsync({
       siteId: values.siteId,
       name: site?.name ?? "Site",
-      allowedIps: values.allowedIps.split(",").map((entry) => entry.trim()),
+      allowedIps: values.allowedIps
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== ""),
       tunnelAddress: values.tunnelAddress || undefined,
     });
-    form.resetFields();
-    setSiteId(undefined);
-    onClose();
+    closeAndReset();
   };
 
   return (
@@ -54,7 +69,7 @@ export function VpnPeerFormModal({ open, onClose }: Props) {
       cancelText="Batal"
       confirmLoading={createPeer.isPending}
       onOk={submit}
-      onCancel={onClose}
+      onCancel={closeAndReset}
     >
       {createPeer.isError && (
         <Alert
@@ -73,7 +88,7 @@ export function VpnPeerFormModal({ open, onClose }: Props) {
         >
           <Select
             placeholder="Pilih site"
-            onChange={setSiteId}
+            onChange={handleSiteChange}
             options={sites?.map((site) => ({
               value: site.id,
               label: site.name,

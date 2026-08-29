@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Badge, Button, Card, Popconfirm, Space, Table, Tooltip } from "antd";
+import {
+  Badge,
+  Button,
+  Card,
+  Popconfirm,
+  Space,
+  Table,
+  Tooltip,
+  message,
+} from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import {
   useDeleteWireguardPeer,
@@ -56,10 +65,12 @@ export default function VpnPage() {
           <Button
             size="small"
             onClick={() =>
-              updatePeer.mutate({
-                id: peer.id,
-                data: { enabled: !peer.enabled },
-              })
+              updatePeer.mutate(
+                { id: peer.id, data: { enabled: !peer.enabled } },
+                {
+                  onError: () => message.error("Gagal mengubah status tunnel"),
+                },
+              )
             }
           >
             {peer.enabled ? "Nonaktifkan" : "Aktifkan"}
@@ -68,7 +79,11 @@ export default function VpnPage() {
             title="Hapus tunnel site ini?"
             okText="Hapus"
             cancelText="Batal"
-            onConfirm={() => deletePeer.mutate(peer.id)}
+            onConfirm={() =>
+              deletePeer.mutate(peer.id, {
+                onError: () => message.error("Gagal menghapus tunnel"),
+              })
+            }
           >
             <Button size="small" danger>
               Hapus

@@ -6,6 +6,7 @@ import {
   Form,
   Input,
   InputNumber,
+  message,
 } from "antd";
 import {
   useSaveWireguardServer,
@@ -41,7 +42,11 @@ export function VpnServerCard() {
             endpointHost: window.location.hostname,
             listenPort: DEFAULT_LISTEN_PORT,
           }}
-          onFinish={(values) => saveServer.mutate(values)}
+          onFinish={(values) =>
+            saveServer.mutate(values, {
+              onError: () => message.error("Gagal mengaktifkan VPN"),
+            })
+          }
         >
           <Form.Item
             name="endpointHost"

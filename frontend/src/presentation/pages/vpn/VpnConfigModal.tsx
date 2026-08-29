@@ -11,13 +11,17 @@ interface Props {
 export function VpnConfigModal({ peerId, onClose }: Props) {
   const [format, setFormat] = useState<PeerConfigFormat>("mikrotik");
   const peerConfig = usePeerConfig();
-  const { mutate } = peerConfig;
+  const { mutate, reset } = peerConfig;
 
   useEffect(() => {
-    if (peerId) {
-      mutate({ id: peerId, format });
+    // Reset before fetching: the previous peer's config carries its private key
+    // and must not stay on screen under another peer's name.
+    reset();
+    if (!peerId) {
+      return;
     }
-  }, [peerId, format, mutate]);
+    mutate({ id: peerId, format });
+  }, [peerId, format, mutate, reset]);
 
   return (
     <Modal
@@ -34,6 +38,15 @@ export function VpnConfigModal({ peerId, onClose }: Props) {
         message="Berisi kunci privat"
         description="Tempel hanya ke perangkat di site tersebut, jangan dibagikan lewat kanal terbuka."
       />
+      {peerConfig.isError && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Gagal menyiapkan konfigurasi"
+          description={(peerConfig.error as Error).message}
+        />
+      )}
       <Tabs
         activeKey={format}
         onChange={(key) => setFormat(key as PeerConfigFormat)}
