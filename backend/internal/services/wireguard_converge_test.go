@@ -93,13 +93,14 @@ func TestRecoveryReconcileFailureDoesNotMaskTheOriginalError(t *testing.T) {
 type tickDevice struct {
 	mu      sync.Mutex
 	applies int
+	err     error
 }
 
 func (d *tickDevice) Apply(connectivity.TunnelConfig) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.applies++
-	return nil
+	return d.err
 }
 
 func (d *tickDevice) Status(string) ([]connectivity.TunnelPeerStatus, error) {
@@ -112,7 +113,14 @@ func (d *tickDevice) applyCount() int {
 	return d.applies
 }
 
-func TestStatusRefresherAlsoReconciles(t *testing.T) {
+func (d *tickDevice) setErr(err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.err = err
+}
+
+func newTickingService(t *testing.T) (*WireGuardService, *tickDevice) {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
@@ -121,6 +129,79 @@ func TestStatusRefresherAlsoReconciles(t *testing.T) {
 	service := NewWireGuardService(db, wgTestEncryptionKey, device)
 	_, err = service.EnsureServer("vpn.contoh.id")
 	require.NoError(t, err)
+	return service, device
+}
+
+func TestReconcileIfPendingIsANoOpAfterASuccessfulMutation(t *testing.T) {
+	service, device, db := newWireGuardService(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createTestSite(t, db, "Site A")
+	_, err = service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.NoError(t, err)
+
+	applied := device.ApplyCount
+	require.NoError(t, service.ReconcileIfPending())
+	require.Equal(t, applied, device.ApplyCount,
+		"Apply replaces the device's peers and discards every site's learned endpoint, "+
+			"and a site behind NAT is the only side that can open a new session")
+}
+
+func TestReconcileIfPendingRetriesAfterARefusedApply(t *testing.T) {
+	service, device, db := newWireGuardService(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createTestSite(t, db, "Site A")
+
+	device.ApplyErr = errTunnelApplyForTest
+	_, err = service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.Error(t, err)
+
+	device.ApplyErr = nil
+	applied := device.ApplyCount
+	require.NoError(t, service.ReconcileIfPending())
+	require.Greater(t, device.ApplyCount, applied,
+		"an Apply that failed can leave the kernel holding what the database rolled back")
+}
+
+func TestReconcileIfPendingStopsOnceTheRetrySucceeds(t *testing.T) {
+	service, device, db := newWireGuardService(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createTestSite(t, db, "Site A")
+
+	device.ApplyErr = errTunnelApplyForTest
+	_, err = service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.Error(t, err)
+
+	device.ApplyErr = nil
+	require.NoError(t, service.ReconcileIfPending())
+
+	applied := device.ApplyCount
+	require.NoError(t, service.ReconcileIfPending())
+	require.Equal(t, applied, device.ApplyCount,
+		"a successful retry clears the pending state, so the next check must not re-apply")
+}
+
+func TestStatusRefresherDoesNotReconcileWhenNothingIsPending(t *testing.T) {
+	service, device := newTickingService(t)
+	applied := device.applyCount()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go service.RunStatusRefresher(ctx, time.Millisecond, zap.NewNop())
+
+	require.Never(t, func() bool { return device.applyCount() > applied },
+		250*time.Millisecond, 5*time.Millisecond,
+		"a scheduled Apply drops every site's session and address, and the worker sees the OLTs go unreachable")
+}
+
+func TestStatusRefresherRetriesAPendingReconcile(t *testing.T) {
+	service, device := newTickingService(t)
+
+	device.setErr(errTunnelApplyForTest)
+	require.Error(t, service.Reconcile())
+	device.setErr(nil)
 	applied := device.applyCount()
 
 	ctx, cancel := context.WithCancel(context.Background())

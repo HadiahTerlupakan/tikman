@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/connectivity"
@@ -36,6 +37,12 @@ type WireGuardService struct {
 	db            *gorm.DB
 	encryptionKey string
 	device        connectivity.TunnelDevice
+
+	// mu makes a reconcile a single read-then-apply step. Without it a
+	// reconcile running alongside a mutation can apply a peer set read before
+	// that mutation, reinstating a peer a concurrent delete had just removed.
+	mu               sync.Mutex
+	reconcilePending bool
 }
 
 // NewWireGuardService constructs a WireGuardService backed by db and device,
@@ -133,6 +140,25 @@ func (s *WireGuardService) reconcileAfterRollback(cause error) error {
 // no incremental path, so kernel state cannot drift from what is stored. If
 // the server has not been configured yet, it is a no-op.
 func (s *WireGuardService) Reconcile() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.reconcileLocked()
+}
+
+// ReconcileIfPending re-applies only after an earlier Apply failed. Applying on
+// a schedule would be worse than the drift it repairs: Apply replaces the
+// device's peers, which discards every site's learned endpoint, and a site
+// behind NAT is the only side that can establish a new session.
+func (s *WireGuardService) ReconcileIfPending() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.reconcilePending {
+		return nil
+	}
+	return s.reconcileLocked()
+}
+
+func (s *WireGuardService) reconcileLocked() error {
 	server, err := s.GetServer()
 	if err != nil {
 		if errors.Is(err, ErrServerNotConfigured) {
@@ -172,8 +198,12 @@ func (s *WireGuardService) Reconcile() error {
 	}
 
 	if err := s.device.Apply(cfg); err != nil {
+		// Only a refused Apply can leave the kernel holding what the database
+		// no longer describes, so that is the one case worth retrying later.
+		s.reconcilePending = true
 		return fmt.Errorf("failed to apply wireguard configuration: %w", err)
 	}
+	s.reconcilePending = false
 	return nil
 }
 

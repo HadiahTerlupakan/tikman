@@ -10,11 +10,15 @@ type MemoryTunnelDevice struct {
 	// that rejects one configuration and accepts the next. That is the case the
 	// recovery reconcile after a rollback has to survive.
 	ApplyErrOnce bool
+	// ApplyCount counts every call, refusals included, so a test can assert
+	// that a code path did not reach the device at all.
+	ApplyCount int
 }
 
 // Apply records cfg as the applied state, or returns ApplyErr if the test set
 // one to simulate the kernel refusing the configuration.
 func (d *MemoryTunnelDevice) Apply(cfg TunnelConfig) error {
+	d.ApplyCount++
 	if d.ApplyErr != nil {
 		err := d.ApplyErr
 		if d.ApplyErrOnce {
