@@ -80,7 +80,6 @@ func ExtractSerialNumber(oidValue any) string {
 			// Remove ASN.1 header (first 2 bytes)
 			if len(data) > 2 {
 				data = data[2:]
-				log.Printf("[Serial] Stripped ASN.1 header: %v -> %q", v, string(data))
 			} else {
 				return ""
 			}
@@ -90,7 +89,6 @@ func ExtractSerialNumber(oidValue any) string {
 		str := string(data)
 		if strings.HasPrefix(str, "1,") {
 			str = str[2:]
-			log.Printf("[Serial] Removed '1,' prefix: %q -> %q", string(data), str)
 		}
 
 		// If remaining data looks like hex string (only hex chars), convert to ASCII
@@ -111,17 +109,17 @@ func ExtractSerialNumber(oidValue any) string {
 
 			if len(asciiDecoded) >= 8 {
 				// Return printable ASCII serial number
-				log.Printf("[Serial] Returned ASCII serial: %q", asciiDecoded)
 				return asciiDecoded
 			}
 		}
 
 		// Default: return as-is string
-		log.Printf("[Serial] Returning: %q (type=%T)", str, oidValue)
 		return str
 
 	default:
-		// Data type is not recognized
+		// Kept, unlike the traces above: an unhandled type means the device sent
+		// something this parser does not know, which is worth seeing. The traces
+		// fired once per serial and buried every other line in the log.
 		log.Printf("[Serial] Unknown type: %T, value=%v", oidValue, oidValue)
 		return ""
 	}

@@ -92,6 +92,13 @@ func main() {
 	}
 	go wgService.RunStatusRefresher(context.Background(), wireguardStatusInterval, log)
 
+	// Without this Gin stays in debug mode whatever ENVIRONMENT says: it prints
+	// a route dump and a per-request debug line, and warns about it on every
+	// boot.
+	if cfg.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	engine := gin.Default()
 	// Do not widen: gin's default trusts every proxy, making c.ClientIP() equal
 	// to any X-Forwarded-For the caller sends, which bypasses the per-IP rate
