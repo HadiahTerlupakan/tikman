@@ -246,15 +246,36 @@ func (s *ZTEGPONRegisterService) executeJob(ctx context.Context, req models.ZTEG
 	}
 	// Read straight off the OLT rather than left at "unknown" for the discovery
 	// poll to notice. Failing here costs the row nothing: the poll still runs.
-	if err := resolveONUStatusAfterProvision(s.db, *olt, ont); err != nil {
-		s.logger.Warn("could not read the ONU status after provisioning",
-			zap.String("ont_id", ont.ID.String()), zap.Error(err))
-	}
+	s.settleONUStatus(*olt, ont)
 	if err := s.jobs.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusSuccess, nil); err != nil {
 		return nil, err
 	}
 	job.Status = models.ProvisioningStatusSuccess
 	return job, nil
+}
+
+// settleONUStatus fills in the new ONU's status without waiting for the
+// discovery poll. The operator's request waits only briefly for it; an OLT too
+// busy to answer in that time - three and seven seconds for a GET that costs
+// seven milliseconds when idle - is left to a backstop that outlives the
+// request rather than holding the dialog open for it.
+func (s *ZTEGPONRegisterService) settleONUStatus(olt models.OLT, ont models.ONT) {
+	resolved, err := resolveONUStatusAfterProvision(s.db, olt, ont, onuSettleWindow)
+	if err != nil {
+		s.logger.Warn("could not read the ONU status after provisioning",
+			zap.String("ont_id", ont.ID.String()), zap.Error(err))
+		return
+	}
+	if resolved {
+		return
+	}
+
+	go func() {
+		if _, err := resolveONUStatusAfterProvision(s.db, olt, ont, onuSettleBackstop); err != nil {
+			s.logger.Warn("could not read the ONU status after provisioning",
+				zap.String("ont_id", ont.ID.String()), zap.Error(err))
+		}
+	}()
 }
 
 // failedZTECommand names the command the OLT refused and quotes what it said

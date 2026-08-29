@@ -57,7 +57,9 @@ func TestStoreSettledONUStatusWaitsForTheONUToRange(t *testing.T) {
 	require.NoError(t, db.Create(&ont).Error)
 
 	querier := &stubStatusQuerier{replies: []int{connectivity.PhaseStateUnknown, connectivity.PhaseStateOnline}}
-	require.NoError(t, storeSettledONUStatus(db, querier, olt, ont))
+	resolved, err := storeSettledONUStatus(db, querier, olt, ont, time.Second)
+	require.NoError(t, err)
+	assert.True(t, resolved)
 
 	var stored models.ONT
 	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
@@ -73,7 +75,9 @@ func TestStoreSettledONUStatusStoresLOS(t *testing.T) {
 	require.NoError(t, db.Create(&ont).Error)
 
 	querier := &stubStatusQuerier{replies: []int{connectivity.PhaseStateLOS}}
-	require.NoError(t, storeSettledONUStatus(db, querier, olt, ont))
+	resolved, err := storeSettledONUStatus(db, querier, olt, ont, time.Second)
+	require.NoError(t, err)
+	assert.True(t, resolved)
 
 	var stored models.ONT
 	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
@@ -81,20 +85,38 @@ func TestStoreSettledONUStatusStoresLOS(t *testing.T) {
 	assert.Equal(t, 1, querier.calls)
 }
 
-// An ONU the OLT never reports on is left for the poll rather than written as
-// something the device did not say.
-func TestStoreSettledONUStatusLeavesUnreportedONUAlone(t *testing.T) {
+// An ONU the OLT never reports on is left for the backstop and the poll, not
+// written as something the device did not say. The caller needs to be told, so
+// it can carry on reading after the request has answered.
+func TestStoreSettledONUStatusReportsAnUnresolvedONU(t *testing.T) {
 	db := setupTestDB(t)
 	ont, olt := provisionedONT(t)
 	require.NoError(t, db.Create(&ont).Error)
 
 	querier := &stubStatusQuerier{}
-	require.NoError(t, storeSettledONUStatus(db, querier, olt, ont))
+	resolved, err := storeSettledONUStatus(db, querier, olt, ont, 20*time.Millisecond)
+	require.NoError(t, err)
+	assert.False(t, resolved)
 
 	var stored models.ONT
 	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
 	assert.Equal(t, models.ONTStatusUnknown, stored.Status)
-	assert.Equal(t, onuSettleAttempts, querier.calls)
+	assert.Greater(t, querier.calls, 1, "the window has to cover more than one read")
+}
+
+// A busy OLT answered a single GET in seven seconds while the ONU was ranging.
+// A fixed count of attempts said nothing about how long that took, so the wait
+// is bounded by the clock instead.
+func TestStoreSettledONUStatusStopsAtTheWindow(t *testing.T) {
+	db := setupTestDB(t)
+	ont, olt := provisionedONT(t)
+	require.NoError(t, db.Create(&ont).Error)
+
+	start := time.Now()
+	_, err := storeSettledONUStatus(db, &stubStatusQuerier{}, olt, ont, 40*time.Millisecond)
+	require.NoError(t, err)
+
+	assert.Less(t, time.Since(start), time.Second)
 }
 
 func TestStoreSettledONUStatusRefusesONTWithoutSlot(t *testing.T) {
@@ -102,6 +124,6 @@ func TestStoreSettledONUStatusRefusesONTWithoutSlot(t *testing.T) {
 	ont, olt := provisionedONT(t)
 	ont.Slot = nil
 
-	err := storeSettledONUStatus(db, &stubStatusQuerier{}, olt, ont)
+	_, err := storeSettledONUStatus(db, &stubStatusQuerier{}, olt, ont, time.Second)
 	require.ErrorContains(t, err, "no slot")
 }
