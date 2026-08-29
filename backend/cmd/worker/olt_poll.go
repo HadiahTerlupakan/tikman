@@ -38,22 +38,20 @@ func initOLTCaches(db *gorm.DB, olt models.OLT, oltKey string, oltMetricsCache *
 	driver, err := connectivity.DriverFor(olt.Model)
 	if err != nil {
 		logger.Error("Cannot poll OLT", zap.String("olt", olt.Name), zap.Error(err))
-		(*oltMetricsCache)[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
-		(*oltStatusCache)[oltKey] = make(map[connectivity.ONTLocation]int)
-		(*oltRatesCache)[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
 		return false
 	}
 
 	// The discovery poll runs alongside this and walks the same tables. Taking
 	// turns rather than competing: it stores the same metrics, so a cycle that
 	// stands down loses nothing.
+	// Nothing is cached on the way out. getOrInitOLT treats a populated cache
+	// as "this OLT was read this cycle", so seeding it with empty maps here
+	// skipped only the first ONT and then handed the other 199 an empty status
+	// map, which read as every subscriber having gone offline at once.
 	release, free := services.TryLockOLTSNMP(olt.ID)
 	if !free {
 		logger.Info("Skipping OLT this cycle: discovery is reading it",
 			zap.String("olt", olt.Name))
-		(*oltMetricsCache)[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
-		(*oltStatusCache)[oltKey] = make(map[connectivity.ONTLocation]int)
-		(*oltRatesCache)[oltKey] = make(map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
 		return false
 	}
 	defer release()

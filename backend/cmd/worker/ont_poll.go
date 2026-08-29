@@ -143,8 +143,13 @@ func determineOntStatus(ont models.ONT, oltStatusMap map[connectivity.ONTLocatio
 			newStatus = models.ONTStatusOnline
 			logger.Info("Status from RX Power", zap.String("serial", ont.SerialNumber), zap.String("status", string(newStatus)))
 		} else {
-			newStatus = models.ONTStatusOffline
-			logger.Info("Status defaulted to offline", zap.String("serial", ont.SerialNumber), zap.String("status", string(newStatus)))
+			// No entry and no reading is no evidence, not evidence of being
+			// down: an OLT the cycle failed to read reported nothing for every
+			// ONT, and defaulting marked all two hundred offline at once. The
+			// OLT lists an ONU it holds whether it is up or not, so a genuine
+			// outage arrives as a phase state, not as silence. An empty status
+			// leaves the row for the next cycle.
+			logger.Info("No status evidence this cycle", zap.String("serial", ont.SerialNumber))
 		}
 	}
 
