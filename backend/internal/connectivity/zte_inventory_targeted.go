@@ -1,6 +1,7 @@
 package connectivity
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -14,7 +15,10 @@ import (
 // IP and MAC carry a further element after it. Scoping to ifIndex.onuID is
 // exact for all of them without depending on what follows.
 func queryZTEInventoryFor(ipAddress, community string, snmpPort int, locations []ONTLocation) (map[ONTLocation]ONTInventory, error) {
-	client, err := newSNMPClient(ipAddress, community, snmpPort)
+	ctx, cancel := context.WithTimeout(context.Background(), zteReadDeadline)
+	defer cancel()
+
+	client, err := newSNMPClientWithContext(ctx, ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err
 	}

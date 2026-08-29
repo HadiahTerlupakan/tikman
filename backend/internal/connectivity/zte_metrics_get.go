@@ -1,6 +1,7 @@
 package connectivity
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -62,7 +63,10 @@ func (zteDriver) QueryMetricsFor(ipAddress, community string, snmpPort int, loca
 		return metrics, nil
 	}
 
-	client, err := newSNMPClient(ipAddress, community, snmpPort)
+	ctx, cancel := context.WithTimeout(context.Background(), zteReadDeadline)
+	defer cancel()
+
+	client, err := newSNMPClientWithContext(ctx, ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package connectivity
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gosnmp/gosnmp"
 )
@@ -11,6 +12,16 @@ import (
 // short OIDs sit well inside that while cutting a 200-ONU sweep to a handful
 // of round trips.
 const zteGetBatchSize = 40
+
+// zteReadDeadline bounds one batched read of an OLT.
+//
+// gosnmp's own Timeout did not: the client is built with context.Background(),
+// which never cancels, and a Get sat in it for over ten minutes. The worker
+// runs its cycles one after another, so that single call froze every ONT's
+// status and metrics until the process was killed. Two hundred ONUs answer in
+// about a second, so this only ever fires on a device that has stopped
+// replying. A variable only so the test covering it need not spend the wait.
+var zteReadDeadline = 90 * time.Second
 
 // inventoryColumn is one field of an ONU's inventory and where to read it.
 type inventoryColumn struct {

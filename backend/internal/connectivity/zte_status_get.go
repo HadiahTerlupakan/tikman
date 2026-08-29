@@ -1,6 +1,9 @@
 package connectivity
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // StatusQuerier is implemented by drivers that can read the phase state of
 // named ONUs directly, rather than walking the table for every ONU on the OLT.
@@ -20,7 +23,10 @@ func (zteDriver) QueryStatusFor(ipAddress, community string, snmpPort int, locat
 		return statuses, nil
 	}
 
-	client, err := newSNMPClient(ipAddress, community, snmpPort)
+	ctx, cancel := context.WithTimeout(context.Background(), zteReadDeadline)
+	defer cancel()
+
+	client, err := newSNMPClientWithContext(ctx, ipAddress, community, snmpPort)
 	if err != nil {
 		return nil, err
 	}
