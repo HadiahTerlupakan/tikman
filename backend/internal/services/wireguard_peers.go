@@ -91,10 +91,19 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 	// A peer the kernel refuses must not linger in the database, or the next
 	// reconcile would keep trying to apply it.
 	if err := s.Reconcile(); err != nil {
-		s.db.Delete(&models.WireGuardPeer{}, "id = ?", peer.ID)
-		return nil, err
+		return nil, s.rollbackRejectedPeer(peer.ID, err)
 	}
 	return peer, nil
+}
+
+// rollbackRejectedPeer removes a peer the device refused, so a later reconcile
+// does not keep retrying it. A failure to clean up is joined onto the original
+// error rather than hidden, because it means the invariant no longer holds.
+func (s *WireGuardService) rollbackRejectedPeer(peerID uuid.UUID, cause error) error {
+	if err := s.db.Delete(&models.WireGuardPeer{}, "id = ?", peerID).Error; err != nil {
+		return errors.Join(cause, fmt.Errorf("failed to roll back rejected peer %s: %w", peerID, err))
+	}
+	return cause
 }
 
 // resolveNewPeerNetwork validates the requested subnets against every other
@@ -123,7 +132,9 @@ func (s *WireGuardService) resolveNewPeerNetwork(server *models.WireGuardServer,
 }
 
 // UpdatePeer changes the fields that are non-nil and reconciles the device.
-// Passing allowedIPs re-validates it against every other peer's subnets.
+// Passing allowedIPs re-validates it against every other peer's subnets. If
+// the device rejects the result, the edit is rolled back so a later reconcile
+// does not keep failing on the same row.
 func (s *WireGuardService) UpdatePeer(id uuid.UUID, name *string, allowedIPs []string, enabled *bool) (*models.WireGuardPeer, error) {
 	server, err := s.GetServer()
 	if err != nil {
@@ -133,6 +144,7 @@ func (s *WireGuardService) UpdatePeer(id uuid.UUID, name *string, allowedIPs []s
 	if err != nil {
 		return nil, err
 	}
+	original := *peer
 
 	if allowedIPs != nil {
 		peers, err := s.ListPeers()
@@ -161,9 +173,18 @@ func (s *WireGuardService) UpdatePeer(id uuid.UUID, name *string, allowedIPs []s
 		return nil, fmt.Errorf("failed to update wireguard peer: %w", err)
 	}
 	if err := s.Reconcile(); err != nil {
-		return nil, err
+		return nil, s.restorePeer(original, err)
 	}
 	return peer, nil
+}
+
+// restorePeer puts a rejected edit back the way it was, so a configuration the
+// device refused cannot make every later reconcile fail on the same row.
+func (s *WireGuardService) restorePeer(original models.WireGuardPeer, cause error) error {
+	if err := s.db.Save(&original).Error; err != nil {
+		return errors.Join(cause, fmt.Errorf("failed to restore peer %s after a rejected update: %w", original.ID, err))
+	}
+	return cause
 }
 
 // DeletePeer removes a peer and reconciles the device so its key stops being

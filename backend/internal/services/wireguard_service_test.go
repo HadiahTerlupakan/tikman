@@ -236,6 +236,42 @@ func TestCreatePeerRollsBackWhenDeviceRejects(t *testing.T) {
 	require.Zero(t, count, "a peer the kernel refused must not stay in the database")
 }
 
+func TestUpdatePeerRollsBackWhenDeviceRejects(t *testing.T) {
+	service, device, db := newWireGuardService(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createTestSite(t, db, "Site A")
+
+	peer, err := service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	require.NoError(t, err)
+
+	device.ApplyErr = errTunnelApplyForTest
+	_, err = service.UpdatePeer(peer.ID, nil, []string{"10.20.20.0/24"}, nil)
+	require.Error(t, err)
+
+	var stored models.WireGuardPeer
+	require.NoError(t, db.First(&stored, "id = ?", peer.ID).Error)
+	allowedIPs, err := stored.AllowedIPsList()
+	require.NoError(t, err)
+	require.Equal(t, []string{"10.10.10.0/24"}, allowedIPs,
+		"an edit the device refused must not stay stored, or every later reconcile fails on it")
+}
+
+func TestUpdateServerRollsBackWhenDeviceRejects(t *testing.T) {
+	service, device, db := newWireGuardService(t)
+	server, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+
+	device.ApplyErr = errTunnelApplyForTest
+	_, err = service.UpdateServer("vpn.lain.id", 51821)
+	require.Error(t, err)
+
+	var stored models.WireGuardServer
+	require.NoError(t, db.First(&stored, "id = ?", server.ID).Error)
+	require.Equal(t, "vpn.contoh.id", stored.EndpointHost)
+	require.Equal(t, 51820, stored.ListenPort)
+}
+
 var errTunnelApplyForTest = errTunnelApply{}
 
 type errTunnelApply struct{}

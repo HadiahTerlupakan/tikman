@@ -93,12 +93,15 @@ func (s *WireGuardService) EnsureServer(endpointHost string) (*models.WireGuardS
 }
 
 // UpdateServer changes the operator-facing server settings and reconciles the
-// device so a listen port change takes effect immediately.
+// device so a listen port change takes effect immediately. If the device
+// rejects the result, the settings are rolled back so a later reconcile does
+// not keep failing on the same row.
 func (s *WireGuardService) UpdateServer(endpointHost string, listenPort int) (*models.WireGuardServer, error) {
 	server, err := s.GetServer()
 	if err != nil {
 		return nil, err
 	}
+	original := *server
 
 	server.EndpointHost = endpointHost
 	server.ListenPort = listenPort
@@ -106,6 +109,9 @@ func (s *WireGuardService) UpdateServer(endpointHost string, listenPort int) (*m
 		return nil, fmt.Errorf("failed to update wireguard server: %w", err)
 	}
 	if err := s.Reconcile(); err != nil {
+		if restoreErr := s.db.Save(&original).Error; restoreErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("failed to restore server settings after a rejected update: %w", restoreErr))
+		}
 		return nil, err
 	}
 	return server, nil
