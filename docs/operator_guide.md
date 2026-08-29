@@ -175,6 +175,60 @@ sudah ditempel, perangkat menyala, dan internet site hidup.
 tersebut di halaman VPN. Menghapus site lebih dulu akan meninggalkan tunnel yang
 masih aktif di kernel dan menahan subnetnya.
 
+## Memasang tunnel di perangkat site
+
+Halaman VPN sudah menampilkan langkah-langkah ini di atas teks konfigurasi, jadi
+tidak perlu membuka dokumen ini saat berada di lokasi. Dicatat di sini sebagai
+rujukan.
+
+### MikroTik
+
+Teks yang dihasilkan adalah perintah RouterOS, bukan berkas.
+
+1. Buka Winbox atau SSH ke MikroTik di lokasi tersebut.
+2. Masuk ke menu **New Terminal**.
+3. Tempel seluruh blok sekaligus, lalu tekan Enter.
+
+Periksa hasilnya:
+
+```
+/interface/wireguard/peers print
+```
+
+Kolom `last-handshake` akan terisi dalam beberapa detik. Kalau tetap kosong,
+periksa apakah router bisa menjangkau internet dan apakah alamat endpoint di
+halaman VPN menunjuk ke IP publik server, bukan ke nama yang di-proxy.
+
+### Linux
+
+Teks yang dihasilkan adalah isi berkas konfigurasi.
+
+```bash
+sudo apt install wireguard              # bila belum terpasang
+sudo nano /etc/wireguard/wg0.conf       # tempel isinya di sini
+sudo chmod 600 /etc/wireguard/wg0.conf  # berkas ini memuat kunci privat
+sudo wg-quick up wg0
+sudo systemctl enable wg-quick@wg0      # nyala lagi setelah reboot
+```
+
+Nama berkas menentukan nama interface: `wg0.conf` menghasilkan `wg0`. Menyimpan
+dengan nama lain berarti perintah `wg-quick up wg0` tidak menemukannya.
+
+Periksa hasilnya:
+
+```bash
+sudo wg show
+```
+
+Baris `latest handshake` akan muncul dalam beberapa detik.
+
+### Kalau tunnel hidup tapi OLT tetap tidak terjangkau
+
+Konfigurasi yang dihasilkan sudah memuat aturan NAT dan penerusan paket, jadi
+kasus ini biasanya berarti subnet yang diisi di halaman VPN tidak sama dengan
+jaringan tempat OLT sebenarnya berada. Periksa dari perangkat site sendiri bahwa
+alamat OLT memang bisa dijangkau, lalu cocokkan subnetnya.
+
 ## Deploy ke VPS lewat Jenkins
 
 `Jenkinsfile` di root repo menjalankan pipeline di VPS tempat Jenkins berada:

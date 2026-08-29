@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Modal, Tabs, Typography } from "antd";
 import { usePeerConfig } from "@/application/hooks";
 import type { PeerConfigFormat } from "@/domain/entities";
+import { clientSteps } from "./vpnClientSteps";
 
 interface Props {
   peerId: string | null;
@@ -22,6 +23,8 @@ export function VpnConfigModal({ peerId, onClose }: Props) {
     }
     mutate({ id: peerId, format });
   }, [peerId, format, mutate, reset]);
+
+  const steps = clientSteps(format);
 
   return (
     <Modal
@@ -55,10 +58,25 @@ export function VpnConfigModal({ peerId, onClose }: Props) {
           { key: "wg-quick", label: "Linux (wg-quick)" },
         ]}
       />
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 4 }}>
+        {steps.intro}
+      </Typography.Paragraph>
+      <ol style={{ paddingLeft: 20, marginBottom: 12 }}>
+        {steps.steps.map((step) => (
+          <li key={step}>
+            <Typography.Text>{step}</Typography.Text>
+          </li>
+        ))}
+      </ol>
+
       <Typography.Paragraph copyable={{ text: peerConfig.data?.config ?? "" }}>
         <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
           {peerConfig.isPending ? "Menyiapkan..." : peerConfig.data?.config}
         </pre>
+      </Typography.Paragraph>
+
+      <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+        {steps.verify}
       </Typography.Paragraph>
     </Modal>
   );
