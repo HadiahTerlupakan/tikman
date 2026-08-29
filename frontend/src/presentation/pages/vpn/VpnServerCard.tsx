@@ -33,7 +33,7 @@ export function VpnServerCard() {
           showIcon
           style={{ marginBottom: 16 }}
           message="Isi sekali saja"
-          description="Kunci server dibuat otomatis. Pastikan port UDP di bawah terbuka di firewall VPS."
+          description="Kunci server dibuat otomatis. Port UDP di bawah harus sama dengan WIREGUARD_PORT di berkas .env deployment dan dibuka di firewall penyedia VPS."
         />
         <Form
           form={form}

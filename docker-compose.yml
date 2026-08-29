@@ -46,11 +46,11 @@ services:
     container_name: tikman-api
     ports:
       - "8080:8080"
-      - "51820:51820/udp"
+      # Must match the listen port stored on the VPN page: WireGuard binds it
+      # inside the container, and a mismatch means no site ever handshakes.
+      - "${WIREGUARD_PORT:-51820}:${WIREGUARD_PORT:-51820}/udp"
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/net/tun
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432

@@ -43,10 +43,17 @@ Tidak masuk versi pertama:
 
 Interface WireGuard berada di dalam network namespace container `api`:
 
-- `api` mendapat `cap_add: NET_ADMIN` dan akses `/dev/net/tun`.
+- `api` mendapat `cap_add: NET_ADMIN`. `/dev/net/tun` tidak diperlukan:
+  WireGuard kernel bekerja lewat netlink, perangkat TUN hanya dipakai
+  implementasi userspace.
 - `worker` diubah menjadi `network_mode: service:api` sehingga otomatis berbagi
   namespace yang sama dan melihat rute tunnel tanpa privilege tambahan.
-- Port UDP WireGuard dipetakan pada service `api`.
+- Port UDP WireGuard dipetakan pada service `api` melalui `WIREGUARD_PORT`,
+  yang harus sama dengan port yang disimpan di halaman VPN. Bila berbeda,
+  WireGuard mendengarkan port di dalam container yang tidak diteruskan host dan
+  tidak ada site yang bisa handshake.
+- Modul kernel `wireguard` harus sudah dimuat pada host VPS; container tidak
+  bisa memuatnya sendiri.
 
 Alasan memilih bentuk ini dibanding container gateway terpisah atau WireGuard
 userspace: seluruh paket `internal/connectivity` tidak berubah sama sekali.
