@@ -21,6 +21,9 @@ const mikroTikNATComment = "TikMan VPN"
 // PeerConfigInput carries everything the site side needs. The private key is
 // the peer's own, decrypted only while rendering.
 type PeerConfigInput struct {
+	// SiteName labels the objects created on the site's device, so someone
+	// opening the router months later can see what the tunnel is for.
+	SiteName       string
 	PeerPrivateKey string
 	// PeerAddress is a bare IP with no prefix, for example "10.88.0.5". The
 	// prefix comes from TunnelSubnet, so a CIDR value here would render an
@@ -42,6 +45,7 @@ type PeerConfigInput struct {
 func RenderWGQuickConfig(in PeerConfigInput) string {
 	var b strings.Builder
 
+	fmt.Fprintf(&b, "# %s\n", configLabel(in.SiteName))
 	fmt.Fprintf(&b, "[Interface]\nPrivateKey = %s\nAddress = %s\n", in.PeerPrivateKey, addressWithSubnetPrefix(in.PeerAddress, in.TunnelSubnet))
 
 	// Forwarding has to be enabled and the packet has to survive the FORWARD
@@ -83,24 +87,28 @@ func RenderMikroTikConfig(in PeerConfigInput) string {
 	// and the router slowly fills with stale entries nobody dares delete. Every
 	// selector is scoped to this interface or this comment, so nothing else on
 	// the router is touched, and a `find` matching nothing is not an error.
-	fmt.Fprintf(&b, "/ip/firewall/nat/remove [find comment=%q]\n", mikroTikNATComment)
+	// Matched loosely so it also finds rules left by an earlier version, whose
+	// comment carried no site name.
+	fmt.Fprintf(&b, "/ip/firewall/nat/remove [find comment~%q]\n", mikroTikNATComment)
 	fmt.Fprintf(&b, "/interface/wireguard/peers/remove [find interface=%q]\n", MikroTikInterfaceName)
 	fmt.Fprintf(&b, "/ip/address/remove [find interface=%q]\n", MikroTikInterfaceName)
 	fmt.Fprintf(&b, "/interface/wireguard/remove [find name=%q]\n\n", MikroTikInterfaceName)
 
-	fmt.Fprintf(&b, "/interface/wireguard/add name=%s private-key=%q listen-port=%d\n",
-		MikroTikInterfaceName, in.PeerPrivateKey, mikroTikListenPort)
-	fmt.Fprintf(&b, "/ip/address/add address=%s interface=%s\n",
-		addressWithSubnetPrefix(in.PeerAddress, in.TunnelSubnet), MikroTikInterfaceName)
-	fmt.Fprintf(&b, "/interface/wireguard/peers/add interface=%s public-key=%q endpoint-address=%s endpoint-port=%d allowed-address=%s persistent-keepalive=%ds\n",
-		MikroTikInterfaceName, in.ServerPublicKey, in.EndpointHost, in.ListenPort, in.TunnelSubnet, in.Keepalive)
+	label := configLabel(in.SiteName)
+
+	fmt.Fprintf(&b, "/interface/wireguard/add name=%s private-key=%q listen-port=%d comment=%q\n",
+		MikroTikInterfaceName, in.PeerPrivateKey, mikroTikListenPort, label)
+	fmt.Fprintf(&b, "/ip/address/add address=%s interface=%s comment=%q\n",
+		addressWithSubnetPrefix(in.PeerAddress, in.TunnelSubnet), MikroTikInterfaceName, label)
+	fmt.Fprintf(&b, "/interface/wireguard/peers/add interface=%s public-key=%q endpoint-address=%s endpoint-port=%d allowed-address=%s persistent-keepalive=%ds comment=%q\n",
+		MikroTikInterfaceName, in.ServerPublicKey, in.EndpointHost, in.ListenPort, in.TunnelSubnet, in.Keepalive, label)
 
 	// Source NAT written without an interface name: the operator would have to
 	// look up the LAN interface otherwise, and without it the OLT needs a route
 	// back to the tunnel subnet that it almost never has.
 	for _, subnet := range in.AllowedIPs {
 		fmt.Fprintf(&b, "/ip/firewall/nat/add chain=srcnat src-address=%s dst-address=%s action=masquerade comment=%q\n",
-			in.TunnelSubnet, subnet, mikroTikNATComment)
+			in.TunnelSubnet, subnet, label)
 	}
 
 	return b.String()
@@ -109,6 +117,15 @@ func RenderMikroTikConfig(in PeerConfigInput) string {
 // addressWithSubnetPrefix extracts the prefix from subnet and appends it to address.
 // It is used to convert a bare IP (e.g. 10.88.0.5) and tunnel subnet (e.g. 10.88.0.0/24)
 // into a CIDR address (e.g. 10.88.0.5/24).
+// configLabel names the objects this config creates on the site's device. It
+// always starts with mikroTikNATComment so a later paste can still find them.
+func configLabel(siteName string) string {
+	if siteName == "" {
+		return mikroTikNATComment
+	}
+	return mikroTikNATComment + " - " + siteName
+}
+
 func addressWithSubnetPrefix(address, subnet string) string {
 	parts := strings.SplitN(subnet, "/", 2)
 	if len(parts) != 2 {

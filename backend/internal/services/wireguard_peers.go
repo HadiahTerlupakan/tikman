@@ -240,6 +240,7 @@ func (s *WireGuardService) PeerConfig(id uuid.UUID, format string) (string, erro
 	}
 
 	input := PeerConfigInput{
+		SiteName:        peer.Name,
 		PeerPrivateKey:  privateKey,
 		PeerAddress:     peer.TunnelAddress,
 		ServerPublicKey: server.PublicKey,

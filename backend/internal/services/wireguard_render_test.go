@@ -21,7 +21,8 @@ func renderInput() PeerConfigInput {
 }
 
 func TestRenderWGQuickConfig(t *testing.T) {
-	expected := `[Interface]
+	expected := `# TikMan VPN
+[Interface]
 PrivateKey = PEERPRIV
 Address = 10.88.0.5/24
 PostUp = sysctl -w net.ipv4.ip_forward=1
@@ -114,7 +115,7 @@ func TestRenderMikroTikConfigCleansItsOwnObjectsFirst(t *testing.T) {
 
 	// RouterOS lets two NAT rules with the same comment coexist, so a second
 	// paste after a subnet change would leave the old subnet's rule behind.
-	require.Contains(t, output, `/ip/firewall/nat/remove [find comment="TikMan VPN"]`)
+	require.Contains(t, output, `/ip/firewall/nat/remove [find comment~"TikMan VPN"]`)
 	require.Contains(t, output, `/interface/wireguard/peers/remove [find interface="wg-tikman"]`)
 	require.Contains(t, output, `/ip/address/remove [find interface="wg-tikman"]`)
 	require.Contains(t, output, `/interface/wireguard/remove [find name="wg-tikman"]`)
@@ -137,4 +138,45 @@ func TestRenderMikroTikConfigScopesEveryRemoval(t *testing.T) {
 			strings.Contains(line, "wg-tikman") || strings.Contains(line, "TikMan VPN"),
 			"removal must be scoped to what this block created: %s", line)
 	}
+}
+
+func TestRenderMikroTikConfigNamesTheSiteOnEveryObject(t *testing.T) {
+	in := renderInput()
+	in.SiteName = "POP Cikarang"
+
+	output := RenderMikroTikConfig(in)
+
+	// Someone opening this router months later should not have to guess what
+	// wg-tikman is or which system created it.
+	for _, object := range []string{
+		"/interface/wireguard/add",
+		"/ip/address/add",
+		"/interface/wireguard/peers/add",
+		"/ip/firewall/nat/add",
+	} {
+		line := lineStartingWith(t, output, object)
+		require.Contains(t, line, `comment="TikMan VPN - POP Cikarang"`, object)
+	}
+
+	// The removal still has to find those rules on the next paste, which is why
+	// the label keeps the prefix the selector matches on.
+	require.Contains(t, output, `[find comment~"TikMan VPN"]`)
+}
+
+func TestRenderWGQuickConfigNamesTheSite(t *testing.T) {
+	in := renderInput()
+	in.SiteName = "POP Cikarang"
+
+	require.True(t, strings.HasPrefix(RenderWGQuickConfig(in), "# TikMan VPN - POP Cikarang\n"))
+}
+
+func lineStartingWith(t *testing.T, output, prefix string) string {
+	t.Helper()
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	t.Fatalf("no line starting with %q", prefix)
+	return ""
 }
