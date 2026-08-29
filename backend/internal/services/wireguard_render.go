@@ -17,14 +17,21 @@ const mikroTikListenPort = 13231
 // PeerConfigInput carries everything the site side needs. The private key is
 // the peer's own, decrypted only while rendering.
 type PeerConfigInput struct {
-	PeerPrivateKey  string
+	PeerPrivateKey string
+	// PeerAddress is a bare IP with no prefix, for example "10.88.0.5". The
+	// prefix comes from TunnelSubnet, so a CIDR value here would render an
+	// address carrying two prefixes and a config the site cannot load.
 	PeerAddress     string
 	ServerPublicKey string
 	EndpointHost    string
-	TunnelSubnet    string
-	ListenPort      int
-	Keepalive       int
-	AllowedIPs      []string
+	// TunnelSubnet is in CIDR form, for example "10.88.0.0/24". It supplies the
+	// prefix for PeerAddress and is the only route the site sends to the VPS.
+	TunnelSubnet string
+	ListenPort   int
+	Keepalive    int
+	// AllowedIPs are the site's own local subnets in CIDR form. Each one gets
+	// its own masquerade rule so the OLT needs no route back to the tunnel.
+	AllowedIPs []string
 }
 
 // RenderWGQuickConfig renders the wg-quick configuration format for Linux sites.
