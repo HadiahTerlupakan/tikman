@@ -13,15 +13,25 @@ import (
 // of round trips.
 const zteGetBatchSize = 40
 
+// zteInventoryBatchSize is smaller than the shared one because these columns
+// answer with text - serial, MAC, name, description, both versions - and forty
+// of them overflow a single datagram. The fragments do not always survive the
+// path to the OLT, and the batch then goes unanswered: the same read that
+// takes twenty seconds from the host never finished from inside the container.
+// The metric columns are integers and stay well inside one datagram at forty.
+const zteInventoryBatchSize = 10
+
 // zteReadDeadline bounds one batched read of an OLT.
 //
 // gosnmp's own Timeout did not: the client is built with context.Background(),
 // which never cancels, and a Get sat in it for over ten minutes. The worker
 // runs its cycles one after another, so that single call froze every ONT's
-// status and metrics until the process was killed. Two hundred ONUs answer in
-// about a second, so this only ever fires on a device that has stopped
-// replying. A variable only so the test covering it need not spend the wait.
-var zteReadDeadline = 90 * time.Second
+// status and metrics until the process was killed.
+//
+// Sized to catch a hang, not to cap real work: reading two hundred ONUs takes
+// about twenty seconds, while the hang this exists for ran past ten minutes.
+// A variable only so the test covering it need not spend the wait.
+var zteReadDeadline = 2 * time.Minute
 
 // inventoryColumn is one field of an ONU's inventory and where to read it.
 type inventoryColumn struct {
@@ -92,8 +102,8 @@ func fetchZTEInventory(client *gosnmp.GoSNMP, locations []ONTLocation) map[ONTLo
 		}
 	}
 
-	for start := 0; start < len(pending); start += zteGetBatchSize {
-		end := start + zteGetBatchSize
+	for start := 0; start < len(pending); start += zteInventoryBatchSize {
+		end := start + zteInventoryBatchSize
 		if end > len(pending) {
 			end = len(pending)
 		}
