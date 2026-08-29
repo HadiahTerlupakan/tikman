@@ -107,7 +107,7 @@ func (s *WireGuardService) rollbackRejectedPeer(peerID uuid.UUID, cause error) e
 	if err := s.db.Delete(&models.WireGuardPeer{}, "id = ?", peerID).Error; err != nil {
 		return errors.Join(cause, fmt.Errorf("failed to roll back rejected peer %s: %w", peerID, err))
 	}
-	return cause
+	return s.reconcileAfterRollback(cause)
 }
 
 // resolveNewPeerNetwork validates the requested subnets against every other
@@ -188,7 +188,7 @@ func (s *WireGuardService) restorePeer(original models.WireGuardPeer, cause erro
 	if err := s.db.Save(&original).Error; err != nil {
 		return errors.Join(cause, fmt.Errorf("failed to restore peer %s after a rejected update: %w", original.ID, err))
 	}
-	return cause
+	return s.reconcileAfterRollback(cause)
 }
 
 // DeletePeer removes a peer and reconciles the device so its key stops being

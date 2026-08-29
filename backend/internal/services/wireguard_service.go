@@ -112,9 +112,21 @@ func (s *WireGuardService) UpdateServer(endpointHost string, listenPort int) (*m
 		if restoreErr := s.db.Save(&original).Error; restoreErr != nil {
 			return nil, errors.Join(err, fmt.Errorf("failed to restore server settings after a rejected update: %w", restoreErr))
 		}
-		return nil, err
+		return nil, s.reconcileAfterRollback(err)
 	}
 	return server, nil
+}
+
+// reconcileAfterRollback puts the device back in step with the restored
+// database. Apply is a sequence of kernel steps and is not atomic, so a failure
+// part-way through can leave the interface holding a configuration the database
+// no longer describes. The original refusal stays the cause: a failed recovery
+// is joined onto it, never substituted for it.
+func (s *WireGuardService) reconcileAfterRollback(cause error) error {
+	if err := s.Reconcile(); err != nil {
+		return errors.Join(cause, fmt.Errorf("failed to reconcile the device after rolling back: %w", err))
+	}
+	return cause
 }
 
 // Reconcile applies the whole database to the interface in one call. There is
