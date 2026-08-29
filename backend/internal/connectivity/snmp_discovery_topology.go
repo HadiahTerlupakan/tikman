@@ -38,9 +38,12 @@ func DiscoverOLTTopology(driver Driver, ipAddress, community string, snmpPort in
 	}
 	log.Printf("[Topology] Found %d ONTs in phase state table", len(statuses))
 
-	metrics, err := driver.WalkMetrics(ipAddress, community, snmpPort)
+	// Read for the ONUs the status table just named. Sweeping the optical tables
+	// does not finish on a populated OLT: the RX power walk returned 96 of 200
+	// rows before timing out, so most ONTs came back with empty fields.
+	metrics, err := readMetricsForKnownONTs(driver, ipAddress, community, snmpPort, statuses)
 	if err != nil {
-		log.Printf("[Topology] Warning: failed to walk metrics: %v", err)
+		log.Printf("[Topology] Warning: failed to read metrics: %v", err)
 		metrics = make(map[ONTLocation]ONTMetrics)
 	}
 	log.Printf("[Topology] Retrieved metrics for %d ONTs", len(metrics))
@@ -68,4 +71,19 @@ func DiscoverOLTTopology(driver Driver, ipAddress, community string, snmpPort in
 
 	log.Printf("[Topology] Discovered %d slots with full details", len(topology))
 	return topology, nil
+}
+
+// readMetricsForKnownONTs prefers a driver that can read named ONUs, falling
+// back to the table sweep for one that cannot.
+func readMetricsForKnownONTs(driver Driver, ipAddress, community string, snmpPort int, statuses map[ONTLocation]int) (map[ONTLocation]ONTMetrics, error) {
+	querier, direct := driver.(MetricsQuerier)
+	if !direct || len(statuses) == 0 {
+		return driver.WalkMetrics(ipAddress, community, snmpPort)
+	}
+
+	locations := make([]ONTLocation, 0, len(statuses))
+	for loc := range statuses {
+		locations = append(locations, loc)
+	}
+	return querier.QueryMetricsFor(ipAddress, community, snmpPort, locations)
 }

@@ -313,6 +313,16 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		log.Printf("[AutoDiscovery] Skipping OLT %s: discovery already running", olt.Name)
 		return
 	}
+	// The metrics cycle walks the same tables. Whoever gets here second stands
+	// down rather than doubling the load on the OLT.
+	release, free := TryLockOLTSNMP(olt.ID)
+	if !free {
+		log.Printf("[AutoDiscovery] Skipping OLT %s: another collector is reading it", olt.Name)
+		s.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_phase": "idle"})
+		return
+	}
+	defer release()
+
 	log.Printf("[AutoDiscovery] Starting immediate ONT metrics polling for OLT %s (%s)", olt.Name, olt.IPAddress)
 
 	start := time.Now()
@@ -350,11 +360,13 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 		})
 	}
 
-	// Metrics and enumeration are independent SNMP walks. A timeout in the
-	// optical-power table must not prevent registering ONTs from status data.
-	allMetrics, metricsErr := driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	// Read for the ONUs the status walk named, rather than swept: sweeping the
+	// optical tables does not finish on a populated OLT, and returned 96 of 200
+	// rows before timing out. A failure here must still not prevent registering
+	// ONTs from status data.
+	allMetrics, metricsErr := readONTMetrics(driver, olt, locations)
 	if metricsErr != nil {
-		log.Printf("[AutoDiscovery] Metrics walk failed for OLT %s: %v; continuing with inventory", olt.Name, metricsErr)
+		log.Printf("[AutoDiscovery] Metrics read failed for OLT %s: %v; continuing with inventory", olt.Name, metricsErr)
 		allMetrics = make(map[connectivity.ONTLocation]connectivity.ONTMetrics)
 	}
 	for loc := range allMetrics {
@@ -487,4 +499,19 @@ func (s *OLTService) updateDiscoveryProgress(oltID uuid.UUID, updates map[string
 	if err := s.db.Model(&models.OLT{}).Where("id = ?", oltID).Updates(updates).Error; err != nil {
 		log.Printf("[AutoDiscovery] Failed to update progress for OLT %s: %v", oltID, err)
 	}
+}
+
+// readONTMetrics prefers a driver that can read named ONUs, falling back to the
+// table sweep for one that cannot.
+func readONTMetrics(driver connectivity.Driver, olt *models.OLT, known map[connectivity.ONTLocation]bool) (map[connectivity.ONTLocation]connectivity.ONTMetrics, error) {
+	querier, direct := driver.(connectivity.MetricsQuerier)
+	if !direct || len(known) == 0 {
+		return driver.WalkMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
+	}
+
+	locations := make([]connectivity.ONTLocation, 0, len(known))
+	for loc := range known {
+		locations = append(locations, loc)
+	}
+	return querier.QueryMetricsFor(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, locations)
 }

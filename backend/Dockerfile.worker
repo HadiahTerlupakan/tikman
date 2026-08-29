@@ -9,7 +9,9 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker ./cmd/worker/main.go
+# The package, not one file: the worker is split across main.go, olt_poll.go and
+# ont_poll.go, and naming a single file leaves the rest out and fails to build.
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker ./cmd/worker
 
 FROM alpine:latest
 
