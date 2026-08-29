@@ -24,6 +24,9 @@ type PeerNetwork struct {
 	AllowedIPs []string
 }
 
+// ValidateAllowedIPs rejects site subnets that cannot be routed safely: a
+// default route, an overlap with the tunnel subnet or a reserved subnet, or an
+// overlap with a subnet another site already claims.
 func ValidateAllowedIPs(candidate []string, others []PeerNetwork, tunnelSubnet string, reserved []string) error {
 	if len(candidate) == 0 {
 		return fmt.Errorf("at least one local subnet is required")
@@ -67,21 +70,30 @@ func rejectOverlapWith(candidate []*net.IPNet, subnets []string, label string) e
 
 func rejectOverlapWithPeers(candidate []*net.IPNet, others []PeerNetwork) error {
 	for _, other := range others {
-		for _, entry := range other.AllowedIPs {
-			network, err := parseCIDR(entry)
-			if err != nil {
-				continue // a stored value that no longer parses cannot be routed anyway
-			}
-			for _, own := range candidate {
-				if networksOverlap(own, network) {
-					return fmt.Errorf("%s overlaps %s, already used by site %s", own.String(), entry, other.SiteName)
-				}
+		if err := rejectOverlapWithPeer(candidate, other); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectOverlapWithPeer(candidate []*net.IPNet, other PeerNetwork) error {
+	for _, entry := range other.AllowedIPs {
+		network, err := parseCIDR(entry)
+		if err != nil {
+			continue // a stored value that no longer parses cannot be routed anyway
+		}
+		for _, own := range candidate {
+			if networksOverlap(own, network) {
+				return fmt.Errorf("%s overlaps %s, already used by site %s", own.String(), entry, other.SiteName)
 			}
 		}
 	}
 	return nil
 }
 
+// ValidateTunnelAddress rejects an address outside the tunnel subnet, the
+// server's own address, and one already assigned to another site.
 func ValidateTunnelAddress(address, tunnelSubnet, serverAddress string, taken []string) error {
 	ip := net.ParseIP(address)
 	if ip == nil {
@@ -106,6 +118,9 @@ func ValidateTunnelAddress(address, tunnelSubnet, serverAddress string, taken []
 	return nil
 }
 
+// ValidateKeepalive bounds the interval that keeps the site's NAT mapping open.
+// Outside this range the tunnel either wastes traffic or goes stale before the
+// server notices.
 func ValidateKeepalive(seconds int) error {
 	if seconds < minKeepaliveSeconds || seconds > maxKeepaliveSeconds {
 		return fmt.Errorf("keepalive must be between %d and %d seconds", minKeepaliveSeconds, maxKeepaliveSeconds)
