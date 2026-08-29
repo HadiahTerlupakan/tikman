@@ -132,7 +132,11 @@ When running the API directly on the host, use `DB_HOST=localhost` and
 `DB_PORT=5437`; when running it in a container, use `DB_HOST=postgres` and
 `DB_PORT=5432`. Development Redis uses the password `dev-password`.
 
-**VPN WireGuard:** container `api` runs interface `wg0` and because of that has `NET_ADMIN` and `/dev/net/tun`; `worker` shares network namespace with it via `network_mode: service:api`, so restarting `api` also restarts `worker`. Port UDP 51820 must be opened in the VPS provider's firewall, because the site initiating the connection won't be able to handshake without it.
+**VPN WireGuard:** container `api` runs interface `wg0` and because of that
+has `NET_ADMIN` and `/dev/net/tun`; `worker` shares network namespace with it
+via `network_mode: service:api`, so restarting `api` also restarts `worker`.
+Port UDP 51820 must be opened in the VPS provider's firewall, because the site
+initiating the connection won't be able to handshake without it.
 
 ## Architecture
 
