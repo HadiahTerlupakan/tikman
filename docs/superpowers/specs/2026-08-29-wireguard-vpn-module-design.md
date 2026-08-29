@@ -292,7 +292,9 @@ repository di `infrastructure/repositories`, hook `useWireguard` di
 Backend:
 
 - `internal/models/wireguard.go` — dua model dan hook UUID.
-- `internal/services/wireguard_service.go` — orkestrasi CRUD dan `Reconcile`.
+- `internal/services/wireguard_service.go` — siklus hidup server dan `Reconcile`.
+- `internal/services/wireguard_peers.go` — CRUD peer dan render konfigurasinya. Dipisah
+  karena satu berkas untuk keduanya melewati batas 350 baris.
 - `internal/services/wireguard_validate.go` — seluruh aturan pada bagian 6.
 - `internal/services/wireguard_alloc.go` — alokasi alamat tunnel dan saran
   subnet dari alamat OLT.

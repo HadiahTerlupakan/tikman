@@ -34,7 +34,8 @@ Backend, dibuat baru:
 | `internal/services/wireguard_alloc.go` | Alokasi alamat tunnel dan saran subnet dari alamat OLT. |
 | `internal/services/wireguard_render.go` | Generator konfigurasi wg-quick dan MikroTik. |
 | `internal/services/wireguard_status.go` | Aturan "terhubung" dan goroutine pembaruan status. |
-| `internal/services/wireguard_service.go` | CRUD, orkestrasi, dan `Reconcile`. |
+| `internal/services/wireguard_service.go` | Siklus hidup server dan `Reconcile`. |
+| `internal/services/wireguard_peers.go` | CRUD peer dan render konfigurasinya. |
 | `internal/connectivity/wireguard_device.go` | Definisi tipe dan interface `TunnelDevice`. |
 | `internal/connectivity/wireguard_device_memory.go` | Implementasi in-memory yang dipakai test. |
 | `internal/connectivity/wireguard_device_linux.go` | Netlink dan wgctrl. Hanya Linux. |
