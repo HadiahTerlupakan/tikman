@@ -46,6 +46,11 @@ services:
     container_name: tikman-api
     ports:
       - "8080:8080"
+      - "51820:51820/udp"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -99,6 +104,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: tikman-worker
+    network_mode: "service:api"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -111,8 +117,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - tikman-network
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
 networks:
