@@ -7,12 +7,24 @@ import {
 } from "@/domain/entities";
 import { useEffect } from "react";
 
+// The API rejects anything shorter, and a mismatch here is invisible to the
+// operator: the request fails with a generic message and no field is marked.
+const MIN_PASSWORD_LENGTH = 12;
+
 interface UserModalProps {
   open: boolean;
   user?: User;
   onClose: () => void;
   onSubmit: (data: CreateUserDto | UpdateUserDto) => void;
   loading: boolean;
+}
+
+interface UserFormValues {
+  username: string;
+  email: string;
+  role: UserRole;
+  password?: string;
+  passwordConfirm?: string;
 }
 
 export function UserModal({
@@ -22,7 +34,7 @@ export function UserModal({
   onSubmit,
   loading,
 }: UserModalProps) {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<UserFormValues>();
 
   useEffect(() => {
     if (user) {
@@ -38,7 +50,16 @@ export function UserModal({
 
   const handleSubmit = () => {
     form.validateFields().then((values) => {
-      onSubmit(values);
+      const { username, email, role, password } = values;
+
+      // The confirmation never leaves the form, and an empty password means
+      // "leave it alone" — sending "" would fail the API's minimum length and
+      // read to the operator as a rejected edit.
+      onSubmit(
+        password
+          ? { username, email, role, password }
+          : { username, email, role },
+      );
     });
   };
 
@@ -71,18 +92,43 @@ export function UserModal({
           <Input />
         </Form.Item>
 
-        {!user && (
-          <Form.Item
-            name="password"
-            label="Password"
-            rules={[
-              { required: true, message: "Please enter password" },
-              { min: 6, message: "Password must be at least 6 characters" },
-            ]}
-          >
-            <Input.Password />
-          </Form.Item>
-        )}
+        <Form.Item
+          name="password"
+          label="Password"
+          extra={user ? "Leave blank to keep the current password." : undefined}
+          rules={[
+            { required: !user, message: "Please enter password" },
+            {
+              min: MIN_PASSWORD_LENGTH,
+              message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+            },
+          ]}
+        >
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
+
+        <Form.Item
+          name="passwordConfirm"
+          label="Confirm password"
+          dependencies={["password"]}
+          rules={[
+            ({ getFieldValue }) => ({
+              // Only demanded once a password is actually being set. A typo
+              // here would lock the operator out of their own installation.
+              validator(_rule, value) {
+                const password = getFieldValue("password");
+                if (!password || value === password) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(
+                  new Error("The two passwords do not match"),
+                );
+              },
+            }),
+          ]}
+        >
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
 
         <Form.Item
           name="role"
