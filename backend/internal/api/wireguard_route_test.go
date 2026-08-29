@@ -70,6 +70,21 @@ func TestWireguardMutationsRequireAdmin(t *testing.T) {
 		"a wrong subnet on a peer can break routing for other sites, so technicians may only read")
 }
 
+// The config endpoint is the only way key material leaves the system, and the
+// spec restricts it to Admin even though every other read is open to all roles.
+func TestWireguardPeerConfigIsAdminOnly(t *testing.T) {
+	router, store := newWireguardRouter(t)
+
+	path := "/api/v1/wireguard/peers/" + uuid.New().String() + "/config"
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.AddCookie(wireguardSessionCookie(t, store, models.UserRoleTechnician))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code,
+		"a technician must not be able to read a peer's private key")
+}
+
 func TestWireguardListIsReadableByTechnician(t *testing.T) {
 	router, store := newWireguardRouter(t)
 
