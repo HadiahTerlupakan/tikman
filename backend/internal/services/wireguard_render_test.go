@@ -108,3 +108,33 @@ func TestRenderMikroTikConfigNeedsNoInterfaceName(t *testing.T) {
 	require.NotContains(t, output, "out-interface=",
 		"the NAT rule must not ask the operator to know the name of the LAN interface")
 }
+
+func TestRenderMikroTikConfigCleansItsOwnObjectsFirst(t *testing.T) {
+	output := RenderMikroTikConfig(renderInput())
+
+	// RouterOS lets two NAT rules with the same comment coexist, so a second
+	// paste after a subnet change would leave the old subnet's rule behind.
+	require.Contains(t, output, `/ip/firewall/nat/remove [find comment="TikMan VPN"]`)
+	require.Contains(t, output, `/interface/wireguard/peers/remove [find interface="wg-tikman"]`)
+	require.Contains(t, output, `/ip/address/remove [find interface="wg-tikman"]`)
+	require.Contains(t, output, `/interface/wireguard/remove [find name="wg-tikman"]`)
+
+	require.Less(t, strings.Index(output, "/interface/wireguard/remove"),
+		strings.Index(output, "/interface/wireguard/add"),
+		"the cleanup has to run before the interface is created again")
+}
+
+func TestRenderMikroTikConfigScopesEveryRemoval(t *testing.T) {
+	output := RenderMikroTikConfig(renderInput())
+
+	// An unscoped remove would wipe the router's other tunnels and NAT rules.
+	for _, line := range strings.Split(output, "\n") {
+		if !strings.Contains(line, "/remove") {
+			continue
+		}
+		require.Contains(t, line, "[find ", "removal must select, never take everything: %s", line)
+		require.True(t,
+			strings.Contains(line, "wg-tikman") || strings.Contains(line, "TikMan VPN"),
+			"removal must be scoped to what this block created: %s", line)
+	}
+}

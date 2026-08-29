@@ -240,6 +240,11 @@ PersistentKeepalive = 25
 ### MikroTik
 
 ```
+/ip/firewall/nat/remove [find comment="TikMan VPN"]
+/interface/wireguard/peers/remove [find interface="wg-tikman"]
+/ip/address/remove [find interface="wg-tikman"]
+/interface/wireguard/remove [find name="wg-tikman"]
+
 /interface/wireguard/add name=wg-tikman private-key="<private key peer>" listen-port=13231
 /ip/address/add address=10.88.0.5/24 interface=wg-tikman
 /interface/wireguard/peers/add interface=wg-tikman public-key="<public key server>" \
@@ -266,6 +271,11 @@ tunnel.
 MikroTik meneruskan secara bawaan sehingga tidak memerlukan padanannya.
 `ip_forward` sengaja tidak dikembalikan pada `PostDown`: mesin itu bisa jadi
 sudah meneruskan trafik lain sebelum tunnel ini ada.
+
+Empat baris penghapusan di depan membuat blok ini aman ditempel ulang: RouterOS
+tidak menolak dua aturan NAT yang sama, sehingga tanpa itu subnet lama tertinggal
+setiap kali subnet diubah. Seluruh selektornya terikat pada nama interface atau
+komentar milik blok ini, jadi tidak menyentuh isi router yang lain.
 
 Baris masquerade adalah bagian yang membuat pemasangan cukup sekali tempel.
 Tanpa itu OLT harus punya rute balik ke subnet tunnel, dan pada kebanyakan

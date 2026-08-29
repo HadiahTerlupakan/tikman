@@ -17,6 +17,7 @@ const MIKROTIK: ClientSteps = {
     "Buka Winbox atau SSH ke MikroTik di lokasi tersebut.",
     "Masuk ke menu New Terminal.",
     "Tempel seluruh blok di bawah sekaligus, lalu tekan Enter.",
+    "Aman ditempel ulang: blok ini membersihkan sisa pemasangan sebelumnya.",
   ],
   verify:
     "Periksa dengan: /interface/wireguard/peers print — kolom last-handshake akan terisi dalam beberapa detik.",

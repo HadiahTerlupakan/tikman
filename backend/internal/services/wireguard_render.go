@@ -14,6 +14,10 @@ const MikroTikInterfaceName = "wg-tikman"
 // inbound handshake, so the value only has to be free.
 const mikroTikListenPort = 13231
 
+// mikroTikNATComment is how a later paste finds the NAT rules an earlier one
+// left. Changing it would orphan the rules already sitting on routers.
+const mikroTikNATComment = "TikMan VPN"
+
 // PeerConfigInput carries everything the site side needs. The private key is
 // the peer's own, decrypted only while rendering.
 type PeerConfigInput struct {
@@ -73,6 +77,17 @@ func RenderWGQuickConfig(in PeerConfigInput) string {
 func RenderMikroTikConfig(in PeerConfigInput) string {
 	var b strings.Builder
 
+	// Removing our own objects first makes the block safe to paste again after
+	// the subnet changes. RouterOS puts no uniqueness constraint on NAT rules,
+	// so without this a second paste leaves the previous subnet's rule behind
+	// and the router slowly fills with stale entries nobody dares delete. Every
+	// selector is scoped to this interface or this comment, so nothing else on
+	// the router is touched, and a `find` matching nothing is not an error.
+	fmt.Fprintf(&b, "/ip/firewall/nat/remove [find comment=%q]\n", mikroTikNATComment)
+	fmt.Fprintf(&b, "/interface/wireguard/peers/remove [find interface=%q]\n", MikroTikInterfaceName)
+	fmt.Fprintf(&b, "/ip/address/remove [find interface=%q]\n", MikroTikInterfaceName)
+	fmt.Fprintf(&b, "/interface/wireguard/remove [find name=%q]\n\n", MikroTikInterfaceName)
+
 	fmt.Fprintf(&b, "/interface/wireguard/add name=%s private-key=%q listen-port=%d\n",
 		MikroTikInterfaceName, in.PeerPrivateKey, mikroTikListenPort)
 	fmt.Fprintf(&b, "/ip/address/add address=%s interface=%s\n",
@@ -84,8 +99,8 @@ func RenderMikroTikConfig(in PeerConfigInput) string {
 	// look up the LAN interface otherwise, and without it the OLT needs a route
 	// back to the tunnel subnet that it almost never has.
 	for _, subnet := range in.AllowedIPs {
-		fmt.Fprintf(&b, "/ip/firewall/nat/add chain=srcnat src-address=%s dst-address=%s action=masquerade comment=\"TikMan VPN\"\n",
-			in.TunnelSubnet, subnet)
+		fmt.Fprintf(&b, "/ip/firewall/nat/add chain=srcnat src-address=%s dst-address=%s action=masquerade comment=%q\n",
+			in.TunnelSubnet, subnet, mikroTikNATComment)
 	}
 
 	return b.String()
