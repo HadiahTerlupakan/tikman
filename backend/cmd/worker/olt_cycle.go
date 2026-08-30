@@ -34,6 +34,7 @@ func pollOLT(
 	if !ok {
 		return
 	}
+	readDone := time.Now()
 
 	// Pruning and registration run once per OLT, against the discovery walk. A
 	// failure here leaves the stored ONTs alone rather than acting on a partial
@@ -41,6 +42,7 @@ func pollOLT(
 	if reading.statusWalkOK && !syncOntsWithDiscovery(olt, ontService, logger) {
 		return
 	}
+	syncDone := time.Now()
 
 	processed, skipped := 0, 0
 	err := ontService.EachONTOfOLT(olt.ID, ontPageSize, func(rows []models.ONT) error {
@@ -75,9 +77,16 @@ func pollOLT(
 
 	// One line per OLT, not per ONT. The old logging wrote three lines for every
 	// subscriber, which at any real size buries everything else in the log.
+	// Split three ways because they scale differently and the whole point of
+	// this work is knowing which one to attack next: the SNMP read is bounded by
+	// the OLT's agent, the sync by a second walk of the same chassis, and the
+	// ONT pass by database round trips per subscriber.
 	logger.Info("Polled OLT",
 		zap.String("olt", olt.Name),
 		zap.Int("onts", processed),
 		zap.Int("not_reported", skipped),
+		zap.Duration("snmp", readDone.Sub(started)),
+		zap.Duration("sync", syncDone.Sub(readDone)),
+		zap.Duration("onts_pass", time.Since(syncDone)),
 		zap.Duration("took", time.Since(started)))
 }
