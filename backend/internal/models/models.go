@@ -16,5 +16,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&WireGuardServer{},
 		&WireGuardPeer{},
 		&WorkerHeartbeat{},
+		&AppSetting{},
 	)
 }
