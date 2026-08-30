@@ -34,8 +34,15 @@ func (h *SiteHandler) Create(c *gin.Context) {
 		return
 	}
 
-	site, err := h.service.Create(req.Name, req.Location, req.Description)
+	site, err := h.service.CreateWithCoordinates(req.Name, req.Location, req.Description, req.Latitude, req.Longitude)
 	if err != nil {
+		if errors.Is(err, services.ErrValidation) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+				Code:  "INVALID_COORDINATES",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to create site",
 			Code:  "CREATE_FAILED",
@@ -155,8 +162,21 @@ func (h *SiteHandler) Update(c *gin.Context) {
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
+	if req.Latitude != nil {
+		updates["latitude"] = req.Latitude
+	}
+	if req.Longitude != nil {
+		updates["longitude"] = req.Longitude
+	}
 
 	if err := h.service.Update(id, updates); err != nil {
+		if errors.Is(err, services.ErrValidation) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+				Code:  "INVALID_COORDINATES",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to update site",
 			Code:  "UPDATE_FAILED",

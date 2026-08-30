@@ -202,3 +202,65 @@ func TestSiteService_Delete(t *testing.T) {
 		assert.NoError(t, err, "the site must survive the refused delete")
 	})
 }
+
+func floatPtr(v float64) *float64 { return &v }
+
+func TestSiteAcceptsAValidCoordinatePair(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewSiteService(db)
+
+	site, err := service.CreateWithCoordinates("Depok", "Jl. Margonda", "", floatPtr(-6.4025), floatPtr(106.7942))
+	require.NoError(t, err)
+	require.NotNil(t, site.Latitude)
+	require.InDelta(t, -6.4025, *site.Latitude, 0.0001)
+	require.InDelta(t, 106.7942, *site.Longitude, 0.0001)
+}
+
+func TestSiteSavesWithoutCoordinates(t *testing.T) {
+	// Not every site can be placed, and a site must never become unsavable
+	// because a location could not be resolved.
+	db := setupTestDB(t)
+	service := NewSiteService(db)
+
+	site, err := service.CreateWithCoordinates("Gudang", "Belakang kantor", "", nil, nil)
+	require.NoError(t, err)
+	require.Nil(t, site.Latitude)
+	require.Nil(t, site.Longitude)
+}
+
+func TestSiteRefusesHalfACoordinate(t *testing.T) {
+	// One value alone is not a partial answer: it would place a pin on the
+	// equator or the prime meridian and look deliberate.
+	db := setupTestDB(t)
+	service := NewSiteService(db)
+
+	_, err := service.CreateWithCoordinates("Depok", "", "", floatPtr(-6.4), nil)
+	require.ErrorIs(t, err, ErrValidation)
+
+	_, err = service.CreateWithCoordinates("Depok", "", "", nil, floatPtr(106.8))
+	require.ErrorIs(t, err, ErrValidation)
+}
+
+func TestSiteRefusesCoordinatesOutsideTheGlobe(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewSiteService(db)
+
+	_, err := service.CreateWithCoordinates("Nowhere", "", "", floatPtr(91), floatPtr(0))
+	require.ErrorIs(t, err, ErrValidation)
+
+	_, err = service.CreateWithCoordinates("Nowhere", "", "", floatPtr(0), floatPtr(181))
+	require.ErrorIs(t, err, ErrValidation)
+}
+
+func TestSiteUpdateValidatesCoordinatesToo(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewSiteService(db)
+	site, err := service.CreateWithCoordinates("Depok", "", "", nil, nil)
+	require.NoError(t, err)
+
+	err = service.Update(site.ID, map[string]interface{}{
+		"latitude":  floatPtr(-6.4),
+		"longitude": floatPtr(200.0),
+	})
+	require.ErrorIs(t, err, ErrValidation)
+}

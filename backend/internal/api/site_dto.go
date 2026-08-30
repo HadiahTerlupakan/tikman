@@ -8,15 +8,19 @@ import (
 )
 
 type CreateSiteRequest struct {
-	Name        string `json:"name" binding:"required,min=2,max=255"`
-	Location    string `json:"location"`
-	Description string `json:"description"`
+	Name        string   `json:"name" binding:"required,min=2,max=255"`
+	Location    string   `json:"location"`
+	Description string   `json:"description"`
+	Latitude    *float64 `json:"latitude" binding:"omitempty,min=-90,max=90"`
+	Longitude   *float64 `json:"longitude" binding:"omitempty,min=-180,max=180"`
 }
 
 type UpdateSiteRequest struct {
-	Name        *string `json:"name" binding:"omitempty,min=2,max=255"`
-	Location    *string `json:"location"`
-	Description *string `json:"description"`
+	Name        *string  `json:"name" binding:"omitempty,min=2,max=255"`
+	Location    *string  `json:"location"`
+	Description *string  `json:"description"`
+	Latitude    *float64 `json:"latitude" binding:"omitempty,min=-90,max=90"`
+	Longitude   *float64 `json:"longitude" binding:"omitempty,min=-180,max=180"`
 }
 
 type SiteResponse struct {
@@ -24,6 +28,8 @@ type SiteResponse struct {
 	Name        string    `json:"name"`
 	Location    string    `json:"location"`
 	Description string    `json:"description"`
+	Latitude    *float64  `json:"latitude,omitempty"`
+	Longitude   *float64  `json:"longitude,omitempty"`
 	OLTCount    int       `json:"olt_count"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -35,6 +41,8 @@ func ToSiteResponse(oltCount int64, site *models.Site) SiteResponse {
 		Name:        site.Name,
 		Location:    site.Location,
 		Description: site.Description,
+		Latitude:    site.Latitude,
+		Longitude:   site.Longitude,
 		OLTCount:    int(oltCount),
 		CreatedAt:   site.CreatedAt,
 		UpdatedAt:   site.UpdatedAt,

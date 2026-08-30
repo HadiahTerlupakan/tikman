@@ -27,11 +27,26 @@ func (s *SiteService) GetDB() *gorm.DB {
 	return s.db
 }
 
+// Create adds a site without coordinates. It exists alongside
+// CreateWithCoordinates, rather than taking latitude/longitude as optional
+// arguments, because the ~80 existing call sites across the test suite have
+// nothing to do with coordinates and should not need to change to add them.
 func (s *SiteService) Create(name, location, description string) (*models.Site, error) {
+	return s.CreateWithCoordinates(name, location, description, nil, nil)
+}
+
+// CreateWithCoordinates adds a site with an optional latitude/longitude pair.
+func (s *SiteService) CreateWithCoordinates(name, location, description string, latitude, longitude *float64) (*models.Site, error) {
+	if err := validateCoordinates(latitude, longitude); err != nil {
+		return nil, err
+	}
+
 	site := &models.Site{
 		Name:        strings.TrimSpace(name),
 		Location:    strings.TrimSpace(location),
 		Description: strings.TrimSpace(description),
+		Latitude:    latitude,
+		Longitude:   longitude,
 	}
 
 	if err := s.db.Create(site).Error; err != nil {
@@ -39,6 +54,25 @@ func (s *SiteService) Create(name, location, description string) (*models.Site, 
 	}
 
 	return site, nil
+}
+
+// validateCoordinates rejects a point that cannot exist and a pair that is only
+// half given. A lone latitude is not partial data: it would place a pin on the
+// prime meridian and look like a deliberate answer.
+func validateCoordinates(latitude, longitude *float64) error {
+	if (latitude == nil) != (longitude == nil) {
+		return fmt.Errorf("%w: latitude and longitude must be given together, or both left empty", ErrValidation)
+	}
+	if latitude == nil {
+		return nil
+	}
+	if *latitude < -90 || *latitude > 90 {
+		return fmt.Errorf("%w: latitude %v is outside -90..90", ErrValidation, *latitude)
+	}
+	if *longitude < -180 || *longitude > 180 {
+		return fmt.Errorf("%w: longitude %v is outside -180..180", ErrValidation, *longitude)
+	}
+	return nil
 }
 
 func (s *SiteService) GetByID(id uuid.UUID) (*models.Site, error) {
@@ -61,6 +95,14 @@ func (s *SiteService) List() ([]models.Site, error) {
 }
 
 func (s *SiteService) Update(id uuid.UUID, updates map[string]interface{}) error {
+	latitude, hasLatitude := updates["latitude"].(*float64)
+	longitude, hasLongitude := updates["longitude"].(*float64)
+	if hasLatitude || hasLongitude {
+		if err := validateCoordinates(latitude, longitude); err != nil {
+			return err
+		}
+	}
+
 	for _, field := range []string{"name", "location", "description"} {
 		if value, ok := updates[field].(string); ok {
 			updates[field] = strings.TrimSpace(value)
