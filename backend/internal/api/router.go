@@ -50,6 +50,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	auditService := services.NewAuditService(db, logger)
 	unconfiguredONUService := services.NewUnconfiguredONUService(db)
 	configTemplateService := services.NewConfigTemplateService(db, auditService)
+	settingService := services.NewSettingService(db, cfg.EncryptionKey)
 
 	authHandler := NewAuthHandler(userService, authStore, cfg.Environment == productionEnvironment)
 	userHandler := NewUserHandler(userService, auditService)
@@ -63,6 +64,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
 	configTemplateHandler := NewConfigTemplateHandler(configTemplateService)
 	wireguardHandler := NewWireGuardHandler(wgService, auditService)
+	settingHandler := NewSettingHandler(settingService, auditService)
 
 	// Provisioning pipeline: the factory above creates per-OLT commanders since
 	// each OLT has its own address and credentials.
@@ -100,6 +102,19 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			sites.POST("", middleware.RequireRole(models.UserRoleAdmin), siteHandler.Create)
 			sites.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), siteHandler.Update)
 			sites.DELETE("/:id", middleware.RequireRole(models.UserRoleAdmin), siteHandler.Delete)
+		}
+
+		// GET /browser is static while PUT/DELETE take :name. Gin keeps one
+		// tree per method so these coexist — but a GET /settings/:name must
+		// never be added here without moving /browser, or the router panics on
+		// a wildcard conflict.
+		settings := api.Group("/settings")
+		settings.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			settings.GET("/browser", settingHandler.Browser)
+			settings.GET("", middleware.RequireRole(models.UserRoleAdmin), settingHandler.List)
+			settings.PUT("/:name", middleware.RequireRole(models.UserRoleAdmin), settingHandler.Set)
+			settings.DELETE("/:name", middleware.RequireRole(models.UserRoleAdmin), settingHandler.Delete)
 		}
 
 		olts := api.Group("/olts")
