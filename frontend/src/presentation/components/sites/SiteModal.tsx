@@ -1,12 +1,12 @@
-import { Modal, Form, Input, Row, Col } from "antd";
+import { Modal, Form, Input } from "antd";
 import {
   type Site,
   type CreateSiteDto,
   type UpdateSiteDto,
 } from "@/domain/entities";
 import { useEffect } from "react";
-import { coordinateError, parseCoordinate } from "./siteCoordinates";
-import { AddressAutocomplete } from "./AddressAutocomplete";
+import { parseCoordinate } from "./siteCoordinates";
+import { LocationFields } from "@/presentation/components/common/LocationFields";
 
 interface SiteModalProps {
   open: boolean;
@@ -99,48 +99,7 @@ export function SiteModal({
         {/* Form.Item clones its child and injects value/onChange, and those
             win over anything passed here — so the field is form-controlled and
             only onResolved is ours to supply. */}
-        <Form.Item name="location" label="Address">
-          <AddressAutocomplete
-            onResolved={(place) => {
-              form.setFieldsValue({
-                location: place.address,
-                latitude: place.latitude.toString(),
-                longitude: place.longitude.toString(),
-              });
-              void form.validateFields(["latitude"]);
-            }}
-          />
-        </Form.Item>
-
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item
-              name="latitude"
-              label="Latitude"
-              dependencies={["longitude"]}
-              rules={[
-                ({ getFieldValue }) => ({
-                  validator: () => {
-                    const error = coordinateError(
-                      getFieldValue("latitude") ?? "",
-                      getFieldValue("longitude") ?? "",
-                    );
-                    return error
-                      ? Promise.reject(new Error(error))
-                      : Promise.resolve();
-                  },
-                }),
-              ]}
-            >
-              <Input placeholder="-6.4025" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="longitude" label="Longitude">
-              <Input placeholder="106.7942" />
-            </Form.Item>
-          </Col>
-        </Row>
+        <LocationFields form={form} />
 
         <Form.Item name="description" label="Description">
           <Input.TextArea rows={4} />

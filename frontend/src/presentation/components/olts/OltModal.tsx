@@ -17,6 +17,8 @@ import {
   OLT_MODELS,
 } from "@/domain/entities";
 import { useSites } from "@/application/hooks";
+import { LocationFields } from "@/presentation/components/common/LocationFields";
+import { parseCoordinate } from "@/presentation/components/sites/siteCoordinates";
 import { useEffect, useState } from "react";
 import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { OltRepository } from "@/infrastructure/repositories/OltRepository";
@@ -65,6 +67,8 @@ export function OltModal({
         sshPort: olt.sshPort,
         telnetPort: olt.telnetPort,
         snmpPort: olt.snmpPort,
+        latitude: olt.latitude?.toString() ?? "",
+        longitude: olt.longitude?.toString() ?? "",
       });
       setSelectedProtocol(olt.preferredProtocol);
     } else {
@@ -128,9 +132,29 @@ export function OltModal({
   };
 
   const handleSubmit = () => {
-    form.validateFields().then((values) => {
-      onSubmit(values);
-    });
+    form
+      .validateFields()
+      .then((values) => {
+        const latitude = parseCoordinate(values.latitude ?? "");
+        const longitude = parseCoordinate(values.longitude ?? "");
+        const hadCoordinates =
+          olt?.latitude !== undefined && olt?.longitude !== undefined;
+
+        onSubmit({
+          ...values,
+          ...(latitude !== null && longitude !== null
+            ? { latitude, longitude }
+            : {}),
+          // Only an edit can clear a pin, and only when the OLT had one: on a
+          // new OLT there is nothing to remove.
+          ...(hadCoordinates && latitude === null && longitude === null
+            ? { clearCoordinates: true }
+            : {}),
+        });
+      })
+      // antd renders each failure against its own field, so there is nothing
+      // left to report — but without this the rejection escapes unhandled.
+      .catch(() => undefined);
   };
 
   return (
@@ -272,6 +296,8 @@ export function OltModal({
             <Input.Password />
           </Form.Item>
         )}
+
+        <LocationFields form={form} addressName="address" />
 
         <Form.Item name="snmpCommunity" label="SNMP Community">
           <Input placeholder="public" />

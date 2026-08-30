@@ -9,12 +9,11 @@ import {
   // first.
   Marker,
 } from "@vis.gl/react-google-maps";
-import { OltStatus, type Olt, type Site } from "@/domain/entities";
-import { mappedSites, type MappedSite } from "./siteMapFilters";
+import { OltStatus, type Olt } from "@/domain/entities";
+import { mappedOlts, type MappedOlt } from "./oltMapFilters";
 
-interface SiteMapProps {
+interface OltMapProps {
   apiKey: string;
-  sites: Site[];
   olts: Olt[];
 }
 
@@ -23,23 +22,23 @@ interface SiteMapProps {
 const FALLBACK_CENTER = { lat: -2.5, lng: 118 };
 const FALLBACK_ZOOM = 4;
 // A single pin should not open at maximum zoom, where there is no context.
-const SINGLE_SITE_ZOOM = 14;
+const SINGLE_PIN_ZOOM = 14;
 // Keeps the outermost pins off the edge of the viewport.
 const BOUNDS_PADDING = 48;
 
 /**
  * Frames every pin. Depok and Bekasi are 40 km apart, so centring on one of
- * them at street zoom shows a single site and reads as though only one is
- * mapped — the very thing the unmapped-sites panel exists to prevent.
+ * them at street zoom shows a single OLT and reads as though only one is
+ * mapped — the very thing the unmapped panel exists to prevent.
  */
-function framingOf(pins: MappedSite[]) {
+function framingOf(pins: MappedOlt[]) {
   if (pins.length === 0) {
     return { defaultCenter: FALLBACK_CENTER, defaultZoom: FALLBACK_ZOOM };
   }
   if (pins.length === 1) {
     return {
       defaultCenter: { lat: pins[0].latitude, lng: pins[0].longitude },
-      defaultZoom: SINGLE_SITE_ZOOM,
+      defaultZoom: SINGLE_PIN_ZOOM,
     };
   }
 
@@ -56,9 +55,9 @@ function framingOf(pins: MappedSite[]) {
   };
 }
 
-export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
-  const [selected, setSelected] = useState<MappedSite | null>(null);
-  const pins = mappedSites(sites);
+export function OltMap({ apiKey, olts }: OltMapProps) {
+  const [selected, setSelected] = useState<MappedOlt | null>(null);
+  const pins = mappedOlts(olts);
 
   return (
     <APIProvider apiKey={apiKey}>
@@ -68,12 +67,12 @@ export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
         gestureHandling="greedy"
         disableDefaultUI={false}
       >
-        {pins.map((site) => (
+        {pins.map((olt) => (
           <Marker
-            key={site.id}
-            position={{ lat: site.latitude, lng: site.longitude }}
-            title={site.name}
-            onClick={() => setSelected(site)}
+            key={olt.id}
+            position={{ lat: olt.latitude, lng: olt.longitude }}
+            title={olt.name}
+            onClick={() => setSelected(olt)}
           />
         ))}
 
@@ -82,7 +81,7 @@ export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
             position={{ lat: selected.latitude, lng: selected.longitude }}
             onCloseClick={() => setSelected(null)}
           >
-            <SiteSummary site={selected} olts={olts} />
+            <OltSummary olt={selected} />
           </InfoWindow>
         )}
       </Map>
@@ -90,18 +89,23 @@ export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
   );
 }
 
-function SiteSummary({ site, olts }: { site: Site; olts: Olt[] }) {
-  const owned = olts.filter((olt) => olt.siteId === site.id);
-  const online = owned.filter((olt) => olt.status === OltStatus.ONLINE).length;
-
+function OltSummary({ olt }: { olt: Olt }) {
   return (
-    <div style={{ color: "#18181b", minWidth: 160 }}>
-      <div style={{ fontWeight: 600 }}>{site.name}</div>
-      <div style={{ fontSize: 12 }}>{site.location || "no address"}</div>
+    <div style={{ color: "#18181b", minWidth: 180 }}>
+      <div style={{ fontWeight: 600 }}>{olt.name}</div>
+      <div style={{ fontSize: 12 }}>Site: {olt.siteName}</div>
       <div style={{ fontSize: 12, marginTop: 6 }}>
-        {owned.length === 0
-          ? "No OLTs at this site"
-          : `${online} of ${owned.length} OLTs online`}
+        {olt.ipAddress} ·{" "}
+        <span
+          style={{
+            color: olt.status === OltStatus.ONLINE ? "#15803d" : "#b91c1c",
+          }}
+        >
+          {olt.status}
+        </span>
+      </div>
+      <div style={{ fontSize: 12 }}>
+        {olt.ontCount === 1 ? "1 ONT" : `${olt.ontCount ?? 0} ONTs`}
       </div>
     </div>
   );

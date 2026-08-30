@@ -266,11 +266,16 @@ Karena itu perlu dua nama yang berbeda:
   Memakai nama yang di-proxy akan menunjuk ke server Cloudflare, dan tidak ada
   satu pun site yang bisa terhubung.
 
-## Peta site
+## Peta OLT
 
-Peta menampilkan pin untuk setiap site yang memiliki koordinat. Site tanpa
+Peta menampilkan pin untuk setiap **OLT** yang memiliki koordinat. OLT tanpa
 koordinat ditampilkan dalam daftar di samping peta, sehingga peta yang singkat
 tidak akan disalahartikan sebagai lengkap.
+
+Koordinat menempel pada OLT, bukan pada site, karena site di sini biasanya
+menamai wilayah — Depok, Bekasi — sementara perangkatnya berada di satu
+bangunan tertentu di dalam wilayah itu. Site tetap bisa diberi koordinat di
+halaman Sites, tapi peta tidak menggambarnya.
 
 ### Setup awal
 
@@ -297,12 +302,15 @@ Langkah 4 tidak opsional. Key dikirimkan ke setiap browser yang membuka peta
 dan dapat dibaca dari developer tools; pembatasan adalah satu-satunya hal yang
 mencegah orang lain menghabiskan kuota Anda.
 
-### Memberi site koordinat
+### Memberi OLT koordinat
 
-Edit site dan mulai ketik di field **Address** — saran muncul setelah key
+Edit OLT dan mulai ketik di field **Address** — saran muncul setelah key
 disimpan, dan memilih salah satu akan mengisi koordinat secara otomatis.
 
 Untuk lokasi yang tidak dikenal Google — POP di gang, tower di lapangan —
 ketik latitude dan longitude langsung. Kedua field harus diisi atau keduanya
 kosong; salah satu saja akan ditolak, karena akan menempatkan pin di tempat
-yang bukan lokasi site.
+yang bukan lokasi OLT.
+
+Pin yang salah bisa dihapus: kosongkan kedua field lalu simpan. Ini berlaku
+untuk OLT maupun site.

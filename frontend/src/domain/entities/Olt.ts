@@ -38,6 +38,10 @@ export interface Olt {
   telnetPort: number;
   snmpPort: number;
   status: OltStatus;
+  /** Sent by the API as ont_count; it was arriving untyped. */
+  ontCount: number;
+  latitude?: number;
+  longitude?: number;
   lastSeen: string | null;
   // Physical location for SNMP OID calculation (ZTE C300)
   rack: number;
@@ -49,6 +53,8 @@ export interface Olt {
 
 export interface CreateOltDto {
   siteId: string;
+  latitude?: number;
+  longitude?: number;
   name: string;
   ipAddress: string;
   model: OltModel;
@@ -66,6 +72,10 @@ export interface CreateOltDto {
 }
 
 export interface UpdateOltDto {
+  latitude?: number;
+  longitude?: number;
+  /** A pointer cannot say "cleared" rather than "not sent"; this can. */
+  clearCoordinates?: boolean;
   siteId?: string;
   name?: string;
   ipAddress?: string;

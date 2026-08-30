@@ -3,9 +3,8 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import MapPage from "../MapPage";
 
-// MapPage links to /settings and to the unmapped-sites panel's /sites link,
-// which need a Router ancestor even in a unit test — without it
-// react-router-dom's <Link> throws on render.
+// MapPage links to /settings, and the unmapped panel links to /olts; both need
+// a Router ancestor even in a unit test, or react-router-dom's <Link> throws.
 const renderMapPage = () =>
   render(
     <MemoryRouter>
@@ -15,24 +14,23 @@ const renderMapPage = () =>
 
 const state = {
   key: undefined as string | undefined,
-  sites: [] as unknown[],
+  olts: [] as unknown[],
 };
 
 vi.mock("@/application/hooks", () => ({
   useGoogleMapsKey: () => ({ key: state.key, isLoading: false }),
-  useSites: () => ({ data: state.sites, isLoading: false }),
-  useOlts: () => ({ data: [], isLoading: false }),
+  useOlts: () => ({ data: state.olts, isLoading: false }),
 }));
 
-// The map itself needs a Google API to draw anything; SiteMap has its own test.
-vi.mock("@/presentation/components/map/SiteMap", () => ({
-  SiteMap: () => <div data-testid="site-map" />,
+// The map itself needs a Google API to draw anything; OltMap has its own test.
+vi.mock("@/presentation/components/map/OltMap", () => ({
+  OltMap: () => <div data-testid="olt-map" />,
 }));
 
 describe("MapPage", () => {
   beforeEach(() => {
     state.key = "AIzaSyTESTKEY123";
-    state.sites = [];
+    state.olts = [];
   });
 
   it("explains a missing key instead of rendering a broken map", () => {
@@ -41,30 +39,41 @@ describe("MapPage", () => {
     renderMapPage();
 
     expect(screen.getByText(/no google maps api key/i)).toBeInTheDocument();
-    expect(screen.queryByTestId("site-map")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("olt-map")).not.toBeInTheDocument();
   });
 
   it("renders the map once a key is configured", () => {
     renderMapPage();
 
-    expect(screen.getByTestId("site-map")).toBeInTheDocument();
+    expect(screen.getByTestId("olt-map")).toBeInTheDocument();
   });
 
-  it("lists sites with no coordinates beside the map", () => {
-    state.sites = [
+  it("lists OLTs with no coordinates beside the map", () => {
+    // This installation's OLTs have no coordinates yet, so this panel is the
+    // first thing the operator will actually see on the page.
+    state.olts = [
       {
-        id: "s1",
-        name: "Gudang",
-        location: "Belakang kantor",
-        description: "",
-        oltCount: 1,
-        createdAt: "",
-        updatedAt: "",
+        id: "o1",
+        name: "OLT Cariu",
+        siteName: "Cariu",
+        ipAddress: "172.30.30.2",
       },
     ];
 
     renderMapPage();
 
-    expect(screen.getByText("Gudang")).toBeInTheDocument();
+    expect(screen.getByText("OLT Cariu")).toBeInTheDocument();
+    expect(screen.getByText(/1 OLT has no coordinates/i)).toBeInTheDocument();
+  });
+
+  it("counts only the OLTs it can actually draw", () => {
+    state.olts = [
+      { id: "o1", name: "Mapped", latitude: -6.4, longitude: 106.8 },
+      { id: "o2", name: "Unmapped" },
+    ];
+
+    renderMapPage();
+
+    expect(screen.getByText("1 OLTs on the map")).toBeInTheDocument();
   });
 });

@@ -1,26 +1,27 @@
 import { Alert, Col, Row, Skeleton } from "antd";
 import { Link } from "react-router-dom";
-import { useGoogleMapsKey, useOlts, useSites } from "@/application/hooks";
+import { useGoogleMapsKey, useOlts } from "@/application/hooks";
 import { PageHeader, DarkCard } from "../components/common";
-import { SiteMap } from "../components/map/SiteMap";
-import { mappedSites, unmappedSites } from "../components/map/siteMapFilters";
-import { UnmappedSitesPanel } from "../components/map/UnmappedSitesPanel";
+// Imported from their own modules rather than the barrel so a test can mock
+// the map without also mocking the panel beside it.
+import { OltMap } from "../components/map/OltMap";
+import { mappedOlts, unmappedOlts } from "../components/map/oltMapFilters";
+import { UnmappedOltsPanel } from "../components/map/UnmappedOltsPanel";
 
 export default function MapPage() {
   const { key, isLoading: keyLoading } = useGoogleMapsKey();
-  const { data: sites, isLoading: sitesLoading } = useSites();
-  const { data: olts } = useOlts();
+  const { data: olts, isLoading: oltsLoading } = useOlts();
 
-  const unmapped = unmappedSites(sites);
+  const unmapped = unmappedOlts(olts);
 
   return (
     <div>
       <PageHeader
-        title="Site Map"
-        description={`${mappedSites(sites).length} sites on the map`}
+        title="OLT Map"
+        description={`${mappedOlts(olts).length} OLTs on the map`}
       />
 
-      {keyLoading || sitesLoading ? (
+      {keyLoading || oltsLoading ? (
         <Skeleton active paragraph={{ rows: 8 }} title={false} />
       ) : !key ? (
         <Alert
@@ -38,11 +39,11 @@ export default function MapPage() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={17}>
             <DarkCard style={{ height: "100%" }}>
-              <SiteMap apiKey={key} sites={sites ?? []} olts={olts ?? []} />
+              <OltMap apiKey={key} olts={olts ?? []} />
             </DarkCard>
           </Col>
           <Col xs={24} lg={7}>
-            <UnmappedSitesPanel sites={unmapped} />
+            <UnmappedOltsPanel olts={unmapped} />
           </Col>
         </Row>
       )}
