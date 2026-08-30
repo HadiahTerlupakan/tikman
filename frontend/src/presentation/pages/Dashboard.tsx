@@ -1,12 +1,9 @@
-import { Row, Col, Alert, Empty, Progress, Skeleton } from "antd";
+import { Row, Col, Alert, Progress } from "antd";
 import {
   UserOutlined,
   EnvironmentOutlined,
   ApiOutlined,
   ClusterOutlined,
-  WarningOutlined,
-  DisconnectOutlined,
-  CheckCircleOutlined,
 } from "@ant-design/icons";
 import {
   useUsers,
@@ -14,21 +11,29 @@ import {
   useOlts,
   useOnts,
   useHealth,
+  useWireguardPeers,
 } from "@/application/hooks";
 import { useAuthStore } from "@/application/stores";
 import { UserRole } from "@/domain/entities";
 import { colors } from "@/shared/theme";
 import { PageHeader, DarkCard } from "../components/common";
 import {
-  StatusTile,
+  LastUpdated,
+  OltBreakdownTable,
+  StatusBar,
   SummaryCard,
   SystemHealthCard,
+  VpnStatusCard,
+  WeakSignalList,
 } from "../components/dashboard";
 import {
   availabilityTone,
+  isPartialSummary,
+  summariseByOlt,
   summariseOlts,
   summariseOnts,
   uptimePercent,
+  weakestSignals,
 } from "./dashboardStats";
 
 export default function DashboardPage() {
@@ -42,18 +47,29 @@ export default function DashboardPage() {
     error: sitesError,
   } = useSites();
   const { data: olts, isLoading: oltsLoading, error: oltsError } = useOlts();
-  const { data: ontPage, isLoading: ontsLoading, error: ontsError } = useOnts();
+  const {
+    data: ontPage,
+    isLoading: ontsLoading,
+    isFetching: ontsFetching,
+    dataUpdatedAt,
+    error: ontsError,
+  } = useOnts();
   const { data: health, isLoading: healthLoading } = useHealth();
+  const {
+    data: peers,
+    isLoading: peersLoading,
+    error: peersError,
+  } = useWireguardPeers();
 
   const oltSummary = summariseOlts(olts);
-  const ontSummary = summariseOnts(ontPage?.data);
+  const ontSummary = summariseOnts(ontPage?.data, ontPage?.total);
   const oltUptime = uptimePercent(oltSummary.online, oltSummary.total);
-  const ontUptime = uptimePercent(ontSummary.online, ontSummary.total);
-  const availabilityColor = colors[availabilityTone(ontUptime)];
+  const ontUptime = uptimePercent(ontSummary.online, ontSummary.counted);
+  const oltRows = summariseByOlt(olts, ontPage?.data);
+  const signals = weakestSignals(ontPage?.data);
 
   // A failed query must render a dash, not 0 — a zero here is indistinguishable
   // from a healthy empty system.
-  const oltValue = (n: number) => (oltsError ? null : n);
   const ontValue = (n: number) => (ontsError ? null : n);
 
   const failed = [
@@ -67,6 +83,9 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard Overview"
         description="Monitor your OLT provisioning system in real-time"
+        extra={
+          <LastUpdated updatedAt={dataUpdatedAt} isFetching={ontsFetching} />
+        }
       />
 
       {failed.length > 0 && (
@@ -118,7 +137,7 @@ export default function DashboardPage() {
             caption={
               ontUptime === null
                 ? "No ONTs registered"
-                : `${ontSummary.online} of ${ontSummary.total} online`
+                : `${ontSummary.online} of ${ontSummary.counted} online`
             }
           />
         </Col>
@@ -126,112 +145,59 @@ export default function DashboardPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} lg={16}>
-          <DarkCard title="OLT Status Distribution">
-            {oltsLoading ? (
-              <Skeleton active paragraph={{ rows: 3 }} title={false} />
-            ) : oltSummary.total === 0 && !oltsError ? (
-              <Empty
-                description={
-                  <span style={{ color: colors.textSecondary }}>
-                    No OLTs registered yet
-                  </span>
-                }
-              />
-            ) : (
-              <Row gutter={[16, 16]}>
-                <Col xs={24} sm={8}>
-                  <StatusTile
-                    tone="success"
-                    label="Online"
-                    value={oltValue(oltSummary.online)}
-                    total={oltSummary.total}
-                    icon={<CheckCircleOutlined />}
-                  />
-                </Col>
-                <Col xs={24} sm={8}>
-                  <StatusTile
-                    tone="neutral"
-                    label="Offline"
-                    value={oltValue(oltSummary.offline)}
-                    total={oltSummary.total}
-                    icon={<DisconnectOutlined />}
-                  />
-                </Col>
-                <Col xs={24} sm={8}>
-                  <StatusTile
-                    tone="danger"
-                    label="Error"
-                    value={oltValue(oltSummary.error)}
-                    total={oltSummary.total}
-                    icon={<WarningOutlined />}
-                  />
-                </Col>
-              </Row>
+          <DarkCard title="ONT Status" style={{ height: "100%" }}>
+            <StatusBar
+              isLoading={ontsLoading}
+              total={ontSummary.counted}
+              emptyText="No ONTs registered yet"
+              segments={[
+                {
+                  label: "Online",
+                  tone: "success",
+                  value: ontValue(ontSummary.online),
+                },
+                {
+                  label: "Offline",
+                  tone: "neutral",
+                  value: ontValue(ontSummary.offline),
+                },
+                {
+                  label: "LOS",
+                  tone: "danger",
+                  value: ontValue(ontSummary.los),
+                  hint: "Signal lost",
+                },
+                {
+                  label: "Dying Gasp",
+                  tone: "warning",
+                  value: ontValue(ontSummary.dyingGasp),
+                  hint: "Power lost",
+                },
+                {
+                  label: "Unknown",
+                  tone: "neutral",
+                  value: ontValue(ontSummary.unknown),
+                  hint: "Not yet polled",
+                },
+              ]}
+            />
+            {isPartialSummary(ontSummary) && (
+              <div
+                style={{
+                  marginTop: 16,
+                  color: colors.textMuted,
+                  fontSize: 12,
+                }}
+              >
+                Breakdown covers the {ontSummary.counted} most recent ONTs of{" "}
+                {ontSummary.total}; the API returns at most 500 per request.
+              </div>
             )}
           </DarkCard>
         </Col>
 
         <Col xs={24} lg={8}>
-          <SystemHealthCard health={health} isLoading={healthLoading} />
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
-          <DarkCard title="ONT Status">
-            {ontsLoading ? (
-              <Skeleton active paragraph={{ rows: 3 }} title={false} />
-            ) : ontSummary.total === 0 && !ontsError ? (
-              <Empty
-                description={
-                  <span style={{ color: colors.textSecondary }}>
-                    No ONTs registered yet
-                  </span>
-                }
-              />
-            ) : (
-              <Row gutter={[16, 16]}>
-                <Col xs={12} sm={6}>
-                  <StatusTile
-                    tone="success"
-                    label="Online"
-                    value={ontValue(ontSummary.online)}
-                    total={ontSummary.total}
-                  />
-                </Col>
-                <Col xs={12} sm={6}>
-                  <StatusTile
-                    tone="neutral"
-                    label="Offline"
-                    value={ontValue(ontSummary.offline)}
-                    total={ontSummary.total}
-                  />
-                </Col>
-                <Col xs={12} sm={6}>
-                  <StatusTile
-                    tone="danger"
-                    label="LOS"
-                    value={ontValue(ontSummary.los)}
-                    total={ontSummary.total}
-                    hint="Signal lost"
-                  />
-                </Col>
-                <Col xs={12} sm={6}>
-                  <StatusTile
-                    tone="warning"
-                    label="Dying Gasp"
-                    value={ontValue(ontSummary.dyingGasp)}
-                    total={ontSummary.total}
-                    hint="Power lost"
-                  />
-                </Col>
-              </Row>
-            )}
-          </DarkCard>
-        </Col>
-
-        <Col xs={24} lg={8}>
-          <DarkCard title="Network Availability">
+          <DarkCard title="Network Availability" style={{ height: "100%" }}>
             <div
               style={{
                 display: "flex",
@@ -244,7 +210,7 @@ export default function DashboardPage() {
                 type="dashboard"
                 percent={ontUptime ?? 0}
                 strokeWidth={7}
-                strokeColor={availabilityColor}
+                strokeColor={colors[availabilityTone(ontUptime)]}
                 trailColor="rgba(161, 161, 170, 0.14)"
                 format={(p) => (
                   <span
@@ -268,10 +234,41 @@ export default function DashboardPage() {
               >
                 {ontUptime === null
                   ? "No ONTs to measure"
-                  : `${ontSummary.online} of ${ontSummary.total} ONTs online`}
+                  : `${ontSummary.online} of ${ontSummary.counted} ONTs online`}
               </div>
             </div>
           </DarkCard>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} lg={16}>
+          <DarkCard title="Status by OLT" style={{ height: "100%" }}>
+            <OltBreakdownTable
+              rows={oltsError ? [] : oltRows}
+              isLoading={oltsLoading || ontsLoading}
+            />
+          </DarkCard>
+        </Col>
+
+        <Col xs={24} lg={8}>
+          <VpnStatusCard
+            peers={peers}
+            isLoading={peersLoading}
+            isError={!!peersError}
+          />
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={16}>
+          <DarkCard title="Weakest Optical Signal" style={{ height: "100%" }}>
+            <WeakSignalList signals={signals} isLoading={ontsLoading} />
+          </DarkCard>
+        </Col>
+
+        <Col xs={24} lg={8}>
+          <SystemHealthCard health={health} isLoading={healthLoading} />
         </Col>
       </Row>
     </div>

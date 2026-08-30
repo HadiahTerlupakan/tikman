@@ -9,38 +9,36 @@ interface QueryLike<T> {
   error: unknown;
 }
 
+interface OntRow {
+  id: string;
+  status: OntStatus;
+  oltId?: string;
+  oltName?: string;
+  name?: string;
+  serialNumber?: string;
+  rxPower?: number | null;
+}
+
 const state: {
   sites: QueryLike<{ id: string }[]>;
-  olts: QueryLike<{ id: string; status: OltStatus }[]>;
-  onts: QueryLike<{ data: { id: string; status: OntStatus }[]; total: number }>;
+  olts: QueryLike<{ id: string; name: string; status: OltStatus }[]>;
+  onts: QueryLike<{ data: OntRow[]; total: number }>;
+  peers: QueryLike<
+    { id: string; name: string; enabled: boolean; connected: boolean }[]
+  >;
 } = {
   sites: { data: [{ id: "s1" }], isLoading: false, error: null },
-  olts: {
-    data: [
-      { id: "o1", status: OltStatus.ONLINE },
-      { id: "o2", status: OltStatus.ERROR },
-    ],
-    isLoading: false,
-    error: null,
-  },
-  onts: {
-    data: {
-      data: [
-        { id: "t1", status: OntStatus.ONLINE },
-        { id: "t2", status: OntStatus.LOS },
-      ],
-      total: 2,
-    },
-    isLoading: false,
-    error: null,
-  },
+  olts: { data: [], isLoading: false, error: null },
+  onts: { data: { data: [], total: 0 }, isLoading: false, error: null },
+  peers: { data: [], isLoading: false, error: null },
 };
 
 vi.mock("@/application/hooks", () => ({
   useUsers: () => ({ data: [{ id: "u1" }], isLoading: false }),
   useSites: () => state.sites,
   useOlts: () => state.olts,
-  useOnts: () => state.onts,
+  useOnts: () => ({ ...state.onts, isFetching: false, dataUpdatedAt: 0 }),
+  useWireguardPeers: () => state.peers,
   useHealth: () => ({
     data: {
       status: "healthy",
@@ -63,8 +61,8 @@ describe("DashboardPage", () => {
     state.sites = { data: [{ id: "s1" }], isLoading: false, error: null };
     state.olts = {
       data: [
-        { id: "o1", status: OltStatus.ONLINE },
-        { id: "o2", status: OltStatus.ERROR },
+        { id: "o1", name: "Depok", status: OltStatus.ONLINE },
+        { id: "o2", name: "Bekasi", status: OltStatus.ERROR },
       ],
       isLoading: false,
       error: null,
@@ -72,14 +70,15 @@ describe("DashboardPage", () => {
     state.onts = {
       data: {
         data: [
-          { id: "t1", status: OntStatus.ONLINE },
-          { id: "t2", status: OntStatus.LOS },
+          { id: "t1", status: OntStatus.ONLINE, oltId: "o1" },
+          { id: "t2", status: OntStatus.LOS, oltId: "o2" },
         ],
         total: 2,
       },
       isLoading: false,
       error: null,
     };
+    state.peers = { data: [], isLoading: false, error: null };
   });
 
   it("summarises OLT and ONT counts from the loaded data", () => {
@@ -89,6 +88,78 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Total ONTs")).toBeInTheDocument();
     expect(screen.getByText("50% online")).toBeInTheDocument();
     expect(screen.getByText("1 of 2 online")).toBeInTheDocument();
+  });
+
+  it("breaks the counts down to the OLT the operator has to visit", () => {
+    render(<DashboardPage />);
+
+    expect(screen.getByText("Depok")).toBeInTheDocument();
+    expect(screen.getByText("Bekasi")).toBeInTheDocument();
+    // Bekasi carries the only impaired ONT, so it sorts above the healthy OLT.
+    const names = screen
+      .getAllByText(/^(Depok|Bekasi)$/)
+      .map((node) => node.textContent);
+    expect(names[0]).toBe("Bekasi");
+  });
+
+  it("says so when the breakdown covers only part of the network", () => {
+    // Silently describing 500 of 900 ONTs would understate every fault count.
+    state.onts = {
+      data: {
+        data: [{ id: "t1", status: OntStatus.ONLINE, oltId: "o1" }],
+        total: 900,
+      },
+      isLoading: false,
+      error: null,
+    };
+
+    render(<DashboardPage />);
+
+    expect(
+      screen.getByText(/covers the 1 most recent ONTs of 900/),
+    ).toBeInTheDocument();
+  });
+
+  it("lists the online ONT receiving the least light", () => {
+    state.onts = {
+      data: {
+        data: [
+          {
+            id: "t1",
+            status: OntStatus.ONLINE,
+            oltId: "o1",
+            oltName: "Depok",
+            name: "Pelanggan A",
+            serialNumber: "ZTEG1",
+            rxPower: -28.4,
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      error: null,
+    };
+
+    render(<DashboardPage />);
+
+    expect(screen.getByText("Pelanggan A")).toBeInTheDocument();
+    expect(screen.getByText("-28.4 dBm")).toBeInTheDocument();
+  });
+
+  it("reports which site tunnels are down", () => {
+    state.peers = {
+      data: [
+        { id: "p1", name: "Depok", enabled: true, connected: true },
+        { id: "p2", name: "Bekasi", enabled: true, connected: false },
+      ],
+      isLoading: false,
+      error: null,
+    };
+
+    render(<DashboardPage />);
+
+    expect(screen.getByText("of 2 sites connected")).toBeInTheDocument();
+    expect(screen.getByText(/Down: Bekasi/)).toBeInTheDocument();
   });
 
   it("warns which resource failed and renders a dash rather than zero", () => {
