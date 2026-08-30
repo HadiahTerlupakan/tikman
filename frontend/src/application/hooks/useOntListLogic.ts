@@ -7,8 +7,9 @@ import {
 } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import { OntRepository } from "@/infrastructure/repositories/OntRepository";
-import { ONT_FETCH_LIMIT } from "@/shared/config/limits";
-import { matchesOntFilters } from "./ontFilters";
+import { SEARCH_DEBOUNCE_MS } from "@/shared/config/limits";
+import { DEFAULT_ONT_PAGE_SIZE } from "@/presentation/components/ontPageSize";
+import { useDebouncedValue } from "@/application/hooks/useDebouncedValue";
 import type { Ont, CreateOntDto, OntStatus } from "@/domain/entities";
 
 const ontRepository = new OntRepository();
@@ -45,6 +46,25 @@ export function useOntListLogic() {
   const [topologyData, setTopologyData] = useState<GPONSlot[]>([]);
   const [isLoadingTopology, setIsLoadingTopology] = useState(false);
 
+  // The table's page, held here because the server returns one page at a time
+  // now. It resets whenever a filter changes: staying on page 9 of a result
+  // that just became one page long shows an empty table over a full network.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_ONT_PAGE_SIZE);
+
+  const search = useDebouncedValue(searchText.trim(), SEARCH_DEBOUNCE_MS);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    selectedOltId,
+    selectedSlotId,
+    selectedPortId,
+    statusFilter,
+    search,
+    pageSize,
+  ]);
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedOnt, setSelectedOnt] = useState<Ont | null>(null);
@@ -55,19 +75,17 @@ export function useOntListLogic() {
     isLoading,
     refetch,
   } = useOnts({
-    // Filter by OLT on the server. This was hardcoded to undefined while the
-    // OLT filter was applied client-side, so every OLT competed for one window
-    // of rows: with 444 ONTs across two OLTs, whichever sorted later was absent
-    // from the page entirely no matter which OLT you selected.
+    // Every filter is applied by the database. Filtering in the browser could
+    // only ever narrow the rows one request had returned, so on a network larger
+    // than a page it answered from a slice of itself: selecting card 9 searched
+    // the first page for card 9, not the chassis.
     oltId: selectedOltId,
     status: statusFilter,
-    // ponytail: fixed ceiling of 1000 rows per fetch, with pagination and search
-    // still done client-side. Enough for one OLT (largest here is 246) but an OLT
-    // with more than 1000 ONTs would silently lose the remainder. Upgrade path is
-    // server-side pagination: pass offset from the table's page and drive the
-    // total from the response instead of from the fetched array.
-    limit: ONT_FETCH_LIMIT,
-    offset: 0,
+    slot: selectedSlotId,
+    portId: selectedPortId,
+    search: search || undefined,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
   });
 
   // Only refetch when filter changes
@@ -81,15 +99,11 @@ export function useOntListLogic() {
   const createMutation = useCreateOnt();
   const deleteMutation = useDeleteOnt();
 
-  const filteredOnts = (ontsData?.data || []).filter((ont: Ont) =>
-    matchesOntFilters(ont, {
-      oltId: selectedOltId,
-      slot: selectedSlotId,
-      portId: selectedPortId,
-      searchText,
-      status: statusFilter,
-    }),
-  );
+  const onts = ontsData?.data || [];
+  // What the server says matches, not what arrived. This number drives the
+  // pager, and taking it from the page's own length would tell an operator the
+  // network ends where their screen does.
+  const total = ontsData?.total ?? 0;
 
   // Fetch topology when OLT is selected
   useEffect(() => {
@@ -207,7 +221,12 @@ export function useOntListLogic() {
 
     // Data
     oltsData: oltsData || [],
-    filteredOnts,
+    filteredOnts: onts,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     isLoading,
     createMutation,
     deleteMutation,

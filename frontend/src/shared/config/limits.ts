@@ -1,13 +1,20 @@
 /**
- * How many ONTs a page asks for in one request.
+ * How many ONTs a page asks for when it needs a whole OLT at once.
  *
- * The pages that list ONTs load them in one go and filter in the browser, so
- * this bounds what any of them can show. It sat at 500 while a single chassis
- * carried 651, which truncated those pages without telling anyone. The API
- * allows up to 5000; this leaves headroom above a full ZTE C320 while keeping
- * the payload bounded, because the list refreshes every 15 seconds.
+ * The ONT list and the graphs page no longer use this: the database filters and
+ * pages them, so their request is one page long whatever the network's size.
+ * What remains is the OLT configuration page, which reads an OLT's ONTs as a
+ * whole to lay out its ports.
  *
- * The overview page does not use this: it reads /dashboard/stats, where the
- * database does the counting and no ONT rows are sent at all.
+ * The API allows up to 5000. This leaves headroom above a full ZTE C320 while
+ * keeping the payload bounded.
  */
 export const ONT_FETCH_LIMIT = 2000;
+
+/**
+ * How long typing has to stop before the list searches.
+ *
+ * Search runs against the whole ONT table on the server, so a serial typed one
+ * character at a time should cost one query rather than twelve.
+ */
+export const SEARCH_DEBOUNCE_MS = 300;

@@ -57,6 +57,11 @@ export default function OntListPage() {
     setSelectedOnt,
     oltsData,
     filteredOnts,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
     isLoading,
     createMutation,
     handleViewDetail,
@@ -159,6 +164,11 @@ export default function OntListPage() {
       >
         <OntTable
           dataSource={filteredOnts}
+          page={page}
+          total={total}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
           isLoading={isLoading}
           onViewDetail={handleViewDetail}
           onDelete={(id) =>

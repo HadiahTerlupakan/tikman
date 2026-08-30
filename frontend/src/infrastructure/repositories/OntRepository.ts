@@ -18,6 +18,9 @@ export class OntRepository implements IOntRepository {
   async getAll(params?: {
     oltId?: string;
     status?: string;
+    slot?: number;
+    portId?: number;
+    search?: string;
     startTime?: string;
     endTime?: string;
     limit?: number;
@@ -26,6 +29,9 @@ export class OntRepository implements IOntRepository {
     const queryParams = {
       olt_id: params?.oltId,
       status: params?.status,
+      slot: params?.slot,
+      port_id: params?.portId,
+      search: params?.search,
       start_time: params?.startTime,
       end_time: params?.endTime,
       // A caller that names no limit wants the whole list, so it gets the

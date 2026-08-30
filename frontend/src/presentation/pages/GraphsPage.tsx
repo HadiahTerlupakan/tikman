@@ -17,8 +17,8 @@ import type { Olt } from "@/domain/entities/Olt";
 import { OntStatus, type Ont } from "@/domain/entities/Ont";
 import { useOnts } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
-import { ONT_FETCH_LIMIT } from "@/shared/config/limits";
-import { describeOntCoverage, filterOntsByQuery } from "./graphsFilter";
+import { SEARCH_DEBOUNCE_MS } from "@/shared/config/limits";
+import { useDebouncedValue } from "@/application/hooks/useDebouncedValue";
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -49,33 +49,25 @@ export function GraphsPage() {
   const pageSize = 9;
 
   const { data: olts } = useOlts();
+  const search = useDebouncedValue(searchText.trim(), SEARCH_DEBOUNCE_MS);
+
+  // The database filters and pages. Searching the rows one request had returned
+  // meant an OLT larger than the fetch limit had ONTs the search could not
+  // reach, which the page had to apologise for in its own footer.
   const { data: ontsData, isLoading } = useOnts({
     oltId: selectedOlt,
     status: selectedStatus,
-    limit: ONT_FETCH_LIMIT,
+    search: search || undefined,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
   });
 
-  const loadedOnts = useMemo(() => ontsData?.data || [], [ontsData]);
-  const filteredOnts = useMemo(
-    () => filterOntsByQuery(loadedOnts, searchText),
-    [loadedOnts, searchText],
-  );
-  const totalOnts = filteredOnts.length;
+  const paginatedOnts = useMemo(() => ontsData?.data || [], [ontsData]);
+  const totalOnts = ontsData?.total ?? 0;
 
   useEffect(() => {
     setPage(1);
-  }, [
-    selectedOlt,
-    searchText,
-    selectedStatus,
-    dateRange?.start,
-    dateRange?.end,
-  ]);
-
-  const paginatedOnts = filteredOnts.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+  }, [selectedOlt, search, selectedStatus, dateRange?.start, dateRange?.end]);
 
   return (
     <div style={{ padding: 24 }}>
@@ -162,12 +154,7 @@ export function GraphsPage() {
         }
       >
         <div style={{ fontSize: 12, color: "#666" }}>
-          {describeOntCoverage(
-            paginatedOnts.length,
-            totalOnts,
-            loadedOnts.length,
-            ontsData?.total ?? loadedOnts.length,
-          )}
+          {`Showing ${paginatedOnts.length} of ${totalOnts} ONTs`}
         </div>
       </Card>
 

@@ -7,6 +7,9 @@ const ontRepository = new OntRepository();
 export function useOnts(params?: {
   oltId?: string;
   status?: OntStatus;
+  slot?: number;
+  portId?: number;
+  search?: string;
   startTime?: string;
   endTime?: string;
   limit?: number;

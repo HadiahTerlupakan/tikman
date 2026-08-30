@@ -1,9 +1,8 @@
 import { Table, Tag } from "antd";
-import { useState } from "react";
 import type { Ont, OntStatus } from "@/domain/entities";
 import { OntActions } from "./OntActions";
 import { ontStatusColor, ontStatusLabel } from "./ontStatus";
-import { DEFAULT_ONT_PAGE_SIZE, ontPageSizeOptions } from "./ontPageSize";
+import { ontPageSizeOptions } from "./ontPageSize";
 
 interface OntTableRow extends Ont {
   metrics?: {
@@ -16,6 +15,12 @@ interface OntTableRow extends Ont {
 interface OntTableProps {
   dataSource: Ont[];
   isLoading: boolean;
+  /** The page being shown, and how many rows match in total on the server. */
+  page: number;
+  total: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
   onViewDetail: (ont: Ont) => void;
   onDelete: (id: string) => void;
   onProvision?: (ont: Ont) => void;
@@ -26,14 +31,17 @@ interface OntTableProps {
 export function OntTable({
   dataSource,
   isLoading,
+  page,
+  total,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
   onViewDetail,
   onDelete,
   onProvision,
   onConfigureService,
   onViewHistory,
 }: OntTableProps) {
-  const [pageSize, setPageSize] = useState(DEFAULT_ONT_PAGE_SIZE);
-
   const columns = [
     {
       title: "Serial Number",
@@ -141,15 +149,23 @@ export function OntTable({
       loading={isLoading}
       pagination={{
         position: ["bottomCenter"],
-        // Held in state and updated on change. Passing pageSize without a
-        // handler made it a controlled prop Ant Design could not move, so the
-        // size selector reset to five every time it was used.
+        // Driven entirely by the caller, because the rows in hand are one page
+        // of a result the database holds. Letting Ant Design page over
+        // dataSource would page over the current page.
+        current: page,
         pageSize,
-        onShowSizeChange: (_, size) => setPageSize(size),
-        onChange: (_, size) => setPageSize(size),
+        total,
+        onChange: (nextPage, size) => {
+          if (size !== pageSize) {
+            onPageSizeChange(size);
+            return;
+          }
+          onPageChange(nextPage);
+        },
+        onShowSizeChange: (_, size) => onPageSizeChange(size),
         showSizeChanger: true,
-        pageSizeOptions: ontPageSizeOptions(dataSource.length),
-        showTotal: (total) => `Total ${total} ONTs`,
+        pageSizeOptions: ontPageSizeOptions(total),
+        showTotal: (shown) => `Total ${shown} ONTs`,
       }}
     />
   );

@@ -10,17 +10,16 @@ describe("ontPageSizeOptions", () => {
     }
   });
 
-  // Showing everything is the row count itself.
-  it("ends with the row count so everything can be shown", () => {
-    const options = ontPageSizeOptions(200);
-
-    expect(options[options.length - 1]).toBe(200);
+  // The row count used to be offered as a page size, which worked while the
+  // browser already held every row. The database pages the list now, so that
+  // option would be a request for the whole network.
+  it("never offers to show the whole network at once", () => {
+    expect(ontPageSizeOptions(200)).toEqual([5, 10, 20, 50, 100]);
+    expect(ontPageSizeOptions(300000)).toEqual([5, 10, 20, 50, 100]);
   });
 
-  // A table smaller than the largest fixed size already shows everything, so
-  // appending the count would repeat the last option.
-  it("does not repeat an option for a short table", () => {
-    expect(ontPageSizeOptions(20)).toEqual([5, 10, 20]);
+  it("offers only pages a result this size can fill", () => {
+    expect(ontPageSizeOptions(20)).toEqual([5, 10]);
     expect(ontPageSizeOptions(3)).toEqual([5]);
   });
 
