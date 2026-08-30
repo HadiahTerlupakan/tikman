@@ -268,6 +268,33 @@ jarang.
 biayanya tenggelam di dalam 2,7 detik lintasan ONT dan belum layak diubah; pada
 ratusan ribu ia menjadi ratusan ribu UPDATE per siklus dan harus ikut dibatch.
 
+## Hasil A2
+
+Durasi tiap pekerjaan utuh setelah antrean bertingkat dipasang:
+
+| OLT | ONT | status | metrics | discovery |
+|---|---|---|---|---|
+| Bekasi | 80 | 0,42 s | 3,4 s | 16,3 s |
+| Cariu | 651 | 3,4 s | 38,1 s | — |
+| Depok | 199 | 0,53 s | 16,8 s | 95,9 s |
+
+Sebelum A1 dan A2, setiap OLT membayar 73–85 detik **tiap menit**, karena satu
+siklus membaca semuanya dan men-discovery ulang semuanya. Yang dibayar tiap
+menit sekarang hanya tingkat status: 0,4 sampai 3,4 detik.
+
+Cariu membaca 651 ONT dalam 3,4 detik, atau sekitar **190 ONT per detik**.
+Diekstrapolasi, satu chassis berisi 10 ribu ONU memerlukan sekitar **52 detik**
+untuk satu putaran status — muat di dalam satu menit, dengan sedikit sisa. Untuk
+300 ribu ONT tersebar di 30 chassis, seluruh putaran tetap sekitar 52 detik
+asalkan chassis-chassis itu dibaca bersamaan, karena batasnya ada di agen tiap
+chassis dan bukan pada worker-nya. Itulah jumlah worker yang diperlukan: cukup
+untuk menjalankan chassis secara paralel, bukan untuk mempercepat satu chassis.
+
+Terlihat langsung pada satu worker: pekerjaan discovery Depok yang 96 detik
+menahan antrean, dan discovery Cariu terlambat tujuh menit. Menambah worker
+adalah jawabannya, dan tidak memerlukan konfigurasi apa pun selain menjalankan
+prosesnya.
+
 ## Risiko
 
 **Pengukuran RTT 7,3 ms dan ~140 nilai/detik berasal dari satu site.** Site lain
