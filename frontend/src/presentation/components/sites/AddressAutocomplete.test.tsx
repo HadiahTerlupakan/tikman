@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { Form, type FormInstance } from "antd";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 
 const mapsKey: { key?: string; isLoading: boolean } = {
@@ -15,13 +16,27 @@ const mapsKey: { key?: string; isLoading: boolean } = {
 // has to go through customElements.define like the real class does.
 class FakePlaceAutocompleteElement extends HTMLElement {
   static instances: FakePlaceAutocompleteElement[] = [];
-  value: string;
   placeholder = "";
+  // The real element owns its <input> inside a shadow root and the component
+  // depends on native "input" events being composed to cross that boundary.
+  // Reproducing the shadow root is what lets a keystroke in a test travel the
+  // same path it takes in a browser.
+  readonly innerInput: HTMLInputElement;
 
   constructor(options?: { value?: string }) {
     super();
-    this.value = options?.value ?? "";
+    this.innerInput = document.createElement("input");
+    this.innerInput.value = options?.value ?? "";
+    this.attachShadow({ mode: "open" }).appendChild(this.innerInput);
     FakePlaceAutocompleteElement.instances.push(this);
+  }
+
+  get value(): string {
+    return this.innerInput.value;
+  }
+
+  set value(next: string) {
+    this.innerInput.value = next;
   }
 }
 if (!customElements.get("fake-place-autocomplete-element")) {
@@ -63,6 +78,23 @@ vi.mock("@vis.gl/react-google-maps", () => ({
 vi.mock("@/application/hooks", () => ({
   useGoogleMapsKey: () => mapsKey,
 }));
+
+// Renders the field the way SiteModal does — wrapped in a real Form.Item, so
+// the value/onChange antd injects behave exactly as they do in the app. A
+// hand-passed vi.fn() onChange is stable and cannot reproduce that.
+let formUnderTest: FormInstance;
+
+function FormHost({ onResolved }: { onResolved: () => void }) {
+  const [form] = Form.useForm();
+  formUnderTest = form;
+  return (
+    <Form form={form}>
+      <Form.Item name="location">
+        <AddressAutocomplete onResolved={onResolved} />
+      </Form.Item>
+    </Form>
+  );
+}
 
 describe("AddressAutocomplete", () => {
   beforeEach(() => {
@@ -162,5 +194,30 @@ describe("AddressAutocomplete", () => {
     await Promise.resolve();
 
     expect(onResolved).not.toHaveBeenCalled();
+  });
+
+  it("survives typing inside a Form.Item without being rebuilt", async () => {
+    // rc-field-form hands Form.Item a fresh onChange closure on every render
+    // and antd's MemoInput treats every function prop as unchanged, so only a
+    // value change gets through — which is exactly what a keystroke is. With
+    // onChange in the effect's dependencies each character destroyed the
+    // element being typed into, focus fell to <body>, and the operator could
+    // never enter more than one character.
+    mapsKey.key = "AIzaSyTESTKEY123";
+    placesLibrary = { PlaceAutocompleteElement: FakePlaceAutocompleteElement };
+
+    render(<FormHost onResolved={vi.fn()} />);
+
+    const [element] = await waitFor(() => {
+      expect(FakePlaceAutocompleteElement.instances).toHaveLength(1);
+      return FakePlaceAutocompleteElement.instances;
+    });
+
+    await userEvent.type(element.innerInput, "Jl");
+
+    expect(FakePlaceAutocompleteElement.instances).toHaveLength(1);
+    expect(element.isConnected).toBe(true);
+    expect(element.shadowRoot?.activeElement).toBe(element.innerInput);
+    expect(formUnderTest.getFieldValue("location")).toBe("Jl");
   });
 });

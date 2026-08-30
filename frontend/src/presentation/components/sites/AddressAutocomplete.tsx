@@ -17,6 +17,9 @@ interface AddressAutocompleteProps {
   onResolved: (place: ResolvedPlace) => void;
 }
 
+const PLAIN_PLACEHOLDER = "Address";
+const SUGGESTING_PLACEHOLDER = "Start typing an address";
+
 /**
  * An address field that suggests real places when a Maps key is configured and
  * is an ordinary text input when one is not.
@@ -30,7 +33,13 @@ export function AddressAutocomplete(props: AddressAutocompleteProps) {
   const { key } = useGoogleMapsKey();
 
   if (!key) {
-    return <PlainAddressInput {...props} />;
+    return (
+      <PlainAddressInput
+        value={props.value}
+        onChange={props.onChange}
+        placeholder={PLAIN_PLACEHOLDER}
+      />
+    );
   }
 
   return (
@@ -40,11 +49,19 @@ export function AddressAutocomplete(props: AddressAutocompleteProps) {
   );
 }
 
-function PlainAddressInput({ value, onChange }: AddressAutocompleteProps) {
+function PlainAddressInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value?: string;
+  onChange?: (value: string) => void;
+  placeholder: string;
+}) {
   return (
     <Input
       value={value ?? ""}
-      placeholder="Address"
+      placeholder={placeholder}
       onChange={(event) => onChange?.(event.target.value)}
     />
   );
@@ -104,6 +121,19 @@ function SuggestingAddressInput({
   const places = useMapsLibrary("places");
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Form.Item rebuilds onChange on every render and antd's MemoInput treats
+  // all function props as equal, so a keystroke re-renders this with a fresh
+  // onChange identity. Reaching the callbacks through refs keeps them out of
+  // the effect's dependencies: with them in, every character tore down the
+  // element being typed into, dropped focus to <body>, and the suggestion
+  // dropdown could never hold more than one character.
+  const onChangeRef = useRef(onChange);
+  const onResolvedRef = useRef(onResolved);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onResolvedRef.current = onResolved;
+  });
+
   useEffect(() => {
     const container = containerRef.current;
     if (!places || !container) {
@@ -117,17 +147,19 @@ function SuggestingAddressInput({
     const element = new places.PlaceAutocompleteElement({
       value: value ?? "",
     });
-    element.placeholder = "Start typing an address";
+    element.placeholder = SUGGESTING_PLACEHOLDER;
     container.appendChild(element);
 
     // The element owns its own <input> in a shadow root; there is no
     // gmp-* event for free typing, but native "input" events are composed
     // and cross the shadow boundary, so this still sees every keystroke.
-    const handleInput = () => onChange?.(element.value);
+    const handleInput = () => onChangeRef.current?.(element.value);
     element.addEventListener("input", handleInput);
 
     const handleSelect = (event: Event) => {
-      void resolvePlaceSelection(event, element, onChange, onResolved);
+      void resolvePlaceSelection(event, element, onChangeRef.current, (place) =>
+        onResolvedRef.current(place),
+      );
     };
     element.addEventListener("gmp-select", handleSelect);
 
@@ -139,16 +171,16 @@ function SuggestingAddressInput({
     // value only seeds the element when it is created; re-running this on
     // every keystroke would tear the widget down mid-type and drop focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places, onChange, onResolved]);
+  }, [places]);
 
   // Before the Places script has loaded, this is the same plain field as the
   // no-key path, so the operator can start typing immediately either way.
   if (!places) {
     return (
-      <Input
-        value={value ?? ""}
-        placeholder="Start typing an address"
-        onChange={(event) => onChange?.(event.target.value)}
+      <PlainAddressInput
+        value={value}
+        onChange={onChange}
+        placeholder={SUGGESTING_PLACEHOLDER}
       />
     );
   }
