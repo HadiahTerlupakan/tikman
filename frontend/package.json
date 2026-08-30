@@ -17,6 +17,7 @@
     "@ant-design/pro-components": "^2.8.10",
     "@ant-design/pro-layout": "^7.22.7",
     "@tanstack/react-query": "^5.24.8",
+    "@vis.gl/react-google-maps": "1.9.0",
     "antd": "^5.15.4",
     "axios": "^1.6.8",
     "humps": "^2.0.1",

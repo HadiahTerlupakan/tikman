@@ -6,6 +6,7 @@ import {
 } from "@/domain/entities";
 import { useEffect } from "react";
 import { coordinateError, parseCoordinate } from "./siteCoordinates";
+import { AddressAutocomplete } from "./AddressAutocomplete";
 
 interface SiteModalProps {
   open: boolean;
@@ -85,8 +86,20 @@ export function SiteModal({
           <Input />
         </Form.Item>
 
-        <Form.Item name="location" label="Location">
-          <Input />
+        {/* Form.Item clones its child and injects value/onChange, and those
+            win over anything passed here — so the field is form-controlled and
+            only onResolved is ours to supply. */}
+        <Form.Item name="location" label="Address">
+          <AddressAutocomplete
+            onResolved={(place) => {
+              form.setFieldsValue({
+                location: place.address,
+                latitude: place.latitude.toString(),
+                longitude: place.longitude.toString(),
+              });
+              void form.validateFields(["latitude"]);
+            }}
+          />
         </Form.Item>
 
         <Row gutter={12}>
