@@ -18,6 +18,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker ./cmd/work
 # network namespace, and it reads the OLT through the same config the worker does.
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o snmpbench ./cmd/snmpbench
 
+# trapd ships here too: it listens on the WireGuard interface, which is this
+# container's network namespace, and reads the same OLT table the worker does.
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o trapd ./cmd/trapd
+
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates openssh-client
@@ -26,5 +30,6 @@ WORKDIR /root/
 
 COPY --from=builder /app/worker .
 COPY --from=builder /app/snmpbench .
+COPY --from=builder /app/trapd .
 
 CMD ["./worker"]

@@ -133,6 +133,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  trapd:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: tikman-trapd
+    # Shares the API's network namespace so it hears traps arriving on the
+    # WireGuard interface. UDP 162 is reached through the tunnel, not published
+    # to the internet.
+    network_mode: "service:api"
+    entrypoint: ["./trapd"]
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=tikman
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=tikman
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+
 networks:
   tikman-network:
     driver: bridge
