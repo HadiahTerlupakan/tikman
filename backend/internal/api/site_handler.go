@@ -122,6 +122,21 @@ func (h *SiteHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, ToSiteResponse(oltCount, site))
 }
 
+// applyCoordinateUpdate writes the coordinate columns the request asked for.
+func applyCoordinateUpdate(req UpdateSiteRequest, updates map[string]interface{}) {
+	if req.ClearCoordinates {
+		updates["latitude"] = (*float64)(nil)
+		updates["longitude"] = (*float64)(nil)
+		return
+	}
+	if req.Latitude != nil {
+		updates["latitude"] = req.Latitude
+	}
+	if req.Longitude != nil {
+		updates["longitude"] = req.Longitude
+	}
+}
+
 func (h *SiteHandler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -162,17 +177,7 @@ func (h *SiteHandler) Update(c *gin.Context) {
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
-	if req.ClearCoordinates {
-		updates["latitude"] = (*float64)(nil)
-		updates["longitude"] = (*float64)(nil)
-	} else {
-		if req.Latitude != nil {
-			updates["latitude"] = req.Latitude
-		}
-		if req.Longitude != nil {
-			updates["longitude"] = req.Longitude
-		}
-	}
+	applyCoordinateUpdate(req, updates)
 
 	if err := h.service.Update(id, updates); err != nil {
 		if errors.Is(err, services.ErrValidation) {
