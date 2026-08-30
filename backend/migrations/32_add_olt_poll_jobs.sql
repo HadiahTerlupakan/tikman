@@ -26,9 +26,15 @@ CREATE TABLE IF NOT EXISTS olt_poll_jobs (
 CREATE INDEX IF NOT EXISTS idx_olt_poll_jobs_due ON olt_poll_jobs (due_at);
 
 -- Every OLT that already exists gets its three jobs, due immediately, so the
--- first cycle after this migration behaves like the one before it.
-INSERT INTO olt_poll_jobs (olt_id, kind)
-SELECT olts.id, tier.kind
+-- first pass after this migration behaves like the one before it.
+--
+-- due_at is written rather than left to the column default. AutoMigrate runs
+-- before these migrations and builds this table from the model, where GORM
+-- expresses NOT NULL but not DEFAULT now() — so on a database where the table
+-- already existed, an INSERT relying on that default fails the NOT NULL
+-- constraint and takes the API down on startup. It did.
+INSERT INTO olt_poll_jobs (olt_id, kind, due_at)
+SELECT olts.id, tier.kind, now()
 FROM olts
 CROSS JOIN (VALUES ('status'), ('metrics'), ('discovery')) AS tier(kind)
 ON CONFLICT DO NOTHING;

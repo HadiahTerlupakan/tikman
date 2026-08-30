@@ -34,7 +34,7 @@ type OLTPollJob struct {
 	OLTID uuid.UUID `gorm:"type:uuid;not null;primaryKey" json:"olt_id"`
 	Kind  PollKind  `gorm:"type:varchar(16);not null;primaryKey" json:"kind"`
 
-	DueAt    time.Time  `gorm:"not null;index" json:"due_at"`
+	DueAt    time.Time  `gorm:"not null;default:CURRENT_TIMESTAMP;index" json:"due_at"`
 	LockedBy *string    `gorm:"type:varchar(64)" json:"locked_by"`
 	LockedAt *time.Time `json:"locked_at"`
 
