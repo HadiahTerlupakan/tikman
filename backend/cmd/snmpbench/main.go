@@ -34,6 +34,7 @@ func main() {
 	name := flag.String("olt", "", "name of the OLT to measure")
 	oid := flag.String("oid", connectivity.OID_ZXAN_ONU_PHASE_STATE_TABLE, "table OID to walk")
 	repsList := flag.String("reps", defaultRepetitions, "comma-separated GETBULK repetition counts to try")
+	print := flag.Bool("print", false, "print the values instead of timing the walk")
 	flag.Parse()
 
 	if *name == "" {
@@ -56,6 +57,16 @@ func main() {
 	}
 
 	fmt.Printf("OLT %s (%s:%d), table %s\n\n", olt.Name, olt.IPAddress, olt.SNMPPort, *oid)
+
+	// Reading a table is the other half of asking what an agent serves: a count
+	// says the MIB is implemented, the values say what it was configured with.
+	if *print {
+		if err := dump(&olt, *oid); err != nil {
+			log.Fatalf("walk %s: %v", *oid, err)
+		}
+		return
+	}
+
 	fmt.Printf("%-18s %8s %10s %12s\n", "mode", "values", "elapsed", "values/sec")
 
 	baseline := run(&olt, *oid, 0)
@@ -87,6 +98,36 @@ func parseReps(list string) []uint8 {
 		reps = append(reps, uint8(n))
 	}
 	return reps
+}
+
+// dump prints every value under an OID.
+func dump(olt *models.OLT, oid string) error {
+	client := &gosnmp.GoSNMP{
+		Target:         olt.IPAddress,
+		Port:           uint16(olt.SNMPPort),
+		Community:      olt.SNMPCommunity,
+		Version:        gosnmp.Version2c,
+		Timeout:        5 * time.Second,
+		Retries:        1,
+		MaxRepetitions: 10,
+	}
+	if err := client.Connect(); err != nil {
+		return err
+	}
+	defer func() { _ = client.Conn.Close() }()
+
+	return client.BulkWalk(oid, func(pdu gosnmp.SnmpPDU) error {
+		switch value := pdu.Value.(type) {
+		case []byte:
+			// Addresses and community strings come back as octet strings, which
+			// are printable here and hex elsewhere; show both so neither case
+			// needs a second run to read.
+			fmt.Printf("%s = %q (hex %x)\n", pdu.Name, string(value), value)
+		default:
+			fmt.Printf("%s = %v\n", pdu.Name, value)
+		}
+		return nil
+	})
 }
 
 type outcome struct {
