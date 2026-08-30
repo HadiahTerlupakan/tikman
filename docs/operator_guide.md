@@ -265,3 +265,33 @@ Karena itu perlu dua nama yang berbeda:
   **proxy dimatikan** (awan abu-abu). Nama inilah yang diisi di halaman VPN.
   Memakai nama yang di-proxy akan menunjuk ke server Cloudflare, dan tidak ada
   satu pun site yang bisa terhubung.
+
+## Site map
+
+The map draws a pin for every site that has coordinates. Sites without them are
+listed beside the map, so a short map is never mistaken for a complete one.
+
+### One-time setup
+
+1. In Google Cloud Console, create a project and enable billing. Places
+   autocomplete needs it even inside the free monthly quota.
+2. Enable **Maps JavaScript API** and **Places API**.
+3. Create an API key.
+4. Restrict it: Application restrictions → Websites → add
+   `https://noc.radpro.id/*`; API restrictions → Maps JavaScript API and
+   Places API only.
+5. In TikMan, go to **Settings** and save the key under Google Maps API key.
+
+Step 4 is not optional. The key is delivered to every browser that opens the
+map and can be read from the developer tools; the restriction is the only thing
+stopping someone else from spending your quota with it.
+
+### Giving a site coordinates
+
+Edit the site and start typing in the **Address** field — suggestions appear
+once the key is set, and choosing one fills the coordinates.
+
+For a location Google does not know — a POP down a gang, a tower in a field —
+type the latitude and longitude directly. Both must be filled or both left
+empty; one on its own is refused, because it would place the pin somewhere the
+site is not.
