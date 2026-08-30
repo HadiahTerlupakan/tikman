@@ -266,32 +266,33 @@ Karena itu perlu dua nama yang berbeda:
   Memakai nama yang di-proxy akan menunjuk ke server Cloudflare, dan tidak ada
   satu pun site yang bisa terhubung.
 
-## Site map
+## Peta situs
 
-The map draws a pin for every site that has coordinates. Sites without them are
-listed beside the map, so a short map is never mistaken for a complete one.
+Peta menampilkan pin untuk setiap situs yang memiliki koordinat. Situs tanpa
+koordinat ditampilkan dalam daftar di samping peta, sehingga peta yang singkat
+tidak akan disalahartikan sebagai lengkap.
 
-### One-time setup
+### Setup awal
 
-1. In Google Cloud Console, create a project and enable billing. Places
-   autocomplete needs it even inside the free monthly quota.
-2. Enable **Maps JavaScript API** and **Places API**.
-3. Create an API key.
-4. Restrict it: Application restrictions → Websites → add
-   `https://noc.radpro.id/*`; API restrictions → Maps JavaScript API and
-   Places API only.
-5. In TikMan, go to **Settings** and save the key under Google Maps API key.
+1. Di Google Cloud Console, buat project dan aktifkan billing. Places
+   autocomplete memerlukan billing bahkan dalam kuota gratis bulanan.
+2. Aktifkan **Maps JavaScript API** dan **Places API**.
+3. Buat API key.
+4. Batasi: Application restrictions → Websites → tambahkan
+   `https://noc.radpro.id/*`; API restrictions → hanya Maps JavaScript API dan
+   Places API.
+5. Di TikMan, buka **Settings** dan simpan key di **Google Maps API key**.
 
-Step 4 is not optional. The key is delivered to every browser that opens the
-map and can be read from the developer tools; the restriction is the only thing
-stopping someone else from spending your quota with it.
+Langkah 4 tidak opsional. Key dikirimkan ke setiap browser yang membuka peta
+dan dapat dibaca dari developer tools; pembatasan adalah satu-satunya hal yang
+mencegah orang lain menghabiskan kuota Anda.
 
-### Giving a site coordinates
+### Memberi situs koordinat
 
-Edit the site and start typing in the **Address** field — suggestions appear
-once the key is set, and choosing one fills the coordinates.
+Edit situs dan mulai ketik di field **Address** — saran muncul setelah key
+disimpan, dan memilih salah satu akan mengisi koordinat secara otomatis.
 
-For a location Google does not know — a POP down a gang, a tower in a field —
-type the latitude and longitude directly. Both must be filled or both left
-empty; one on its own is refused, because it would place the pin somewhere the
-site is not.
+Untuk lokasi yang tidak dikenal Google — POP di gang, tower di lapangan —
+ketik latitude dan longitude langsung. Kedua field harus diisi atau keduanya
+kosong; salah satu saja akan ditolak, karena akan menempatkan pin di tempat
+yang bukan lokasi situs.
