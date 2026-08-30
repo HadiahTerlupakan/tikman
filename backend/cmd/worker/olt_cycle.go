@@ -44,6 +44,7 @@ func pollOLT(
 
 	processed, skipped := 0, 0
 	err := ontService.EachONTOfOLT(olt.ID, ontPageSize, func(rows []models.ONT) error {
+		samples := make([]services.MetricSample, 0, len(rows))
 		for _, ont := range rows {
 			// An ONT the status walk did not name is one the OLT no longer
 			// reports at that position. Only trust that when the walk succeeded:
@@ -53,8 +54,17 @@ func pollOLT(
 				skipped++
 				continue
 			}
-			processOnt(db, reading, ont, metricsService, eventService, logger)
+			samples = append(samples, processOnt(db, reading, ont, eventService, logger))
 			processed++
+		}
+
+		// A write failure loses this page's readings, and the operator has to
+		// hear that. It does not abandon the OLT: the status changes and events
+		// for these ONTs are already recorded, and the next page's readings are
+		// still worth taking.
+		if err := metricsService.StoreMetricsBatch(samples); err != nil {
+			logger.Error("Failed to store metrics page",
+				zap.String("olt", olt.Name), zap.Int("samples", len(samples)), zap.Error(err))
 		}
 		return nil
 	})

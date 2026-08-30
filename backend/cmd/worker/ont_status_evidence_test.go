@@ -24,7 +24,7 @@ func onlineONT() models.ONT {
 // written offline in one go. The OLT lists an ONU it holds whether that ONU is
 // up or down, so silence carries no verdict.
 func TestDetermineOntStatusHoldsWhenTheCycleReadNothing(t *testing.T) {
-	status := determineOntStatus(onlineONT(), map[connectivity.ONTLocation]int{}, nil, zap.NewNop())
+	status := determineOntStatus(onlineONT(), readingWith(nil, map[connectivity.ONTLocation]int{}), nil, zap.NewNop())
 
 	assert.Equal(t, models.ONTStatus(""), status)
 }
@@ -49,7 +49,7 @@ func TestDetermineOntStatusTakesTheOLTVerdict(t *testing.T) {
 		{Slot: 3, Port: 1, ONTID: 1}: connectivity.PhaseStateOffline,
 	}
 
-	status := determineOntStatus(ont, statuses, nil, zap.NewNop())
+	status := determineOntStatus(ont, readingWith(nil, statuses), nil, zap.NewNop())
 
 	assert.Equal(t, models.ONTStatusOffline, status)
 }
@@ -58,7 +58,7 @@ func TestDetermineOntStatusTakesTheOLTVerdict(t *testing.T) {
 // table but showing RX power is up.
 func TestDetermineOntStatusFallsBackToRxPower(t *testing.T) {
 	rx := -25.85
-	status := determineOntStatus(onlineONT(), map[connectivity.ONTLocation]int{},
+	status := determineOntStatus(onlineONT(), readingWith(nil, nil),
 		&connectivity.ONTMetrics{RxPower: &rx}, zap.NewNop())
 
 	assert.Equal(t, models.ONTStatusOnline, status)
@@ -75,7 +75,7 @@ func TestDetermineOntStatusIgnoresATransitionalPhase(t *testing.T) {
 		{Slot: 3, Port: 1, ONTID: 1}: ranging,
 	}
 
-	status := determineOntStatus(onlineONT(), statuses, nil, zap.NewNop())
+	status := determineOntStatus(onlineONT(), readingWith(nil, statuses), nil, zap.NewNop())
 
 	assert.Equal(t, models.ONTStatus(""), status)
 }

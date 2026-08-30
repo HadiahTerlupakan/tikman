@@ -10,16 +10,18 @@ import (
 	"gorm.io/gorm"
 )
 
-func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
+// processOnt applies one OLT reading to one ONT and returns the sample to be
+// written for it.
+//
+// The sample is returned rather than written: the caller collects a page of
+// them and writes them in one statement, where this used to cost one INSERT and
+// three log lines per subscriber per cycle.
+func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, eventService *services.EventService, logger *zap.Logger) services.MetricSample {
 	foundMetrics, discoveredSlot := matchMetricsForONT(ont, reading)
 
 	ontRates := lookupRatesForONT(ont, discoveredSlot, reading.rates)
 
-	if !storeMetricsForONT(ont, foundMetrics, ontRates, metricsService, logger) {
-		return
-	}
-
-	newStatus := determineOntStatus(ont, reading.statuses, foundMetrics, logger)
+	newStatus := determineOntStatus(ont, reading, foundMetrics, logger)
 
 	handleStatusChange(db, ont, newStatus, logger)
 
@@ -27,6 +29,9 @@ func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, metricsService
 
 	updateOntFields(db, ont, foundMetrics, discoveredSlot, logger)
 
+	// Every ONT gets a row, including one the walk returned nothing for. A gap
+	// in the series would be indistinguishable from a cycle that never ran.
+	return services.MetricSample{ONTID: ont.ID, Metrics: foundMetrics, Rates: ontRates}
 }
 
 func matchMetricsForONT(ont models.ONT, reading *oltReading) (*connectivity.ONTMetrics, int) {
@@ -66,45 +71,21 @@ func lookupRatesForONT(ont models.ONT, discoveredSlot int, oltRatesMap map[conne
 // storeMetricsForONT stores the matched metrics, or empty metrics when the OLT
 // reported none. Returns false only when storing real metrics failed, so the
 // caller skips status handling for this ONT.
-func storeMetricsForONT(ont models.ONT, foundMetrics *connectivity.ONTMetrics, ontRates *connectivity.ONUTrafficRates, metricsService *services.MetricsService, logger *zap.Logger) bool {
-	if foundMetrics != nil {
-		if err := metricsService.StoreMetrics(ont.ID, foundMetrics, ontRates); err != nil {
-			logger.Error("Failed to save metrics", zap.String("serial", ont.SerialNumber), zap.Error(err))
-			return false
-		}
-		return true
-	}
-
-	emptyMetrics := &connectivity.ONTMetrics{}
-	if err := metricsService.StoreMetrics(ont.ID, emptyMetrics, ontRates); err != nil {
-		logger.Error("Failed to save empty metrics", zap.String("serial", ont.SerialNumber), zap.Error(err))
-	}
-	return true
-}
-
-func determineOntStatus(ont models.ONT, oltStatusMap map[connectivity.ONTLocation]int, foundMetrics *connectivity.ONTMetrics, logger *zap.Logger) models.ONTStatus {
+func determineOntStatus(ont models.ONT, reading *oltReading, foundMetrics *connectivity.ONTMetrics, logger *zap.Logger) models.ONTStatus {
 	var newStatus models.ONTStatus
 	foundStatus := false
-	for loc, runState := range oltStatusMap {
-		portMatch := loc.Port == ont.PortID
-		ontIDMatch := loc.ONTID == ont.ONTID
-		slotMatch := ont.Slot == nil || loc.Slot == *ont.Slot
-
-		if portMatch && ontIDMatch && slotMatch {
-			mapped := mapRunStateToStatus(runState)
-			// A phase the ONU passes through while it comes up is not a verdict.
-			// Writing it as "unknown" threw away the status the row already had
-			// and stamped a last_offline the ONU never had, for a device that
-			// was online a minute later.
-			if mapped == models.ONTStatusUnknown {
-				logger.Info("Transitional phase state; leaving the row",
-					zap.String("serial", ont.SerialNumber), zap.Int("runState", runState))
-				break
-			}
+	if runState, reported := reading.runStateFor(ont); reported {
+		mapped := mapRunStateToStatus(runState)
+		// A phase the ONU passes through while it comes up is not a verdict.
+		// Writing it as "unknown" threw away the status the row already had and
+		// stamped a last_offline the ONU never had, for a device that was online
+		// a minute later.
+		if mapped == models.ONTStatusUnknown {
+			logger.Info("Transitional phase state; leaving the row",
+				zap.String("serial", ont.SerialNumber), zap.Int("runState", runState))
+		} else {
 			newStatus = mapped
 			foundStatus = true
-			logger.Info("Status from SNMP", zap.String("serial", ont.SerialNumber), zap.Int("runState", runState), zap.String("status", string(newStatus)))
-			break
 		}
 	}
 

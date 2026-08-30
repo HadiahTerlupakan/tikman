@@ -36,15 +36,15 @@ type oltReading struct {
 	// Both indexes exist because the old code searched the whole map for every
 	// ONT. On a chassis of 10,000 that is 100 million comparisons per table per
 	// cycle, and it grows with the square of the subscriber count.
-	statusPositions  map[positionKey]struct{}
+	statusPositions  map[positionKey]int
 	metricsPositions map[positionKey]locatedMetrics
 }
 
 // index builds the position lookups once, after the walks have filled the maps.
 func (r *oltReading) index() {
-	r.statusPositions = make(map[positionKey]struct{}, len(r.statuses))
-	for loc := range r.statuses {
-		r.statusPositions[positionKey{loc.Port, loc.ONTID}] = struct{}{}
+	r.statusPositions = make(map[positionKey]int, len(r.statuses))
+	for loc, runState := range r.statuses {
+		r.statusPositions[positionKey{loc.Port, loc.ONTID}] = runState
 	}
 
 	r.metricsPositions = make(map[positionKey]locatedMetrics, len(r.metrics))
@@ -65,6 +65,22 @@ func (r *oltReading) index() {
 func (r *oltReading) reportsPosition(portID, ontID int) bool {
 	_, found := r.statusPositions[positionKey{portID, ontID}]
 	return found
+}
+
+// runStateFor returns the phase state the OLT reported for one ONT.
+//
+// An ONT that knows its card is answered from that card and no other: on a
+// multi-card chassis the same port and ONU number exists several times over,
+// and reading a neighbour's state would report the wrong subscriber up or down.
+// An ONT whose card is still unknown falls back to the position index, which is
+// what the old linear search gave it.
+func (r *oltReading) runStateFor(ont models.ONT) (int, bool) {
+	if ont.Slot != nil {
+		runState, found := r.statuses[connectivity.ONTLocation{Slot: *ont.Slot, Port: ont.PortID, ONTID: ont.ONTID}]
+		return runState, found
+	}
+	runState, found := r.statusPositions[positionKey{ont.PortID, ont.ONTID}]
+	return runState, found
 }
 
 // readOLT walks statuses, metrics, and traffic rates for one OLT and records
