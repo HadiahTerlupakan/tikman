@@ -27,12 +27,18 @@ const (
 )
 
 // Lease durations. A worker that dies holds its row until the lease expires, so
-// each is comfortably longer than its tier's work takes but short enough that a
-// lost worker does not strand an OLT for long.
+// each has to outlast the work comfortably while still releasing an abandoned
+// job promptly.
+//
+// Sized from measurement rather than guessed. The longest jobs observed on this
+// installation are 3.4s for status, 38s for metrics, and 96s for discovery, so
+// each lease carries roughly an order of magnitude of headroom. The first
+// guesses were three to thirty times longer, and a worker killed mid-discovery
+// stranded that OLT for the better part of an hour.
 const (
-	statusLease    = 5 * time.Minute
-	metricsLease   = 15 * time.Minute
-	discoveryLease = 45 * time.Minute
+	statusLease    = 2 * time.Minute
+	metricsLease   = 5 * time.Minute
+	discoveryLease = 15 * time.Minute
 )
 
 // maxBackoffShift caps the exponential backoff at 32 intervals, so an OLT that
