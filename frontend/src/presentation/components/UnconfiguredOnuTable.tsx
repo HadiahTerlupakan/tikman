@@ -1,25 +1,37 @@
 import { Table, Typography, Button, Tooltip } from "antd";
 import { CopyOutlined, PlusOutlined } from "@ant-design/icons";
-import type { UnconfiguredOnu } from "@/domain/entities";
+import type { DetectedOnu } from "@/domain/entities";
 
 interface UnconfiguredOnuTableProps {
-  dataSource: UnconfiguredOnu[];
+  dataSource: DetectedOnu[];
   isLoading: boolean;
+  /** Off when the list is filtered to one OLT, where the column repeats itself. */
+  showOlt?: boolean;
   onCopySerial: (serialNumber: string) => void;
-  onRegister?: (record: UnconfiguredOnu) => void;
+  onRegister?: (record: DetectedOnu) => void;
 }
 
 export function UnconfiguredOnuTable({
   dataSource,
   isLoading,
+  showOlt,
   onCopySerial,
   onRegister,
 }: UnconfiguredOnuTableProps) {
   const columns = [
+    ...(showOlt
+      ? [
+          {
+            title: "OLT",
+            dataIndex: "oltName",
+            key: "oltName",
+          },
+        ]
+      : []),
     {
       title: "PON Port",
       key: "location",
-      render: (_: unknown, record: UnconfiguredOnu) =>
+      render: (_: unknown, record: DetectedOnu) =>
         `${record.slot}/${record.port}`,
     },
     {
@@ -45,7 +57,7 @@ export function UnconfiguredOnuTable({
     {
       title: "Actions",
       key: "actions",
-      render: (_: unknown, record: UnconfiguredOnu) => (
+      render: (_: unknown, record: DetectedOnu) => (
         <>
           <Tooltip title="Copy serial number">
             <Button
@@ -73,12 +85,13 @@ export function UnconfiguredOnuTable({
   return (
     <Table
       rowKey={(record) =>
-        `${record.slot}-${record.port}-${record.serialNumber}`
+        `${record.oltId}-${record.slot}-${record.port}-${record.serialNumber}`
       }
       columns={columns}
       dataSource={dataSource}
       loading={isLoading}
       pagination={false}
+      scroll={{ x: 720 }}
       locale={{ emptyText: "No unconfigured ONUs detected" }}
     />
   );

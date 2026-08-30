@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, Select, Button, Space, Alert, Empty, App } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import {
@@ -7,28 +7,27 @@ import {
   useZteGPONRegister,
 } from "@/application/hooks";
 import { ZteProvisionModal } from "@/presentation/components/zte-provisioning";
-import type { UnconfiguredOnu, ZteProvisionTarget } from "@/domain/entities";
+import type { DetectedOnu, ZteProvisionTarget } from "@/domain/entities";
 import { UnconfiguredOnuTable } from "@/presentation/components/UnconfiguredOnuTable";
 
 export default function UnconfiguredOnusPage() {
   const { message } = App.useApp();
   const { data: olts, isLoading: isLoadingOlts } = useOlts();
-  const [selectedOltId, setSelectedOltId] = useState<string>();
+  const [oltFilter, setOltFilter] = useState<string>();
   const [registerTarget, setRegisterTarget] =
     useState<ZteProvisionTarget | null>(null);
   const registerMutation = useZteGPONRegister();
 
-  useEffect(() => {
-    if (!selectedOltId && olts?.length) setSelectedOltId(olts[0].id);
-  }, [olts, selectedOltId]);
+  const scan = useUnconfiguredOnus(olts);
+  const rows = oltFilter
+    ? scan.rows.filter((row) => row.oltId === oltFilter)
+    : scan.rows;
 
-  const { data, isLoading, isFetching, error, refetch } =
-    useUnconfiguredOnus(selectedOltId);
-
-  const handleRegister = (onu: UnconfiguredOnu) => {
-    if (!selectedOltId) return;
+  const handleRegister = (onu: DetectedOnu) => {
+    // The OLT comes from the row, not from the filter: a row always knows which
+    // OLT detected it, and a filter can be changed between reading and clicking.
     setRegisterTarget({
-      oltId: selectedOltId,
+      oltId: onu.oltId,
       card: onu.slot,
       pon: onu.port,
       serialNumber: onu.serialNumber,
@@ -53,17 +52,21 @@ export default function UnconfiguredOnusPage() {
           <Space>
             <Select
               style={{ minWidth: 220 }}
-              placeholder="Select OLT"
+              placeholder="All OLTs"
+              allowClear
               loading={isLoadingOlts}
-              value={selectedOltId}
-              onChange={setSelectedOltId}
-              options={olts?.map((olt) => ({ label: olt.name, value: olt.id }))}
+              value={oltFilter}
+              onChange={setOltFilter}
+              options={olts?.map((olt) => ({
+                label: olt.name,
+                value: olt.id,
+              }))}
             />
             <Button
               icon={<ReloadOutlined />}
-              loading={isFetching}
-              disabled={!selectedOltId}
-              onClick={() => refetch()}
+              loading={scan.isFetching}
+              disabled={!olts?.length}
+              onClick={scan.rescan}
             >
               Scan
             </Button>
@@ -74,24 +77,27 @@ export default function UnconfiguredOnusPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="ONUs detected optically by the OLT that have no provisioning config yet. An entry disappears once its serial number is registered on the OLT."
+          message="ONUs detected optically by the OLT that have no provisioning config yet. Every OLT is scanned, so an ONU waiting at any site shows up here. An entry disappears once its serial number is registered on the OLT."
         />
-        {error && (
+
+        {scan.failed.length > 0 && (
           <Alert
-            type="error"
+            type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            message="Scan failed"
-            description={
-              error instanceof Error ? error.message : "SNMP scan failed"
-            }
+            message={`Could not scan ${scan.failed.join(", ")}`}
+            // An empty table would otherwise read as "nothing waiting" when the
+            // truth is that these OLTs were never asked.
+            description="Any ONU waiting at these OLTs is missing from the list below, not absent."
           />
         )}
-        {selectedOltId ? (
+
+        {olts?.length ? (
           <>
             <UnconfiguredOnuTable
-              dataSource={data ?? []}
-              isLoading={isLoading}
+              dataSource={rows}
+              isLoading={scan.isLoading}
+              showOlt={!oltFilter}
               onCopySerial={handleCopySerial}
               onRegister={handleRegister}
             />
@@ -108,7 +114,7 @@ export default function UnconfiguredOnusPage() {
                       onSuccess: () => {
                         message.success("ONU registration started");
                         setRegisterTarget(null);
-                        refetch();
+                        scan.rescan();
                       },
                       onError: (submitError) =>
                         message.error(submitError.message),
@@ -121,7 +127,7 @@ export default function UnconfiguredOnusPage() {
             )}
           </>
         ) : (
-          <Empty description="Select an OLT to scan" />
+          <Empty description="Register an OLT before scanning for ONUs" />
         )}
       </Card>
     </div>
