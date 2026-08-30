@@ -2402,8 +2402,10 @@ export interface ResolvedPlace {
 }
 
 interface AddressAutocompleteProps {
-  value: string;
-  onChange: (value: string) => void;
+  // Injected by the Form.Item that wraps this field; absent when it is used
+  // outside a form.
+  value?: string;
+  onChange?: (value: string) => void;
   onResolved: (place: ResolvedPlace) => void;
 }
 
@@ -2433,9 +2435,9 @@ export function AddressAutocomplete(props: AddressAutocompleteProps) {
 function PlainAddressInput({ value, onChange }: AddressAutocompleteProps) {
   return (
     <Input
-      value={value}
+      value={value ?? ""}
       placeholder="Address"
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => onChange?.(event.target.value)}
     />
   );
 }
@@ -2468,7 +2470,7 @@ function SuggestingAddressInput({
         return;
       }
       const address = place.formatted_address ?? element.value;
-      onChange(address);
+      onChange?.(address);
       onResolved({
         address,
         latitude: location.lat(),
@@ -2482,9 +2484,9 @@ function SuggestingAddressInput({
   return (
     <Input
       ref={inputRef}
-      value={value}
+      value={value ?? ""}
       placeholder="Start typing an address"
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => onChange?.(event.target.value)}
     />
   );
 }
@@ -2506,10 +2508,11 @@ In `frontend/src/presentation/components/sites/SiteModal.tsx`, replace the
 `location` form item with:
 
 ```tsx
+        {/* Form.Item clones its child and injects value/onChange, and those
+            win over anything passed here — so the field is form-controlled and
+            only onResolved is ours to supply. */}
         <Form.Item name="location" label="Address">
           <AddressAutocomplete
-            value={address}
-            onChange={(next) => form.setFieldValue("location", next)}
             onResolved={(place) => {
               form.setFieldsValue({
                 location: place.address,
@@ -2522,14 +2525,7 @@ In `frontend/src/presentation/components/sites/SiteModal.tsx`, replace the
         </Form.Item>
 ```
 
-add `import { AddressAutocomplete } from "./AddressAutocomplete";` to its
-imports, and add this line at the top of the component body, beside
-`const [form] = Form.useForm<SiteFormValues>();` — a hook must not be called
-from inside JSX:
-
-```tsx
-  const address = Form.useWatch("location", form) ?? "";
-```
+and add `import { AddressAutocomplete } from "./AddressAutocomplete";` to its imports.
 
 Add to `frontend/src/presentation/components/sites/index.ts`:
 
@@ -2568,6 +2564,7 @@ git commit -m "feat(sites): suggest addresses and fill coordinates from Places"
 - Create: `frontend/src/presentation/pages/MapPage.tsx`
 - Create: `frontend/src/presentation/pages/__tests__/MapPage.test.tsx`
 - Modify: `frontend/src/presentation/components/layout/navigationRoutes.tsx`
+- Modify: `frontend/src/presentation/components/layout/navigationRoutes.test.tsx`
 - Modify: `frontend/src/presentation/routes/index.tsx`
 
 **Interfaces:**
@@ -2925,6 +2922,17 @@ In `frontend/src/presentation/components/layout/navigationRoutes.tsx`, add
 
 ```tsx
     { path: "/map", name: "Map", icon: <GlobalOutlined /> },
+```
+
+Add this case to `frontend/src/presentation/components/layout/navigationRoutes.test.tsx`:
+
+```tsx
+  it("lists Map for every role, so the page is reachable without its URL", () => {
+    // The VPN entry was once added to a component nothing rendered, which left
+    // that page invisible to every operator. This file exists to catch that.
+    expect(paths(UserRole.ADMIN)).toContain("/map");
+    expect(paths(UserRole.VIEWER)).toContain("/map");
+  });
 ```
 
 In `frontend/src/presentation/routes/index.tsx`, add
