@@ -21,8 +21,13 @@ const (
 
 // ONT represents an Optical Network Terminal for monitoring
 type ONT struct {
-	ID     uuid.UUID `gorm:"type:uuid;primary_key" json:"id"`
-	OLTID  uuid.UUID `gorm:"type:uuid;not null;index" json:"olt_id"`
+	ID uuid.UUID `gorm:"type:uuid;primary_key" json:"id"`
+	// priority:1 in the composite index is load-bearing. Without it GORM's
+	// AutoMigrate builds uq_onts_olt_slot_port_ont on (slot, port_id, ont_id)
+	// alone, and because AutoMigrate runs before the SQL migrations, the
+	// CREATE INDEX IF NOT EXISTS in 11_add_zte_ont_position_uniqueness.sql
+	// then finds the name taken and silently does nothing.
+	OLTID  uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:uq_onts_olt_slot_port_ont,priority:1" json:"olt_id"`
 	PortID int       `gorm:"not null;uniqueIndex:uq_onts_olt_slot_port_ont,priority:3" json:"port_id"`
 	ONTID  int       `gorm:"not null;uniqueIndex:uq_onts_olt_slot_port_ont,priority:4" json:"ont_id"`
 	Slot   *int      `gorm:"uniqueIndex:uq_onts_olt_slot_port_ont,priority:2" json:"slot,omitempty"`

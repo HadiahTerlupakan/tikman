@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -163,14 +164,21 @@ func (s *ONTService) Create(ont *models.ONT) error {
 		return fmt.Errorf("ONT with serial number %s already exists", ont.SerialNumber)
 	}
 
-	// Check for duplicate OLT + PortID + ONTID
-	if err := s.db.Model(&models.ONT{}).
-		Where("olt_id = ? AND port_id = ? AND ont_id = ?", ont.OLTID, ont.PortID, ont.ONTID).
-		Count(&count).Error; err != nil {
+	// A position is olt + card + port + ONU. Leaving the card out of this check
+	// rejected the same port and ONU number on a second card as a duplicate,
+	// which on a multi-card chassis is a different subscriber's box.
+	positionQuery := s.db.Model(&models.ONT{}).
+		Where("olt_id = ? AND port_id = ? AND ont_id = ?", ont.OLTID, ont.PortID, ont.ONTID)
+	if ont.Slot != nil {
+		positionQuery = positionQuery.Where("slot = ?", *ont.Slot)
+	} else {
+		positionQuery = positionQuery.Where("slot IS NULL")
+	}
+	if err := positionQuery.Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to check duplicate ONT position: %w", err)
 	}
 	if count > 0 {
-		return fmt.Errorf("ONT position already exists on this OLT (port %d, ont_id %d)", ont.PortID, ont.ONTID)
+		return fmt.Errorf("ONT position already exists on this OLT (slot %s, port %d, ont_id %d)", describeSlot(ont.Slot), ont.PortID, ont.ONTID)
 	}
 
 	// Set default status if not provided
@@ -286,10 +294,24 @@ func (s *ONTService) UpdateUptimeMetrics(id uuid.UUID) error {
 	return nil
 }
 
-// GetByOLTAndPosition returns ONT by OLT ID, port, and ONT ID
-func (s *ONTService) GetByOLTAndPosition(oltID uuid.UUID, portID, ontID int) (*models.ONT, error) {
+// GetByOLTAndPosition returns the ONT at a position on one OLT.
+//
+// Slot is part of the address, not decoration: a chassis carries several cards,
+// so port 1 / ONU 5 on card 8 and the same position on card 9 are two different
+// subscribers' boxes. Matching on port and ONU alone made the second one look
+// like the first, and discovery then overwrote a live ONT instead of adding it.
+//
+// A slot of 0 matches rows whose slot is unknown, which is how ONTs registered
+// before the OLT reported card numbers are still found.
+func (s *ONTService) GetByOLTAndPosition(oltID uuid.UUID, slot, portID, ontID int) (*models.ONT, error) {
 	var ont models.ONT
-	if err := s.db.Where("olt_id = ? AND port_id = ? AND ont_id = ?", oltID, portID, ontID).First(&ont).Error; err != nil {
+	query := s.db.Where("olt_id = ? AND port_id = ? AND ont_id = ?", oltID, portID, ontID)
+	if slot > 0 {
+		query = query.Where("slot = ?", slot)
+	} else {
+		query = query.Where("slot IS NULL")
+	}
+	if err := query.First(&ont).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("ONT not found at position")
 		}
@@ -338,6 +360,15 @@ type BulkRegisterResult struct {
 }
 
 // BulkRegisterFromDiscovery registers multiple ONTs from discovery results
+// describeSlot renders a slot for an error message an operator has to act on,
+// where "unknown" is more useful than an empty gap.
+func describeSlot(slot *int) string {
+	if slot == nil {
+		return "unknown"
+	}
+	return strconv.Itoa(*slot)
+}
+
 // discoveredSlot keeps a slot the OLT did not report out of the row, so an
 // unknown slot stays null rather than becoming a real-looking zero.
 func discoveredSlot(ont connectivity.DiscoveredONT) *int {
@@ -354,7 +385,14 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 	}
 
 	for _, ont := range discovered {
-		existing, _ := s.GetByOLTAndPosition(oltID, ont.PortID, ont.ONTID)
+		existing, _ := s.GetByOLTAndPosition(oltID, ont.Slot, ont.PortID, ont.ONTID)
+		if existing == nil && ont.Slot > 0 {
+			// A row registered before the OLT reported card numbers carries a null
+			// slot. It is the same ONT, so discovery backfills its card rather than
+			// inserting a second row beside it. Only the null case falls back: a row
+			// already sitting on a different card is a different subscriber's box.
+			existing, _ = s.GetByOLTAndPosition(oltID, 0, ont.PortID, ont.ONTID)
+		}
 		if existing != nil {
 			updates := map[string]interface{}{}
 			needsUpdate := false

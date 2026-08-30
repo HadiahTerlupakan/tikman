@@ -849,7 +849,7 @@ func TestONTService_GetByOLTAndPosition(t *testing.T) {
 	}
 	require.NoError(t, ontService.Create(ont))
 
-	found, err := ontService.GetByOLTAndPosition(olt.ID, 1, 5)
+	found, err := ontService.GetByOLTAndPosition(olt.ID, 0, 1, 5)
 	require.NoError(t, err)
 	assert.Equal(t, ont.ID, found.ID)
 }
@@ -877,7 +877,7 @@ func TestONTService_GetByOLTAndPosition_NotFound(t *testing.T) {
 	}
 	db.Create(olt)
 
-	_, err := ontService.GetByOLTAndPosition(olt.ID, 99, 99)
+	_, err := ontService.GetByOLTAndPosition(olt.ID, 0, 99, 99)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "ONT not found at position")
 }
