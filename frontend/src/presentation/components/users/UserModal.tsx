@@ -49,18 +49,24 @@ export function UserModal({
   }, [user, form]);
 
   const handleSubmit = () => {
-    form.validateFields().then((values) => {
-      const { username, email, role, password } = values;
+    form
+      .validateFields()
+      .then((values) => {
+        const { username, email, role, password } = values;
 
-      // The confirmation never leaves the form, and an empty password means
-      // "leave it alone" — sending "" would fail the API's minimum length and
-      // read to the operator as a rejected edit.
-      onSubmit(
-        password
-          ? { username, email, role, password }
-          : { username, email, role },
-      );
-    });
+        // The confirmation never leaves the form, and an empty password means
+        // "leave it alone" — sending "" would fail the API's minimum length and
+        // read to the operator as a rejected edit.
+        onSubmit(
+          password
+            ? { username, email, role, password }
+            : { username, email, role },
+        );
+      })
+      // validateFields rejects on a failed rule. antd has already rendered each
+      // failure against its own field, so there is nothing left to report — but
+      // without this the rejection escapes as an unhandled promise.
+      .catch(() => undefined);
   };
 
   return (

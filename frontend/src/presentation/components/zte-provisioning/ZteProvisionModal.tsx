@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Form, Modal, Steps, Switch } from "antd";
 import type {
   ZteGPONRegisterRequest,
@@ -39,7 +39,10 @@ export function ZteProvisionModal({
   );
   const [step, setStep] = useState(0);
   const [confirmed, setConfirmed] = useState(false);
-  const watchedValues = Form.useWatch([], form);
+  // Subscribes this component to every field so the command preview below
+  // rebuilds as the operator types. The values are read from the form, not
+  // from what this returns, so the result is deliberately unused.
+  Form.useWatch([], form);
 
   useEffect(() => {
     if (!open) {
@@ -150,11 +153,11 @@ export function ZteProvisionModal({
     [target.oltId],
   );
 
-  const previewRequest = useMemo(
-    () => buildRequest(form.getFieldsValue()),
-    // watchedValues is the re-render trigger; the values come from the form.
-    [buildRequest, form, watchedValues],
-  );
+  // Form.useWatch already re-renders this component on every edit, and the
+  // consumer hashes the request into a React Query key structurally, so a fresh
+  // object costs nothing. Memoising it only bought a dependency array that had
+  // to list the trigger it never read.
+  const previewRequest = buildRequest(form.getFieldsValue());
 
   return (
     <Modal
