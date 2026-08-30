@@ -19,10 +19,21 @@ export class SettingRepository {
     await apiClient.delete(API_ENDPOINTS.SETTING_BY_NAME(name));
   }
 
-  // Answers {} when nothing is configured, which is a normal state rather than
-  // an error, so this must not throw on an empty installation.
+  // The server returns {values: [{name, value}]} rather than a map keyed by
+  // setting name: the axios interceptor runs every response through humps'
+  // camelizeKeys, which would silently rewrite a name like
+  // "google_maps_api_key" to "googleMapsApiKey" and break every lookup by
+  // the snake_case constant. A list keeps "name" and "value" as the only
+  // JSON keys — both already camelCase-safe — so the identifiers inside the
+  // values ride through untouched.
+  //
+  // Answers an empty list when nothing is configured, which is a normal
+  // state rather than an error, so this must not throw on an empty
+  // installation.
   async browser(): Promise<BrowserSettings> {
     const response = await apiClient.get(API_ENDPOINTS.SETTINGS_BROWSER);
-    return response.data ?? {};
+    const values: { name: string; value: string }[] =
+      response.data?.values ?? [];
+    return Object.fromEntries(values.map(({ name, value }) => [name, value]));
   }
 }

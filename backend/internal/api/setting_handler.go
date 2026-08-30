@@ -3,12 +3,22 @@ package api
 import (
 	"errors"
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
+
+// BrowserSettingValue pairs a setting's name with its value. Browser returns
+// these as a list rather than a map so humps' camelCase pass on the frontend
+// only ever touches the literal keys "name" and "value" — never a setting
+// name, which is a server-defined identifier the client must match verbatim.
+type BrowserSettingValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
 
 // SettingHandler manages credentials for external integrations.
 type SettingHandler struct {
@@ -45,7 +55,19 @@ func (h *SettingHandler) Browser(c *gin.Context) {
 		})
 		return
 	}
-	c.JSON(http.StatusOK, values)
+
+	// Sorted for a deterministic response body; map iteration order is not.
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	list := make([]BrowserSettingValue, 0, len(names))
+	for _, name := range names {
+		list = append(list, BrowserSettingValue{Name: name, Value: values[name]})
+	}
+	c.JSON(http.StatusOK, gin.H{"values": list})
 }
 
 // Set handles PUT /api/v1/settings/:name.

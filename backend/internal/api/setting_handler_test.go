@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -102,10 +101,7 @@ func TestSettingBrowserEndpointCarriesOnlyBrowserSettings(t *testing.T) {
 	handler.Browser(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-
-	var body map[string]string
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-	require.Equal(t, map[string]string{models.SettingGoogleMapsAPIKey: "AIzaSyTESTKEY123"}, body)
+	require.JSONEq(t, `{"values":[{"name":"`+models.SettingGoogleMapsAPIKey+`","value":"AIzaSyTESTKEY123"}]}`, recorder.Body.String())
 }
 
 func TestSettingBrowserEndpointAnswersEmptyBeforeAnythingIsSet(t *testing.T) {
@@ -116,7 +112,7 @@ func TestSettingBrowserEndpointAnswersEmptyBeforeAnythingIsSet(t *testing.T) {
 	handler.Browser(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.JSONEq(t, `{}`, recorder.Body.String())
+	require.JSONEq(t, `{"values":[]}`, recorder.Body.String())
 }
 
 func TestSettingDeleteRemovesTheValue(t *testing.T) {
