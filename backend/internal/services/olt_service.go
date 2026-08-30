@@ -438,18 +438,17 @@ func (s *OLTService) AutoDiscoverONTMetrics(olt *models.OLT) {
 
 	var successCount int
 
+	metricsOwner := NewONTService(s.db)
 	for loc, metrics := range allMetrics {
-		var onts []models.ONT
-		if err := s.db.Where("olt_id = ? AND port_id = ? AND ont_id = ?", olt.ID, loc.Port, loc.ONTID).Find(&onts).Error; err != nil {
+		// Matching without the card attached every reading at port 12 ONU 22 to
+		// whichever card's row the database returned first. On a chassis where
+		// three cards carry that position, two subscribers' optical readings were
+		// being written onto a third one's ONT.
+		ont, err := metricsOwner.GetByOLTAndPosition(olt.ID, loc.Slot, loc.Port, loc.ONTID)
+		if err != nil || ont == nil {
+			log.Printf("[AutoDiscovery] Skipping unregistered ONT at slot=%d port=%d ont=%d", loc.Slot, loc.Port, loc.ONTID)
 			continue
 		}
-
-		if len(onts) == 0 {
-			log.Printf("[AutoDiscovery] Skipping unregistered ONT at port=%d ont=%d", loc.Port, loc.ONTID)
-			continue
-		}
-
-		ont := onts[0]
 
 		storeMetrics := false
 		if metrics.RxPower != nil || metrics.TxPower != nil || metrics.Distance > 0 {
