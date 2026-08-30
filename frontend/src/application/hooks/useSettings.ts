@@ -21,8 +21,8 @@ export function useSaveSetting() {
     mutationFn: ({ name, value }: { name: string; value: string }) =>
       settingRepository.save(name, value),
     onSuccess: () => {
+      // Prefix-matching, so this also covers ["settings", "browser"].
       queryClient.invalidateQueries({ queryKey: ["settings"] });
-      queryClient.invalidateQueries({ queryKey: ["settings", "browser"] });
     },
   });
 }
@@ -32,8 +32,8 @@ export function useDeleteSetting() {
   return useMutation({
     mutationFn: (name: string) => settingRepository.remove(name),
     onSuccess: () => {
+      // Prefix-matching, so this also covers ["settings", "browser"].
       queryClient.invalidateQueries({ queryKey: ["settings"] });
-      queryClient.invalidateQueries({ queryKey: ["settings", "browser"] });
     },
   });
 }

@@ -12,8 +12,8 @@ type Site struct {
 	Name        string    `gorm:"type:varchar(255);not null"`
 	Location    string    `gorm:"type:text"`
 	Description string    `gorm:"type:text"`
-	Latitude    *float64  `gorm:"type:double precision" json:"latitude,omitempty"`
-	Longitude   *float64  `gorm:"type:double precision" json:"longitude,omitempty"`
+	Latitude    *float64  `gorm:"type:double precision"`
+	Longitude   *float64  `gorm:"type:double precision"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
