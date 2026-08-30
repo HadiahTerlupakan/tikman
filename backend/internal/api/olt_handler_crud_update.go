@@ -1,10 +1,13 @@
 package api
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/services"
 )
 
 func (h *OLTHandler) Update(c *gin.Context) {
@@ -30,6 +33,20 @@ func (h *OLTHandler) Update(c *gin.Context) {
 	_, _ = h.service.GetByID(id)
 
 	updates := make(map[string]interface{})
+	// Clearing wins over a supplied value: an operator who ticks "remove the
+	// pin" and leaves stale numbers in the fields means the removal.
+	if req.ClearCoordinates {
+		updates["latitude"] = (*float64)(nil)
+		updates["longitude"] = (*float64)(nil)
+	} else {
+		if req.Latitude != nil {
+			updates["latitude"] = req.Latitude
+		}
+		if req.Longitude != nil {
+			updates["longitude"] = req.Longitude
+		}
+	}
+
 	if req.Name != nil {
 		updates["name"] = *req.Name
 	}
@@ -62,6 +79,13 @@ func (h *OLTHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.service.Update(id, updates); err != nil {
+		if errors.Is(err, services.ErrValidation) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+				Code:  "INVALID_COORDINATES",
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: "Failed to update OLT",
 			Code:  "UPDATE_FAILED",

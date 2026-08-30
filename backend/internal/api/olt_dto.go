@@ -8,6 +8,8 @@ import (
 )
 
 type CreateOLTRequest struct {
+	Latitude          *float64           `json:"latitude" binding:"omitempty,min=-90,max=90"`
+	Longitude         *float64           `json:"longitude" binding:"omitempty,min=-180,max=180"`
 	SiteID            uuid.UUID          `json:"site_id" binding:"required"`
 	Name              string             `json:"name" binding:"required,min=2,max=255"`
 	IPAddress         string             `json:"ip_address" binding:"required,ip"`
@@ -50,9 +52,17 @@ type UpdateOLTRequest struct {
 	PreferredProtocol *models.OLTProtocol `json:"preferred_protocol" binding:"omitempty,oneof=ssh telnet"`
 	Username          *string             `json:"username" binding:"omitempty,min=1,max=100"`
 	Password          *string             `json:"password" binding:"omitempty,min=1"`
+	Latitude          *float64            `json:"latitude" binding:"omitempty,min=-90,max=90"`
+	Longitude         *float64            `json:"longitude" binding:"omitempty,min=-180,max=180"`
+	// A pointer cannot distinguish "cleared" from "not sent", so removing a pin
+	// needs its own signal. Without it a wrongly placed OLT could be moved but
+	// never taken off the map.
+	ClearCoordinates bool `json:"clear_coordinates"`
 }
 
 type OLTResponse struct {
+	Latitude          *float64           `json:"latitude,omitempty"`
+	Longitude         *float64           `json:"longitude,omitempty"`
 	ID                uuid.UUID          `json:"id"`
 	SiteID            uuid.UUID          `json:"site_id"`
 	SiteName          string             `json:"site_name"`
@@ -87,6 +97,8 @@ func ToOLTResponse(siteName string, ontCount int64, olt *models.OLT) OLTResponse
 		TelnetPort:        olt.TelnetPort,
 		SNMPPort:          olt.SNMPPort,
 		SNMPCommunity:     olt.SNMPCommunity,
+		Latitude:          olt.Latitude,
+		Longitude:         olt.Longitude,
 		PreferredProtocol: olt.PreferredProtocol,
 		Username:          olt.Username,
 		Status:            olt.Status,

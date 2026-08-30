@@ -48,22 +48,42 @@ func (s *OLTService) GetEncryptionKey() []byte {
 }
 
 // Create creates a new OLT with status validation
-func (s *OLTService) Create(
-	siteID uuid.UUID,
-	name,
-	ipAddress,
-	snmpCommunity,
-	username,
-	password string,
-	model models.OLTModel,
-	rack,
-	shelf,
-	slot int,
-	sshPort,
-	telnetPort,
-	snmpPort int,
-	preferredProtocol models.OLTProtocol,
-) (*models.OLT, error) {
+// CreateOLTInput carries everything needed to register an OLT. It is a struct
+// rather than a parameter list because the list had reached fourteen, six of
+// them consecutive ints — rack, shelf, slot and three ports — where swapping
+// two at a call site compiles cleanly and fails only against real hardware.
+type CreateOLTInput struct {
+	SiteID            uuid.UUID
+	Name              string
+	IPAddress         string
+	SNMPCommunity     string
+	Username          string
+	Password          string
+	Model             models.OLTModel
+	SSHPort           int
+	TelnetPort        int
+	SNMPPort          int
+	PreferredProtocol models.OLTProtocol
+	// Rack, shelf and slot are deliberately absent: the previous signature took
+	// them and never used them, because discovery resolves the physical
+	// position at ONT level. Carrying them here would restate that mistake.
+	Latitude  *float64
+	Longitude *float64
+}
+
+// Create registers an OLT.
+func (s *OLTService) Create(in CreateOLTInput) (*models.OLT, error) {
+	siteID := in.SiteID
+	name, ipAddress, snmpCommunity := in.Name, in.IPAddress, in.SNMPCommunity
+	username, password := in.Username, in.Password
+	model := in.Model
+	sshPort, telnetPort, snmpPort := in.SSHPort, in.TelnetPort, in.SNMPPort
+	preferredProtocol := in.PreferredProtocol
+
+	if err := validateCoordinates(in.Latitude, in.Longitude); err != nil {
+		return nil, err
+	}
+
 	// A model with no driver would leave the OLT unmonitorable, so it is
 	// rejected here as well as at the API boundary.
 	if _, err := connectivity.DriverFor(model); err != nil {
@@ -117,6 +137,8 @@ func (s *OLTService) Create(
 		TelnetPort:        telnetPort,
 		SNMPPort:          snmpPort,
 		SNMPCommunity:     snmpCommunity,
+		Latitude:          in.Latitude,
+		Longitude:         in.Longitude,
 		PreferredProtocol: preferredProtocol,
 		Model:             model,
 		Username:          username,
@@ -148,6 +170,16 @@ func (s *OLTService) List() ([]models.OLT, error) {
 }
 
 func (s *OLTService) Update(id uuid.UUID, updates map[string]interface{}) error {
+	// Shares validateCoordinates with SiteService: the rule is a property of a
+	// coordinate pair, not of the thing carrying it, so it lives in one place.
+	latitude, hasLatitude := updates["latitude"].(*float64)
+	longitude, hasLongitude := updates["longitude"].(*float64)
+	if hasLatitude || hasLongitude {
+		if err := validateCoordinates(latitude, longitude); err != nil {
+			return err
+		}
+	}
+
 	if password, ok := updates["password"].(string); ok {
 		encryptedPassword, err := utils.Encrypt(password, strings.TrimSpace(string(s.encryptionKey)))
 		if err != nil {

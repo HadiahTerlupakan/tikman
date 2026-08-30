@@ -20,20 +20,19 @@ func TestOLTService_Create(t *testing.T) {
 	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
 	require.NoError(t, err)
 
-	_, err = oltService.Create(
-		site.ID,
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		"password123",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err = oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SNMP connection test failed")
@@ -43,20 +42,19 @@ func TestOLTService_Create_InvalidSiteID(t *testing.T) {
 	db := setupTestDB(t)
 	oltService := NewOLTService(db, testEncryptionKey)
 
-	_, err := oltService.Create(
-		uuid.New(),
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		"password123",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err := oltService.Create(CreateOLTInput{
+		SiteID:            uuid.New(),
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 
 	// This asserted an SNMP error before, so it passed without ever exercising
 	// the site check - and the site check did not exist: Create assigned
@@ -73,37 +71,35 @@ func TestOLTService_Create_DuplicateIP(t *testing.T) {
 	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
 	require.NoError(t, err)
 
-	_, err = oltService.Create(
-		site.ID,
-		"OLT 1",
-		"10.0.0.1",
-		"public",
-		"admin",
-		"password",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err = oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "OLT 1",
+		IPAddress:         "10.0.0.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SNMP connection test failed")
 
-	_, err = oltService.Create(
-		site.ID,
-		"OLT 2",
-		"10.0.0.1",
-		"public",
-		"admin",
-		"password",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err = oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "OLT 2",
+		IPAddress:         "10.0.0.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SNMP connection test failed")
 }
@@ -117,20 +113,19 @@ func TestOLTService_GetByID(t *testing.T) {
 	require.NoError(t, err)
 
 	// NOTE: Create() will fail due to validation - IP not reachable in test environment
-	created, err := oltService.Create(
-		site.ID,
-		"Test OLT",             // name
-		"192.168.1.1",          // ipAddress
-		"public",               // snmpCommunity
-		"admin",                // username
-		"password123",          // password
-		models.OLTModelZTEC300, // model
-		0, 0, 1,                // rack, shelf, slot
-		22,                    // sshPort
-		23,                    // telnetPort
-		161,                   // snmpPort
-		models.OLTProtocolSSH, // preferredProtocol
-	)
+	created, err := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err) // Expected to fail at validation
 	assert.Nil(t, created)
 
@@ -146,8 +141,32 @@ func TestOLTService_List(t *testing.T) {
 	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
 	require.NoError(t, err)
 
-	_, err1 := oltService.Create(site.ID, "OLT1", "192.168.1.1", "public", "admin", "pass", models.OLTModelZTEC300, 0, 0, 1, 22, 23, 161, models.OLTProtocolSSH)
-	_, err2 := oltService.Create(site.ID, "OLT2", "192.168.1.2", "public", "admin", "pass", models.OLTModelZTEC300, 0, 0, 1, 22, 23, 161, models.OLTProtocolTelnet)
+	_, err1 := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "OLT1",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "pass",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
+	_, err2 := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "OLT2",
+		IPAddress:         "192.168.1.2",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "pass",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolTelnet,
+	})
 
 	// Both creates will fail validation
 	require.Error(t, err1)
@@ -167,20 +186,19 @@ func TestOLTService_Update(t *testing.T) {
 	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
 	require.NoError(t, err)
 
-	olt, err := oltService.Create(
-		site.ID,
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		"password123",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	olt, err := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err) // Expected to fail at validation
 	assert.Nil(t, olt)
 
@@ -196,20 +214,19 @@ func TestOLTService_Delete(t *testing.T) {
 	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
 	require.NoError(t, err)
 
-	olt, err := oltService.Create(
-		site.ID,
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		"password123",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	olt, err := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err) // Expected to fail at validation
 	assert.Nil(t, olt)
 
@@ -225,20 +242,19 @@ func TestOLTService_UpdateStatus(t *testing.T) {
 	site, err := siteService.Create("Test Site", "Test Location", "Test Description")
 	require.NoError(t, err)
 
-	olt, err := oltService.Create(
-		site.ID,
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		"password123",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	olt, err := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "password123",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err) // Expected to fail at validation
 	assert.Nil(t, olt)
 
@@ -255,20 +271,19 @@ func TestOLTService_DecryptPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	plainPassword := "password123"
-	olt, err := oltService.Create(
-		site.ID,
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		plainPassword,
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	olt, err := oltService.Create(CreateOLTInput{
+		SiteID:            site.ID,
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          plainPassword,
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err) // Expected to fail at validation
 	assert.Nil(t, olt)
 
@@ -616,20 +631,19 @@ func TestOLTService_Create_InvalidSSHPort(t *testing.T) {
 	db := setupTestDB(t)
 	oltService := NewOLTService(db, testEncryptionKey)
 
-	_, err := oltService.Create(
-		uuid.New(),
-		"Test OLT",
-		"192.168.1.1",
-		"",
-		"admin",
-		"pass",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		0,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err := oltService.Create(CreateOLTInput{
+		SiteID:            uuid.New(),
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "",
+		Username:          "admin",
+		Password:          "pass",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           0,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid SSH port")
 }
@@ -638,20 +652,19 @@ func TestOLTService_Create_InvalidTelnetPort(t *testing.T) {
 	db := setupTestDB(t)
 	oltService := NewOLTService(db, testEncryptionKey)
 
-	_, err := oltService.Create(
-		uuid.New(),
-		"Test OLT",
-		"192.168.1.1",
-		"",
-		"admin",
-		"pass",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		99999,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err := oltService.Create(CreateOLTInput{
+		SiteID:            uuid.New(),
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "",
+		Username:          "admin",
+		Password:          "pass",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        99999,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid Telnet port")
 }
@@ -660,20 +673,19 @@ func TestOLTService_Create_InvalidSNMPPort(t *testing.T) {
 	db := setupTestDB(t)
 	oltService := NewOLTService(db, testEncryptionKey)
 
-	_, err := oltService.Create(
-		uuid.New(),
-		"Test OLT",
-		"192.168.1.1",
-		"public",
-		"admin",
-		"pass",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		70000,
-		models.OLTProtocolSSH,
-	)
+	_, err := oltService.Create(CreateOLTInput{
+		SiteID:            uuid.New(),
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "public",
+		Username:          "admin",
+		Password:          "pass",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          70000,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid SNMP port")
 }
@@ -682,20 +694,19 @@ func TestOLTService_Create_InvalidEncryptionKey(t *testing.T) {
 	db := setupTestDB(t)
 	oltService := NewOLTService(db, "invalid")
 
-	_, err := oltService.Create(
-		uuid.New(),
-		"Test OLT",
-		"192.168.1.1",
-		"",
-		"admin",
-		"pass",
-		models.OLTModelZTEC300,
-		0, 0, 1,
-		22,
-		23,
-		161,
-		models.OLTProtocolSSH,
-	)
+	_, err := oltService.Create(CreateOLTInput{
+		SiteID:            uuid.New(),
+		Name:              "Test OLT",
+		IPAddress:         "192.168.1.1",
+		SNMPCommunity:     "",
+		Username:          "admin",
+		Password:          "pass",
+		Model:             models.OLTModelZTEC300,
+		SSHPort:           22,
+		TelnetPort:        23,
+		SNMPPort:          161,
+		PreferredProtocol: models.OLTProtocolSSH,
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to encrypt password")
 }

@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tikman/olt-provisioning/internal/services"
 )
 
 func (h *OLTHandler) Create(c *gin.Context) {
@@ -36,27 +38,30 @@ func (h *OLTHandler) Create(c *gin.Context) {
 		snmpCommunity = "public"
 	}
 
-	rack := 0
-	shelf := 0
-	slot := 0
-
-	olt, err := h.service.Create(
-		req.SiteID,
-		req.Name,
-		req.IPAddress,
-		snmpCommunity,
-		req.Username,
-		req.Password,
-		req.Model,
-		rack,
-		shelf,
-		slot,
-		sshPort,
-		telnetPort,
-		snmpPort,
-		req.PreferredProtocol,
-	)
+	olt, err := h.service.Create(services.CreateOLTInput{
+		SiteID:            req.SiteID,
+		Name:              req.Name,
+		IPAddress:         req.IPAddress,
+		SNMPCommunity:     snmpCommunity,
+		Username:          req.Username,
+		Password:          req.Password,
+		Model:             req.Model,
+		SSHPort:           sshPort,
+		TelnetPort:        telnetPort,
+		SNMPPort:          snmpPort,
+		PreferredProtocol: req.PreferredProtocol,
+		Latitude:          req.Latitude,
+		Longitude:         req.Longitude,
+	})
 	if err != nil {
+		if errors.Is(err, services.ErrValidation) {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+				Code:  "INVALID_COORDINATES",
+			})
+			return
+		}
+
 		errMsg := err.Error()
 
 		if errMsg == "site not found: record not found" {
