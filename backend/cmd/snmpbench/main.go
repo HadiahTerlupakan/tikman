@@ -14,6 +14,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -23,14 +25,15 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
-// repetitionsToTry brackets the useful range: 10 is conservative enough that
-// almost any agent serves it, 100 is past the point where a response risks
-// exceeding the UDP datagram an agent will build.
-var repetitionsToTry = []uint8{10, 25, 50, 100}
+// defaultRepetitions brackets the useful range: small enough that almost any
+// agent serves it, large enough to pass the point where bigger requests stop
+// paying for themselves.
+const defaultRepetitions = "5,10,15,25,50,100"
 
 func main() {
 	name := flag.String("olt", "", "name of the OLT to measure")
 	oid := flag.String("oid", connectivity.OID_ZXAN_ONU_PHASE_STATE_TABLE, "table OID to walk")
+	repsList := flag.String("reps", defaultRepetitions, "comma-separated GETBULK repetition counts to try")
 	flag.Parse()
 
 	if *name == "" {
@@ -58,7 +61,7 @@ func main() {
 	baseline := run(&olt, *oid, 0)
 	report("GETNEXT", baseline)
 
-	for _, reps := range repetitionsToTry {
+	for _, reps := range parseReps(*repsList) {
 		result := run(&olt, *oid, reps)
 		report(fmt.Sprintf("GETBULK@%d", reps), result)
 
@@ -70,6 +73,20 @@ func main() {
 				result.values, baseline.values)
 		}
 	}
+}
+
+// parseReps turns the flag into repetition counts, ignoring anything that is
+// not a usable one so a typo costs a line of the table rather than the run.
+func parseReps(list string) []uint8 {
+	reps := make([]uint8, 0, 8)
+	for _, field := range strings.Split(list, ",") {
+		n, err := strconv.Atoi(strings.TrimSpace(field))
+		if err != nil || n < 1 || n > 255 {
+			continue
+		}
+		reps = append(reps, uint8(n))
+	}
+	return reps
 }
 
 type outcome struct {
