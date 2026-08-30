@@ -1,7 +1,7 @@
 # Mesin Polling Berskala — Desain
 
 **Tanggal:** 2026-08-30
-**Status:** Disetujui untuk implementasi
+**Status:** A1 dan A2 selesai dan terpasang. A3 menunggu prasyarat trap.
 **Cakupan:** Proyek A dari tiga proyek. Proyek B (paginasi daftar ONT di server) dan
 Proyek C (indeks skala besar) punya spec sendiri nanti.
 
@@ -304,6 +304,24 @@ masing-masing. `cmd/snmpbench` ada untuk itu.
 **Kecepatan agen berubah menurut bebannya.** GETNEXT terukur 11,2 detik dan 20,3
 detik pada dua jalan berbeda untuk tabel yang sama. Penjadwalan harus menganggap
 kapasitas agen sebagai perkiraan, bukan konstanta.
+
+## Proyek B dan C — Selesai
+
+**B (paginasi dan pencarian di server).** Daftar ONT dan halaman grafik mengirim
+filternya dan menerima satu halaman. Kartu, port, dan pencarian serial atau nama
+dikerjakan database; jumlah yang menggerakkan pager berasal dari server, bukan
+dari panjang array yang datang. `matchesOntFilters`, `filterOntsByQuery`, dan
+`describeOntCoverage` ikut terhapus — yang terakhir hanya ada untuk meminta maaf
+atas plafon yang sudah tidak ada.
+
+**C (indeks).** Diambil dari `EXPLAIN` terhadap tabel sungguhan, bukan tebakan:
+
+| Query | Sebelum | Sesudah |
+|---|---|---|
+| Paging worker per OLT | scan seluruh primary key | `idx_onts_olt_id_id` |
+| Urutan posisi di daftar | sort seluruh tabel tiap halaman | `idx_onts_position_order`, tanpa sort |
+| Sinyal terlemah | seq scan + top-N sort | indeks parsial, membaca tepat 5 baris |
+| Pencarian substring | tak terlayani btree | indeks trigram GIN |
 
 ## Di Luar Cakupan
 
