@@ -14,6 +14,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -35,7 +36,18 @@ func main() {
 	oid := flag.String("oid", connectivity.OID_ZXAN_ONU_PHASE_STATE_TABLE, "table OID to walk")
 	repsList := flag.String("reps", defaultRepetitions, "comma-separated GETBULK repetition counts to try")
 	print := flag.Bool("print", false, "print the values instead of timing the walk")
+	sendTrap := flag.String("send-trap", "", "send a test trap to host:port instead of reading the OLT")
 	flag.Parse()
+
+	// Sending a test trap needs no OLT: it exists to prove the receiver and the
+	// path to it work before the hardware is configured to use them.
+	if *sendTrap != "" {
+		if err := emitTestTrap(*sendTrap); err != nil {
+			log.Fatalf("send trap to %s: %v", *sendTrap, err)
+		}
+		fmt.Printf("test trap sent to %s\n", *sendTrap)
+		return
+	}
 
 	if *name == "" {
 		log.Fatal("-olt is required")
@@ -98,6 +110,44 @@ func parseReps(list string) []uint8 {
 		reps = append(reps, uint8(n))
 	}
 	return reps
+}
+
+// testTrapOID names the notification a test trap carries. It is under the
+// enterprise arc this project would use for its own notifications, so it cannot
+// be mistaken for anything a device sends.
+const testTrapOID = ".1.3.6.1.4.1.99999.1.1"
+
+// emitTestTrap sends one v2c trap, so a receiver can be proven to hear before
+// an OLT is asked to send to it. A listener that has never received anything is
+// a listener nobody knows works.
+func emitTestTrap(destination string) error {
+	host, port, err := net.SplitHostPort(destination)
+	if err != nil {
+		return fmt.Errorf("destination must be host:port: %w", err)
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("port must be a number: %w", err)
+	}
+
+	client := &gosnmp.GoSNMP{
+		Target:    host,
+		Port:      uint16(portNumber),
+		Community: "public",
+		Version:   gosnmp.Version2c,
+		Timeout:   5 * time.Second,
+	}
+	if err := client.Connect(); err != nil {
+		return err
+	}
+	defer func() { _ = client.Conn.Close() }()
+
+	_, err = client.SendTrap(gosnmp.SnmpTrap{Variables: []gosnmp.SnmpPDU{
+		{Name: ".1.3.6.1.2.1.1.3.0", Type: gosnmp.TimeTicks, Value: uint32(0)},
+		{Name: ".1.3.6.1.6.3.1.1.4.1.0", Type: gosnmp.ObjectIdentifier, Value: testTrapOID},
+		{Name: testTrapOID + ".1", Type: gosnmp.OctetString, Value: "snmpbench test trap"},
+	}})
+	return err
 }
 
 // dump prints every value under an OID.
