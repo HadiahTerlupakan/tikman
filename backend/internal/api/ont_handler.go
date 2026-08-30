@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -41,6 +42,19 @@ func NewONTHandler(ontService *services.ONTService, metricsService *services.Met
 // /dashboard/stats instead, because counting rows in the browser is what made a
 // cap load-bearing in the first place.
 const maxONTPageSize = 5000
+
+// optionalInt reads a query parameter that narrows the list, returning nil when
+// it is absent or not a number.
+func optionalInt(raw string) *int {
+	if raw == "" {
+		return nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return nil
+	}
+	return &value
+}
 
 func (h *ONTHandler) List(c *gin.Context) {
 	var oltID *uuid.UUID
@@ -91,6 +105,12 @@ func (h *ONTHandler) List(c *gin.Context) {
 		endTime = &t
 	}
 
+	// A card and port narrow a position. Anything unparseable is left unset
+	// rather than rejected: a stray query parameter should widen the answer, not
+	// fail the page an operator is looking at.
+	slot := optionalInt(c.Query("slot"))
+	portID := optionalInt(c.Query("port_id"))
+
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
@@ -100,7 +120,17 @@ func (h *ONTHandler) List(c *gin.Context) {
 		limit = maxONTPageSize
 	}
 
-	onts, total, err := h.ontService.ListWithMetricsFilter(oltID, status, startTime, endTime, limit, offset)
+	onts, total, err := h.ontService.ListFiltered(services.ONTListFilter{
+		OLTID:     oltID,
+		Status:    status,
+		Slot:      slot,
+		PortID:    portID,
+		Search:    strings.TrimSpace(c.Query("search")),
+		StartTime: startTime,
+		EndTime:   endTime,
+		Limit:     limit,
+		Offset:    offset,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "LIST_FAILED",

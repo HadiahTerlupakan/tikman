@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,52 +77,93 @@ func (s *ONTService) GetONTOlts(oltIDs []uuid.UUID) ([]models.OLT, error) {
 }
 
 // List returns paginated list of ONTs with filters
-func (s *ONTService) List(oltID *uuid.UUID, status *models.ONTStatus, limit, offset int) ([]models.ONT, int64, error) {
-	return s.ListWithMetricsFilter(oltID, status, nil, nil, limit, offset)
+// ONTListFilter narrows a page of ONTs.
+//
+// A struct rather than nine positional parameters, and the filters have to be
+// applied here rather than in the browser: the page can only filter the rows it
+// was sent, so on a network larger than one page it answered from a slice of
+// itself and said nothing about the rest.
+type ONTListFilter struct {
+	OLTID  *uuid.UUID
+	Status *models.ONTStatus
+	// Slot and PortID address a position. Port alone is ambiguous on a
+	// multi-card chassis, where port 1 exists once per card.
+	Slot   *int
+	PortID *int
+	// Search matches the serial or the subscriber name. The serial is what is
+	// printed on the box; the name is what an operator is given on the phone.
+	Search             string
+	StartTime, EndTime *time.Time
+	Limit, Offset      int
 }
 
-// ListWithMetricsFilter returns ONTs that match entity filters and optional metrics time range.
-func (s *ONTService) ListWithMetricsFilter(oltID *uuid.UUID, status *models.ONTStatus, startTime, endTime *time.Time, limit, offset int) ([]models.ONT, int64, error) {
+// List returns a page of one OLT's ONTs, or of all of them.
+func (s *ONTService) List(oltID *uuid.UUID, status *models.ONTStatus, limit, offset int) ([]models.ONT, int64, error) {
+	return s.ListFiltered(ONTListFilter{OLTID: oltID, Status: status, Limit: limit, Offset: offset})
+}
+
+// ListFiltered returns one page of ONTs and how many match the filter.
+//
+// The count describes the whole match, not the page: it drives the pager, and
+// reporting the page's own size there is what let a 930-ONT network claim to
+// hold however many rows happened to arrive.
+func (s *ONTService) ListFiltered(filter ONTListFilter) ([]models.ONT, int64, error) {
 	var onts []models.ONT
 	var total int64
 
-	query := s.db.Model(&models.ONT{})
+	query := s.applyONTFilter(s.db.Model(&models.ONT{}), filter)
 
-	// Apply filters
-	if oltID != nil {
-		query = query.Where("olt_id = ?", *oltID)
-	}
-	if status != nil {
-		query = query.Where("status = ?", *status)
-	}
-	if startTime != nil && endTime != nil {
-		query = query.Where(`EXISTS (
-			SELECT 1 FROM ont_metrics
-			WHERE ont_metrics.ont_id = onts.id
-			AND ont_metrics.time >= ?
-			AND ont_metrics.time <= ?
-		)`, *startTime, *endTime)
-	}
-
-	// Get total count
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count ONTs: %w", err)
 	}
 
-	// Get paginated results
 	// Order by physical position, not by created_at. Newest-first meant a bulk
 	// registration buried every other OLT: adding one 246-ONT OLT pushed a
-	// 198-ONT OLT past the client's 200-row window, so it vanished from the page
-	// entirely. Position is stable across polls and keeps an OLT's ONTs together.
-	if err := query.Order("olt_id, port_id, ont_id").Limit(limit).Offset(offset).Find(&onts).Error; err != nil {
+	// 198-ONT OLT past the client's window, so it vanished from the page
+	// entirely. Position is stable across polls and keeps an OLT's ONTs
+	// together, which also makes offset paging land where the operator expects.
+	query = query.Order("olt_id, slot, port_id, ont_id")
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+	if err := query.Offset(filter.Offset).Find(&onts).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to list ONTs: %w", err)
 	}
 
 	return onts, total, nil
 }
 
-// checkUnclaimed rejects an ONT whose box or whose position another row already
-// holds.
+func (s *ONTService) applyONTFilter(query *gorm.DB, filter ONTListFilter) *gorm.DB {
+	if filter.OLTID != nil {
+		query = query.Where("olt_id = ?", *filter.OLTID)
+	}
+	if filter.Status != nil {
+		query = query.Where("status = ?", *filter.Status)
+	}
+	if filter.Slot != nil {
+		query = query.Where("slot = ?", *filter.Slot)
+	}
+	if filter.PortID != nil {
+		query = query.Where("port_id = ?", *filter.PortID)
+	}
+	if filter.Search != "" {
+		// Lowered on both sides rather than using ILIKE: the tests run on SQLite,
+		// which has no ILIKE, and a search that behaved differently there than in
+		// production would be worse than no test.
+		term := "%" + strings.ToLower(filter.Search) + "%"
+		query = query.Where("LOWER(serial_number) LIKE ? OR LOWER(name) LIKE ?", term, term)
+	}
+	if filter.StartTime != nil && filter.EndTime != nil {
+		query = query.Where(`EXISTS (
+			SELECT 1 FROM ont_metrics
+			WHERE ont_metrics.ont_id = onts.id
+			AND ont_metrics.time >= ?
+			AND ont_metrics.time <= ?
+		)`, *filter.StartTime, *filter.EndTime)
+	}
+	return query
+}
+
 func (s *ONTService) checkUnclaimed(ont *models.ONT) error {
 	// A serial identifies one physical box, so it may appear once across every
 	// OLT. An absent serial is not a value though: the inventory walk does not
