@@ -3,9 +3,14 @@ import {
   APIProvider,
   InfoWindow,
   Map,
+  // Marker is the legacy pin on purpose: AdvancedMarker additionally needs a
+  // Google Cloud Map ID, which this installation has not created, and without
+  // one it renders nothing. Do not "modernise" this without creating the Map ID
+  // first.
   Marker,
 } from "@vis.gl/react-google-maps";
 import { OltStatus, type Olt, type Site } from "@/domain/entities";
+import { mappedSites, type MappedSite } from "./siteMapFilters";
 
 interface SiteMapProps {
   apiKey: string;
@@ -20,29 +25,13 @@ const FALLBACK_ZOOM = 4;
 // A single pin should not open at maximum zoom, where there is no context.
 const SINGLE_SITE_ZOOM = 14;
 
-/** Sites carrying both coordinates, which are the only ones that can be drawn. */
-export function mappedSites(sites: Site[] | undefined): Site[] {
-  return (sites ?? []).filter(
-    (site) =>
-      typeof site.latitude === "number" && typeof site.longitude === "number",
-  );
-}
-
-/** Sites the map cannot place, which the page must still account for. */
-export function unmappedSites(sites: Site[] | undefined): Site[] {
-  return (sites ?? []).filter(
-    (site) =>
-      typeof site.latitude !== "number" || typeof site.longitude !== "number",
-  );
-}
-
 export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
-  const [selected, setSelected] = useState<Site | null>(null);
+  const [selected, setSelected] = useState<MappedSite | null>(null);
   const pins = mappedSites(sites);
 
   const center =
     pins.length > 0
-      ? { lat: pins[0].latitude as number, lng: pins[0].longitude as number }
+      ? { lat: pins[0].latitude, lng: pins[0].longitude }
       : FALLBACK_CENTER;
   const zoom = pins.length > 0 ? SINGLE_SITE_ZOOM : FALLBACK_ZOOM;
 
@@ -58,10 +47,7 @@ export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
         {pins.map((site) => (
           <Marker
             key={site.id}
-            position={{
-              lat: site.latitude as number,
-              lng: site.longitude as number,
-            }}
+            position={{ lat: site.latitude, lng: site.longitude }}
             title={site.name}
             onClick={() => setSelected(site)}
           />
@@ -69,10 +55,7 @@ export function SiteMap({ apiKey, sites, olts }: SiteMapProps) {
 
         {selected && (
           <InfoWindow
-            position={{
-              lat: selected.latitude as number,
-              lng: selected.longitude as number,
-            }}
+            position={{ lat: selected.latitude, lng: selected.longitude }}
             onCloseClick={() => setSelected(null)}
           >
             <SiteSummary site={selected} olts={olts} />

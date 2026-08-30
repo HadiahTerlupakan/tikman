@@ -24,14 +24,8 @@ vi.mock("@/application/hooks", () => ({
   useOlts: () => ({ data: [], isLoading: false }),
 }));
 
-// MapPage also imports mappedSites/unmappedSites from this module (see the
-// comment there on why it isn't imported from the barrel); only the
-// component itself needs replacing, so keep the real helpers via
-// importOriginal instead of dropping them.
-vi.mock("@/presentation/components/map/SiteMap", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@/presentation/components/map/SiteMap")
-  >()),
+// The map itself needs a Google API to draw anything; SiteMap has its own test.
+vi.mock("@/presentation/components/map/SiteMap", () => ({
   SiteMap: () => <div data-testid="site-map" />,
 }));
 

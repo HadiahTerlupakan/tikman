@@ -2,9 +2,8 @@ import { Alert, Col, Row, Skeleton } from "antd";
 import { Link } from "react-router-dom";
 import { useGoogleMapsKey, useOlts, useSites } from "@/application/hooks";
 import { PageHeader, DarkCard } from "../components/common";
-// Imported from their own modules rather than the barrel so a test can mock
-// the map without also mocking the panel beside it.
-import { SiteMap, mappedSites, unmappedSites } from "../components/map/SiteMap";
+import { SiteMap } from "../components/map/SiteMap";
+import { mappedSites, unmappedSites } from "../components/map/siteMapFilters";
 import { UnmappedSitesPanel } from "../components/map/UnmappedSitesPanel";
 
 export default function MapPage() {
