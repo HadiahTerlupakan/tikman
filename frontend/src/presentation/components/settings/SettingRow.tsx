@@ -30,7 +30,12 @@ export function SettingRow({ setting, onEdit, onDelete }: SettingRowProps) {
           {setting.description}
         </div>
         <div style={{ marginTop: 8 }}>
-          {setting.configured ? (
+          {setting.unreadable ? (
+            <Typography.Text type="danger" style={{ fontSize: 12 }}>
+              Stored, but not readable with the current encryption key. Set it
+              again to replace it.
+            </Typography.Text>
+          ) : setting.configured ? (
             <Typography.Text code>{setting.preview}</Typography.Text>
           ) : (
             <span style={{ color: colors.textMuted, fontSize: 12 }}>

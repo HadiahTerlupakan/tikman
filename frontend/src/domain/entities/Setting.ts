@@ -6,6 +6,8 @@ export interface SettingStatus {
   configured: boolean;
   /** Masked, e.g. "AIza••••••••Y123". Empty when not configured. */
   preview: string;
+  /** The stored value cannot be decrypted with the current ENCRYPTION_KEY. */
+  unreadable?: boolean;
   updatedAt?: string;
 }
 

@@ -155,3 +155,28 @@ func TestValueRejectsAnUnknownName(t *testing.T) {
 func encryptForTest(plaintext string) (string, error) {
 	return utils.Encrypt(plaintext, settingServiceTestEncryptionKey)
 }
+
+func TestSettingListStillRendersAfterAKeyRotation(t *testing.T) {
+	// A row written under the old ENCRYPTION_KEY must not blank the page that
+	// carries the Remove button, or the operator has no way out through the UI.
+	service, db := newSettingService(t)
+	require.NoError(t, service.Set(models.SettingGoogleMapsAPIKey, "AIzaSyTESTKEY123", uuid.New()))
+
+	rotated := NewSettingService(db, "abcdefghijklmnopqrstuvwxyz012345")
+
+	statuses, err := rotated.List()
+	require.NoError(t, err)
+	require.Len(t, statuses, len(models.SettingDefinitions()))
+
+	var found bool
+	for _, status := range statuses {
+		if status.Name != models.SettingGoogleMapsAPIKey {
+			continue
+		}
+		found = true
+		require.True(t, status.Configured, "the row is still there and can still be removed")
+		require.True(t, status.Unreadable)
+		require.Empty(t, status.Preview, "a value that cannot be decrypted has nothing to preview")
+	}
+	require.True(t, found)
+}

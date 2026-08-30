@@ -58,6 +58,24 @@ describe("SettingRow", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("says a value cannot be read, and still offers to remove it", async () => {
+    // After an ENCRYPTION_KEY rotation the stored row is undecryptable. Showing
+    // a blank preview would leave the operator with nothing to act on.
+    const onDelete = vi.fn();
+    render(
+      <SettingRow
+        setting={{ ...CONFIGURED, preview: "", unreadable: true }}
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />,
+    );
+
+    expect(screen.getByText(/not readable/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /remove/i }));
+    expect(onDelete).toHaveBeenCalled();
+  });
+
   it("asks to edit the setting it was given", async () => {
     const onEdit = vi.fn();
     render(

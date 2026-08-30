@@ -37,6 +37,9 @@ type SettingStatus struct {
 	Configured  bool       `json:"configured"`
 	Preview     string     `json:"preview"`
 	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	// Unreadable marks a stored value the current ENCRYPTION_KEY cannot
+	// decrypt, which happens after a key rotation.
+	Unreadable bool `json:"unreadable"`
 }
 
 // SettingService stores credentials for external integrations.
@@ -67,14 +70,19 @@ func (s *SettingService) List() ([]SettingStatus, error) {
 			Description: definition.Description,
 		}
 		if row, ok := stored[definition.Name]; ok {
-			plaintext, decryptErr := utils.Decrypt(row.Value, s.encryptionKey)
-			if decryptErr != nil {
-				return nil, fmt.Errorf("failed to read setting %s: %w", definition.Name, decryptErr)
-			}
 			updatedAt := row.UpdatedAt
 			status.Configured = true
-			status.Preview = maskSecret(plaintext)
 			status.UpdatedAt = &updatedAt
+
+			plaintext, decryptErr := utils.Decrypt(row.Value, s.encryptionKey)
+			if decryptErr != nil {
+				// Failing the whole call would leave the page that carries the
+				// Remove button permanently blank, so an operator who rotated
+				// ENCRYPTION_KEY would have no way out through the UI.
+				status.Unreadable = true
+			} else {
+				status.Preview = maskSecret(plaintext)
+			}
 		}
 		statuses = append(statuses, status)
 	}
