@@ -13,6 +13,13 @@ describe("buildNavigationRoutes", () => {
     expect(paths(UserRole.VIEWER)).toContain("/vpn");
   });
 
+  it("lists Map for every role, so the page is reachable without its URL", () => {
+    // The VPN entry was once added to a component nothing rendered, which left
+    // that page invisible to every operator. This file exists to catch that.
+    expect(paths(UserRole.ADMIN)).toContain("/map");
+    expect(paths(UserRole.VIEWER)).toContain("/map");
+  });
+
   it("shows Users only to an admin", () => {
     expect(paths(UserRole.ADMIN)).toContain("/users");
     expect(paths(UserRole.TECHNICIAN)).not.toContain("/users");
