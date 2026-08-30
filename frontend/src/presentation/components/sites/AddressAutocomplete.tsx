@@ -50,6 +50,49 @@ function PlainAddressInput({ value, onChange }: AddressAutocompleteProps) {
   );
 }
 
+/**
+ * Fetches the full place for a gmp-select event and reports it, unless
+ * Google could not geocode the suggestion — a selection with no location
+ * must never resolve to 0,0 (the Gulf of Guinea), which would look like a
+ * real, deliberately placed site.
+ *
+ * Typed as the base Event, not PlacePredictionSelectEvent: @types/google.maps
+ * only widens addEventListener's overload for "gmp-select", and
+ * removeEventListener still only knows HTMLElement's built-in event names, so
+ * a listener typed to the narrower event fails there.
+ */
+function resolvePlaceSelection(
+  event: Event,
+  element: google.maps.places.PlaceAutocompleteElement,
+  onChange: ((value: string) => void) | undefined,
+  onResolved: (place: ResolvedPlace) => void,
+): Promise<void> {
+  const { placePrediction } =
+    event as google.maps.places.PlacePredictionSelectEvent;
+  return (
+    placePrediction
+      .toPlace()
+      .fetchFields({ fields: ["formattedAddress", "location"] })
+      .then(({ place }) => {
+        const location = place.location;
+        if (!location) {
+          return;
+        }
+        const address = place.formattedAddress ?? element.value;
+        onChange?.(address);
+        onResolved({
+          address,
+          latitude: location.lat(),
+          longitude: location.lng(),
+        });
+      })
+      // A failed fetch (quota, network) leaves the text the operator
+      // already typed in place; manual latitude/longitude are still there
+      // to fall back on, so there is nothing more to do here.
+      .catch(() => undefined)
+  );
+}
+
 function SuggestingAddressInput({
   value,
   onChange,
@@ -83,33 +126,8 @@ function SuggestingAddressInput({
     const handleInput = () => onChange?.(element.value);
     element.addEventListener("input", handleInput);
 
-    // Typed as the base Event, not PlacePredictionSelectEvent: @types/google.maps
-    // only widens addEventListener's overload for "gmp-select", and
-    // removeEventListener still only knows HTMLElement's built-in event
-    // names, so a listener typed to the narrower event fails there.
     const handleSelect = (event: Event) => {
-      const { placePrediction } =
-        event as google.maps.places.PlacePredictionSelectEvent;
-      void placePrediction
-        .toPlace()
-        .fetchFields({ fields: ["formattedAddress", "location"] })
-        .then(({ place }) => {
-          const location = place.location;
-          if (!location) {
-            return;
-          }
-          const address = place.formattedAddress ?? element.value;
-          onChange?.(address);
-          onResolved({
-            address,
-            latitude: location.lat(),
-            longitude: location.lng(),
-          });
-        })
-        // A failed fetch (quota, network) leaves the text the operator
-        // already typed in place; manual latitude/longitude are still there
-        // to fall back on, so there is nothing more to do here.
-        .catch(() => undefined);
+      void resolvePlaceSelection(event, element, onChange, onResolved);
     };
     element.addEventListener("gmp-select", handleSelect);
 
