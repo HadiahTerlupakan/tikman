@@ -204,8 +204,13 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
             display: "flex",
             alignItems: "center",
             gap: 8,
+            flexWrap: "wrap",
           }}
         >
+          {/* A search spans every OLT, so nine cards on screen can come from
+              several of them. A tag is read at a glance where a prefix on this
+              already-long line would not be. */}
+          {ont.oltName && <Tag color="blue">{ont.oltName}</Tag>}
           <span>
             gpon_{ont.slot || 1}/{ont.portId}:{ont.ontId} - {ont.serialNumber} (
             {ont.deviceType || "F680V9"})

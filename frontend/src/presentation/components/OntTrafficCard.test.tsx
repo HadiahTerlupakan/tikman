@@ -73,6 +73,21 @@ afterEach(() => {
 });
 
 describe("OntTrafficCard", () => {
+  it("names the OLT the graph belongs to", () => {
+    // A search spans every OLT, so a screen of nine graphs can mix sites. The
+    // serial alone does not say which one an operator is looking at.
+    render(<OntTrafficCard ont={ONT} period="3h" />);
+
+    expect(screen.getByText("OLT 1")).toBeInTheDocument();
+  });
+
+  it("omits the label rather than showing an empty tag", () => {
+    render(<OntTrafficCard ont={{ ...ONT, oltName: "" }} period="3h" />);
+
+    expect(screen.getByText(/RTEGC609833D/)).toBeInTheDocument();
+    expect(screen.queryByText("OLT 1")).not.toBeInTheDocument();
+  });
+
   it("uses the full selected period as the default chart domain", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-21T10:00:00.000Z"));
