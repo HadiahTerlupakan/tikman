@@ -276,11 +276,21 @@ tidak akan disalahartikan sebagai lengkap.
 
 1. Di Google Cloud Console, buat project dan aktifkan billing. Places
    autocomplete memerlukan billing bahkan dalam kuota gratis bulanan.
-2. Aktifkan **Maps JavaScript API** dan **Places API**.
+2. Aktifkan **Maps JavaScript API** dan **Places API (New)**.
+
+   Perhatikan kata **(New)**. Google punya dua layanan bernama mirip, dan
+   autocomplete alamat di TikMan hanya bicara dengan yang (New) — yang lama
+   sudah tidak diberikan Google ke project baru sejak Maret 2025. Kalau yang
+   diaktifkan yang salah, kolom alamat tetap muncul tapi tidak pernah
+   memberi saran.
 3. Buat API key.
 4. Batasi: Application restrictions → Websites → tambahkan
-   `https://noc.radpro.id/*`; API restrictions → hanya Maps JavaScript API dan
-   Places API.
+   `https://noc.radpro.id/*`; API restrictions → hanya **Maps JavaScript API**
+   dan **Places API (New)**.
+
+   Sekali lagi **(New)**. Memilih "Places API" yang lama di sini membuat key
+   menolak permintaan autocomplete dengan `API_KEY_SERVICE_BLOCKED`, yang hanya
+   terlihat di console browser — di layar, kolomnya tampak normal tapi diam.
 5. Di TikMan, buka **Settings** dan simpan key di **Google Maps API key**.
 
 Langkah 4 tidak opsional. Key dikirimkan ke setiap browser yang membuka peta
