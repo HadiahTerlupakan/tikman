@@ -51,7 +51,7 @@ vi.mock("@/application/hooks", () => ({
   useHealth: () => ({
     data: {
       status: "healthy",
-      dependencies: { database: "up", redis: "up" },
+      dependencies: { database: "up", redis: "up", worker: "up" },
     },
     isLoading: false,
   }),

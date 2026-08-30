@@ -19,7 +19,8 @@ describe("HealthRepository", () => {
       data: {
         status: "healthy",
         time: "2026-08-22T02:00:00Z",
-        dependencies: { database: "up", redis: "up" },
+        dependencies: { database: "up", redis: "up", worker: "up" },
+        workerLastBeat: "2026-08-22T01:59:40Z",
       },
     });
 
@@ -27,7 +28,28 @@ describe("HealthRepository", () => {
 
     expect(get).toHaveBeenCalledWith("/health");
     expect(health.status).toBe("healthy");
-    expect(health.dependencies).toEqual({ database: "up", redis: "up" });
+    expect(health.dependencies).toEqual({
+      database: "up",
+      redis: "up",
+      worker: "up",
+    });
+    expect(health.workerLastBeat).toBe("2026-08-22T01:59:40Z");
+  });
+
+  it("calls the worker unknown when an older API does not report it", async () => {
+    // The API and the app deploy separately; a build without the worker row
+    // must not be read as a worker that is down.
+    get.mockResolvedValue({
+      data: {
+        status: "healthy",
+        dependencies: { database: "up", redis: "up" },
+      },
+    });
+
+    const health = await new HealthRepository().get();
+
+    expect(health.dependencies.worker).toBe("unknown");
+    expect(health.workerLastBeat).toBeUndefined();
   });
 
   it("reports degraded status from a 503 body", async () => {

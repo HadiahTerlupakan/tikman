@@ -17,6 +17,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const metricsInterval = 1 * time.Minute
@@ -136,7 +137,31 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *se
 		processOnt(db, olt.Slot, oltMetricsCache[oltKey], oltStatusCache[oltKey], oltRatesCache[oltKey], ont, metricsService, eventService, logger)
 	}
 
+	recordHeartbeat(db, logger)
 	logger.Info("Metrics collection cycle completed")
+}
+
+// recordHeartbeat stamps the row the API reads to decide whether polling is
+// still happening. It runs after the cycle rather than before it, so the stamp
+// means "a cycle finished" and not "the loop is still spinning" — a worker hung
+// on an unreachable OLT would otherwise keep reporting itself alive.
+//
+// A failed stamp is logged and nothing else: the poll itself succeeded, and
+// aborting the cycle over the bookkeeping would turn a reporting fault into a
+// real outage.
+func recordHeartbeat(db *gorm.DB, logger *zap.Logger) {
+	beat := models.WorkerHeartbeat{
+		Name:   models.WorkerHeartbeatPoller,
+		BeatAt: time.Now(),
+	}
+
+	err := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "name"}},
+		DoUpdates: clause.AssignmentColumns([]string{"beat_at"}),
+	}).Create(&beat).Error
+	if err != nil {
+		logger.Warn("Could not record worker heartbeat", zap.Error(err))
+	}
 }
 
 func syncOntsWithDiscovery(olt models.OLT, ontService *services.ONTService, logger *zap.Logger) bool {

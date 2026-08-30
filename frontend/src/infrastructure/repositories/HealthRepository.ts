@@ -3,7 +3,7 @@ import type { DependencyStatus, Health } from "@/domain/entities";
 
 const UNREACHABLE: Health = {
   status: "unreachable",
-  dependencies: { database: "unknown", redis: "unknown" },
+  dependencies: { database: "unknown", redis: "unknown", worker: "unknown" },
 };
 
 const DEPENDENCY_STATUSES: DependencyStatus[] = [
@@ -32,13 +32,19 @@ function parse(body: unknown): Health | null {
   }
 
   const deps = dependencies as Record<string, unknown>;
+  // humps has already turned worker_last_beat into workerLastBeat.
+  const { workerLastBeat } = body as Record<string, unknown>;
+
   return {
     status:
       status === "healthy" || status === "degraded" ? status : "unreachable",
     dependencies: {
       database: toDependencyStatus(deps.database),
       redis: toDependencyStatus(deps.redis),
+      worker: toDependencyStatus(deps.worker),
     },
+    workerLastBeat:
+      typeof workerLastBeat === "string" ? workerLastBeat : undefined,
   };
 }
 

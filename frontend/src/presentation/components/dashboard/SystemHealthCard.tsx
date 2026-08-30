@@ -1,5 +1,6 @@
 import { Skeleton } from "antd";
 import { colors } from "@/shared/theme";
+import { formatAge } from "@/presentation/pages/dashboardStats";
 import { DarkCard } from "../common";
 import type { DependencyStatus, Health } from "@/domain/entities";
 
@@ -52,6 +53,11 @@ const TONE: Record<
   },
 };
 
+// A status this build does not know about is unknown, not a crash.
+function tone(status: DependencyStatus) {
+  return TONE[status] ?? TONE.unknown;
+}
+
 interface SystemHealthCardProps {
   health?: Health;
   isLoading: boolean;
@@ -73,10 +79,18 @@ export function SystemHealthCard({ health, isLoading }: SystemHealthCardProps) {
   const apiLabel =
     health.status === "degraded" ? "Degraded" : API_LABELS[apiStatus];
 
+  // The API and this page deploy as separate containers. An API that predates
+  // the worker row sends no worker status at all, and an unguarded lookup below
+  // would blank the whole dashboard rather than the one row it cannot fill.
+  const workerStatus: DependencyStatus =
+    health.dependencies.worker ?? "unknown";
+  const worker = describeWorker(health, workerStatus);
+
   const rows: Array<{
     label: string;
     status: DependencyStatus;
     text: string;
+    detail?: string;
   }> = [
     {
       label: "API Server",
@@ -93,6 +107,12 @@ export function SystemHealthCard({ health, isLoading }: SystemHealthCardProps) {
       status: health.dependencies.redis,
       text: LABELS[health.dependencies.redis],
     },
+    {
+      label: "Polling Worker",
+      status: workerStatus,
+      text: worker.text,
+      detail: worker.detail,
+    },
   ];
 
   return (
@@ -103,8 +123,8 @@ export function SystemHealthCard({ health, isLoading }: SystemHealthCardProps) {
             key={row.label}
             style={{
               padding: "11px 14px",
-              background: TONE[row.status].bg,
-              border: `1px solid ${TONE[row.status].border}`,
+              background: tone(row.status).bg,
+              border: `1px solid ${tone(row.status).border}`,
               borderRadius: 8,
               display: "flex",
               justifyContent: "space-between",
@@ -116,13 +136,21 @@ export function SystemHealthCard({ health, isLoading }: SystemHealthCardProps) {
                 style={{
                   width: 8,
                   height: 8,
-                  backgroundColor: TONE[row.status].dot,
+                  backgroundColor: tone(row.status).dot,
                   borderRadius: "50%",
+                  flexShrink: 0,
                 }}
               />
-              <span style={{ color: colors.textBody }}>{row.label}</span>
+              <div>
+                <div style={{ color: colors.textBody }}>{row.label}</div>
+                {row.detail && (
+                  <div style={{ color: colors.textMuted, fontSize: 11 }}>
+                    {row.detail}
+                  </div>
+                )}
+              </div>
             </div>
-            <span style={{ color: TONE[row.status].text, fontWeight: 500 }}>
+            <span style={{ color: tone(row.status).text, fontWeight: 500 }}>
               {row.text}
             </span>
           </div>
@@ -130,4 +158,35 @@ export function SystemHealthCard({ health, isLoading }: SystemHealthCardProps) {
       </div>
     </DarkCard>
   );
+}
+
+// The worker is a separate process. If it stops, every other row here stays
+// green while the ONT figures on this page quietly freeze at their last known
+// values, so this row carries the age of the last cycle as its evidence.
+function describeWorker(
+  health: Health,
+  status: DependencyStatus,
+): { text: string; detail?: string } {
+  const age = health.workerLastBeat
+    ? formatAge(Date.now() - new Date(health.workerLastBeat).getTime())
+    : null;
+
+  if (status === "up") {
+    return { text: "Polling", detail: age ? `cycle ${age}` : undefined };
+  }
+  if (status === "down") {
+    return {
+      text: "Stopped",
+      detail: age ? `last cycle ${age}` : "no cycle recorded",
+    };
+  }
+  if (age) {
+    return { text: "Unknown", detail: `last cycle ${age}` };
+  }
+  // Only an API that answered can tell us the worker has never run. When the
+  // request never landed we simply could not ask, and saying "Never run" would
+  // report a fresh install where there is an unreachable API.
+  return health.status === "unreachable"
+    ? { text: "Unknown" }
+    : { text: "Never run" };
 }

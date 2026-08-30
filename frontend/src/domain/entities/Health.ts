@@ -7,5 +7,9 @@ export interface Health {
   dependencies: {
     database: DependencyStatus;
     redis: DependencyStatus;
+    /** Whether the polling worker finished a cycle recently. */
+    worker: DependencyStatus;
   };
+  /** When the worker last finished a cycle. Absent until it has run once. */
+  workerLastBeat?: string;
 }
