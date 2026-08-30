@@ -254,6 +254,7 @@ export default function DashboardPage() {
         <Col xs={24} lg={8}>
           <VpnStatusCard
             peers={peers}
+            olts={olts}
             isLoading={peersLoading}
             isError={!!peersError}
           />

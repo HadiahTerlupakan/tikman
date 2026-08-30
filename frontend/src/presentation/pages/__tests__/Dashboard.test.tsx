@@ -21,10 +21,19 @@ interface OntRow {
 
 const state: {
   sites: QueryLike<{ id: string }[]>;
-  olts: QueryLike<{ id: string; name: string; status: OltStatus }[]>;
+  olts: QueryLike<
+    { id: string; name: string; status: OltStatus; ipAddress?: string }[]
+  >;
   onts: QueryLike<{ data: OntRow[]; total: number }>;
   peers: QueryLike<
-    { id: string; name: string; enabled: boolean; connected: boolean }[]
+    {
+      id: string;
+      name: string;
+      enabled: boolean;
+      connected: boolean;
+      allowedIps: string[];
+      lastHandshakeAt: string | null;
+    }[]
   >;
 } = {
   sites: { data: [{ id: "s1" }], isLoading: false, error: null },
@@ -146,11 +155,37 @@ describe("DashboardPage", () => {
     expect(screen.getByText("-28.4 dBm")).toBeInTheDocument();
   });
 
-  it("reports which site tunnels are down", () => {
+  it("reports which site tunnels are down and what they cut off", () => {
     state.peers = {
       data: [
-        { id: "p1", name: "Depok", enabled: true, connected: true },
-        { id: "p2", name: "Bekasi", enabled: true, connected: false },
+        {
+          id: "p1",
+          name: "Depok tunnel",
+          enabled: true,
+          connected: true,
+          allowedIps: ["10.9.9.0/24"],
+          lastHandshakeAt: new Date().toISOString(),
+        },
+        {
+          id: "p2",
+          name: "Bekasi tunnel",
+          enabled: true,
+          connected: false,
+          allowedIps: ["192.168.220.0/24"],
+          lastHandshakeAt: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    };
+    state.olts = {
+      data: [
+        {
+          id: "o1",
+          name: "Depok",
+          status: OltStatus.ONLINE,
+          ipAddress: "192.168.220.22",
+        },
       ],
       isLoading: false,
       error: null,
@@ -159,7 +194,10 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     expect(screen.getByText("of 2 sites connected")).toBeInTheDocument();
-    expect(screen.getByText(/Down: Bekasi/)).toBeInTheDocument();
+    expect(screen.getByText("Bekasi tunnel")).toBeInTheDocument();
+    expect(screen.getByText("never connected")).toBeInTheDocument();
+    // The OLT the rest of the page shows as unreachable sits behind it.
+    expect(screen.getByText("1 OLT")).toBeInTheDocument();
   });
 
   it("warns which resource failed and renders a dash rather than zero", () => {
