@@ -517,6 +517,12 @@ func (s *OLTService) registerDiscoveredONTs(
 	result := registerService.BulkRegisterFromDiscovery(olt.ID, discovered)
 	s.updateDiscoveryProgress(olt.ID, map[string]interface{}{"discovery_registered": processed})
 
+	// An ONU the walk found but could not store is a subscriber missing from the
+	// system. Discarding these left the loss to be noticed by counting rows.
+	for _, regErr := range result.Errors {
+		log.Printf("[AutoDiscovery] OLT %s: %s", olt.Name, regErr)
+	}
+
 	slot, port := 0, 0
 	if len(locs) > 0 {
 		slot, port = locs[0].Slot, locs[0].Port

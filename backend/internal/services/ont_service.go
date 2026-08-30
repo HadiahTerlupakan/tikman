@@ -155,13 +155,19 @@ func (s *ONTService) Create(ont *models.ONT) error {
 		return fmt.Errorf("OLT not found")
 	}
 
-	// Check for duplicate serial number
+	// A serial identifies one physical box, so it may appear once across every
+	// OLT. An absent serial is not a value though: the inventory walk does not
+	// return one for every ONU it finds, and treating "" as a serial made the
+	// first serial-less ONU registered lock out every other serial-less ONU in
+	// the database. Those ONTs are identified by their position, checked below.
 	var count int64
-	if err := s.db.Model(&models.ONT{}).Where("serial_number = ?", ont.SerialNumber).Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to check duplicate serial number: %w", err)
-	}
-	if count > 0 {
-		return fmt.Errorf("ONT with serial number %s already exists", ont.SerialNumber)
+	if ont.SerialNumber != "" {
+		if err := s.db.Model(&models.ONT{}).Where("serial_number = ?", ont.SerialNumber).Count(&count).Error; err != nil {
+			return fmt.Errorf("failed to check duplicate serial number: %w", err)
+		}
+		if count > 0 {
+			return fmt.Errorf("ONT with serial number %s already exists", ont.SerialNumber)
+		}
 	}
 
 	// A position is olt + card + port + ONU. Leaving the card out of this check
@@ -201,7 +207,7 @@ func (s *ONTService) Update(id uuid.UUID, updates map[string]interface{}) (*mode
 	}
 
 	// Validate serial number uniqueness if changing
-	if newSerial, ok := updates["serial_number"].(string); ok && newSerial != ont.SerialNumber {
+	if newSerial, ok := updates["serial_number"].(string); ok && newSerial != "" && newSerial != ont.SerialNumber {
 		var count int64
 		if err := s.db.Model(&models.ONT{}).Where("serial_number = ? AND id != ?", newSerial, id).Count(&count).Error; err != nil {
 			return nil, fmt.Errorf("failed to check duplicate serial number: %w", err)

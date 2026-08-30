@@ -39,8 +39,11 @@ type ONT struct {
 	// Encrypted at rest and never serialised with the ONT: it reaches a browser
 	// only through the service-config endpoint, for the operator about to
 	// reconfigure this subscriber.
-	PPPoEPassword        string     `gorm:"column:pppoe_password;type:text" json:"-"`
-	SerialNumber         string     `gorm:"type:varchar(20);not null;uniqueIndex" json:"serial_number"`
+	PPPoEPassword string `gorm:"column:pppoe_password;type:text" json:"-"`
+	// The index is partial because the inventory walk does not report a serial
+	// for every ONU. A plain unique index makes "" a value, and then only one
+	// serial-less ONT can exist in the whole table.
+	SerialNumber         string     `gorm:"type:varchar(20);not null;uniqueIndex:idx_onts_serial_number,where:serial_number <> ''" json:"serial_number"`
 	Name                 string     `gorm:"type:varchar(255)" json:"name"`
 	Description          string     `gorm:"type:varchar(255)" json:"description"`
 	Status               ONTStatus  `gorm:"type:varchar(20);index" json:"status"`

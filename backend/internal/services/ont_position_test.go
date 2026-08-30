@@ -98,3 +98,64 @@ func TestGetByOLTAndPositionDistinguishesCards(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ZTEGCARD0009", onCard9.SerialNumber)
 }
+
+func TestSeveralONUsWithNoSerialCanAllBeRegistered(t *testing.T) {
+	// The inventory walk does not return a serial for every ONU it finds. An
+	// absent serial is not a value, so two serial-less ONUs are not duplicates
+	// of each other — before this, the first one registered locked out every
+	// other serial-less ONU in the whole database, on any OLT.
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+
+	result := ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		discoveredAt(9, 1, 42, ""),
+		discoveredAt(9, 1, 43, ""),
+		discoveredAt(8, 2, 7, ""),
+	})
+	require.Empty(t, result.Errors)
+
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Where("olt_id = ?", oltID).Count(&count).Error)
+	require.Equal(t, int64(3), count)
+}
+
+func TestASerialLessONUDoesNotBlockAnotherOLT(t *testing.T) {
+	// The duplicate-serial check is global, so Cariu's one serial-less row was
+	// what kept Bekasi's serial-less ONU out of the table.
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	cariu := oltForPositions(t, db, "Cariu", "172.30.30.3")
+	bekasi := oltForPositions(t, db, "Bekasi", "172.30.30.2")
+
+	ontService.BulkRegisterFromDiscovery(cariu, []connectivity.DiscoveredONT{
+		discoveredAt(9, 1, 42, ""),
+	})
+	result := ontService.BulkRegisterFromDiscovery(bekasi, []connectivity.DiscoveredONT{
+		discoveredAt(3, 6, 4, ""),
+	})
+
+	require.Empty(t, result.Errors)
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Where("olt_id = ?", bekasi).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
+
+func TestARealSerialIsStillUnique(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	first := oltForPositions(t, db, "Cariu", "172.30.30.3")
+	second := oltForPositions(t, db, "Bekasi", "172.30.30.2")
+
+	ontService.BulkRegisterFromDiscovery(first, []connectivity.DiscoveredONT{
+		discoveredAt(9, 1, 42, "ZTEGC0DE0001"),
+	})
+	result := ontService.BulkRegisterFromDiscovery(second, []connectivity.DiscoveredONT{
+		discoveredAt(3, 6, 4, "ZTEGC0DE0001"),
+	})
+
+	require.Len(t, result.Errors, 1, "the same box cannot be on two OLTs at once")
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
