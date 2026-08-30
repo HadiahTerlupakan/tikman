@@ -101,10 +101,9 @@ pengecekan `oltsBehindDownTunnel` yang sudah ada tetap dipakai.
 ## Jalur Baca SNMP
 
 `newSNMPClientWithContext` mendapat `MaxRepetitions`, dapat diatur lewat
-`SNMP_MAX_REPETITIONS` dengan default **25** — cukup untuk memangkas round-trip
-sekitar 25 kali lipat, dan masih di bawah angka yang membuat sebagian agen ZTE
-menjawab `tooBig`. Angka final ditetapkan dari pengukuran di langkah pertama A1.
-Semua pemanggilan tabel pindah dari `client.Walk` ke `client.BulkWalk`.
+`SNMP_MAX_REPETITIONS` dengan default **10**, ditetapkan dari pengukuran (lihat
+"Hasil Pengukuran" di bawah). Semua pemanggilan tabel pindah dari `client.Walk`
+ke `client.BulkWalk`.
 
 Karena sebagian agen menolak GETBULK besar, pemanggilan dibungkus satu helper:
 coba GETBULK, dan bila agen menjawab `tooBig` atau sejenisnya, turun ke GETNEXT
@@ -186,16 +185,59 @@ worker yang benar-benar diperlukan.
 
 **A3 — Penerima trap.** Setelah prasyarat trap terverifikasi.
 
+## Hasil Pengukuran
+
+Diukur dengan `cmd/snmpbench` terhadap Cariu (655 ONU, tabel phase-state), dua
+kali jalan pada beban berbeda:
+
+| Mode | Nilai | Jalan 1 | Jalan 2 |
+|---|---|---|---|
+| GETNEXT | 655 | 11,19 s | 20,30 s |
+| GETBULK@5 | 655 | — | 5,56 s |
+| **GETBULK@10** | 655 | **3,88 s** | **4,70 s** |
+| GETBULK@15 | 655 | — | 6,96 s |
+| GETBULK@25 | 655 | 4,94 s | — |
+| GETBULK@50 | 655 | 5,36 s | — |
+| GETBULK@100 | 655 | 5,15 s | — |
+
+Tiga kesimpulan, dan yang kedua membatalkan asumsi awal desain ini:
+
+1. **Agen ZTE melayani GETBULK dengan benar.** Setiap mode mengembalikan 655 nilai
+   yang sama persis — tidak ada pemotongan senyap. Risiko utama spec ini gugur.
+2. **`MaxRepetitions` optimal adalah 10, bukan 25.** Di atas ~10 justru melambat.
+   Aritmetikanya menjelaskan kenapa: pada @10 ada ~66 permintaan × 7,3 ms RTT =
+   0,5 detik di jaringan, dari total 3,9 detik. Sisanya waktu agen menyusun
+   jawaban. **Lehernya adalah CPU agen SNMP di OLT, bukan jaringan dan bukan kode
+   kita.** Permintaan yang lebih besar membuat agen bekerja lebih lama per
+   permintaan daripada penghematan round-trip yang didapat.
+3. **Percepatannya 3–4×, bukan 25×.** Anggaran waktu di desain ini harus dihitung
+   dari ~140 nilai/detik per agen, bukan dari RTT.
+
+### Konsekuensi untuk target 1 menit
+
+Pada ~140 nilai/detik, satu chassis berisi 10 ribu ONU memerlukan sekitar **72
+detik** hanya untuk satu tabel status. Artinya **polling penuh tiap menit tidak
+tercapai untuk chassis sebesar itu**, berapa pun jumlah worker yang ditambahkan,
+karena batasnya ada di agen OLT-nya sendiri.
+
+Ini menggeser peran trap dari pelengkap menjadi **inti**: trap adalah satu-satunya
+jalan mengetahui perubahan status di bawah satu menit pada skala ini, dengan poll
+status berkala sebagai pendamai. Interval poll status di A2 ditetapkan dari
+kapasitas agen tiap chassis, bukan dari satu angka global.
+
+Belum diukur, dan diperlukan sebelum A2: apakah agen melayani dua walk bersamaan
+lebih cepat secara total, yang menentukan apakah membagi walk per kartu ke
+beberapa worker ada gunanya, atau justru memperlambat.
+
 ## Risiko
 
-**Agen SNMP ZTE mungkin tidak sanggup melayani GETBULK pada `MaxRepetitions`
-tinggi.** Seluruh anggaran waktu berdiri di atas asumsi ini. Karena itu langkah
-pertama A1 adalah mengukurnya langsung terhadap Cariu, sebelum kode lain ditulis.
-Bila agen mentok di angka rendah, anggaran berubah dan jumlah worker di A2 harus
-dihitung ulang — bukan desainnya yang gugur, melainkan parameternya.
+**Pengukuran RTT 7,3 ms dan ~140 nilai/detik berasal dari satu site.** Site lain
+bisa berbeda jauh, dan anggaran per OLT harus dihitung dari pengukuran
+masing-masing. `cmd/snmpbench` ada untuk itu.
 
-**Pengukuran RTT 7,3 ms berasal dari satu site.** Site lain bisa lebih buruk, dan
-anggaran per OLT harus dihitung dari RTT masing-masing, bukan dari satu angka.
+**Kecepatan agen berubah menurut bebannya.** GETNEXT terukur 11,2 detik dan 20,3
+detik pada dua jalan berbeda untuk tabel yang sama. Penjadwalan harus menganggap
+kapasitas agen sebagai perkiraan, bukan konstanta.
 
 ## Di Luar Cakupan
 
