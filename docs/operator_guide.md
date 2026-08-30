@@ -266,9 +266,9 @@ Karena itu perlu dua nama yang berbeda:
   Memakai nama yang di-proxy akan menunjuk ke server Cloudflare, dan tidak ada
   satu pun site yang bisa terhubung.
 
-## Peta situs
+## Peta site
 
-Peta menampilkan pin untuk setiap situs yang memiliki koordinat. Situs tanpa
+Peta menampilkan pin untuk setiap site yang memiliki koordinat. Site tanpa
 koordinat ditampilkan dalam daftar di samping peta, sehingga peta yang singkat
 tidak akan disalahartikan sebagai lengkap.
 
@@ -287,12 +287,12 @@ Langkah 4 tidak opsional. Key dikirimkan ke setiap browser yang membuka peta
 dan dapat dibaca dari developer tools; pembatasan adalah satu-satunya hal yang
 mencegah orang lain menghabiskan kuota Anda.
 
-### Memberi situs koordinat
+### Memberi site koordinat
 
-Edit situs dan mulai ketik di field **Address** — saran muncul setelah key
+Edit site dan mulai ketik di field **Address** — saran muncul setelah key
 disimpan, dan memilih salah satu akan mengisi koordinat secara otomatis.
 
 Untuk lokasi yang tidak dikenal Google — POP di gang, tower di lapangan —
 ketik latitude dan longitude langsung. Kedua field harus diisi atau keduanya
 kosong; salah satu saja akan ditolak, karena akan menempatkan pin di tempat
-yang bukan lokasi situs.
+yang bukan lokasi site.
