@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -83,27 +84,36 @@ func (r *oltReading) runStateFor(ont models.ONT) (int, bool) {
 	return runState, found
 }
 
-// readOLT walks statuses, metrics, and traffic rates for one OLT and records
-// its online/offline connection status. Returns ok=false when the OLT has no
-// usable driver or another reader holds it this cycle.
-func readOLT(db *gorm.DB, olt models.OLT, logger *zap.Logger) (*oltReading, bool) {
+// readStatuses walks only the phase state table.
+//
+// One table is what makes the status tier affordable every minute: measured
+// here, a full read of a chassis costs tens of seconds while its status table
+// alone costs under four.
+func readStatuses(db *gorm.DB, olt models.OLT, logger *zap.Logger) (*oltReading, error) {
+	return readChassis(db, olt, false, logger)
+}
+
+// readFull walks statuses, optical metrics, and traffic rates.
+func readFull(db *gorm.DB, olt models.OLT, logger *zap.Logger) (*oltReading, error) {
+	return readChassis(db, olt, true, logger)
+}
+
+// readChassis takes the OLT's SNMP lock and walks it.
+//
+// withMetrics is not a mode so much as the difference between the two tiers:
+// callers write what they read, so a reading without metrics writes no metric
+// rows.
+func readChassis(db *gorm.DB, olt models.OLT, withMetrics bool, logger *zap.Logger) (*oltReading, error) {
 	driver, err := connectivity.DriverFor(olt.Model)
 	if err != nil {
-		logger.Error("Cannot poll OLT", zap.String("olt", olt.Name), zap.Error(err))
-		return nil, false
+		return nil, fmt.Errorf("no driver for OLT %s: %w", olt.Name, err)
 	}
 
-	// The discovery poll runs alongside this and walks the same tables. Taking
-	// turns rather than competing: it stores the same metrics, so a cycle that
-	// stands down loses nothing.
-	// Nothing is returned on the way out. A caller that received an empty but
-	// present reading would treat it as "this OLT reported nothing", which read
-	// as every subscriber having gone offline at once.
+	// One reader per chassis at a time. A ZTE agent serves one reader at about
+	// 140 values a second and does not reward being asked twice at once.
 	release, free := services.TryLockOLTSNMP(olt.ID)
 	if !free {
-		logger.Info("Skipping OLT this cycle: discovery is reading it",
-			zap.String("olt", olt.Name))
-		return nil, false
+		return nil, deferredError{reason: "another reader holds this OLT"}
 	}
 	defer release()
 
@@ -112,11 +122,14 @@ func readOLT(db *gorm.DB, olt models.OLT, logger *zap.Logger) (*oltReading, bool
 	// Statuses first: they name every ONU the OLT has, which is what lets the
 	// metrics be fetched by instance instead of swept.
 	walkStatusesForOLT(db, driver, olt, reading, logger)
-	readMetricsForOLT(driver, olt, reading, logger)
-	walkRatesForOLT(driver, olt, reading, logger)
-	reading.index()
 
-	return reading, true
+	if withMetrics {
+		readMetricsForOLT(driver, olt, reading, logger)
+		walkRatesForOLT(driver, olt, reading, logger)
+	}
+
+	reading.index()
+	return reading, nil
 }
 
 func readMetricsForOLT(driver connectivity.Driver, olt models.OLT, reading *oltReading, logger *zap.Logger) {

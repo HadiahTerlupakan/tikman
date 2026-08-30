@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -20,7 +19,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const metricsInterval = 1 * time.Minute
+// heartbeatInterval is how often the worker stamps the row the API reads to
+// decide whether polling is still happening. It no longer follows a poll cycle,
+// because there is no single cycle any more: a worker running short status jobs
+// and one running a long discovery job are both alive.
+const heartbeatInterval = 1 * time.Minute
 
 func main() {
 	cfg, err := config.Load()
@@ -54,62 +57,51 @@ func main() {
 	// its availability figure were empty unless someone had seeded demo data.
 	eventService := services.NewEventService(db)
 
-	zapLogger.Info("Starting Worker service")
-	zapLogger.Info("Starting metrics collection", zap.Duration("interval", metricsInterval))
+	rt := &workerRuntime{
+		db:      db,
+		id:      newWorkerID(),
+		jobs:    services.NewPollJobService(db),
+		onts:    ontService,
+		olts:    oltService,
+		metrics: metricsService,
+		events:  eventService,
+		logger:  zapLogger,
+	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	zapLogger.Info("Starting Worker service", zap.String("worker", rt.id))
+	zapLogger.Info("Poll tiers",
+		zap.Duration("status", services.StatusInterval),
+		zap.Duration("metrics", services.MetricsInterval),
+		zap.Duration("discovery", services.DiscoveryInterval))
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	ticker := time.NewTicker(metricsInterval)
-	defer ticker.Stop()
-
-	collectMetrics(db, ontService, oltService, metricsService, eventService, zapLogger)
+	heartbeat := time.NewTicker(heartbeatInterval)
+	defer heartbeat.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
-			collectMetrics(db, ontService, oltService, metricsService, eventService, zapLogger)
 		case <-sigCh:
 			zapLogger.Info("Received shutdown signal")
 			return
-		case <-ctx.Done():
-			return
+		case <-heartbeat.C:
+			recordHeartbeat(db, zapLogger)
+		default:
+		}
+
+		// An OLT added while nothing was running would otherwise never be
+		// polled, and nothing would report it missing.
+		if err := rt.jobs.EnsureJobs(); err != nil {
+			zapLogger.Error("Failed to ensure poll jobs", zap.Error(err))
+		}
+
+		if !runNextJob(rt) {
+			// Nothing is due. Sleeping here rather than spinning is what keeps
+			// an idle worker off the database.
+			time.Sleep(idleWait)
 		}
 	}
-}
-
-func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *services.OLTService, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
-	logger.Info("Starting metrics collection cycle")
-
-	blockedOLTs := oltsBehindDownTunnel(db, time.Now(), logger)
-
-	// Discover and register ONTs for every configured OLT before querying
-	// metrics. This makes a newly added OLT self-populate without requiring
-	// an operator to press Discover manually.
-	var olts []models.OLT
-	if err := db.Find(&olts).Error; err != nil {
-		logger.Error("Failed to list OLTs for discovery", zap.Error(err))
-	} else {
-		for i := range olts {
-			if blockedOLTs[olts[i].ID] {
-				continue
-			}
-			go oltService.AutoDiscoverONTMetrics(&olts[i])
-		}
-	}
-
-	for i := range olts {
-		if blockedOLTs[olts[i].ID] {
-			continue
-		}
-		pollOLT(db, olts[i], ontService, metricsService, eventService, logger)
-	}
-
-	recordHeartbeat(db, logger)
-	logger.Info("Metrics collection cycle completed")
 }
 
 // recordHeartbeat stamps the row the API reads to decide whether polling is
