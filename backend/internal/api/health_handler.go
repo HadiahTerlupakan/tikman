@@ -16,9 +16,10 @@ import (
 // uptime checkers poll frequently.
 const healthProbeTimeout = 2 * time.Second
 
-// workerStaleAfter is three of the worker's one-minute cycles. A single slow
-// cycle — one OLT answering SNMP at its timeout — must not be reported as a
-// dead worker, and three missed cycles is no longer explainable that way.
+// workerStaleAfter is three of the worker's one-minute heartbeats. A single
+// missed beat — a database write that lost a race with a slow query — must not
+// be reported as a dead worker, and three missed beats is no longer explainable
+// that way.
 const workerStaleAfter = 3 * time.Minute
 
 // HealthHandler reports whether the API and its dependencies are usable.
@@ -79,7 +80,7 @@ func (h *HealthHandler) databaseStatus(ctx context.Context) string {
 	return string(auth.BackendUp)
 }
 
-// workerStatus reports whether the polling worker finished a cycle recently.
+// workerStatus reports whether a polling worker is still running.
 // "unknown" covers the two cases where the answer is genuinely not known: a
 // worker that has never run, and a database that could not be asked.
 func (h *HealthHandler) workerStatus(ctx context.Context, now time.Time) (string, *time.Time) {

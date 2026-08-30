@@ -20,9 +20,7 @@ import (
 )
 
 // heartbeatInterval is how often the worker stamps the row the API reads to
-// decide whether polling is still happening. It no longer follows a poll cycle,
-// because there is no single cycle any more: a worker running short status jobs
-// and one running a long discovery job are both alive.
+// decide whether polling is still happening.
 const heartbeatInterval = 1 * time.Minute
 
 func main() {
@@ -77,16 +75,15 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-	heartbeat := time.NewTicker(heartbeatInterval)
-	defer heartbeat.Stop()
+	stopHeartbeat := make(chan struct{})
+	defer close(stopHeartbeat)
+	go beatWhileAlive(db, stopHeartbeat, zapLogger)
 
 	for {
 		select {
 		case <-sigCh:
 			zapLogger.Info("Received shutdown signal")
 			return
-		case <-heartbeat.C:
-			recordHeartbeat(db, zapLogger)
 		default:
 		}
 
@@ -100,6 +97,32 @@ func main() {
 			// Nothing is due. Sleeping here rather than spinning is what keeps
 			// an idle worker off the database.
 			time.Sleep(idleWait)
+		}
+	}
+}
+
+// beatWhileAlive stamps the worker heartbeat on its own timer.
+//
+// It used to be stamped only when a cycle finished, so that a worker hung on an
+// unreachable OLT could not report itself alive. There is no single cycle any
+// more, and a discovery job legitimately runs for minutes — longer than the
+// staleness threshold — so tying the two together would flap the worker to
+// "down" every hour for doing its job.
+//
+// A worker stuck inside a job is caught better elsewhere: its claim's lease
+// expires and another worker takes the work. Each signal now means one thing.
+func beatWhileAlive(db *gorm.DB, stop <-chan struct{}, logger *zap.Logger) {
+	recordHeartbeat(db, logger)
+
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			recordHeartbeat(db, logger)
 		}
 	}
 }
