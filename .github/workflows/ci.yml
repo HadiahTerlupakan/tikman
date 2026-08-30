@@ -40,6 +40,12 @@ jobs:
 
     # internal/auth and internal/middleware tests t.Skip without a reachable
     # Redis, which silently left session and auth-middleware code untested.
+    #
+    # The poll queue needs Postgres for the same reason: SQLite has no
+    # FOR UPDATE SKIP LOCKED and no concurrent writers, so the property that
+    # matters most — several workers claiming at once and each taking a
+    # different job — cannot be exercised against it. Those tests fail rather
+    # than skip when CI is set and no DSN is given.
     services:
       redis:
         image: redis:7-alpine
@@ -47,6 +53,18 @@ jobs:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: tikman_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -67,6 +85,8 @@ jobs:
 
       - name: Run tests
         working-directory: backend
+        env:
+          TEST_POSTGRES_DSN: host=localhost port=5432 user=postgres password=test dbname=tikman_test sslmode=disable
         run: go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
 
       - name: Upload coverage
