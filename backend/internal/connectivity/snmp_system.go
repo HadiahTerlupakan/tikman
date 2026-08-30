@@ -82,7 +82,7 @@ func walkEntities(client *gosnmp.GoSNMP) ([]ChassisEntity, error) {
 	byIndex := make(map[int]*ChassisEntity)
 
 	collect := func(oid string, apply func(entity *ChassisEntity, pdu gosnmp.SnmpPDU)) error {
-		return client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+		return bulkWalk(client, oid, func(pdu gosnmp.SnmpPDU) error {
 			index, ok := lastOIDSegment(pdu.Name)
 			if !ok {
 				return nil

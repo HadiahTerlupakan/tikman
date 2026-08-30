@@ -18,7 +18,7 @@ func walkONTMetricTable[T any](ipAddress, community string, snmpPort int, baseOI
 
 	results := make(map[ONTLocation]T)
 
-	err = client.Walk(baseOID, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, baseOID, func(pdu gosnmp.SnmpPDU) error {
 		loc, ok := parseZxGponSuffix(pdu.Name, baseOID)
 		if !ok {
 			return nil // skip non-ZXGPON entries
@@ -50,7 +50,7 @@ func walkONTStringTable(ipAddress, community string, snmpPort int, baseOID strin
 
 	results := make(map[ONTLocation]string)
 
-	err = client.Walk(baseOID, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, baseOID, func(pdu gosnmp.SnmpPDU) error {
 		loc, ok := parseZxGponSuffix(pdu.Name, baseOID)
 		if !ok {
 			return nil

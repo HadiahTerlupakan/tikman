@@ -554,7 +554,7 @@ func (hsgqDriver) WalkUnconfigured(context.Context, string, string, int) ([]Unco
 func hsgqWalkColumn(client *gosnmp.GoSNMP, table, tail string, visit func(uint32, gosnmp.SnmpPDU)) error {
 	base := strings.TrimPrefix(table, ".") + "."
 
-	return client.Walk(table, func(pdu gosnmp.SnmpPDU) error {
+	return bulkWalk(client, table, func(pdu gosnmp.SnmpPDU) error {
 		suffix := strings.TrimPrefix(pdu.Name, ".")
 		if !strings.HasPrefix(suffix, base) {
 			return nil

@@ -42,7 +42,7 @@ func WalkTcontProfiles(ipAddress, community string, snmpPort int) ([]ZTETcontPro
 	byID := make(map[int]*ZTETcontProfile)
 	order := make([]int, 0)
 
-	if err := client.Walk(zteTcontProfileName, func(pdu gosnmp.SnmpPDU) error {
+	if err := bulkWalk(client, zteTcontProfileName, func(pdu gosnmp.SnmpPDU) error {
 		id, ok := lastOIDSegment(pdu.Name)
 		if !ok {
 			return nil
@@ -61,7 +61,7 @@ func WalkTcontProfiles(ipAddress, community string, snmpPort int) ([]ZTETcontPro
 	// Only profiles the name column listed are filled in: a bandwidth with no
 	// profile behind it has nothing to belong to.
 	collect := func(oid string, apply func(profile *ZTETcontProfile, value int)) {
-		_ = client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+		_ = bulkWalk(client, oid, func(pdu gosnmp.SnmpPDU) error {
 			id, ok := lastOIDSegment(pdu.Name)
 			if !ok {
 				return nil

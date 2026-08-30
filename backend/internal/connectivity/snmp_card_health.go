@@ -51,7 +51,7 @@ func WalkCardHealth(ipAddress, community string, snmpPort int) ([]CardHealth, er
 	}
 
 	collect := func(oid string, apply func(health *CardHealth, value int)) error {
-		return client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+		return bulkWalk(client, oid, func(pdu gosnmp.SnmpPDU) error {
 			slot, ok := lastOIDSegment(pdu.Name)
 			if !ok {
 				return nil

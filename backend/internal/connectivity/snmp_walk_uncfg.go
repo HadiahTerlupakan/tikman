@@ -106,7 +106,7 @@ func walkUncfgColumn(client *gosnmp.GoSNMP, prefix string, visit func(uncfgIndex
 	oid := BaseOID2 + prefix
 	base := strings.TrimPrefix(oid, ".") + "."
 
-	return client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+	return bulkWalk(client, oid, func(pdu gosnmp.SnmpPDU) error {
 		suffix := strings.TrimPrefix(pdu.Name, ".")
 		if !strings.HasPrefix(suffix, base) {
 			return nil

@@ -38,7 +38,7 @@ func zteWalkTrafficRates(ipAddress, community string, snmpPort int) (map[ONTLoca
 	rates := make(map[ONTLocation]ONUTrafficRates)
 
 	collect := func(baseOID string, assign func(*ONUTrafficRates, uint64)) error {
-		return client.Walk(baseOID, func(pdu gosnmp.SnmpPDU) error {
+		return bulkWalk(client, baseOID, func(pdu gosnmp.SnmpPDU) error {
 			loc, ok := parseOnuIDSuffix(pdu.Name, baseOID)
 			if !ok {
 				return nil

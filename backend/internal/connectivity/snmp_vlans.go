@@ -49,7 +49,7 @@ func WalkVLANs(ipAddress, community string, snmpPort int) ([]OLTVLAN, error) {
 	defer func() { _ = client.Conn.Close() }()
 
 	byID := make(map[int]*OLTVLAN)
-	err = client.Walk(dot1qVlanStaticName, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, dot1qVlanStaticName, func(pdu gosnmp.SnmpPDU) error {
 		vlanID, ok := vlanIDFromOID(pdu.Name)
 		if !ok {
 			return nil
@@ -82,7 +82,7 @@ func walkPortBitmaps(client *gosnmp.GoSNMP, oid string, known map[int]*OLTVLAN) 
 	bitmaps := make(map[int][]int, len(known))
 	// A device that does not publish the column leaves every VLAN with no port
 	// list, which the page renders as "not reported" rather than as an error.
-	_ = client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+	_ = bulkWalk(client, oid, func(pdu gosnmp.SnmpPDU) error {
 		vlanID, ok := vlanIDFromOID(pdu.Name)
 		if !ok {
 			return nil

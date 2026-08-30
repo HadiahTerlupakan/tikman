@@ -25,7 +25,7 @@ func zteWalkStatuses(ipAddress, community string, snmpPort int) (map[ONTLocation
 	statuses := make(map[ONTLocation]int)
 
 	// Walk the entire ZXGPON phase state table
-	err = client.Walk(OID_ZXAN_ONU_PHASE_STATE_TABLE, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, OID_ZXAN_ONU_PHASE_STATE_TABLE, func(pdu gosnmp.SnmpPDU) error {
 		loc, ok := parseZxGponSuffix(pdu.Name, OID_ZXAN_ONU_PHASE_STATE_TABLE)
 		if !ok {
 			return nil // skip non-ZXGPON entries
@@ -62,7 +62,7 @@ func zteWalkMetrics(ipAddress, community string, snmpPort int) (map[ONTLocation]
 	rxCount := 0
 	rxValidCount := 0
 	rxDecodeOkCount := 0
-	err = client.Walk(OID_ZXGPON_ONU_RX_POWER_TABLE, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, OID_ZXGPON_ONU_RX_POWER_TABLE, func(pdu gosnmp.SnmpPDU) error {
 		rxCount++
 		trimmed := strings.TrimPrefix(pdu.Name, ".")
 		baseTrimmed := strings.TrimPrefix(OID_ZXGPON_ONU_RX_POWER_TABLE, ".")

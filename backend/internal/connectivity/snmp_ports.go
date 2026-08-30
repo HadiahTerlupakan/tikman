@@ -63,7 +63,7 @@ func WalkPorts(ipAddress, community string, snmpPort int) ([]OLTPort, error) {
 		return port
 	}
 
-	err = client.Walk(ifNameOID, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, ifNameOID, func(pdu gosnmp.SnmpPDU) error {
 		index, ok := lastOIDSegment(pdu.Name)
 		if !ok {
 			return nil
@@ -82,7 +82,7 @@ func WalkPorts(ipAddress, community string, snmpPort int) ([]OLTPort, error) {
 	}
 
 	walkStatus := func(oid string, apply func(port *OLTPort, value int)) error {
-		return client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+		return bulkWalk(client, oid, func(pdu gosnmp.SnmpPDU) error {
 			index, ok := lastOIDSegment(pdu.Name)
 			if !ok {
 				return nil

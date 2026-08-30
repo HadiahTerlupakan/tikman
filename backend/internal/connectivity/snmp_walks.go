@@ -22,7 +22,7 @@ func zteWalkIPAddresses(ipAddress, community string, snmpPort int) (map[ONTLocat
 	ipOID := BaseOID2 + OnuIPAddressPrefix
 	log.Printf("[IPAddress] Starting IP address walk on OID: %s", ipOID)
 
-	err = client.Walk(ipOID, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, ipOID, func(pdu gosnmp.SnmpPDU) error {
 		trimmed := strings.TrimPrefix(pdu.Name, ".")
 		baseTrimmed := strings.TrimPrefix(ipOID, ".")
 		if !strings.HasPrefix(trimmed, baseTrimmed+".") {
@@ -84,7 +84,7 @@ func zteWalkMACAddresses(ipAddress, community string, snmpPort int) (map[ONTLoca
 	macOID := BaseOID2 + OnuMACAddressPrefix
 	log.Printf("[MACAddress] Starting MAC address walk on OID: %s", macOID)
 
-	err = client.Walk(macOID, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, macOID, func(pdu gosnmp.SnmpPDU) error {
 		trimmed := strings.TrimPrefix(pdu.Name, ".")
 		baseTrimmed := strings.TrimPrefix(macOID, ".")
 		if !strings.HasPrefix(trimmed, baseTrimmed+".") {
@@ -148,7 +148,7 @@ func zteWalkHardwareVersions(ipAddress, community string, snmpPort int) (map[ONT
 	hwOID := BaseOID2 + OnuHardwareVersionPrefix
 	log.Printf("[HardwareVersion] Starting hardware version walk on OID: %s", hwOID)
 
-	err = client.Walk(hwOID, func(pdu gosnmp.SnmpPDU) error {
+	err = bulkWalk(client, hwOID, func(pdu gosnmp.SnmpPDU) error {
 		trimmed := strings.TrimPrefix(pdu.Name, ".")
 		baseTrimmed := strings.TrimPrefix(hwOID, ".")
 		if !strings.HasPrefix(trimmed, baseTrimmed+".") {
