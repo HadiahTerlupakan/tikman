@@ -8,6 +8,12 @@ import { SiteMap } from "./SiteMap";
 interface RecordedMapProps {
   defaultCenter?: { lat: number; lng: number };
   defaultZoom?: number;
+  defaultBounds?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
 }
 
 let mapProps: RecordedMapProps;
@@ -74,11 +80,27 @@ describe("SiteMap", () => {
     expect(screen.queryByRole("button", { name: "Gudang" })).toBeNull();
   });
 
+  it("frames every pin rather than opening on whichever came back first", () => {
+    // Depok and Bekasi are ~40 km apart. Centring on one at street zoom shows
+    // a single site and reads as though only one is mapped, and which one it
+    // would be is decided by unordered Postgres rows.
+    render(<SiteMap apiKey="k" sites={[depok, bekasi]} olts={[]} />);
+
+    expect(mapProps.defaultCenter).toBeUndefined();
+    expect(mapProps.defaultBounds).toMatchObject({
+      north: -6.2383,
+      south: -6.4025,
+      east: 106.9756,
+      west: 106.7942,
+    });
+  });
+
   it("opens a single site at a readable zoom instead of the maximum", () => {
     render(<SiteMap apiKey="k" sites={[depok, gudang]} olts={[]} />);
 
     expect(mapProps.defaultCenter).toEqual({ lat: -6.4025, lng: 106.7942 });
     expect(mapProps.defaultZoom).toBe(14);
+    expect(mapProps.defaultBounds).toBeUndefined();
   });
 
   it("falls back to Indonesia when nothing is mapped", () => {
