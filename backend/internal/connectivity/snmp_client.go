@@ -85,6 +85,9 @@ func newSNMPClientWithContext(ctx context.Context, ipAddress, community string, 
 		Version:   gosnmp.Version2c,
 		Timeout:   time.Second * 5,
 		Retries:   1,
+		// Every table read goes through bulkWalk, so this is what decides how
+		// many values one round trip brings back.
+		MaxRepetitions: uint32(maxRepetitions),
 	}
 	if err := client.Connect(); err != nil {
 		return nil, fmt.Errorf("SNMP connect failed: %w", err)

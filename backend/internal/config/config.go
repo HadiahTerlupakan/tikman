@@ -20,6 +20,8 @@ type Config struct {
 	APIPort        int
 	Environment    string
 	AllowedOrigins string
+	// SNMPMaxRepetitions is how many values one GETBULK asks an OLT for.
+	SNMPMaxRepetitions int
 }
 
 func Load() (*Config, error) {
@@ -33,6 +35,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("API_PORT", 8080)
 	viper.SetDefault("ENVIRONMENT", "development")
 	viper.SetDefault("ALLOWED_ORIGINS", "http://localhost:3000")
+	viper.SetDefault("SNMP_MAX_REPETITIONS", 10)
 
 	viper.AutomaticEnv()
 
@@ -51,6 +54,8 @@ func Load() (*Config, error) {
 		APIPort:        viper.GetInt("API_PORT"),
 		Environment:    viper.GetString("ENVIRONMENT"),
 		AllowedOrigins: viper.GetString("ALLOWED_ORIGINS"),
+
+		SNMPMaxRepetitions: viper.GetInt("SNMP_MAX_REPETITIONS"),
 	}
 
 	if err := validateConfig(cfg); err != nil {

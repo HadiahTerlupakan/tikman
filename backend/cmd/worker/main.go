@@ -28,6 +28,10 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Every SNMP table read goes through GETBULK; this is how many values one
+	// round trip asks the agent for.
+	connectivity.SetMaxRepetitions(uint8(cfg.SNMPMaxRepetitions))
+
 	zapLogger, err := zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)

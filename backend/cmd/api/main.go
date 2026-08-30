@@ -33,6 +33,10 @@ func main() {
 		panic(fmt.Sprintf("Failed to load config: %v", err))
 	}
 
+	// The API validates OLTs over SNMP too, so it reads tables the same way the
+	// worker does.
+	connectivity.SetMaxRepetitions(uint8(cfg.SNMPMaxRepetitions))
+
 	log, err := logger.New(cfg.LogLevel)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create logger: %v", err))
