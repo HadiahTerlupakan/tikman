@@ -108,7 +108,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.worker
-    container_name: tikman-worker
+    # No container_name: Compose refuses --scale on a service that has one, and
+    # running several workers is how this deployment adds polling capacity. Each
+    # worker claims whole OLTs from the queue, so they share the chassis without
+    # any configuration and without two of them reading one agent at once.
+    #
+    #   docker compose up -d --scale worker=3 worker
+    #
+    # Containers are then named src-worker-1, src-worker-2, and so on.
     network_mode: "service:api"
     environment:
       - DB_HOST=postgres
