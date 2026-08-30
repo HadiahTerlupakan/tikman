@@ -120,6 +120,44 @@ func (s *ONTService) ListWithMetricsFilter(oltID *uuid.UUID, status *models.ONTS
 	return onts, total, nil
 }
 
+// checkUnclaimed rejects an ONT whose box or whose position another row already
+// holds.
+func (s *ONTService) checkUnclaimed(ont *models.ONT) error {
+	// A serial identifies one physical box, so it may appear once across every
+	// OLT. An absent serial is not a value though: the inventory walk does not
+	// return one for every ONU it finds, and treating "" as a serial made the
+	// first serial-less ONU registered lock out every other serial-less ONU in
+	// the database. Those ONTs are identified by their position alone.
+	var count int64
+	if ont.SerialNumber != "" {
+		if err := s.db.Model(&models.ONT{}).Where("serial_number = ?", ont.SerialNumber).Count(&count).Error; err != nil {
+			return fmt.Errorf("failed to check duplicate serial number: %w", err)
+		}
+		if count > 0 {
+			return fmt.Errorf("ONT with serial number %s already exists", ont.SerialNumber)
+		}
+	}
+
+	// A position is olt + card + port + ONU. Leaving the card out of this check
+	// rejected the same port and ONU number on a second card as a duplicate,
+	// which on a multi-card chassis is a different subscriber's box.
+	positionQuery := s.db.Model(&models.ONT{}).
+		Where("olt_id = ? AND port_id = ? AND ont_id = ?", ont.OLTID, ont.PortID, ont.ONTID)
+	if ont.Slot != nil {
+		positionQuery = positionQuery.Where("slot = ?", *ont.Slot)
+	} else {
+		positionQuery = positionQuery.Where("slot IS NULL")
+	}
+	if err := positionQuery.Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check duplicate ONT position: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("ONT position already exists on this OLT (slot %s, port %d, ont_id %d)", describeSlot(ont.Slot), ont.PortID, ont.ONTID)
+	}
+
+	return nil
+}
+
 // GetByID returns ONT by ID
 func (s *ONTService) GetByID(id uuid.UUID) (*models.ONT, error) {
 	var ont models.ONT
@@ -155,36 +193,8 @@ func (s *ONTService) Create(ont *models.ONT) error {
 		return fmt.Errorf("OLT not found")
 	}
 
-	// A serial identifies one physical box, so it may appear once across every
-	// OLT. An absent serial is not a value though: the inventory walk does not
-	// return one for every ONU it finds, and treating "" as a serial made the
-	// first serial-less ONU registered lock out every other serial-less ONU in
-	// the database. Those ONTs are identified by their position, checked below.
-	var count int64
-	if ont.SerialNumber != "" {
-		if err := s.db.Model(&models.ONT{}).Where("serial_number = ?", ont.SerialNumber).Count(&count).Error; err != nil {
-			return fmt.Errorf("failed to check duplicate serial number: %w", err)
-		}
-		if count > 0 {
-			return fmt.Errorf("ONT with serial number %s already exists", ont.SerialNumber)
-		}
-	}
-
-	// A position is olt + card + port + ONU. Leaving the card out of this check
-	// rejected the same port and ONU number on a second card as a duplicate,
-	// which on a multi-card chassis is a different subscriber's box.
-	positionQuery := s.db.Model(&models.ONT{}).
-		Where("olt_id = ? AND port_id = ? AND ont_id = ?", ont.OLTID, ont.PortID, ont.ONTID)
-	if ont.Slot != nil {
-		positionQuery = positionQuery.Where("slot = ?", *ont.Slot)
-	} else {
-		positionQuery = positionQuery.Where("slot IS NULL")
-	}
-	if err := positionQuery.Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to check duplicate ONT position: %w", err)
-	}
-	if count > 0 {
-		return fmt.Errorf("ONT position already exists on this OLT (slot %s, port %d, ont_id %d)", describeSlot(ont.Slot), ont.PortID, ont.ONTID)
+	if err := s.checkUnclaimed(ont); err != nil {
+		return err
 	}
 
 	// Set default status if not provided
@@ -391,87 +401,22 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 	}
 
 	for _, ont := range discovered {
-		existing, _ := s.GetByOLTAndPosition(oltID, ont.Slot, ont.PortID, ont.ONTID)
-		if existing == nil && ont.Slot > 0 {
-			// A row registered before the OLT reported card numbers carries a null
-			// slot. It is the same ONT, so discovery backfills its card rather than
-			// inserting a second row beside it. Only the null case falls back: a row
-			// already sitting on a different card is a different subscriber's box.
-			existing, _ = s.GetByOLTAndPosition(oltID, 0, ont.PortID, ont.ONTID)
-		}
+		existing, relocated := s.rowForDiscovered(oltID, ont)
+
 		if existing != nil {
-			updates := map[string]interface{}{}
-			needsUpdate := false
-
-			if ont.Name != "" && existing.Name != ont.Name {
-				updates["name"] = ont.Name
-				needsUpdate = true
-			}
-			if ont.Description != "" && existing.Description != ont.Description {
-				updates["description"] = ont.Description
-				needsUpdate = true
-			}
-			if ont.DeviceType != "" && existing.DeviceType == "" {
-				updates["device_type"] = ont.DeviceType
-				needsUpdate = true
-			}
-			if ont.HardwareVersion != "" && existing.HardwareVersion == "" {
-				updates["hardware_version"] = ont.HardwareVersion
-				needsUpdate = true
-			}
-			if ont.SoftwareVersion != "" && existing.SoftwareVersion == "" {
-				updates["software_version"] = ont.SoftwareVersion
-				needsUpdate = true
-			}
-			if ont.IPAddress != "" && existing.IPAddress == "" {
-				updates["ip_address"] = ont.IPAddress
-				needsUpdate = true
-			}
-			if ont.MACAddress != "" && existing.MACAddress == "" {
-				updates["mac_address"] = ont.MACAddress
-				needsUpdate = true
-			}
-			// Backfills rows registered before discovery carried a slot. The auto
-			// ONU ID allocator matches on it, and a null one hides the ONT from
-			// that lookup, which can hand out an ID already in use.
-			if ont.Slot > 0 && existing.Slot == nil {
-				updates["slot"] = ont.Slot
-				needsUpdate = true
-			}
-
-			if needsUpdate {
-				updates["updated_at"] = time.Now()
-				if err := s.db.Model(existing).Updates(updates).Error; err == nil {
-					result.Registered++
-				}
-			} else {
+			updates := discoveryUpdates(ont, existing, relocated)
+			if len(updates) == 0 {
 				result.Skipped++
+				continue
+			}
+			updates["updated_at"] = time.Now()
+			if err := s.db.Model(existing).Updates(updates).Error; err == nil {
+				result.Registered++
 			}
 			continue
 		}
 
-		newONT := &models.ONT{
-			OLTID:           oltID,
-			Slot:            discoveredSlot(ont),
-			PortID:          ont.PortID,
-			ONTID:           ont.ONTID,
-			SerialNumber:    ont.SerialNumber,
-			Name:            ont.Name,
-			Description:     ont.Description,
-			DeviceType:      ont.DeviceType,
-			HardwareVersion: ont.HardwareVersion,
-			SoftwareVersion: ont.SoftwareVersion,
-			IPAddress:       ont.IPAddress,
-			MACAddress:      ont.MACAddress,
-			// The discovery walk already read this ONT's phase state, so storing
-			// "unknown" here threw away a fact we had and left the ONT list showing
-			// UNKNOWN until the next status poll happened to run. Newly registered
-			// ONTs sort first by created_at, so those placeholders were exactly the
-			// rows an operator saw first after adding an OLT.
-			Status: models.ONTStatus(utils.StatusMap(ont.RunState)),
-		}
-
-		err := s.Create(newONT)
+		err := s.Create(newONTFromDiscovery(oltID, ont))
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("Port %d ONT %d: %v", ont.PortID, ont.ONTID, err))
 			continue
@@ -481,4 +426,114 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 	}
 
 	return result
+}
+
+// rowForDiscovered finds the row a discovery record belongs to, and reports
+// whether it was found by serial rather than by position — that is, whether the
+// box has moved and its row must move with it.
+func (s *ONTService) rowForDiscovered(oltID uuid.UUID, ont connectivity.DiscoveredONT) (*models.ONT, bool) {
+	existing, _ := s.GetByOLTAndPosition(oltID, ont.Slot, ont.PortID, ont.ONTID)
+	if existing == nil && ont.Slot > 0 {
+		// A row registered before the OLT reported card numbers carries a null
+		// slot. It is the same ONT, so discovery backfills its card rather than
+		// inserting a second row beside it. Only the null case falls back: a row
+		// already sitting on a different card is a different subscriber's box.
+		existing, _ = s.GetByOLTAndPosition(oltID, 0, ont.PortID, ont.ONTID)
+	}
+	if existing != nil {
+		return existing, false
+	}
+
+	if ont.SerialNumber == "" {
+		return nil, false
+	}
+
+	// Nothing is at this position, but the box the OLT reports here already has a
+	// row elsewhere on this OLT: it was re-provisioned onto another port. A serial
+	// names one physical box, so the row follows it and the metrics and events
+	// stay with the subscriber they belong to. Without this the create fails on
+	// the serial, and the ONU stays discovered but unstored for as long as the
+	// stale row survives.
+	//
+	// Scoped to one OLT deliberately. A serial surfacing on a different OLT is a
+	// different event, and relocating a row between sites on that evidence alone
+	// would be a guess; it stays an error the log names.
+	var moved models.ONT
+	if err := s.db.Where("olt_id = ? AND serial_number = ?", oltID, ont.SerialNumber).First(&moved).Error; err != nil {
+		return nil, false
+	}
+	return &moved, true
+}
+
+// newONTFromDiscovery builds the row for an ONU no stored row claims yet.
+func newONTFromDiscovery(oltID uuid.UUID, ont connectivity.DiscoveredONT) *models.ONT {
+	return &models.ONT{
+		OLTID:           oltID,
+		Slot:            discoveredSlot(ont),
+		PortID:          ont.PortID,
+		ONTID:           ont.ONTID,
+		SerialNumber:    ont.SerialNumber,
+		Name:            ont.Name,
+		Description:     ont.Description,
+		DeviceType:      ont.DeviceType,
+		HardwareVersion: ont.HardwareVersion,
+		SoftwareVersion: ont.SoftwareVersion,
+		IPAddress:       ont.IPAddress,
+		MACAddress:      ont.MACAddress,
+		// The discovery walk already read this ONT's phase state, so storing
+		// "unknown" here threw away a fact we had and left the ONT list showing
+		// UNKNOWN until the next status poll happened to run. Newly registered
+		// ONTs sort first by created_at, so those placeholders were exactly the
+		// rows an operator saw first after adding an OLT.
+		Status: models.ONTStatus(utils.StatusMap(ont.RunState)),
+	}
+}
+
+// discoveryUpdates returns what the walk knows that the stored row does not.
+// An empty map means the row already agrees with the OLT and must not be
+// written, which is what keeps updated_at meaningful across repeat scans.
+//
+// Inventory fields only fill gaps: the walk reads them inconsistently, so an
+// operator's correction should outlive the next scan. Name and description are
+// the exception, being the OLT's own labels rather than ours.
+func discoveryUpdates(ont connectivity.DiscoveredONT, existing *models.ONT, relocated bool) map[string]interface{} {
+	updates := map[string]interface{}{}
+
+	if ont.Name != "" && existing.Name != ont.Name {
+		updates["name"] = ont.Name
+	}
+	if ont.Description != "" && existing.Description != ont.Description {
+		updates["description"] = ont.Description
+	}
+	if ont.DeviceType != "" && existing.DeviceType == "" {
+		updates["device_type"] = ont.DeviceType
+	}
+	if ont.HardwareVersion != "" && existing.HardwareVersion == "" {
+		updates["hardware_version"] = ont.HardwareVersion
+	}
+	if ont.SoftwareVersion != "" && existing.SoftwareVersion == "" {
+		updates["software_version"] = ont.SoftwareVersion
+	}
+	if ont.IPAddress != "" && existing.IPAddress == "" {
+		updates["ip_address"] = ont.IPAddress
+	}
+	if ont.MACAddress != "" && existing.MACAddress == "" {
+		updates["mac_address"] = ont.MACAddress
+	}
+
+	if relocated {
+		updates["slot"] = discoveredSlot(ont)
+		updates["port_id"] = ont.PortID
+		updates["ont_id"] = ont.ONTID
+		return updates
+	}
+
+	// Backfills rows registered before discovery carried a slot. The auto ONU ID
+	// allocator matches on it, and a null one hides the ONT from that lookup,
+	// which can hand out an ID already in use.
+	if ont.Slot > 0 && existing.Slot == nil {
+		updates["slot"] = ont.Slot
+	}
+
+	return updates
 }

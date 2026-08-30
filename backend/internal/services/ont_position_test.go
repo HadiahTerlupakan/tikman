@@ -159,3 +159,83 @@ func TestARealSerialIsStillUnique(t *testing.T) {
 	require.NoError(t, db.Model(&models.ONT{}).Count(&count).Error)
 	require.Equal(t, int64(1), count)
 }
+
+func TestABoxThatMovedPositionIsFollowedNotRejected(t *testing.T) {
+	// A serial names one physical box, so when the OLT reports it at a new
+	// position the box moved and its row moves with it, keeping the metrics and
+	// event history attached to the same subscriber. Creating a second row is
+	// impossible — the serial is taken — and refusing outright is what left five
+	// discovered ONUs unstored, each one's old row holding its serial hostage.
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+
+	ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		discoveredAt(8, 12, 22, "ZTEGCACC2F40"),
+	})
+	before, err := ontService.GetByOLTAndPosition(oltID, 8, 12, 22)
+	require.NoError(t, err)
+
+	result := ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		discoveredAt(9, 6, 21, "ZTEGCACC2F40"),
+	})
+	require.Empty(t, result.Errors)
+
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Where("olt_id = ?", oltID).Count(&count).Error)
+	require.Equal(t, int64(1), count, "the box was duplicated instead of moved")
+
+	moved, err := ontService.GetByOLTAndPosition(oltID, 9, 6, 21)
+	require.NoError(t, err)
+	require.Equal(t, before.ID, moved.ID, "a new row was created, so the box lost its history")
+
+	_, err = ontService.GetByOLTAndPosition(oltID, 8, 12, 22)
+	require.Error(t, err, "the box was left behind at the position it vacated")
+}
+
+func TestAMovedBoxNeverDisplacesTheOccupantOfItsNewPosition(t *testing.T) {
+	// Following the serial must never overwrite whoever the walk says is already
+	// at the target position: that row is a different subscriber's box.
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+
+	ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		discoveredAt(8, 12, 22, "ZTEGCACC2F40"),
+		discoveredAt(9, 6, 21, "ZTEGCAFFD0A9"),
+	})
+
+	ontService.BulkRegisterFromDiscovery(oltID, []connectivity.DiscoveredONT{
+		discoveredAt(9, 6, 21, "ZTEGCACC2F40"),
+	})
+
+	occupant, err := ontService.GetByOLTAndPosition(oltID, 9, 6, 21)
+	require.NoError(t, err)
+	require.Equal(t, "ZTEGCAFFD0A9", occupant.SerialNumber, "the occupant was overwritten")
+
+	var count int64
+	require.NoError(t, db.Model(&models.ONT{}).Where("olt_id = ?", oltID).Count(&count).Error)
+	require.Equal(t, int64(2), count)
+}
+
+func TestASerialOnAnotherOLTIsNotFollowed(t *testing.T) {
+	// Moving a box between OLTs is a different event from moving it between
+	// ports, and nothing here has evidence of it. It stays an error the log
+	// names, rather than a row silently relocated to another site.
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	cariu := oltForPositions(t, db, "Cariu", "172.30.30.3")
+	bekasi := oltForPositions(t, db, "Bekasi", "172.30.30.2")
+
+	ontService.BulkRegisterFromDiscovery(cariu, []connectivity.DiscoveredONT{
+		discoveredAt(8, 12, 22, "ZTEGCACC2F40"),
+	})
+	result := ontService.BulkRegisterFromDiscovery(bekasi, []connectivity.DiscoveredONT{
+		discoveredAt(2, 6, 4, "ZTEGCACC2F40"),
+	})
+
+	require.Len(t, result.Errors, 1)
+	stillOnCariu, err := ontService.GetByOLTAndPosition(cariu, 8, 12, 22)
+	require.NoError(t, err)
+	require.Equal(t, "ZTEGCACC2F40", stillOnCariu.SerialNumber)
+}
