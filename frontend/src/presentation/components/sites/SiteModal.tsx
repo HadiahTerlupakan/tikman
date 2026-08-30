@@ -1,10 +1,11 @@
-import { Modal, Form, Input } from "antd";
+import { Modal, Form, Input, Row, Col } from "antd";
 import {
   type Site,
   type CreateSiteDto,
   type UpdateSiteDto,
 } from "@/domain/entities";
 import { useEffect } from "react";
+import { coordinateError, parseCoordinate } from "./siteCoordinates";
 
 interface SiteModalProps {
   open: boolean;
@@ -14,6 +15,14 @@ interface SiteModalProps {
   loading: boolean;
 }
 
+interface SiteFormValues {
+  name: string;
+  location?: string;
+  description?: string;
+  latitude?: string;
+  longitude?: string;
+}
+
 export function SiteModal({
   open,
   site,
@@ -21,7 +30,7 @@ export function SiteModal({
   onSubmit,
   loading,
 }: SiteModalProps) {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<SiteFormValues>();
 
   useEffect(() => {
     if (site) {
@@ -29,6 +38,8 @@ export function SiteModal({
         name: site.name,
         location: site.location,
         description: site.description,
+        latitude: site.latitude?.toString() ?? "",
+        longitude: site.longitude?.toString() ?? "",
       });
     } else {
       form.resetFields();
@@ -36,9 +47,24 @@ export function SiteModal({
   }, [site, form]);
 
   const handleSubmit = () => {
-    form.validateFields().then((values) => {
-      onSubmit(values);
-    });
+    form
+      .validateFields()
+      .then((values) => {
+        const latitude = parseCoordinate(values.latitude ?? "");
+        const longitude = parseCoordinate(values.longitude ?? "");
+
+        onSubmit({
+          name: values.name,
+          location: values.location,
+          description: values.description,
+          ...(latitude !== null && longitude !== null
+            ? { latitude, longitude }
+            : {}),
+        });
+      })
+      // antd renders each failure against its own field, so there is nothing
+      // left to report — but without this the rejection escapes unhandled.
+      .catch(() => undefined);
   };
 
   return (
@@ -62,6 +88,36 @@ export function SiteModal({
         <Form.Item name="location" label="Location">
           <Input />
         </Form.Item>
+
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item
+              name="latitude"
+              label="Latitude"
+              dependencies={["longitude"]}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator: () => {
+                    const error = coordinateError(
+                      getFieldValue("latitude") ?? "",
+                      getFieldValue("longitude") ?? "",
+                    );
+                    return error
+                      ? Promise.reject(new Error(error))
+                      : Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <Input placeholder="-6.4025" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="longitude" label="Longitude">
+              <Input placeholder="106.7942" />
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Form.Item name="description" label="Description">
           <Input.TextArea rows={4} />
