@@ -1043,10 +1043,11 @@ func TestONTService_BulkRegisterFromDiscovery_Skip(t *testing.T) {
 	assert.Equal(t, 1, result.Skipped)
 }
 
-func TestONTService_BulkRegisterFromDiscoveryFollowsABoxToItsNewPort(t *testing.T) {
-	// The same rule as on a multi-card chassis, on an OLT that reports no card
-	// numbers at all: the serial names the box, so its row follows it to the new
-	// port rather than being rejected as a duplicate of itself.
+func TestONTService_BulkRegisterFromDiscovery_DuplicateSerial(t *testing.T) {
+	// This OLT reports the same serial at two positions in one walk, so a serial
+	// seen where another row already holds it is not a box that moved. It is
+	// refused, and the caller logs it, rather than the row chasing between the
+	// two positions on every cycle.
 	db := setupTestDB(t)
 	siteService := NewSiteService(db)
 	ontService := NewONTService(db)
@@ -1087,16 +1088,14 @@ func TestONTService_BulkRegisterFromDiscoveryFollowsABoxToItsNewPort(t *testing.
 	}
 
 	result := ontService.BulkRegisterFromDiscovery(olt.ID, discovered)
-	assert.Empty(t, result.Errors)
-	assert.Equal(t, 1, result.Registered)
+	assert.Equal(t, 0, result.Registered)
+	assert.Equal(t, 0, result.Skipped)
+	require.Len(t, result.Errors, 1)
+	assert.Contains(t, result.Errors[0], "already exists")
 
-	var count int64
-	require.NoError(t, db.Model(&models.ONT{}).Where("olt_id = ?", olt.ID).Count(&count).Error)
-	assert.Equal(t, int64(1), count, "the box was duplicated instead of moved")
-
-	moved, err := ontService.GetByOLTAndPosition(olt.ID, 0, 2, 1)
+	stayed, err := ontService.GetByOLTAndPosition(olt.ID, 0, 1, 1)
 	require.NoError(t, err)
-	assert.Equal(t, existing.ID, moved.ID)
+	assert.Equal(t, existing.ID, stayed.ID, "the row was moved off the position the walk still reports")
 }
 
 func TestONTService_GetByID_DatabaseError(t *testing.T) {

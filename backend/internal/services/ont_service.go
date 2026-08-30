@@ -401,10 +401,10 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 	}
 
 	for _, ont := range discovered {
-		existing, relocated := s.rowForDiscovered(oltID, ont)
+		existing := s.rowForDiscovered(oltID, ont)
 
 		if existing != nil {
-			updates := discoveryUpdates(ont, existing, relocated)
+			updates := discoveryUpdates(ont, existing)
 			if len(updates) == 0 {
 				result.Skipped++
 				continue
@@ -428,10 +428,13 @@ func (s *ONTService) BulkRegisterFromDiscovery(oltID uuid.UUID, discovered []con
 	return result
 }
 
-// rowForDiscovered finds the row a discovery record belongs to, and reports
-// whether it was found by serial rather than by position — that is, whether the
-// box has moved and its row must move with it.
-func (s *ONTService) rowForDiscovered(oltID uuid.UUID, ont connectivity.DiscoveredONT) (*models.ONT, bool) {
+// rowForDiscovered finds the row a discovery record belongs to, by position.
+//
+// Not by serial: this OLT reports the same serial at two positions in one walk,
+// so treating a serial found elsewhere as the same box moved made its row chase
+// between the two every cycle. A serial appearing where another row already
+// holds it stays an error the log names.
+func (s *ONTService) rowForDiscovered(oltID uuid.UUID, ont connectivity.DiscoveredONT) *models.ONT {
 	existing, _ := s.GetByOLTAndPosition(oltID, ont.Slot, ont.PortID, ont.ONTID)
 	if existing == nil && ont.Slot > 0 {
 		// A row registered before the OLT reported card numbers carries a null
@@ -440,29 +443,7 @@ func (s *ONTService) rowForDiscovered(oltID uuid.UUID, ont connectivity.Discover
 		// already sitting on a different card is a different subscriber's box.
 		existing, _ = s.GetByOLTAndPosition(oltID, 0, ont.PortID, ont.ONTID)
 	}
-	if existing != nil {
-		return existing, false
-	}
-
-	if ont.SerialNumber == "" {
-		return nil, false
-	}
-
-	// Nothing is at this position, but the box the OLT reports here already has a
-	// row elsewhere on this OLT: it was re-provisioned onto another port. A serial
-	// names one physical box, so the row follows it and the metrics and events
-	// stay with the subscriber they belong to. Without this the create fails on
-	// the serial, and the ONU stays discovered but unstored for as long as the
-	// stale row survives.
-	//
-	// Scoped to one OLT deliberately. A serial surfacing on a different OLT is a
-	// different event, and relocating a row between sites on that evidence alone
-	// would be a guess; it stays an error the log names.
-	var moved models.ONT
-	if err := s.db.Where("olt_id = ? AND serial_number = ?", oltID, ont.SerialNumber).First(&moved).Error; err != nil {
-		return nil, false
-	}
-	return &moved, true
+	return existing
 }
 
 // newONTFromDiscovery builds the row for an ONU no stored row claims yet.
@@ -496,7 +477,7 @@ func newONTFromDiscovery(oltID uuid.UUID, ont connectivity.DiscoveredONT) *model
 // Inventory fields only fill gaps: the walk reads them inconsistently, so an
 // operator's correction should outlive the next scan. Name and description are
 // the exception, being the OLT's own labels rather than ours.
-func discoveryUpdates(ont connectivity.DiscoveredONT, existing *models.ONT, relocated bool) map[string]interface{} {
+func discoveryUpdates(ont connectivity.DiscoveredONT, existing *models.ONT) map[string]interface{} {
 	updates := map[string]interface{}{}
 
 	if ont.Name != "" && existing.Name != ont.Name {
@@ -519,13 +500,6 @@ func discoveryUpdates(ont connectivity.DiscoveredONT, existing *models.ONT, relo
 	}
 	if ont.MACAddress != "" && existing.MACAddress == "" {
 		updates["mac_address"] = ont.MACAddress
-	}
-
-	if relocated {
-		updates["slot"] = discoveredSlot(ont)
-		updates["port_id"] = ont.PortID
-		updates["ont_id"] = ont.ONTID
-		return updates
 	}
 
 	// Backfills rows registered before discovery carried a slot. The auto ONU ID
