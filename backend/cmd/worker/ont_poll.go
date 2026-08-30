@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/connectivity"
@@ -11,20 +10,16 @@ import (
 	"gorm.io/gorm"
 )
 
-func processOnt(db *gorm.DB, oltSlot int, oltMetricsMap map[connectivity.ONTLocation]connectivity.ONTMetrics, oltStatusMap map[connectivity.ONTLocation]int, oltRatesMap map[connectivity.ONTLocation]connectivity.ONUTrafficRates, ont models.ONT, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
-	foundMetrics, discoveredSlot := matchMetricsForONT(ont, oltMetricsMap, logger)
+func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, metricsService *services.MetricsService, eventService *services.EventService, logger *zap.Logger) {
+	foundMetrics, discoveredSlot := matchMetricsForONT(ont, reading)
 
-	logFirstONTDebug(ont, oltSlot, oltMetricsMap, foundMetrics, logger)
-
-	ontRates := lookupRatesForONT(ont, discoveredSlot, oltRatesMap)
+	ontRates := lookupRatesForONT(ont, discoveredSlot, reading.rates)
 
 	if !storeMetricsForONT(ont, foundMetrics, ontRates, metricsService, logger) {
 		return
 	}
 
-	newStatus := determineOntStatus(ont, oltStatusMap, foundMetrics, logger)
-
-	logger.Info("Status check", zap.String("serial", ont.SerialNumber), zap.String("newStatus", string(newStatus)), zap.String("currentStatus", string(ont.Status)))
+	newStatus := determineOntStatus(ont, reading.statuses, foundMetrics, logger)
 
 	handleStatusChange(db, ont, newStatus, logger)
 
@@ -32,62 +27,27 @@ func processOnt(db *gorm.DB, oltSlot int, oltMetricsMap map[connectivity.ONTLoca
 
 	updateOntFields(db, ont, foundMetrics, discoveredSlot, logger)
 
-	var rxPower, txPower *float64
-	if foundMetrics != nil {
-		rxPower = foundMetrics.RxPower
-		txPower = foundMetrics.TxPower
-	}
-	logger.Info("Collected metrics",
-		zap.String("serial", ont.SerialNumber),
-		zap.Float64p("rx_power", rxPower),
-		zap.Float64p("tx_power", txPower))
 }
 
-func matchMetricsForONT(ont models.ONT, oltMetricsMap map[connectivity.ONTLocation]connectivity.ONTMetrics, logger *zap.Logger) (*connectivity.ONTMetrics, int) {
-	var foundMetrics *connectivity.ONTMetrics
-	var discoveredSlot int
-	for loc, m := range oltMetricsMap {
-		// Match by port and ontID, and slot if already known
-		portMatch := loc.Port == ont.PortID
-		ontIDMatch := loc.ONTID == ont.ONTID
-		slotMatch := ont.Slot == nil || loc.Slot == *ont.Slot
+func matchMetricsForONT(ont models.ONT, reading *oltReading) (*connectivity.ONTMetrics, int) {
+	// An ONT that knows its card is addressed directly. This used to search the
+	// whole reading for every ONT, which costs the square of the subscriber
+	// count and was the second largest expense in a cycle.
+	if ont.Slot != nil {
+		loc := connectivity.ONTLocation{Slot: *ont.Slot, Port: ont.PortID, ONTID: ont.ONTID}
+		if m, ok := reading.metrics[loc]; ok {
+			return &m, loc.Slot
+		}
+		return nil, 0
+	}
 
-		if portMatch && ontIDMatch && slotMatch {
-			foundMetrics = &m
-			discoveredSlot = loc.Slot
-			break
-		}
+	// An ONT registered before its OLT reported card numbers has none to match
+	// on, so it takes the reading at its port and ONU number and adopts the card
+	// that reading came from.
+	if found, ok := reading.metricsPositions[positionKey{ont.PortID, ont.ONTID}]; ok {
+		return &found.metrics, found.slot
 	}
-	return foundMetrics, discoveredSlot
-}
-
-// logFirstONTDebug logs the first ONT for debugging.
-func logFirstONTDebug(ont models.ONT, oltSlot int, oltMetricsMap map[connectivity.ONTLocation]connectivity.ONTMetrics, foundMetrics *connectivity.ONTMetrics, logger *zap.Logger) {
-	if ont.PortID != 1 || ont.ONTID != 1 {
-		return
-	}
-	firstLoc := connectivity.ONTLocation{}
-	for loc := range oltMetricsMap {
-		firstLoc = loc
-		break
-	}
-	rxVal := "null"
-	txVal := "null"
-	if foundMetrics != nil {
-		if foundMetrics.RxPower != nil {
-			rxVal = fmt.Sprintf("%.2f", *foundMetrics.RxPower)
-		}
-		if foundMetrics.TxPower != nil {
-			txVal = fmt.Sprintf("%.2f", *foundMetrics.TxPower)
-		}
-	}
-	logger.Info("DEBUG: First ONT matching",
-		zap.String("serial", ont.SerialNumber),
-		zap.Int("ont_slot", oltSlot), zap.Int("snmp_slot_sample", firstLoc.Slot),
-		zap.Int("ont_port", ont.PortID), zap.Int("snmp_port_sample", firstLoc.Port),
-		zap.Int("ont_ontid", ont.ONTID), zap.Int("snmp_ontid_sample", firstLoc.ONTID),
-		zap.Bool("matched", foundMetrics != nil),
-		zap.String("rx", rxVal), zap.String("tx", txVal))
+	return nil, 0
 }
 
 func lookupRatesForONT(ont models.ONT, discoveredSlot int, oltRatesMap map[connectivity.ONTLocation]connectivity.ONUTrafficRates) *connectivity.ONUTrafficRates {

@@ -101,44 +101,11 @@ func collectMetrics(db *gorm.DB, ontService *services.ONTService, oltService *se
 		}
 	}
 
-	onts, _, err := ontService.List(nil, nil, 1000, 0)
-	if err != nil {
-		logger.Error("Failed to list ONTs", zap.Error(err))
-		return
-	}
-
-	logger.Info(fmt.Sprintf("Found %d ONTs to collect metrics", len(onts)))
-
-	oltMetricsCache := make(map[string]map[connectivity.ONTLocation]connectivity.ONTMetrics)
-	oltStatusCache := make(map[string]map[connectivity.ONTLocation]int)
-	oltStatusWalkOK := make(map[string]bool)
-	oltPruned := make(map[string]bool)
-	oltRatesCache := make(map[string]map[connectivity.ONTLocation]connectivity.ONUTrafficRates)
-
-	for _, ont := range onts {
-		if blockedOLTs[ont.OLTID] {
+	for i := range olts {
+		if blockedOLTs[olts[i].ID] {
 			continue
 		}
-
-		oltKey, olt, ok := getOrInitOLT(db, ont, &oltMetricsCache, &oltStatusCache, &oltStatusWalkOK, &oltRatesCache, logger)
-		if !ok {
-			continue
-		}
-
-		if oltStatusWalkOK[oltKey] && !oltPruned[oltKey] {
-			if !syncOntsWithDiscovery(*olt, ontService, logger) {
-				continue
-			}
-			oltPruned[oltKey] = true
-		}
-
-		if oltStatusWalkOK[oltKey] {
-			if _, found := lookupByPortAndONT(oltStatusCache[oltKey], ont.PortID, ont.ONTID); !found {
-				continue
-			}
-		}
-
-		processOnt(db, olt.Slot, oltMetricsCache[oltKey], oltStatusCache[oltKey], oltRatesCache[oltKey], ont, metricsService, eventService, logger)
+		pollOLT(db, olts[i], ontService, metricsService, eventService, logger)
 	}
 
 	recordHeartbeat(db, logger)
@@ -210,17 +177,6 @@ func updateOLTConnectionStatus(db *gorm.DB, oltID uuid.UUID, status models.OLTSt
 	}
 	return nil
 }
-
-func lookupByPortAndONT[T any](entries map[connectivity.ONTLocation]T, portID, ontID int) (T, bool) {
-	for loc, value := range entries {
-		if loc.Port == portID && loc.ONTID == ontID {
-			return value, true
-		}
-	}
-	var zero T
-	return zero, false
-}
-
 func discoverONTsForSync(olt models.OLT) ([]connectivity.DiscoveredONT, error) {
 	driver, err := connectivity.DriverFor(olt.Model)
 	if err != nil {
