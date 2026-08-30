@@ -12,6 +12,11 @@ export const API_ENDPOINTS = {
   SITES: "/api/v1/sites",
   SITE_BY_ID: (id: string) => `/api/v1/sites/${id}`,
 
+  // Settings
+  SETTINGS: "/api/v1/settings",
+  SETTINGS_BROWSER: "/api/v1/settings/browser",
+  SETTING_BY_NAME: (name: string) => `/api/v1/settings/${name}`,
+
   // OLTs
   OLTS: "/api/v1/olts",
   OLT_BY_ID: (id: string) => `/api/v1/olts/${id}`,

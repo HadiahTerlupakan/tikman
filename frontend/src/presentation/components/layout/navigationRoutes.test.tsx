@@ -19,6 +19,12 @@ describe("buildNavigationRoutes", () => {
     expect(paths(undefined)).not.toContain("/users");
   });
 
+  it("shows Settings only to an admin, since it holds credentials", () => {
+    expect(paths(UserRole.ADMIN)).toContain("/settings");
+    expect(paths(UserRole.TECHNICIAN)).not.toContain("/settings");
+    expect(paths(undefined)).not.toContain("/settings");
+  });
+
   it("gives every entry a path and a name", () => {
     for (const route of buildNavigationRoutes(UserRole.ADMIN)) {
       expect(route.path).toMatch(/^\//);

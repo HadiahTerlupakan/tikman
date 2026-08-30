@@ -11,3 +11,4 @@ export * from "./useConfigTemplates";
 export * from "./useProvisioning";
 export * from "./useZteProvisioning";
 export * from "./useWireguard";
+export * from "./useSettings";

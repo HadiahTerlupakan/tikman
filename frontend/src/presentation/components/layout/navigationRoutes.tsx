@@ -8,6 +8,7 @@ import {
   QuestionCircleOutlined,
   FileTextOutlined,
   CloudServerOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { UserRole } from "@/domain/entities";
@@ -40,7 +41,10 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     { path: "/graphs", name: "Graphs", icon: <BarChartOutlined /> },
     { path: "/vpn", name: "VPN", icon: <CloudServerOutlined /> },
     ...(role === UserRole.ADMIN
-      ? [{ path: "/users", name: "Users", icon: <UserOutlined /> }]
+      ? [
+          { path: "/users", name: "Users", icon: <UserOutlined /> },
+          { path: "/settings", name: "Settings", icon: <SettingOutlined /> },
+        ]
       : []),
   ];
 }

@@ -13,6 +13,7 @@ import OntsPage from "../pages/OntListPage";
 import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
 import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
 import VpnPage from "../pages/VpnPage";
+import SettingsPage from "../pages/SettingsPage";
 import NotFoundPage from "../pages/NotFound";
 
 // Graphs is the only route that pulls in recharts, so it loads on demand to keep
@@ -68,6 +69,10 @@ export const router = createBrowserRouter([
           {
             path: "vpn",
             element: <VpnPage />,
+          },
+          {
+            path: "settings",
+            element: <SettingsPage />,
           },
           {
             path: "graphs",
