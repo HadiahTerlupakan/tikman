@@ -53,6 +53,15 @@ export function SiteModal({
       .then((values) => {
         const latitude = parseCoordinate(values.latitude ?? "");
         const longitude = parseCoordinate(values.longitude ?? "");
+        // Leaving both fields empty on a site that had a pin is a request to
+        // remove it, and the API cannot tell an omitted coordinate from a null
+        // one -- so say so rather than sending nothing and reporting success.
+        const clearing =
+          site !== undefined &&
+          latitude === null &&
+          longitude === null &&
+          site.latitude !== undefined &&
+          site.longitude !== undefined;
 
         onSubmit({
           name: values.name,
@@ -61,6 +70,7 @@ export function SiteModal({
           ...(latitude !== null && longitude !== null
             ? { latitude, longitude }
             : {}),
+          ...(clearing ? { clearCoordinates: true } : {}),
         });
       })
       // antd renders each failure against its own field, so there is nothing

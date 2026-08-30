@@ -162,11 +162,16 @@ func (h *SiteHandler) Update(c *gin.Context) {
 	if req.Description != nil {
 		updates["description"] = *req.Description
 	}
-	if req.Latitude != nil {
-		updates["latitude"] = req.Latitude
-	}
-	if req.Longitude != nil {
-		updates["longitude"] = req.Longitude
+	if req.ClearCoordinates {
+		updates["latitude"] = (*float64)(nil)
+		updates["longitude"] = (*float64)(nil)
+	} else {
+		if req.Latitude != nil {
+			updates["latitude"] = req.Latitude
+		}
+		if req.Longitude != nil {
+			updates["longitude"] = req.Longitude
+		}
 	}
 
 	if err := h.service.Update(id, updates); err != nil {

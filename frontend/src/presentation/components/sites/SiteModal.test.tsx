@@ -96,6 +96,48 @@ describe("SiteModal", () => {
     );
   });
 
+  it("asks the API to clear the pin when both fields are emptied", async () => {
+    // A JSON null and an omitted key look identical to the API, so sending
+    // nothing would report success and leave the wrong pin on the map.
+    const onSubmit = vi.fn();
+    const site: Site = { ...baseSite, latitude: -6.4025, longitude: 106.7942 };
+    render(
+      <SiteModal
+        open
+        site={site}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        loading={false}
+      />,
+    );
+
+    await userEvent.clear(await screen.findByLabelText("Latitude"));
+    await userEvent.clear(screen.getByLabelText("Longitude"));
+    await userEvent.click(screen.getByRole("button", { name: /ok/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ clearCoordinates: true }),
+    );
+    expect(onSubmit.mock.calls[0][0].latitude).toBeUndefined();
+  });
+
+  it("does not ask to clear a pin on a site that never had one", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <SiteModal
+        open
+        site={baseSite}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        loading={false}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /ok/i }));
+
+    expect(onSubmit.mock.calls[0][0].clearCoordinates).toBeUndefined();
+  });
+
   it("leaves coordinates empty for a site that has none, and still saves", async () => {
     const onSubmit = vi.fn();
     render(

@@ -21,6 +21,11 @@ type UpdateSiteRequest struct {
 	Description *string  `json:"description"`
 	Latitude    *float64 `json:"latitude" binding:"omitempty,min=-90,max=90"`
 	Longitude   *float64 `json:"longitude" binding:"omitempty,min=-180,max=180"`
+	// A nil Latitude cannot be told apart from an omitted one, so removing a
+	// wrongly placed pin needs its own flag. Without it the operator clears
+	// both fields, is told the site was updated, and reopens the form to find
+	// the old coordinates back.
+	ClearCoordinates bool `json:"clear_coordinates"`
 }
 
 type SiteResponse struct {
