@@ -35,8 +35,10 @@ func AuthMiddleware(store *auth.Store, logger *zap.Logger) gin.HandlerFunc {
 		}
 
 		if err := store.Refresh(token); err != nil {
+			// The user is logged, never the token: it is a live credential, and
+			// anyone who can read the log could replay it as that user.
 			logger.Error("Failed to refresh session TTL",
-				zap.String("token", token),
+				zap.String("user_id", sessionData.UserID.String()),
 				zap.Error(err),
 			)
 		}
