@@ -13,6 +13,11 @@ COPY . .
 # ont_poll.go, and naming a single file leaves the rest out and fails to build.
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker ./cmd/worker
 
+# snmpbench measures what an OLT's SNMP agent will serve. It ships in this image
+# because it has to run from inside the tunnel, which is this container's
+# network namespace, and it reads the OLT through the same config the worker does.
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o snmpbench ./cmd/snmpbench
+
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates openssh-client
@@ -20,5 +25,6 @@ RUN apk --no-cache add ca-certificates openssh-client
 WORKDIR /root/
 
 COPY --from=builder /app/worker .
+COPY --from=builder /app/snmpbench .
 
 CMD ["./worker"]
