@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { OltStatus, OntStatus, UserRole } from "@/domain/entities";
+import { OltStatus, UserRole } from "@/domain/entities";
+import type { DashboardStats } from "@/domain/entities";
 import DashboardPage from "../Dashboard";
 
 interface QueryLike<T> {
@@ -9,22 +10,21 @@ interface QueryLike<T> {
   error: unknown;
 }
 
-interface OntRow {
-  id: string;
-  status: OntStatus;
-  oltId?: string;
-  oltName?: string;
-  name?: string;
-  serialNumber?: string;
-  rxPower?: number | null;
-}
+const noOnts = {
+  total: 0,
+  online: 0,
+  offline: 0,
+  los: 0,
+  dyingGasp: 0,
+  unknown: 0,
+};
 
 const state: {
   sites: QueryLike<{ id: string }[]>;
   olts: QueryLike<
     { id: string; name: string; status: OltStatus; ipAddress?: string }[]
   >;
-  onts: QueryLike<{ data: OntRow[]; total: number }>;
+  stats: QueryLike<DashboardStats>;
   peers: QueryLike<
     {
       id: string;
@@ -38,7 +38,11 @@ const state: {
 } = {
   sites: { data: [{ id: "s1" }], isLoading: false, error: null },
   olts: { data: [], isLoading: false, error: null },
-  onts: { data: { data: [], total: 0 }, isLoading: false, error: null },
+  stats: {
+    data: { onts: noOnts, olts: [], weakestSignals: [] },
+    isLoading: false,
+    error: null,
+  },
   peers: { data: [], isLoading: false, error: null },
 };
 
@@ -46,7 +50,11 @@ vi.mock("@/application/hooks", () => ({
   useUsers: () => ({ data: [{ id: "u1" }], isLoading: false }),
   useSites: () => state.sites,
   useOlts: () => state.olts,
-  useOnts: () => ({ ...state.onts, isFetching: false, dataUpdatedAt: 0 }),
+  useDashboardStats: () => ({
+    ...state.stats,
+    isFetching: false,
+    dataUpdatedAt: 0,
+  }),
   useWireguardPeers: () => state.peers,
   useHealth: () => ({
     data: {
@@ -76,13 +84,28 @@ describe("DashboardPage", () => {
       isLoading: false,
       error: null,
     };
-    state.onts = {
+    state.stats = {
       data: {
-        data: [
-          { id: "t1", status: OntStatus.ONLINE, oltId: "o1" },
-          { id: "t2", status: OntStatus.LOS, oltId: "o2" },
+        onts: { ...noOnts, total: 2, online: 1, los: 1 },
+        olts: [
+          {
+            oltId: "o1",
+            oltName: "Depok",
+            oltStatus: OltStatus.ONLINE,
+            ontTotal: 1,
+            online: 1,
+            impaired: 0,
+          },
+          {
+            oltId: "o2",
+            oltName: "Bekasi",
+            oltStatus: OltStatus.ERROR,
+            ontTotal: 1,
+            online: 0,
+            impaired: 1,
+          },
         ],
-        total: 2,
+        weakestSignals: [],
       },
       isLoading: false,
       error: null,
@@ -111,12 +134,15 @@ describe("DashboardPage", () => {
     expect(names[0]).toBe("Bekasi");
   });
 
-  it("says so when the breakdown covers only part of the network", () => {
-    // Silently describing 500 of 900 ONTs would understate every fault count.
-    state.onts = {
+  it("reports the whole network rather than a page of it", () => {
+    // The page used to count the rows one request returned, so a 930-ONT
+    // network read as 500. The figures come from the server's own count now,
+    // and no ONT row reaches the browser at all.
+    state.stats = {
       data: {
-        data: [{ id: "t1", status: OntStatus.ONLINE, oltId: "o1" }],
-        total: 900,
+        onts: { ...noOnts, total: 930, online: 462, offline: 446, los: 22 },
+        olts: [],
+        weakestSignals: [],
       },
       isLoading: false,
       error: null,
@@ -124,26 +150,24 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />);
 
-    expect(
-      screen.getByText(/covers the 1 most recent ONTs of 900/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("930")).toBeInTheDocument();
+    expect(screen.getByText("462 of 930 online")).toBeInTheDocument();
   });
 
   it("lists the online ONT receiving the least light", () => {
-    state.onts = {
+    state.stats = {
       data: {
-        data: [
+        onts: { ...noOnts, total: 1, online: 1 },
+        olts: [],
+        weakestSignals: [
           {
             id: "t1",
-            status: OntStatus.ONLINE,
-            oltId: "o1",
-            oltName: "Depok",
             name: "Pelanggan A",
             serialNumber: "ZTEG1",
+            oltName: "Depok",
             rxPower: -28.4,
           },
         ],
-        total: 1,
       },
       isLoading: false,
       error: null,
@@ -217,8 +241,8 @@ describe("DashboardPage", () => {
 
   it("invites the operator to register hardware when nothing exists yet", () => {
     state.olts = { data: [], isLoading: false, error: null };
-    state.onts = {
-      data: { data: [], total: 0 },
+    state.stats = {
+      data: { onts: noOnts, olts: [], weakestSignals: [] },
       isLoading: false,
       error: null,
     };

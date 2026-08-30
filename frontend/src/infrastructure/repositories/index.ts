@@ -4,6 +4,7 @@ export * from "./SiteRepository";
 export * from "./OltRepository";
 export * from "./OntRepository";
 export * from "./HealthRepository";
+export * from "./DashboardRepository";
 export * from "./ZteProvisioningRepository";
 export * from "./WireguardRepository";
 export * from "./SettingRepository";

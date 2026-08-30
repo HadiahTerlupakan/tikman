@@ -17,6 +17,7 @@ import type { Olt } from "@/domain/entities/Olt";
 import { OntStatus, type Ont } from "@/domain/entities/Ont";
 import { useOnts } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
+import { ONT_FETCH_LIMIT } from "@/shared/config/limits";
 import { describeOntCoverage, filterOntsByQuery } from "./graphsFilter";
 
 const { Option } = Select;
@@ -27,7 +28,6 @@ type TrafficBucket = "hour" | "day" | "month";
 // The list endpoint's ceiling. Without asking for it the page took the default
 // of 20, so an OLT with 200 ONTs graphed the first 20 and the search box could
 // not find any of the rest.
-const ONT_FETCH_LIMIT = 500;
 
 function getTrafficBucket(): TrafficBucket {
   // Always use "hour" (5-minute buckets) for custom ranges to match period views

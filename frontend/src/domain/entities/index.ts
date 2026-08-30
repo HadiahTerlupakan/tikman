@@ -11,3 +11,4 @@ export * from "./Health";
 export * from "./ZteProvisioning";
 export * from "./Wireguard";
 export * from "./Setting";
+export * from "./Dashboard";

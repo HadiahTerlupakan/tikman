@@ -1,5 +1,6 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
+import { ONT_FETCH_LIMIT } from "@/shared/config/limits";
 import type { IOntRepository } from "@/domain/repositories";
 import type {
   Ont,
@@ -27,9 +28,9 @@ export class OntRepository implements IOntRepository {
       status: params?.status,
       start_time: params?.startTime,
       end_time: params?.endTime,
-      // Default to 500 (backend's max) for dashboard summary views,
-      // but allow caller to specify smaller limits for paginated lists
-      limit: params?.limit || 500,
+      // A caller that names no limit wants the whole list, so it gets the
+      // shared ceiling rather than a page size that quietly hides rows.
+      limit: params?.limit || ONT_FETCH_LIMIT,
       offset: params?.offset || 0,
     };
 

@@ -32,6 +32,16 @@ func NewONTHandler(ontService *services.ONTService, metricsService *services.Met
 }
 
 // List handles GET /api/v1/onts
+// maxONTPageSize bounds one page of ONTs. The old cap of 500 sat below a single
+// populated chassis — Cariu carries 651 — so a caller asking for 1000 was
+// silently answered with 500, and every page that counted the rows it received
+// understated the network without saying so. A full ZTE C320 fits inside this.
+//
+// It is a ceiling, not a page size to aim for: the overview reads
+// /dashboard/stats instead, because counting rows in the browser is what made a
+// cap load-bearing in the first place.
+const maxONTPageSize = 5000
+
 func (h *ONTHandler) List(c *gin.Context) {
 	var oltID *uuid.UUID
 	var status *models.ONTStatus
@@ -81,15 +91,13 @@ func (h *ONTHandler) List(c *gin.Context) {
 		endTime = &t
 	}
 
-	// Parse pagination - Allow up to 500 items per request for frontend display
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Validate limit (max 500 to prevent performance issues)
 	if limit < 1 {
-		limit = 500 // Default to showing max items at once
-	} else if limit > 500 {
-		limit = 500 // Cap at 500 for safety
+		limit = maxONTPageSize
+	} else if limit > maxONTPageSize {
+		limit = maxONTPageSize
 	}
 
 	onts, total, err := h.ontService.ListWithMetricsFilter(oltID, status, startTime, endTime, limit, offset)

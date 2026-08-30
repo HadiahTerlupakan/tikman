@@ -26,6 +26,7 @@ import { OltPortGrid } from "../components/olts/config/OltPortGrid";
 import { OltProfileList } from "../components/olts/config/OltProfileList";
 import { OltSpeedTable } from "../components/olts/config/OltSpeedTable";
 import { OltVlanTable } from "../components/olts/config/OltVlanTable";
+import { ONT_FETCH_LIMIT } from "@/shared/config/limits";
 
 const { Title, Text } = Typography;
 
@@ -38,7 +39,7 @@ export default function OltConfigurationPage() {
   const { data: snapshot, isLoading } = useOltSystem(id);
   const { data: vlans } = useOltVlans(id);
   const { data: vlanProfiles } = useOltVlanProfiles(id);
-  const { data: ontPage } = useOnts({ oltId: id, limit: 500 });
+  const { data: ontPage } = useOnts({ oltId: id, limit: ONT_FETCH_LIMIT });
   const refresh = useRefreshOltSystem(id);
 
   const onts = useMemo(() => ontPage?.data ?? [], [ontPage]);

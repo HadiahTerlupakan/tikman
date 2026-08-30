@@ -1,23 +1,15 @@
-import { OltStatus, OntStatus } from "@/domain/entities";
-import type { Olt, Ont } from "@/domain/entities";
+import { OltStatus } from "@/domain/entities";
+import type {
+  Olt,
+  OltBreakdownRow,
+  WeakSignalReading,
+} from "@/domain/entities";
 
 export interface OltSummary {
   total: number;
   online: number;
   offline: number;
   error: number;
-}
-
-export interface OntSummary {
-  /** Rows the server returned. The buckets below describe exactly these. */
-  counted: number;
-  /** What the server says exists. Exceeds counted when the page hit its cap. */
-  total: number;
-  online: number;
-  offline: number;
-  los: number;
-  dyingGasp: number;
-  unknown: number;
 }
 
 export function summariseOlts(olts: Olt[] | undefined): OltSummary {
@@ -28,33 +20,6 @@ export function summariseOlts(olts: Olt[] | undefined): OltSummary {
     offline: list.filter((o) => o.status === OltStatus.OFFLINE).length,
     error: list.filter((o) => o.status === OltStatus.ERROR).length,
   };
-}
-
-// reportedTotal comes from the list response, which the API caps at 500 rows.
-// Counting the rows instead would understate a network larger than the cap
-// without ever saying so.
-export function summariseOnts(
-  onts: Ont[] | undefined,
-  reportedTotal?: number,
-): OntSummary {
-  const list = Array.isArray(onts) ? onts : [];
-  const count = (status: OntStatus) =>
-    list.filter((o) => o.status === status).length;
-
-  return {
-    counted: list.length,
-    total: reportedTotal ?? list.length,
-    online: count(OntStatus.ONLINE),
-    offline: count(OntStatus.OFFLINE),
-    los: count(OntStatus.LOS),
-    dyingGasp: count(OntStatus.DYING_GASP),
-    unknown: count(OntStatus.UNKNOWN),
-  };
-}
-
-/** True when the buckets describe only part of the network. */
-export function isPartialSummary(summary: OntSummary): boolean {
-  return summary.total > summary.counted;
 }
 
 export interface OltBreakdown {
@@ -68,33 +33,19 @@ export interface OltBreakdown {
   availability: number | null;
 }
 
-// The OLT list is the authority for which OLTs exist: an OLT with no ONTs still
-// belongs on the board, and an ONT pointing at an OLT that is not in the list
-// would be a row nobody could act on.
-export function summariseByOlt(
-  olts: Olt[] | undefined,
-  onts: Ont[] | undefined,
+// The server counts every ONT; ranking and the availability percentage stay
+// here because they are how the table is read, not what it contains.
+export function rankOltRows(
+  rows: OltBreakdownRow[] | undefined,
 ): OltBreakdown[] {
-  const ontList = Array.isArray(onts) ? onts : [];
+  const list = Array.isArray(rows) ? rows : [];
 
-  const rows = (Array.isArray(olts) ? olts : []).map((olt) => {
-    const owned = ontList.filter((ont) => ont.oltId === olt.id);
-    const online = owned.filter(
-      (ont) => ont.status === OntStatus.ONLINE,
-    ).length;
-
-    return {
-      oltId: olt.id,
-      oltName: olt.name,
-      oltStatus: olt.status,
-      ontTotal: owned.length,
-      online,
-      impaired: owned.length - online,
-      availability: uptimePercent(online, owned.length),
-    };
-  });
-
-  return rows.sort(compareByNeedForAttention);
+  return list
+    .map((row) => ({
+      ...row,
+      availability: uptimePercent(row.online, row.ontTotal),
+    }))
+    .sort(compareByNeedForAttention);
 }
 
 // Worst availability first: the point of the table is to answer "where do I
@@ -120,30 +71,15 @@ export interface WeakSignal {
   rxPower: number;
 }
 
-// Only online ONTs qualify. An offline ONT reports whatever it last measured
-// before it went dark, and those stale readings are the most negative in the
-// set — they would fill the list and hide the ONTs that are still up and
-// degrading, which are the ones worth a site visit.
-export function weakestSignals(
-  onts: Ont[] | undefined,
-  limit = 5,
+// The OLT labels an ONU inconsistently, so a reading with no name falls back to
+// the serial, which is what a technician matches against the box in the field.
+export function toWeakSignals(
+  readings: WeakSignalReading[] | undefined,
 ): WeakSignal[] {
-  const list = Array.isArray(onts) ? onts : [];
-
-  return list
-    .filter(
-      (ont): ont is Ont & { rxPower: number } =>
-        ont.status === OntStatus.ONLINE && typeof ont.rxPower === "number",
-    )
-    .sort((a, b) => a.rxPower - b.rxPower)
-    .slice(0, limit)
-    .map((ont) => ({
-      id: ont.id,
-      name: ont.name || ont.serialNumber,
-      serialNumber: ont.serialNumber,
-      oltName: ont.oltName,
-      rxPower: ont.rxPower,
-    }));
+  return (Array.isArray(readings) ? readings : []).map((reading) => ({
+    ...reading,
+    name: reading.name || reading.serialNumber,
+  }));
 }
 
 // GPON Class B+ optics are specified down to -27 dBm, so a link below that is

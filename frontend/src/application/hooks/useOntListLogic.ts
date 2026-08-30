@@ -7,6 +7,7 @@ import {
 } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import { OntRepository } from "@/infrastructure/repositories/OntRepository";
+import { ONT_FETCH_LIMIT } from "@/shared/config/limits";
 import { matchesOntFilters } from "./ontFilters";
 import type { Ont, CreateOntDto, OntStatus } from "@/domain/entities";
 
@@ -65,7 +66,7 @@ export function useOntListLogic() {
     // with more than 1000 ONTs would silently lose the remainder. Upgrade path is
     // server-side pagination: pass offset from the table's page and drive the
     // total from the response instead of from the fetched array.
-    limit: 1000,
+    limit: ONT_FETCH_LIMIT,
     offset: 0,
   });
 

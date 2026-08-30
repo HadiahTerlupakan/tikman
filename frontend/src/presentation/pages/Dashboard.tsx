@@ -9,7 +9,7 @@ import {
   useUsers,
   useSites,
   useOlts,
-  useOnts,
+  useDashboardStats,
   useHealth,
   useWireguardPeers,
 } from "@/application/hooks";
@@ -28,12 +28,10 @@ import {
 } from "../components/dashboard";
 import {
   availabilityTone,
-  isPartialSummary,
-  summariseByOlt,
+  rankOltRows,
   summariseOlts,
-  summariseOnts,
+  toWeakSignals,
   uptimePercent,
-  weakestSignals,
 } from "./dashboardStats";
 
 export default function DashboardPage() {
@@ -48,12 +46,12 @@ export default function DashboardPage() {
   } = useSites();
   const { data: olts, isLoading: oltsLoading, error: oltsError } = useOlts();
   const {
-    data: ontPage,
-    isLoading: ontsLoading,
-    isFetching: ontsFetching,
+    data: stats,
+    isLoading: statsLoading,
+    isFetching: statsFetching,
     dataUpdatedAt,
-    error: ontsError,
-  } = useOnts();
+    error: statsError,
+  } = useDashboardStats();
   const { data: health, isLoading: healthLoading } = useHealth();
   const {
     data: peers,
@@ -62,20 +60,24 @@ export default function DashboardPage() {
   } = useWireguardPeers();
 
   const oltSummary = summariseOlts(olts);
-  const ontSummary = summariseOnts(ontPage?.data, ontPage?.total);
+  const ontCounts = stats?.onts;
   const oltUptime = uptimePercent(oltSummary.online, oltSummary.total);
-  const ontUptime = uptimePercent(ontSummary.online, ontSummary.counted);
-  const oltRows = summariseByOlt(olts, ontPage?.data);
-  const signals = weakestSignals(ontPage?.data);
+  const ontUptime = uptimePercent(
+    ontCounts?.online ?? 0,
+    ontCounts?.total ?? 0,
+  );
+  const oltRows = rankOltRows(stats?.olts);
+  const signals = toWeakSignals(stats?.weakestSignals);
 
   // A failed query must render a dash, not 0 — a zero here is indistinguishable
   // from a healthy empty system.
-  const ontValue = (n: number) => (ontsError ? null : n);
+  const ontValue = (n: number | undefined) =>
+    statsError || n === undefined ? null : n;
 
   const failed = [
     sitesError && "sites",
     oltsError && "OLTs",
-    ontsError && "ONTs",
+    statsError && "ONT statistics",
   ].filter(Boolean);
 
   return (
@@ -84,7 +86,7 @@ export default function DashboardPage() {
         title="Dashboard Overview"
         description="Monitor your OLT provisioning system in real-time"
         extra={
-          <LastUpdated updatedAt={dataUpdatedAt} isFetching={ontsFetching} />
+          <LastUpdated updatedAt={dataUpdatedAt} isFetching={statsFetching} />
         }
       />
 
@@ -131,13 +133,13 @@ export default function DashboardPage() {
         <Col xs={24} sm={12} xl={isAdmin ? 6 : 8}>
           <SummaryCard
             label="Total ONTs"
-            value={ontsError ? null : ontSummary.total}
-            isLoading={ontsLoading}
+            value={ontValue(ontCounts?.total)}
+            isLoading={statsLoading}
             icon={<ClusterOutlined />}
             caption={
               ontUptime === null
                 ? "No ONTs registered"
-                : `${ontSummary.online} of ${ontSummary.counted} online`
+                : `${ontCounts?.online ?? 0} of ${ontCounts?.total ?? 0} online`
             }
           />
         </Col>
@@ -147,52 +149,40 @@ export default function DashboardPage() {
         <Col xs={24} lg={16}>
           <DarkCard title="ONT Status" style={{ height: "100%" }}>
             <StatusBar
-              isLoading={ontsLoading}
-              total={ontSummary.counted}
+              isLoading={statsLoading}
+              total={ontCounts?.total ?? 0}
               emptyText="No ONTs registered yet"
               segments={[
                 {
                   label: "Online",
                   tone: "success",
-                  value: ontValue(ontSummary.online),
+                  value: ontValue(ontCounts?.online),
                 },
                 {
                   label: "Offline",
                   tone: "neutral",
-                  value: ontValue(ontSummary.offline),
+                  value: ontValue(ontCounts?.offline),
                 },
                 {
                   label: "LOS",
                   tone: "danger",
-                  value: ontValue(ontSummary.los),
+                  value: ontValue(ontCounts?.los),
                   hint: "Signal lost",
                 },
                 {
                   label: "Dying Gasp",
                   tone: "warning",
-                  value: ontValue(ontSummary.dyingGasp),
+                  value: ontValue(ontCounts?.dyingGasp),
                   hint: "Power lost",
                 },
                 {
                   label: "Unknown",
                   tone: "neutral",
-                  value: ontValue(ontSummary.unknown),
+                  value: ontValue(ontCounts?.unknown),
                   hint: "Not yet polled",
                 },
               ]}
             />
-            {isPartialSummary(ontSummary) && (
-              <div
-                style={{
-                  marginTop: 16,
-                  color: colors.textMuted,
-                  fontSize: 12,
-                }}
-              >
-                Breakdown covers the {ontSummary.counted} most recent ONTs of{" "}
-                {ontSummary.total}; the API returns at most 500 per request.
-              </div>
-            )}
           </DarkCard>
         </Col>
 
@@ -234,7 +224,7 @@ export default function DashboardPage() {
               >
                 {ontUptime === null
                   ? "No ONTs to measure"
-                  : `${ontSummary.online} of ${ontSummary.counted} ONTs online`}
+                  : `${ontCounts?.online ?? 0} of ${ontCounts?.total ?? 0} ONTs online`}
               </div>
             </div>
           </DarkCard>
@@ -245,8 +235,8 @@ export default function DashboardPage() {
         <Col xs={24} lg={16}>
           <DarkCard title="Status by OLT" style={{ height: "100%" }}>
             <OltBreakdownTable
-              rows={oltsError ? [] : oltRows}
-              isLoading={oltsLoading || ontsLoading}
+              rows={statsError ? [] : oltRows}
+              isLoading={statsLoading}
             />
           </DarkCard>
         </Col>
@@ -264,7 +254,7 @@ export default function DashboardPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={16}>
           <DarkCard title="Weakest Optical Signal" style={{ height: "100%" }}>
-            <WeakSignalList signals={signals} isLoading={ontsLoading} />
+            <WeakSignalList signals={signals} isLoading={statsLoading} />
           </DarkCard>
         </Col>
 

@@ -33,6 +33,7 @@ export const API_ENDPOINTS = {
 
   // ONTs
   ONTS: "/api/v1/onts",
+  DASHBOARD_STATS: "/api/v1/dashboard/stats",
   ONT_BY_ID: (id: string) => `/api/v1/onts/${id}`,
   ONT_LATEST_METRICS: (id: string) => `/api/v1/onts/${id}/metrics`,
   ONT_METRICS_HISTORY: (id: string) => `/api/v1/onts/${id}/metrics/history`,

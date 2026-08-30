@@ -63,6 +63,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	unconfiguredONUHandler := NewUnconfiguredONUHandler(unconfiguredONUService)
 	seedHandler := NewSeedHandler(db, cfg.EncryptionKey)
 	configTemplateHandler := NewConfigTemplateHandler(configTemplateService)
+	dashboardHandler := NewDashboardHandler(services.NewDashboardService(db))
 	wireguardHandler := NewWireGuardHandler(wgService, auditService)
 	settingHandler := NewSettingHandler(settingService, auditService)
 
@@ -115,6 +116,12 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			settings.GET("", middleware.RequireRole(models.UserRoleAdmin), settingHandler.List)
 			settings.PUT("/:name", middleware.RequireRole(models.UserRoleAdmin), settingHandler.Set)
 			settings.DELETE("/:name", middleware.RequireRole(models.UserRoleAdmin), settingHandler.Delete)
+		}
+
+		dashboard := api.Group("/dashboard")
+		dashboard.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			dashboard.GET("/stats", dashboardHandler.GetStats)
 		}
 
 		olts := api.Group("/olts")

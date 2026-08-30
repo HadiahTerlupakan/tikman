@@ -7,6 +7,7 @@ export * from "./useOntMetrics";
 export * from "./useOntEvents";
 export * from "./useUnconfiguredOnus";
 export * from "./useHealth";
+export * from "./useDashboardStats";
 export * from "./useConfigTemplates";
 export * from "./useProvisioning";
 export * from "./useZteProvisioning";
