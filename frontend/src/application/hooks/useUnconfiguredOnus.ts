@@ -3,9 +3,11 @@ import { OltRepository } from "@/infrastructure/repositories";
 
 const oltRepository = new OltRepository();
 
-// Each scan is a live SNMP walk against the OLT, so this polls far less often
-// than the cached list endpoints.
-const UNCONFIGURED_ONU_POLL_INTERVAL = 120000;
+// A scan is a live SNMP walk, but a measured one costs the OLT ~45ms and one to
+// three GETBULKs, so the interval is set by how soon an operator wants a newly
+// lit ONU to appear, not by load. The OLT's own autofind table takes seconds to
+// fill, which is the real floor.
+const UNCONFIGURED_ONU_POLL_INTERVAL = 15000;
 
 export function useUnconfiguredOnus(oltId?: string) {
   return useQuery({
