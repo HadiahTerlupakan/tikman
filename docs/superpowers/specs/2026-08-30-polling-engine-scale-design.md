@@ -229,6 +229,45 @@ Belum diukur, dan diperlukan sebelum A2: apakah agen melayani dua walk bersamaan
 lebih cepat secara total, yang menentukan apakah membagi walk per kartu ke
 beberapa worker ada gunanya, atau justru memperlambat.
 
+## Hasil A1
+
+Setelah GETBULK, plafon 1000 dicabut, indeks posisi, dan tulis batch, satu
+siklus diukur per fase:
+
+| OLT | ONT | SNMP | sync | lintasan ONT | total |
+|---|---|---|---|---|---|
+| Cariu | 651 | 41,3 s | 28,9 s | 2,7 s | 72,9 s |
+| Depok | 199 | 38–44 s | 36–41 s | 0,8 s | 75–85 s |
+| Bekasi | 80 | 3,1 s | 3,4 s | 0,4 s | 6,8 s |
+
+Tiga hal yang hanya terlihat karena diukur per fase:
+
+1. **Kerja per-ONT sudah bukan biaya.** Seluruh lintasan ONT — pencocokan,
+   perubahan status, event, dan tulis metrik batch — memakan 0,4 sampai 2,7
+   detik. Batching dan indeks posisi tetap diperlukan pada skala ratusan ribu,
+   tetapi tidak ada lagi yang bisa diperas dari sisi ini sekarang.
+2. **Chassis yang sama di-walk dua kali tiap siklus.** `readOLT` membaca status,
+   metrik, dan laju; lalu `syncOntsWithDiscovery` menjalankan walk discovery
+   penuh terhadap chassis yang sama. Itulah sebabnya `snmp` dan `sync` hampir
+   sama besar. Menjadwalkan discovery per jam alih-alih tiap siklus menghapus
+   sekitar separuh waktu siklus, dan itu satu-satunya penghematan terbesar yang
+   tersisa.
+3. **Waktu tidak sebanding dengan jumlah ONT.** Depok dengan 199 ONT memakan
+   waktu sama dengan Cariu yang 651. Yang menentukan adalah berapa tabel yang
+   di-walk dan secepat apa agen chassis itu. Penjadwalan di A2 karena itu harus
+   berbasis kapasitas terukur tiap chassis, bukan jumlah pelanggannya.
+
+Konsekuensi untuk A2: pemisahan tingkatan bukan sekadar penghematan tulis
+seperti yang diduga saat desain ditulis, melainkan penghematan **walk**. Tingkat
+`status` membaca satu tabel; `metrics` dan `discovery` berjalan jauh lebih
+jarang.
+
+### Masih terbuka
+
+`updateOntFields` menulis satu UPDATE per ONT ke tabel `onts`. Pada 930 ONT
+biayanya tenggelam di dalam 2,7 detik lintasan ONT dan belum layak diubah; pada
+ratusan ribu ia menjadi ratusan ribu UPDATE per siklus dan harus ikut dibatch.
+
 ## Risiko
 
 **Pengukuran RTT 7,3 ms dan ~140 nilai/detik berasal dari satu site.** Site lain

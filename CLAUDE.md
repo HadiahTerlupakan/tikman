@@ -51,6 +51,7 @@ go test -v -run TestFunctionName ./internal/services/
 - `cmd/worker/main.go` — OLT/ONT polling and monitoring events
 - `cmd/seed-events/main.go` — development event seeding utility
 - `cmd/probe_hsgq/main.go` — device probe utility
+- `cmd/snmpbench/main.go` — measures what an OLT's SNMP agent will serve (GETNEXT vs GETBULK at several repetition counts); must run from inside the WireGuard namespace, so it ships in the worker image
 
 **CI workflow:** `.github/workflows/ci.yml`
 - Backend: tests, race detector, coverage, `go vet`, `gofmt`, `go mod verify`, and API/worker builds
