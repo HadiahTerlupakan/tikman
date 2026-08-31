@@ -87,10 +87,6 @@ func main() {
 			zap.String("onu", identity.Label))
 	}
 
-	stopSweep := make(chan struct{})
-	defer close(stopSweep)
-	go store.sweepExpired(stopSweep)
-
 	go func() {
 		ticker := time.NewTicker(oltRefreshInterval)
 		defer ticker.Stop()

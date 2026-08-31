@@ -18,9 +18,13 @@ import (
 // before the SQL migrations, so a model that disagrees with its migration wins
 // and the migration silently does nothing.
 type ONTTrapEvent struct {
-	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	OLTID      uuid.UUID `gorm:"type:uuid;not null;index:idx_ont_trap_events_olt_time,priority:1" json:"olt_id"`
-	ReceivedAt time.Time `gorm:"not null;default:CURRENT_TIMESTAMP;index:idx_ont_trap_events_olt_time,priority:2,sort:desc" json:"received_at"`
+	ID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	OLTID uuid.UUID `gorm:"type:uuid;not null;index:idx_ont_trap_events_olt_time,priority:1" json:"olt_id"`
+	// ReceivedAt is part of the key because the table is a hypertable partitioned
+	// on it, and TimescaleDB requires the partitioning column in every unique
+	// index. Stated here so AutoMigrate, which runs first, agrees with the table
+	// migration 36 built rather than trying to put the key back on id alone.
+	ReceivedAt time.Time `gorm:"not null;default:CURRENT_TIMESTAMP;primaryKey;index:idx_ont_trap_events_olt_time,priority:2,sort:desc" json:"received_at"`
 
 	// column: is stated for both of these. GORM's naming strategy splits TrapOID
 	// into trap_o_id and ONUID into on_uid, and because AutoMigrate runs before

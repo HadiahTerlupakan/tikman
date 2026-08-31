@@ -41,6 +41,30 @@ const (
 	discoveryLease = 15 * time.Minute
 )
 
+// agentShare bounds how much of a chassis's SNMP agent this system takes: a
+// tier waits at least as long as its own last run took, twice over, so the
+// agent spends at most half its time answering us.
+const agentShare = 2
+
+// SpacingFor returns how long after a run of the given duration the tier is due
+// again.
+//
+// The tier's interval is a floor, not a promise. A ZTE agent serves about 140
+// values a second — measured, and the ceiling is its own CPU rather than the
+// network — so a chassis of ten thousand ONUs needs roughly 72 seconds to answer
+// one status walk. Holding such a chassis to the 60-second status tier would
+// poll it with no gap at all, leaving its agent nothing for the metrics and
+// discovery tiers queued behind. The interval therefore follows what each
+// chassis actually managed, which is what "derived from the capacity of each
+// chassis" has to mean in code.
+func SpacingFor(kind models.PollKind, took time.Duration) time.Duration {
+	tier := IntervalFor(kind)
+	if stretched := took * agentShare; stretched > tier {
+		return stretched
+	}
+	return tier
+}
+
 // maxBackoffShift caps the exponential backoff at 32 intervals, so an OLT that
 // has been unreachable for a week is still retried within a reasonable window
 // rather than drifting to never.
@@ -185,7 +209,7 @@ func (s *PollJobService) Complete(job *models.OLTPollJob, took time.Duration) er
 	return s.db.Model(&models.OLTPollJob{}).
 		Where("olt_id = ? AND kind = ?", job.OLTID, job.Kind).
 		Updates(map[string]interface{}{
-			"due_at":               now.Add(IntervalFor(job.Kind)),
+			"due_at":               now.Add(SpacingFor(job.Kind, took)),
 			"locked_by":            nil,
 			"locked_at":            nil,
 			"last_run_at":          now,
