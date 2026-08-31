@@ -15,7 +15,16 @@ import (
 const (
 	oidONUOffline = ".1.3.6.1.4.1.3902.1082.500.10.3.1.1"
 	oidONUOnline  = ".1.3.6.1.4.1.3902.1082.500.10.3.1.2"
-	oidUnproven   = ".1.3.6.1.4.1.3902.1082.500.10.3.1.16"
+	// The pair a C320 sends for the same states, which no OID list held.
+	oidONUOfflineC320 = ".1.3.6.1.4.1.3902.1082.500.10.3.1.9"
+	oidONUOnlineC320  = ".1.3.6.1.4.1.3902.1082.500.10.3.1.16"
+	// A board notification: outside the ONU family and never about a subscriber.
+	oidBoardNotice = ".1.3.6.1.4.1.3902.1082.20.10.3.1"
+
+	commRaised  = "public@eventId=40366@eventLevel=minor@confirm@20260211174422"
+	commMajor   = "public@eventId=5401608@eventLevel=major@confirm@20260830224728"
+	commCleared = "public@eventId=135432@eventLevel=cleared@confirm@20260809003658"
+	commNotice  = "public@eventId=135435@eventLevel=notification@20260809003658"
 )
 
 func setupApplyTestDB(t *testing.T) *gorm.DB {
@@ -59,37 +68,50 @@ func countEvents(t *testing.T, db *gorm.DB, ontID uuid.UUID) int64 {
 	return n
 }
 
-func TestTrapStatusReadsTheOIDsTheEvidenceEstablished(t *testing.T) {
-	cases := map[string]models.ONTStatus{
-		oidONUOffline:                          models.ONTStatusOffline,
-		oidONUOnline:                           models.ONTStatusOnline,
-		".1.3.6.1.4.1.3902.1082.500.10.3.1.23": models.ONTStatusOffline,
-		".1.3.6.1.4.1.3902.1082.500.10.3.1.24": models.ONTStatusOnline,
-		// Agents are inconsistent about the leading dot, and a status must not
-		// hinge on punctuation.
-		"1.3.6.1.4.1.3902.1082.500.10.3.1.2": models.ONTStatusOnline,
+func TestTrapStatusReadsTheSeverityTheDeviceStates(t *testing.T) {
+	cases := []struct {
+		name      string
+		oid       string
+		community string
+		want      models.ONTStatus
+	}{
+		{"C300 alarm raised", oidONUOffline, commMajor, models.ONTStatusOffline},
+		{"C300 alarm cleared", oidONUOnline, commCleared, models.ONTStatusOnline},
+		// The C320 pairs carry different OIDs for the same two states, which is
+		// why the severity rather than the OID decides.
+		{"C320 alarm raised", oidONUOfflineC320, commRaised, models.ONTStatusOffline},
+		{"C320 alarm cleared", oidONUOnlineC320, commCleared, models.ONTStatusOnline},
 	}
 
-	for oid, want := range cases {
-		got, known := trapStatus(oid)
-		assert.True(t, known, oid)
-		assert.Equal(t, want, got, oid)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, known := trapStatus(tc.oid, tc.community)
+			assert.True(t, known)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 
-func TestTrapStatusRefusesAnOIDTheEvidenceDoesNotEstablish(t *testing.T) {
-	// .9, .10, .15 and .16 pair up like the others but were seen too rarely
-	// before a status transition to say which way round they run. Acting on
-	// them would be the guess this whole path exists to avoid.
-	for _, oid := range []string{
-		".1.3.6.1.4.1.3902.1082.500.10.3.1.9",
-		".1.3.6.1.4.1.3902.1082.500.10.3.1.10",
-		".1.3.6.1.4.1.3902.1082.500.10.3.1.15",
-		oidUnproven,
-		".1.3.6.1.4.1.3902.1082.500.20.3.1.129",
-	} {
-		_, known := trapStatus(oid)
-		assert.False(t, known, oid)
+func TestTrapStatusRefusesWhatIsNotAnONUAlarm(t *testing.T) {
+	cases := []struct {
+		name      string
+		oid       string
+		community string
+	}{
+		// Informational, not an alarm: it names no subscriber state.
+		{"notification level", oidONUOffline, commNotice},
+		// A severity on a board notification is not a subscriber's status, and
+		// the family prefix is what keeps this path off every other subtree.
+		{"outside the ONU family", oidBoardNotice, commRaised},
+		{"community carries no level", oidONUOffline, "public"},
+		{"empty community", oidONUOffline, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, known := trapStatus(tc.oid, tc.community)
+			assert.False(t, known)
+		})
 	}
 }
 
@@ -98,7 +120,7 @@ func TestApplyWritesTheStatusATrapReports(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusOnline)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline, Community: commMajor},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	assert.Equal(t, models.ONTStatusOffline, statusOf(t, db, ont.ID))
@@ -111,7 +133,7 @@ func TestApplyWritesNothingWhenTheONTAlreadyHoldsThatStatus(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusOnline)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOnline},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOnline, Community: commCleared},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	// A flapping ONU repeats its state; the poller does not open an event for an
@@ -119,12 +141,12 @@ func TestApplyWritesNothingWhenTheONTAlreadyHoldsThatStatus(t *testing.T) {
 	assert.Equal(t, int64(0), countEvents(t, db, ont.ID))
 }
 
-func TestApplyIgnoresATrapWhoseOIDMeaningIsNotEstablished(t *testing.T) {
+func TestApplyIgnoresATrapThatIsNotAnONUAlarm(t *testing.T) {
 	db := setupApplyTestDB(t)
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusOnline)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidUnproven},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidBoardNotice, Community: commRaised},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))
@@ -136,7 +158,7 @@ func TestApplyIgnoresATrapNamingAnONTTheOLTHasNoRowFor(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusOnline)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline, Community: commMajor},
 		onuIdentity{SerialNumber: "GGCLA6B8DC90"})
 
 	// An unregistered ONU is evidence worth keeping, which the trap record
@@ -151,7 +173,7 @@ func TestApplyRefusesAnONTBelongingToAnotherOLT(t *testing.T) {
 	// Same serial, different chassis. Serial numbers are not unique across
 	// OLTs, so matching on serial alone would let one site write another's
 	// subscriber offline.
-	newApplier(t, db).apply(Trap{OLTID: uuid.New(), OID: oidONUOffline},
+	newApplier(t, db).apply(Trap{OLTID: uuid.New(), OID: oidONUOffline, Community: commMajor},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))
@@ -162,7 +184,7 @@ func TestApplyIgnoresATrapThatNamesNoSerial(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusOnline)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline}, onuIdentity{})
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline, Community: commMajor}, onuIdentity{})
 
 	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))
 }
@@ -172,7 +194,7 @@ func TestApplyLeavesAMoreSpecificDownReasonAlone(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusLOS)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline, Community: commMajor},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	// The poller reads a phase state and can say los or dying_gasp; the trap
@@ -187,7 +209,7 @@ func TestApplyStillReportsAnONTComingBackUp(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusLOS)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOnline},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOnline, Community: commCleared},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))

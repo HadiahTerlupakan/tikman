@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -9,34 +10,56 @@ import (
 	"gorm.io/gorm"
 )
 
-// trapStatuses is what a notification OID says about an ONU.
+// onuTrapFamily is the subtree ZTE sends ONU state notifications under.
 //
-// Established by correlating 23,158 recorded traps against the status
-// transitions the poller wrote independently: for each transition, the last
-// trap for that ONT within the two minutes before it. `.2` preceded an online
-// status 265 times across 229 subscribers, `.24` 29 times across 22, `.23`
-// preceded offline 19 times across 15 and never online, and `.1` preceded
-// offline 40 times. A flapping ONU alternating `.2` and `.1` every few seconds
-// settled the pair independently: a `.1` at 05:07:54 was followed by the poller
-// recording `los` two seconds later.
+// It is the guard, not the meaning. Different chassis in this network use
+// different OIDs within it for the same two states — a C300 sends .1 and .2, a
+// C320 sends .9, .10, .15 and .16 — so an OID list would have to be extended for
+// every model met. What the subtree does establish is that the notification is
+// about an ONU at all, which keeps this path off board and system alarms.
+const onuTrapFamily = "1.3.6.1.4.1.3902.1082.500.10.3.1."
+
+// eventLevelField is how ZTE labels the severity it packs into the community.
+const eventLevelField = "eventLevel="
+
+// trapStatus reports the status a trap carries, when it carries one.
 //
-// The other pairs this chassis sends — `.9`/`.10` and `.15`/`.16` — are
-// deliberately absent. They behave like the ones above but were seen too rarely
-// before a transition to say which way round they run, and a status written
-// from a guess is the thing this whole path exists to avoid. They keep being
-// recorded, so the evidence for them accumulates.
-var trapStatuses = map[string]models.ONTStatus{
-	"1.3.6.1.4.1.3902.1082.500.10.3.1.1":  models.ONTStatusOffline,
-	"1.3.6.1.4.1.3902.1082.500.10.3.1.23": models.ONTStatusOffline,
-	"1.3.6.1.4.1.3902.1082.500.10.3.1.2":  models.ONTStatusOnline,
-	"1.3.6.1.4.1.3902.1082.500.10.3.1.24": models.ONTStatusOnline,
+// The severity comes from the device rather than from a table of ours: ZTE packs
+// the event's own level into the v2c community, as
+// "public@eventId=40366@eventLevel=minor@confirm@20260211174422". A cleared
+// alarm is an ONU that came back; any severity is one that went away.
+//
+// This was cross-checked against the other evidence before it was trusted:
+// correlating 23,158 recorded traps against the poller's own status transitions
+// had already established .1 as down and .2 as up on the C300, and the levels
+// those traps carry — major and cleared — say exactly the same thing.
+//
+// notification is deliberately not a state. Those traps name no subscriber and
+// carry no ONU varbinds; treating them as alarms would write a status from a
+// message that is not about a subscriber.
+func trapStatus(oid, community string) (models.ONTStatus, bool) {
+	if !strings.HasPrefix(normaliseOID(oid), onuTrapFamily) {
+		return "", false
+	}
+
+	switch severityOf(community) {
+	case "cleared":
+		return models.ONTStatusOnline, true
+	case "critical", "major", "minor", "warning":
+		return models.ONTStatusOffline, true
+	default:
+		return "", false
+	}
 }
 
-// trapStatus reports the status a notification OID carries, if it is one whose
-// meaning is established.
-func trapStatus(oid string) (models.ONTStatus, bool) {
-	status, known := trapStatuses[normaliseOID(oid)]
-	return status, known
+// severityOf reads the eventLevel field out of a trap's community string.
+func severityOf(community string) string {
+	for _, field := range strings.Split(community, "@") {
+		if level, found := strings.CutPrefix(field, eventLevelField); found {
+			return level
+		}
+	}
+	return ""
 }
 
 // statusApplier writes what a trap reports onto the subscriber it names.
@@ -64,7 +87,7 @@ func newStatusApplier(db *gorm.DB, logger *zap.Logger) *statusApplier {
 // deletes a row or concludes absence. The one-minute status poll remains the
 // truth and reconciles whatever a lost trap left stale.
 func (a *statusApplier) apply(trap Trap, identity onuIdentity) {
-	status, known := trapStatus(trap.OID)
+	status, known := trapStatus(trap.OID, trap.Community)
 	if !known || identity.SerialNumber == "" {
 		return
 	}

@@ -23,6 +23,10 @@ type Trap struct {
 	Source string
 	// OID names the notification.
 	OID string
+	// Community is the v2c community the trap arrived with. ZTE packs the
+	// event's own severity into it, which is the device stating what the
+	// notification means rather than us inferring it from the OID.
+	Community string
 	// Varbinds are the values it carried, in arrival order.
 	Varbinds []Varbind
 }
@@ -70,7 +74,12 @@ func parseTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr, findOLT oltFinder) 
 		return Trap{}, fmt.Errorf("trap from %s, which is not a known OLT", source)
 	}
 
-	trap := Trap{OLTID: oltID, Source: source, Varbinds: make([]Varbind, 0, len(packet.Variables))}
+	trap := Trap{
+		OLTID:     oltID,
+		Source:    source,
+		Community: packet.Community,
+		Varbinds:  make([]Varbind, 0, len(packet.Variables)),
+	}
 	for _, variable := range packet.Variables {
 		display, text := renderValue(variable)
 		if normaliseOID(variable.Name) == normaliseOID(snmpTrapOID) {
