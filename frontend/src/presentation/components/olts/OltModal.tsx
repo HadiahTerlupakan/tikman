@@ -22,6 +22,7 @@ import { parseCoordinate } from "@/presentation/components/sites/siteCoordinates
 import { useEffect, useState } from "react";
 import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { OltRepository } from "@/infrastructure/repositories/OltRepository";
+import { TrapSetupPanel } from "./TrapSetupPanel";
 
 interface OltModalProps {
   open: boolean;
@@ -51,6 +52,12 @@ export function OltModal({
     OltProtocol.SSH,
   );
   const oltRepository = new OltRepository();
+
+  // Watched rather than read on submit: the panel below shows the commands an
+  // operator pastes into the OLT, and they have to follow what is being typed.
+  const watchedSiteId = Form.useWatch("siteId", form);
+  const watchedIpAddress = Form.useWatch("ipAddress", form);
+  const watchedCommunity = Form.useWatch("snmpCommunity", form);
 
   useEffect(() => {
     if (!open) return; // Don't manipulate form before Modal opens
@@ -318,6 +325,12 @@ export function OltModal({
         <Form.Item name="snmpPort" label="SNMP Port">
           <InputNumber min={1} max={65535} style={{ width: "100%" }} />
         </Form.Item>
+
+        <TrapSetupPanel
+          siteId={watchedSiteId}
+          ipAddress={watchedIpAddress}
+          snmpCommunity={watchedCommunity}
+        />
       </Form>
     </Modal>
   );
