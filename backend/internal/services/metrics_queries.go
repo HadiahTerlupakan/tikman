@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,21 +35,62 @@ func (s *MetricsService) GetLatestMetrics(ontID uuid.UUID) (*ONTMetricsRow, erro
 	return &metrics, nil
 }
 
-// GetMetricsHistory retrieves metrics history for an ONT within a time range
+// GetMetricsHistory retrieves metrics history for an ONT within a time range,
+// reading whichever source still holds that range.
+//
+// Raw samples only survive a week. Asking them for a month returned an empty
+// chart while the five-minute and hourly rollups — kept for thirty days and a
+// year — sat unread beside them.
+//
+// A rollup is materialized on its own schedule, so a range reaching up to now
+// can lag by up to one refresh at its right-hand edge. That only applies to
+// ranges old enough to need a rollup at all, where a bucket's delay against a
+// month or a year of history is not what anyone is reading the chart for.
 func (s *MetricsService) GetMetricsHistory(ontID uuid.UUID, startTime, endTime time.Time) ([]ONTMetricsRow, error) {
 	var metrics []ONTMetricsRow
 
-	err := s.db.Raw(`
-		SELECT time, ont_id, rx_power, tx_power, temperature, voltage, distance, rx_bytes, tx_bytes
-		FROM ont_metrics
-		WHERE ont_id = $1 AND time >= $2 AND time <= $3
-		ORDER BY time DESC
-	`, ontID, startTime, endTime).Scan(&metrics).Error
+	source := sourceForRange(startTime, time.Now())
+	query := rawHistoryQuery
+	if source.aggregated() {
+		// Rollups carry averages over a bucket, and neither voltage nor
+		// distance is aggregated: those columns come back empty rather than
+		// wrong.
+		query = fmt.Sprintf(aggregateHistoryQuery, source)
+	}
 
+	err := s.db.Raw(query, ontID, startTime, endTime).Scan(&metrics).Error
 	return metrics, err
 }
 
-// GetLatestMetricsBatch retrieves the latest metrics for multiple ONTs in a single query
+const rawHistoryQuery = `
+	SELECT time, ont_id, rx_power, tx_power, temperature, voltage, distance, rx_bytes, tx_bytes
+	FROM ont_metrics
+	WHERE ont_id = $1 AND time >= $2 AND time <= $3
+	ORDER BY time DESC`
+
+const aggregateHistoryQuery = `
+	SELECT bucket AS time, ont_id,
+	       avg_rx_power AS rx_power, avg_tx_power AS tx_power,
+	       avg_temperature AS temperature,
+	       0 AS voltage, 0 AS distance,
+	       last_rx_bytes AS rx_bytes, last_tx_bytes AS tx_bytes
+	FROM %s
+	WHERE ont_id = $1 AND bucket >= $2 AND bucket <= $3
+	ORDER BY bucket DESC`
+
+// GetLatestMetricsBatch retrieves the latest metrics for multiple ONTs in a
+// single query.
+//
+// A lateral join, because the ROW_NUMBER version this replaces read every row
+// each ONT had ever recorded in order to keep one of them: measured against
+// production, nine ONTs cost 3,929 rows read to return nine, and the waste grew
+// with the retention window rather than with the page. Compressing the older
+// chunks made that scan more expensive still.
+//
+// LIMIT 1 against the (ont_id, time) index reads one row per ONT however long
+// the history is: nine ONTs now cost 37 buffer hits where the old query cost
+// 683. An ONT with no metrics yields no row, exactly as before, so a
+// chassis polled hours ago still shows its last reading rather than nothing.
 func (s *MetricsService) GetLatestMetricsBatch(ontIDs []uuid.UUID) (map[uuid.UUID]*ONTMetricsRow, error) {
 	if len(ontIDs) == 0 {
 		return make(map[uuid.UUID]*ONTMetricsRow), nil
@@ -57,19 +99,17 @@ func (s *MetricsService) GetLatestMetricsBatch(ontIDs []uuid.UUID) (map[uuid.UUI
 	var metrics []ONTMetricsRow
 
 	err := s.db.Raw(`
-		WITH ranked_metrics AS (
-			SELECT
-				time, ont_id, rx_power, tx_power, temperature, voltage, tx_bias_current,
-				distance, rx_bytes, tx_bytes, rx_packets, tx_packets, rx_errors, tx_errors,
-				ROW_NUMBER() OVER (PARTITION BY ont_id ORDER BY time DESC) as rn
+		SELECT latest.*
+		FROM unnest($1::uuid[]) AS wanted(ont_id)
+		CROSS JOIN LATERAL (
+			SELECT time, ont_id, rx_power, tx_power, temperature, voltage, tx_bias_current,
+			       distance, rx_bytes, tx_bytes, rx_packets, tx_packets, rx_errors, tx_errors
 			FROM ont_metrics
-			WHERE ont_id IN ?
-		)
-		SELECT time, ont_id, rx_power, tx_power, temperature, voltage, tx_bias_current,
-		       distance, rx_bytes, tx_bytes, rx_packets, tx_packets, rx_errors, tx_errors
-		FROM ranked_metrics
-		WHERE rn = 1
-	`, ontIDs).Scan(&metrics).Error
+			WHERE ont_id = wanted.ont_id
+			ORDER BY time DESC
+			LIMIT 1
+		) latest
+	`, uuidArray(ontIDs)).Scan(&metrics).Error
 
 	if err != nil {
 		return nil, err
@@ -149,4 +189,18 @@ func (s *MetricsService) GetRealtimeMetrics(ontID uuid.UUID) (*ONTMetricsRow, er
 	}
 
 	return row, nil
+}
+
+// uuidArray renders identifiers as the array literal Postgres parses for
+// uuid[].
+//
+// Written out rather than taken from a driver helper because that would mean a
+// new dependency for one call site. A uuid's own String is hex and dashes, so
+// nothing here can carry anything but an identifier into the statement.
+func uuidArray(ids []uuid.UUID) string {
+	rendered := make([]string, len(ids))
+	for i, id := range ids {
+		rendered[i] = id.String()
+	}
+	return "{" + strings.Join(rendered, ",") + "}"
 }
