@@ -28,50 +28,6 @@ func (s *EventService) LogEvent(event *models.ONTEvent) error {
 	return s.db.Create(event).Error
 }
 
-// LogStatusChange detects and logs status changes with duration calculation
-func (s *EventService) LogStatusChange(ontID uuid.UUID, newStatus string, reason string) error {
-	// Get last event for this ONT
-	var lastEvent models.ONTEvent
-	err := s.db.Where("ont_id = ?", ontID).Order("event_time DESC").First(&lastEvent).Error
-
-	now := time.Now()
-
-	// If no previous event exists, just log the current state
-	if err == gorm.ErrRecordNotFound {
-		return s.LogEvent(&models.ONTEvent{
-			ONTID:     ontID,
-			EventType: newStatus,
-			EventTime: now,
-			Reason:    reason,
-		})
-	}
-
-	if err != nil {
-		return err
-	}
-
-	// If status hasn't changed, do nothing
-	if lastEvent.EventType == newStatus {
-		return nil
-	}
-
-	// Calculate duration for the previous event
-	duration := int64(now.Sub(lastEvent.EventTime).Seconds())
-
-	// Update previous event with duration
-	if err := s.db.Model(&lastEvent).Update("duration_seconds", duration).Error; err != nil {
-		return err
-	}
-
-	// Log new event
-	return s.LogEvent(&models.ONTEvent{
-		ONTID:     ontID,
-		EventType: newStatus,
-		EventTime: now,
-		Reason:    reason,
-	})
-}
-
 // GetEventsByONTID retrieves all events for a specific ONT with pagination
 func (s *EventService) GetEventsByONTID(ontID uuid.UUID, limit, offset int) ([]models.ONTEvent, int64, error) {
 	var events []models.ONTEvent

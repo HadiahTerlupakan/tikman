@@ -78,6 +78,7 @@ func applyReading(rt *workerRuntime, olt models.OLT, reading *oltReading, kind m
 
 	err := rt.onts.EachONTOfOLT(olt.ID, ontPageSize, func(rows []models.ONT) error {
 		samples := make([]services.MetricSample, 0, len(rows))
+		changes := make([]services.StatusChange, 0, len(rows))
 
 		for _, ont := range rows {
 			// An ONT the status walk did not name is one the OLT no longer
@@ -88,11 +89,23 @@ func applyReading(rt *workerRuntime, olt models.OLT, reading *oltReading, kind m
 				skipped++
 				continue
 			}
-			sample := processOnt(rt.db, reading, ont, rt.events, rt.logger)
+			sample, change := processOnt(rt.db, reading, ont, rt.logger)
 			if reading.metrics != nil {
 				samples = append(samples, sample)
 			}
+			if change.EventType != "" {
+				changes = append(changes, change)
+			}
 			processed++
+		}
+
+		// One read of the event history for the whole page. A failure is logged
+		// rather than returned for the same reason the metrics write is: the
+		// statuses are already on the ONT rows, and the next page is still worth
+		// taking.
+		if err := rt.events.LogStatusChanges(changes); err != nil {
+			rt.logger.Error("Failed to record ONT status events",
+				zap.String("olt", olt.Name), zap.Int("changes", len(changes)), zap.Error(err))
 		}
 
 		// A write failure loses this page's readings, and the operator has to

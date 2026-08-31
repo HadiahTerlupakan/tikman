@@ -10,13 +10,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// processOnt applies one OLT reading to one ONT and returns the sample to be
-// written for it.
+// processOnt applies one OLT reading to one ONT and returns the sample and the
+// status change to be written for it.
 //
 // The sample is returned rather than written: the caller collects a page of
 // them and writes them in one statement, where this used to cost one INSERT and
 // three log lines per subscriber per cycle.
-func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, eventService *services.EventService, logger *zap.Logger) services.MetricSample {
+func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, logger *zap.Logger) (services.MetricSample, services.StatusChange) {
 	foundMetrics, discoveredSlot := matchMetricsForONT(ont, reading)
 
 	ontRates := lookupRatesForONT(ont, discoveredSlot, reading.rates)
@@ -25,13 +25,11 @@ func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, eventService *
 
 	handleStatusChange(db, ont, newStatus, logger)
 
-	logStatusChangeEvent(ont, newStatus, eventService, logger)
-
 	updateOntFields(db, ont, foundMetrics, discoveredSlot, logger)
 
 	// Every ONT gets a row, including one the walk returned nothing for. A gap
 	// in the series would be indistinguishable from a cycle that never ran.
-	return services.MetricSample{ONTID: ont.ID, Metrics: foundMetrics, Rates: ontRates}
+	return services.MetricSample{ONTID: ont.ID, Metrics: foundMetrics, Rates: ontRates}, statusChangeFor(ont, newStatus)
 }
 
 func matchMetricsForONT(ont models.ONT, reading *oltReading) (*connectivity.ONTMetrics, int) {
@@ -136,28 +134,29 @@ func handleStatusChange(db *gorm.DB, ont models.ONT, newStatus models.ONTStatus,
 	}
 }
 
-// logStatusChangeEvent records the ONT's state on every cycle rather than only
-// when the status differs. LogStatusChange is idempotent: it opens a baseline
-// event for an ONT that has none, returns without writing when the state is
-// unchanged, and closes the previous event's duration on a real transition.
+// statusChangeFor states the ONT's status for the page's event write, on every
+// cycle rather than only when the status differs. LogStatusChanges is
+// idempotent: it opens a baseline event for an ONT that has none, writes
+// nothing when the state is unchanged, and closes the previous event's duration
+// on a real transition.
 //
 // Guarding this on "status changed" would starve it, because an ONT registered
 // with the status the OLT already reports never changes - which is every ONT
 // on a newly added OLT. Availability needs that opening event to have any
 // interval to measure.
-func logStatusChangeEvent(ont models.ONT, newStatus models.ONTStatus, eventService *services.EventService, logger *zap.Logger) {
+//
+// A zero StatusChange means the cycle found no evidence for this ONT, and the
+// caller leaves it out of the page.
+func statusChangeFor(ont models.ONT, newStatus models.ONTStatus) services.StatusChange {
 	if newStatus == "" {
-		return
+		return services.StatusChange{}
 	}
 
 	eventType := models.EventTypeOnline
 	if newStatus != models.ONTStatusOnline {
 		eventType = models.EventTypeOffline
 	}
-	if err := eventService.LogStatusChange(ont.ID, eventType, string(newStatus)); err != nil {
-		logger.Error("Failed to log ONT status event",
-			zap.String("serial", ont.SerialNumber), zap.Error(err))
-	}
+	return services.StatusChange{ONTID: ont.ID, EventType: eventType, Reason: string(newStatus)}
 }
 
 func updateOntFields(db *gorm.DB, ont models.ONT, foundMetrics *connectivity.ONTMetrics, discoveredSlot int, logger *zap.Logger) {

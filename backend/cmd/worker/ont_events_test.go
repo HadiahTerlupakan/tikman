@@ -73,18 +73,18 @@ func TestLogStatusChangeOpensBaselineForStableONT(t *testing.T) {
 
 	// First poll of an ONT that has never changed state must still record it,
 	// otherwise there is no interval to compute availability over.
-	require.NoError(t, eventService.LogStatusChange(ont.ID, models.EventTypeOnline, string(models.ONTStatusOnline)))
+	require.NoError(t, eventService.LogStatusChanges([]services.StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOnline, Reason: string(models.ONTStatusOnline)}}))
 	assert.Equal(t, int64(1), countEvents(), "a stable ONT must still get a baseline event")
 
 	// Repeated polls with an unchanged state must not pile up duplicates - the
 	// worker now calls this every cycle.
 	for i := 0; i < 3; i++ {
-		require.NoError(t, eventService.LogStatusChange(ont.ID, models.EventTypeOnline, string(models.ONTStatusOnline)))
+		require.NoError(t, eventService.LogStatusChanges([]services.StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOnline, Reason: string(models.ONTStatusOnline)}}))
 	}
 	assert.Equal(t, int64(1), countEvents(), "unchanged polls must not duplicate events")
 
 	// A real transition appends an event and closes out the previous one.
-	require.NoError(t, eventService.LogStatusChange(ont.ID, models.EventTypeOffline, string(models.ONTStatusOffline)))
+	require.NoError(t, eventService.LogStatusChanges([]services.StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOffline, Reason: string(models.ONTStatusOffline)}}))
 	assert.Equal(t, int64(2), countEvents())
 
 	var first models.ONTEvent

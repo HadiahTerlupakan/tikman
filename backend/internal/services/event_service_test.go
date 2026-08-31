@@ -143,7 +143,7 @@ func TestEventService_LogStatusChange_FirstEvent(t *testing.T) {
 	ontService := NewONTService(db)
 	ont := createTestONT(t, ontService, olt.ID, "SN004", 1, 1)
 
-	err = service.LogStatusChange(ont.ID, models.EventTypeOnline, "Initial online")
+	err = service.LogStatusChanges([]StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOnline, Reason: "Initial online"}})
 	require.NoError(t, err)
 
 	var event models.ONTEvent
@@ -165,10 +165,10 @@ func TestEventService_LogStatusChange_NoStatusChange(t *testing.T) {
 	ontService := NewONTService(db)
 	ont := createTestONT(t, ontService, olt.ID, "SN005", 1, 1)
 
-	err = service.LogStatusChange(ont.ID, models.EventTypeOnline, "Online")
+	err = service.LogStatusChanges([]StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOnline, Reason: "Online"}})
 	require.NoError(t, err)
 
-	err = service.LogStatusChange(ont.ID, models.EventTypeOnline, "Still online")
+	err = service.LogStatusChanges([]StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOnline, Reason: "Still online"}})
 	require.NoError(t, err)
 
 	var count int64
@@ -188,12 +188,12 @@ func TestEventService_LogStatusChange_StatusChange(t *testing.T) {
 	ontService := NewONTService(db)
 	ont := createTestONT(t, ontService, olt.ID, "SN006", 1, 1)
 
-	err = service.LogStatusChange(ont.ID, models.EventTypeOnline, "Online")
+	err = service.LogStatusChanges([]StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOnline, Reason: "Online"}})
 	require.NoError(t, err)
 
 	time.Sleep(200 * time.Millisecond)
 
-	err = service.LogStatusChange(ont.ID, models.EventTypeOffline, "LOS")
+	err = service.LogStatusChanges([]StatusChange{{ONTID: ont.ID, EventType: models.EventTypeOffline, Reason: "LOS"}})
 	require.NoError(t, err)
 
 	var count int64
@@ -672,7 +672,7 @@ func TestEventService_LogStatusChange_WithError(t *testing.T) {
 
 	invalidONTID := uuid.New()
 
-	err := service.LogStatusChange(invalidONTID, models.EventTypeOnline, "Online")
+	err := service.LogStatusChanges([]StatusChange{{ONTID: invalidONTID, EventType: models.EventTypeOnline, Reason: "Online"}})
 	require.NoError(t, err)
 
 	var count int64
