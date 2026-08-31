@@ -34,6 +34,11 @@ type ONTTrapEvent struct {
 	// migrations.
 	TrapOID       string `gorm:"column:trap_oid;type:varchar(128);not null" json:"trap_oid"`
 	SourceAddress string `gorm:"type:varchar(45);not null" json:"source_address"`
+	// Community is the v2c community the trap arrived with. ZTE packs the
+	// event's severity, its id and the device's own timestamp into it, and the
+	// severity is what decides whether a subscriber is down. Kept whole: a
+	// column per field would guess which of them a later question needs.
+	Community string `gorm:"type:text" json:"community,omitempty"`
 
 	// No index tag: migration 34 builds a partial one that skips the rows with no
 	// serial, and a second index over the same column would be paid for on every

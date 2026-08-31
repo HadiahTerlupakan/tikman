@@ -26,6 +26,7 @@ func (s *trapStore) record(trap Trap) {
 		ReceivedAt:    time.Now(),
 		TrapOID:       trap.OID,
 		SourceAddress: trap.Source,
+		Community:     trap.Community,
 		Varbinds:      trap.describe(),
 	}
 	if identity.SerialNumber != "" {

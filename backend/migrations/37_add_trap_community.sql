@@ -1,0 +1,15 @@
+-- The severity a trap carries travels in its community string, not its varbinds:
+--
+--   public@eventId=40366@eventLevel=minor@confirm@20260211174422
+--
+-- and eventLevel is what separates an ONU that is down from one that is merely
+-- reading badly. The receiver read it at runtime and discarded it, so the
+-- archive could not be asked afterwards what level a recorded trap had carried.
+-- Establishing that took a day of inferring severity from notification OIDs and
+-- a packet capture, against an archive that had held the answer all along and
+-- thrown it away.
+--
+-- Stored whole rather than parsed. It also carries the event's own id and the
+-- device's timestamp, and a column per field would be three guesses about which
+-- of them a future question needs.
+ALTER TABLE ont_trap_events ADD COLUMN IF NOT EXISTS community TEXT;
