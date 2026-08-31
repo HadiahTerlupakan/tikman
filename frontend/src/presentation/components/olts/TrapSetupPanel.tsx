@@ -246,11 +246,11 @@ export function TrapSetupPanel({
               )}
 
               <Alert
-                type="warning"
+                type="info"
                 showIcon
                 style={{ marginTop: 12 }}
-                message="Periksa baris ip route sebelum menempel"
-                description="Perintah snmp-server dibaca dari OLT yang trap-nya sudah berjalan, jadi terbukti. Baris ip route tidak: sintaksnya disusun dari tabel rute chassis itu, bukan dari perintah aslinya, dan alamat gateway-nya dugaan dari konvensi subnet — bukan sesuatu yang sistem ini simpan."
+                message="Alamat gateway adalah dugaan, sintaksnya bukan"
+                description="Kedua perintah dibaca dari OLT yang trap-nya sudah berjalan, jadi bentuknya terbukti diterima firmware ini. Yang tidak tersimpan di mana pun adalah alamat router di VLAN manajemen OLT: yang tertera diturunkan dari konvensi host pertama subnet, dan benar di seluruh site di sini. Periksa bila site Anda menomorinya lain."
               />
             </>
           ),
