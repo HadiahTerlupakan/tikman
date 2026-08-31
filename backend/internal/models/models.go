@@ -18,5 +18,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&WorkerHeartbeat{},
 		&AppSetting{},
 		&OLTPollJob{},
+		&ONTTrapEvent{},
 	)
 }

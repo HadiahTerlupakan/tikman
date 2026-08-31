@@ -61,6 +61,8 @@ func main() {
 	directory := newOLTDirectory(db, logger)
 	directory.refresh()
 
+	store := &trapStore{db: db, logger: logger}
+
 	listener := gosnmp.NewTrapListener()
 	listener.Params = gosnmp.Default
 	listener.OnNewTrap = func(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
@@ -71,12 +73,20 @@ func main() {
 			logger.Warn("Ignoring trap", zap.Error(err))
 			return
 		}
+		store.record(trap)
+
+		identity := identify(trap.Varbinds)
 		logger.Info("Trap received",
 			zap.String("olt_id", trap.OLTID.String()),
 			zap.String("source", trap.Source),
 			zap.String("oid", trap.OID),
-			zap.String("varbinds", trap.describe()))
+			zap.String("serial", identity.SerialNumber),
+			zap.String("onu", identity.Label))
 	}
+
+	stopSweep := make(chan struct{})
+	defer close(stopSweep)
+	go store.sweepExpired(stopSweep)
 
 	go func() {
 		ticker := time.NewTicker(oltRefreshInterval)

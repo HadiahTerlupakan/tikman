@@ -29,8 +29,13 @@ type Trap struct {
 
 // Varbind is one value from a trap.
 type Varbind struct {
-	OID   string
+	OID string
+	// Value is the display form, which shows an octet string both as text and as
+	// hex because ZTE packs some fields printably and others not.
 	Value string
+	// Text is the value as a plain string when it was one, so a parser reads the
+	// field rather than the rendering of it.
+	Text string
 }
 
 // describe renders a trap for the log.
@@ -67,12 +72,12 @@ func parseTrap(packet *gosnmp.SnmpPacket, addr *net.UDPAddr, findOLT oltFinder) 
 
 	trap := Trap{OLTID: oltID, Source: source, Varbinds: make([]Varbind, 0, len(packet.Variables))}
 	for _, variable := range packet.Variables {
-		value := renderValue(variable)
+		display, text := renderValue(variable)
 		if normaliseOID(variable.Name) == normaliseOID(snmpTrapOID) {
-			trap.OID = value
+			trap.OID = display
 			continue
 		}
-		trap.Varbinds = append(trap.Varbinds, Varbind{OID: variable.Name, Value: value})
+		trap.Varbinds = append(trap.Varbinds, Varbind{OID: variable.Name, Value: display, Text: text})
 	}
 
 	if trap.OID == "" {
@@ -87,18 +92,22 @@ func normaliseOID(oid string) string {
 	return strings.TrimPrefix(oid, ".")
 }
 
-// renderValue turns a varbind into text.
+// renderValue turns a varbind into a display form and, where it was one, the
+// plain string behind it.
 //
-// Octet strings are shown as text and as hex: ZTE packs serials and positions
-// into octet strings that are printable in some traps and binary in others, and
-// showing one form only would mean a second capture to read the other.
-func renderValue(variable gosnmp.SnmpPDU) string {
+// Octet strings are displayed as text and as hex: ZTE packs serials and
+// positions into octet strings that are printable in some traps and binary in
+// others, and showing one form only would mean a second capture to read the
+// other. The plain text is returned separately so a parser reads the field
+// rather than the rendering of it.
+func renderValue(variable gosnmp.SnmpPDU) (display, text string) {
 	switch value := variable.Value.(type) {
 	case []byte:
-		return fmt.Sprintf("%q(hex:%x)", string(value), value)
+		text = string(value)
+		return fmt.Sprintf("%q(hex:%x)", text, value), text
 	case string:
-		return value
+		return value, value
 	default:
-		return fmt.Sprintf("%v", value)
+		return fmt.Sprintf("%v", value), ""
 	}
 }
