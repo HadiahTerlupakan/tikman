@@ -131,18 +131,29 @@ describe("TrapSetupPanel", () => {
     expect(screen.queryByTestId("trap-setup-mikrotik")).not.toBeInTheDocument();
   });
 
-  it("warns when the selected model is not the one the command was read from", () => {
-    renderPanel({ model: OltModel.ZTE_C320 });
+  it("brackets the command with the config mode the chassis requires", () => {
+    renderPanel();
 
-    // The snmp-server line was read off a C300. A C320 rejects it, which is how
-    // this warning came to exist rather than from caution.
-    expect(screen.getByText(/dibaca dari ZTE C300/i)).toBeInTheDocument();
+    // snmp-server is a config-mode command; pasted at the exec prompt a C320
+    // answers "Invalid input detected", which is how this came to be tested.
+    const commands = textOf("trap-setup-olt");
+    expect(commands.startsWith("configure terminal")).toBe(true);
+    expect(commands.trimEnd().endsWith("commit")).toBe(true);
   });
 
-  it("does not warn for the model the command was read from", () => {
-    renderPanel({ model: OltModel.ZTE_C300 });
+  it.each([OltModel.ZTE_C300, OltModel.ZTE_C320])(
+    "does not warn for %s, whose running config was read",
+    (model) => {
+      renderPanel({ model });
 
-    expect(screen.queryByText(/dibaca dari ZTE C300/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Jalankan/i)).not.toBeInTheDocument();
+    },
+  );
+
+  it("warns for a model whose syntax was never read off a chassis", () => {
+    renderPanel({ model: OltModel.HSGQ });
+
+    expect(screen.getByText(/ZTE C300 dan ZTE C320/i)).toBeInTheDocument();
   });
 
   it("renders nothing until the VPN server is known", () => {

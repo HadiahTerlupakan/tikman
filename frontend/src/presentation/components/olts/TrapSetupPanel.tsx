@@ -7,9 +7,9 @@ const MIKROTIK_INTERFACE = "wg-tikman";
 const MIKROTIK_LISTEN_PORT = 13231;
 const DEFAULT_COMMUNITY = "public";
 
-// The chassis the snmp-server line was read off. A C320 rejects it outright,
-// so the model this was verified against has to travel with the command.
-const VERIFIED_ON: OltModel = OltModel.ZTE_C300;
+// The chassis whose running config was read to establish this command. Both
+// ZTE series spell it identically; HSGQ is another vendor and was never read.
+const VERIFIED_MODELS: OltModel[] = [OltModel.ZTE_C300, OltModel.ZTE_C320];
 
 interface TrapSetupPanelProps {
   siteId?: string;
@@ -102,12 +102,18 @@ export function TrapSetupPanel({
   const sitePeer = peers?.find((peer) => peer.siteId === siteId);
   const tunnel = splitCidr(server.tunnelSubnet);
   const gateway = gatewayFor(ipAddress);
-  const verifiedLabel =
-    OLT_MODELS.find((entry) => entry.value === VERIFIED_ON)?.label ??
-    VERIFIED_ON;
-  const modelDiffers = Boolean(model) && model !== VERIFIED_ON;
+  const verifiedLabels = VERIFIED_MODELS.map(
+    (verified) =>
+      OLT_MODELS.find((entry) => entry.value === verified)?.label ?? verified,
+  ).join(" dan ");
+  const modelDiffers = Boolean(model) && !VERIFIED_MODELS.includes(model!);
 
+  // configure terminal and commit bracket the command because snmp-server is a
+  // config-mode command: pasted at the exec prompt the chassis answers "Invalid
+  // input detected", which is exactly what happened. The bracketing pair is the
+  // one this system already drives these chassis with when it provisions an ONT.
   const oltCommands = [
+    `configure terminal`,
     `snmp-server host ${destination} version 2c ${community} enable NOTIFICATIONS ` +
       `target-addr-name EMS_${destination} isnmsserver udp-port ${TRAP_PORT} ` +
       `trap-report-compatibility v20`,
@@ -117,6 +123,7 @@ export function TrapSetupPanel({
       ? `! ${gateway} adalah dugaan: host pertama di subnet OLT ini`
       : `! ganti <gateway-LAN> dengan alamat MikroTik di VLAN manajemen OLT ini`,
     `ip route ${tunnel.network} ${tunnel.mask} ${gateway ?? "<gateway-LAN>"}`,
+    `commit`,
   ].join("\n");
 
   // Only a site whose tunnel has never come up needs anything done on its
@@ -220,7 +227,7 @@ export function TrapSetupPanel({
                   showIcon
                   style={{ marginTop: 12 }}
                   message="Sintaks di atas belum tentu diterima model ini"
-                  description={`Perintah snmp-server ini dibaca dari ${verifiedLabel}. Model lain menolaknya dengan "Invalid input detected". Jalankan \`show snmp configuration\` di chassis ini untuk melihat bentuk yang firmware-nya terima.`}
+                  description={`Perintah snmp-server ini dibaca dari ${verifiedLabels}. Model yang Anda pilih bukan salah satunya. Jalankan \`show snmp configuration\` di chassis ini untuk melihat bentuk yang firmware-nya terima.`}
                 />
               )}
 
