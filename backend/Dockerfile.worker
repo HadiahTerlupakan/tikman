@@ -22,6 +22,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o snmpbench ./cmd/s
 # container's network namespace, and reads the same OLT table the worker does.
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o trapd ./cmd/trapd
 
+# wgstat reads the kernel's WireGuard state, which is set over netlink and so
+# has no config file to read. Needs CAP_NET_ADMIN and the API's namespace.
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o wgstat ./cmd/wgstat
+
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates openssh-client
@@ -31,5 +35,6 @@ WORKDIR /root/
 COPY --from=builder /app/worker .
 COPY --from=builder /app/snmpbench .
 COPY --from=builder /app/trapd .
+COPY --from=builder /app/wgstat .
 
 CMD ["./worker"]
