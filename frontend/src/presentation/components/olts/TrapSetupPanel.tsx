@@ -23,6 +23,23 @@ function splitCidr(cidr: string): { network: string; mask: string } {
   return { network, mask: netmaskOf(Number(prefix)) };
 }
 
+/**
+ * gatewayFor guesses the OLT's default gateway as the first host of its /24.
+ *
+ * The address is a convention rather than something this system holds: nothing
+ * records the router's address on an OLT's management VLAN. It is right in the
+ * installations here and is offered as a filled-in suggestion, labelled as one,
+ * because an operator correcting one octet beats an operator decoding a
+ * placeholder.
+ */
+function gatewayFor(ipAddress?: string): string | null {
+  const octets = ipAddress?.trim().split(".");
+  const valid =
+    octets?.length === 4 &&
+    octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255);
+  return valid ? `${octets[0]}.${octets[1]}.${octets[2]}.1` : null;
+}
+
 function CommandBlock({ testId, text }: { testId: string; text: string }) {
   // Colours come from the theme rather than being fixed: a hardcoded light
   // background left the commands as pale text on a pale block under the dark
@@ -77,27 +94,35 @@ export function TrapSetupPanel({
   const destination = server.address;
   const sitePeer = peers?.find((peer) => peer.siteId === siteId);
   const tunnel = splitCidr(server.tunnelSubnet);
+  const gateway = gatewayFor(ipAddress);
 
   const oltCommands = [
     `snmp-server host ${destination} version 2c ${community} enable NOTIFICATIONS ` +
       `target-addr-name EMS_${destination} isnmsserver udp-port ${TRAP_PORT} ` +
       `trap-report-compatibility v20`,
     ``,
-    `! rute agar OLT bisa menjangkau ${destination}; ganti <gateway-LAN> dengan`,
-    `! alamat MikroTik di VLAN manajemen OLT ini`,
-    `ip route ${tunnel.network} ${tunnel.mask} <gateway-LAN>`,
+    `! rute agar OLT bisa menjangkau ${destination}`,
+    gateway
+      ? `! ${gateway} adalah dugaan: host pertama di subnet OLT ini`
+      : `! ganti <gateway-LAN> dengan alamat MikroTik di VLAN manajemen OLT ini`,
+    `ip route ${tunnel.network} ${tunnel.mask} ${gateway ?? "<gateway-LAN>"}`,
   ].join("\n");
 
-  const mikrotikCommands = sitePeer
-    ? [
-        `/interface/wireguard/add name=${MIKROTIK_INTERFACE} listen-port=${MIKROTIK_LISTEN_PORT}`,
-        `/ip/address/add address=${sitePeer.tunnelAddress}/${server.tunnelSubnet.split("/")[1]} interface=${MIKROTIK_INTERFACE}`,
-        `/interface/wireguard/peers/add interface=${MIKROTIK_INTERFACE} \\`,
-        `  public-key="${server.publicKey}" \\`,
-        `  endpoint-address=${server.endpointHost} endpoint-port=${server.listenPort} \\`,
-        `  allowed-address=${server.tunnelSubnet} persistent-keepalive=25s`,
-      ].join("\n")
-    : null;
+  // Only a site whose tunnel has never come up needs anything done on its
+  // MikroTik. Where the tunnel is already carrying the poller's SNMP, it
+  // carries the traps too, and adding a second wireguard interface would not
+  // be a harmless repeat — it would be a second tunnel.
+  const mikrotikCommands =
+    sitePeer && !sitePeer.connected
+      ? [
+          `/interface/wireguard/add name=${MIKROTIK_INTERFACE} listen-port=${MIKROTIK_LISTEN_PORT}`,
+          `/ip/address/add address=${sitePeer.tunnelAddress}/${server.tunnelSubnet.split("/")[1]} interface=${MIKROTIK_INTERFACE}`,
+          `/interface/wireguard/peers/add interface=${MIKROTIK_INTERFACE} \\`,
+          `  public-key="${server.publicKey}" \\`,
+          `  endpoint-address=${server.endpointHost} endpoint-port=${server.listenPort} \\`,
+          `  allowed-address=${server.tunnelSubnet} persistent-keepalive=25s`,
+        ].join("\n")
+      : null;
 
   return (
     <Collapse
@@ -150,12 +175,21 @@ export function TrapSetupPanel({
               >
                 Di MikroTik site
               </Typography.Text>
-              {mikrotikCommands ? (
+              {mikrotikCommands && (
                 <CommandBlock
                   testId="trap-setup-mikrotik"
                   text={mikrotikCommands}
                 />
-              ) : (
+              )}
+              {sitePeer?.connected && (
+                <Alert
+                  type="success"
+                  showIcon
+                  message="Tunnel site ini sudah aktif — tidak ada perintah MikroTik"
+                  description="Trap lewat tunnel yang sama dengan polling SNMP, jadi jalurnya sudah terbuka. Menambah interface WireGuard lagi justru membuat tunnel kedua."
+                />
+              )}
+              {!sitePeer && (
                 <Alert
                   type="info"
                   showIcon
@@ -173,8 +207,8 @@ export function TrapSetupPanel({
                 type="warning"
                 showIcon
                 style={{ marginTop: 12 }}
-                message="Baris ip route belum diverifikasi terhadap firmware"
-                description="Perintah snmp-server di atas dibaca dari OLT yang trap-nya sudah berjalan. Baris ip route disusun dari tabel rutenya, bukan dari perintah aslinya — periksa sintaksnya di firmware Anda sebelum menempel."
+                message="Periksa baris ip route sebelum menempel"
+                description="Perintah snmp-server dibaca dari OLT yang trap-nya sudah berjalan, jadi terbukti. Baris ip route tidak: sintaksnya disusun dari tabel rute chassis itu, bukan dari perintah aslinya, dan alamat gateway-nya dugaan dari konvensi subnet — bukan sesuatu yang sistem ini simpan."
               />
             </>
           ),

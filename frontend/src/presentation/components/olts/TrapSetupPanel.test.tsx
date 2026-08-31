@@ -25,12 +25,21 @@ const server: WireguardServer = {
   address: "10.88.0.1",
 };
 
-const peer = {
+/** A site whose peer exists but has never handshaken: the tunnel is still to build. */
+const newPeer = {
   id: "peer-1",
   siteId: "site-1",
-  name: "Cariu",
+  name: "Site Baru",
   tunnelAddress: "10.88.0.5",
   allowedIps: ["172.30.30.3/32"],
+  connected: false,
+  lastHandshakeAt: null,
+} as WireguardPeer;
+
+const connectedPeer = {
+  ...newPeer,
+  connected: true,
+  lastHandshakeAt: new Date().toISOString(),
 } as WireguardPeer;
 
 function renderPanel(
@@ -51,7 +60,7 @@ const textOf = (testId: string) => screen.getByTestId(testId).textContent ?? "";
 describe("TrapSetupPanel", () => {
   beforeEach(() => {
     useWireguardServer.mockReturnValue({ data: server });
-    useWireguardPeers.mockReturnValue({ data: [peer] });
+    useWireguardPeers.mockReturnValue({ data: [newPeer] });
   });
 
   it("builds the OLT trap command from the server and the form", () => {
@@ -72,15 +81,33 @@ describe("TrapSetupPanel", () => {
     expect(textOf("trap-setup-olt")).toContain("version 2c public enable");
   });
 
-  it("states the route the OLT needs to reach the trap destination", () => {
+  it("routes the OLT to the trap destination via its subnet's first host", () => {
     renderPanel();
 
     expect(textOf("trap-setup-olt")).toContain(
-      "ip route 10.88.0.0 255.255.255.0",
+      "ip route 10.88.0.0 255.255.255.0 172.30.30.1",
     );
   });
 
-  it("addresses the MikroTik peer at the server's real endpoint and key", () => {
+  it("keeps a placeholder gateway while no OLT address is entered", () => {
+    renderPanel({ ipAddress: "" });
+
+    // With no address there is nothing to derive from, and printing some other
+    // site's gateway would be worse than asking for it.
+    expect(textOf("trap-setup-olt")).toContain("<gateway-LAN>");
+  });
+
+  it("asks for nothing on the MikroTik once the site's tunnel is up", () => {
+    useWireguardPeers.mockReturnValue({ data: [connectedPeer] });
+    renderPanel();
+
+    // Traps ride the tunnel the poller already reaches this OLT through. Adding
+    // a second wireguard interface is not a no-op — it is a second tunnel.
+    expect(screen.queryByTestId("trap-setup-mikrotik")).not.toBeInTheDocument();
+    expect(screen.getByText(/sudah aktif/i)).toBeInTheDocument();
+  });
+
+  it("shows the MikroTik setup only for a site whose tunnel is not up yet", () => {
     renderPanel();
 
     const commands = textOf("trap-setup-mikrotik");
@@ -89,14 +116,7 @@ describe("TrapSetupPanel", () => {
       "endpoint-address=vpn.contoh.id endpoint-port=51820",
     );
     expect(commands).toContain("allowed-address=10.88.0.0/24");
-  });
-
-  it("uses the tunnel address the site's peer already holds", () => {
-    renderPanel();
-
-    expect(textOf("trap-setup-mikrotik")).toContain(
-      "address=10.88.0.5/24 interface=wg-tikman",
-    );
+    expect(commands).toContain("address=10.88.0.5/24 interface=wg-tikman");
   });
 
   it("says the site has no peer yet rather than inventing a tunnel address", () => {
