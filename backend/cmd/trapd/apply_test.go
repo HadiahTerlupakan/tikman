@@ -166,3 +166,30 @@ func TestApplyIgnoresATrapThatNamesNoSerial(t *testing.T) {
 
 	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))
 }
+
+func TestApplyLeavesAMoreSpecificDownReasonAlone(t *testing.T) {
+	db := setupApplyTestDB(t)
+	oltID := uuid.New()
+	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusLOS)
+
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOffline},
+		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
+
+	// The poller reads a phase state and can say los or dying_gasp; the trap
+	// only says down. Overwriting los with the vaguer offline loses the
+	// diagnosis, and the next poll writes it straight back — leaving the
+	// subscriber's status oscillating between two words for the same outage.
+	assert.Equal(t, models.ONTStatusLOS, statusOf(t, db, ont.ID))
+}
+
+func TestApplyStillReportsAnONTComingBackUp(t *testing.T) {
+	db := setupApplyTestDB(t)
+	oltID := uuid.New()
+	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusLOS)
+
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidONUOnline},
+		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
+
+	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))
+	assert.Equal(t, int64(1), countEvents(t, db, ont.ID))
+}

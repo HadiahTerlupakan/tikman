@@ -84,7 +84,7 @@ func (a *statusApplier) apply(trap Trap, identity onuIdentity) {
 		return
 	}
 
-	if ont.Status == status {
+	if !worthWriting(ont.Status, status) {
 		return
 	}
 
@@ -110,4 +110,20 @@ func (a *statusApplier) apply(trap Trap, identity onuIdentity) {
 		zap.String("onu", identity.Label),
 		zap.String("status", string(status)),
 		zap.String("oid", trap.OID))
+}
+
+// worthWriting says whether a trap's verdict should replace the status a
+// subscriber already holds.
+//
+// A trap reports a transition, not a diagnosis. The poller reads the OLT's phase
+// state and can tell los from dying_gasp; a trap can only say down. So a down
+// trap speaks only for an ONT the system still believes is up — otherwise it
+// overwrites the specific reason with a vaguer one and the next poll writes it
+// straight back, leaving the subscriber's status oscillating between two words
+// for one outage.
+func worthWriting(current, reported models.ONTStatus) bool {
+	if reported == models.ONTStatusOnline {
+		return current != models.ONTStatusOnline
+	}
+	return current == models.ONTStatusOnline
 }
