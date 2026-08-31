@@ -34,9 +34,20 @@ const eventLevelField = "eventLevel="
 // had already established .1 as down and .2 as up on the C300, and the levels
 // those traps carry — major and cleared — say exactly the same thing.
 //
-// notification is deliberately not a state. Those traps name no subscriber and
-// carry no ONU varbinds; treating them as alarms would write a status from a
-// message that is not about a subscriber.
+// Only critical and major are outages. ZTE reserves minor for an ONU that is
+// still up and reading badly — Signal Degrade, Fiber Bended, Window Dithered,
+// Loss of PLOAM are all minor in its alarm list, while LOS, LOF, Signal Failure
+// and Dying-Gasp are major. Taking every severity as an outage wrote seven
+// subscribers offline whose next poll found all seven online, none excepted;
+// the documentation and that measurement agree on where the line sits.
+//
+// notification is not a state either. Those traps name no subscriber and carry
+// no ONU varbinds; treating them as alarms would write a status from a message
+// that is not about a subscriber.
+//
+// A degradation alarm is still worth having — it is the earliest sign of a dirty
+// connector or a bent fibre — but it belongs somewhere that shows a subscriber
+// as failing rather than as down. It stays recorded until there is such a place.
 func trapStatus(oid, community string) (models.ONTStatus, bool) {
 	if !strings.HasPrefix(normaliseOID(oid), onuTrapFamily) {
 		return "", false
@@ -45,7 +56,7 @@ func trapStatus(oid, community string) (models.ONTStatus, bool) {
 	switch severityOf(community) {
 	case "cleared":
 		return models.ONTStatusOnline, true
-	case "critical", "major", "minor", "warning":
+	case "critical", "major":
 		return models.ONTStatusOffline, true
 	default:
 		return "", false

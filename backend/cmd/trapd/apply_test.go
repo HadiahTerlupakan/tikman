@@ -21,10 +21,11 @@ const (
 	// A board notification: outside the ONU family and never about a subscriber.
 	oidBoardNotice = ".1.3.6.1.4.1.3902.1082.20.10.3.1"
 
-	commRaised  = "public@eventId=40366@eventLevel=minor@confirm@20260211174422"
-	commMajor   = "public@eventId=5401608@eventLevel=major@confirm@20260830224728"
-	commCleared = "public@eventId=135432@eventLevel=cleared@confirm@20260809003658"
-	commNotice  = "public@eventId=135435@eventLevel=notification@20260809003658"
+	commMinor    = "public@eventId=40366@eventLevel=minor@confirm@20260211174422"
+	commCritical = "public@eventId=40366@eventLevel=critical@confirm@20260211174422"
+	commMajor    = "public@eventId=5401608@eventLevel=major@confirm@20260830224728"
+	commCleared  = "public@eventId=135432@eventLevel=cleared@confirm@20260809003658"
+	commNotice   = "public@eventId=135435@eventLevel=notification@20260809003658"
 )
 
 func setupApplyTestDB(t *testing.T) *gorm.DB {
@@ -79,7 +80,7 @@ func TestTrapStatusReadsTheSeverityTheDeviceStates(t *testing.T) {
 		{"C300 alarm cleared", oidONUOnline, commCleared, models.ONTStatusOnline},
 		// The C320 pairs carry different OIDs for the same two states, which is
 		// why the severity rather than the OID decides.
-		{"C320 alarm raised", oidONUOfflineC320, commRaised, models.ONTStatusOffline},
+		{"C320 alarm raised", oidONUOfflineC320, commCritical, models.ONTStatusOffline},
 		{"C320 alarm cleared", oidONUOnlineC320, commCleared, models.ONTStatusOnline},
 	}
 
@@ -102,7 +103,7 @@ func TestTrapStatusRefusesWhatIsNotAnONUAlarm(t *testing.T) {
 		{"notification level", oidONUOffline, commNotice},
 		// A severity on a board notification is not a subscriber's status, and
 		// the family prefix is what keeps this path off every other subtree.
-		{"outside the ONU family", oidBoardNotice, commRaised},
+		{"outside the ONU family", oidBoardNotice, commCritical},
 		{"community carries no level", oidONUOffline, "public"},
 		{"empty community", oidONUOffline, ""},
 	}
@@ -112,6 +113,28 @@ func TestTrapStatusRefusesWhatIsNotAnONUAlarm(t *testing.T) {
 			_, known := trapStatus(tc.oid, tc.community)
 			assert.False(t, known)
 		})
+	}
+}
+
+func TestTrapStatusRefusesADegradationAlarm(t *testing.T) {
+	// ZTE reserves minor for an ONU that is still up but reading badly — signal
+	// degrade, a bent fibre, a dithered window — and major for one that is
+	// actually down: LOS, LOF, dying gasp. Treating every severity as an outage
+	// wrote seven subscribers offline whose poller found all seven online, none
+	// excepted, which is what sent this back to the documentation.
+	for _, level := range []string{"minor", "warning"} {
+		community := "public@eventId=1@eventLevel=" + level + "@confirm@20260211174422"
+		_, known := trapStatus(oidONUOfflineC320, community)
+		assert.False(t, known, level)
+	}
+}
+
+func TestTrapStatusReadsAnOutageSeverity(t *testing.T) {
+	for _, level := range []string{"critical", "major"} {
+		community := "public@eventId=1@eventLevel=" + level + "@confirm@20260211174422"
+		status, known := trapStatus(oidONUOffline, community)
+		assert.True(t, known, level)
+		assert.Equal(t, models.ONTStatusOffline, status, level)
 	}
 }
 
@@ -146,7 +169,7 @@ func TestApplyIgnoresATrapThatIsNotAnONUAlarm(t *testing.T) {
 	oltID := uuid.New()
 	ont := seedONT(t, db, oltID, "ZTEGCAFF2C7F", models.ONTStatusOnline)
 
-	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidBoardNotice, Community: commRaised},
+	newApplier(t, db).apply(Trap{OLTID: oltID, OID: oidBoardNotice, Community: commCritical},
 		onuIdentity{SerialNumber: "ZTEGCAFF2C7F"})
 
 	assert.Equal(t, models.ONTStatusOnline, statusOf(t, db, ont.ID))
