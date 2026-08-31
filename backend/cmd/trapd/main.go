@@ -8,10 +8,10 @@
 // without trace, so the status poll keeps running and remains what the system
 // believes; a trap only makes it look sooner.
 //
-// This build records what arrives and acts on nothing. The notification OIDs a
-// ZTE C300 sends for ONU state changes are not documented in this repository,
-// and mapping them from a guess would write subscribers' statuses from a guess.
-// They get learned from the device first.
+// It acts on the notification OIDs whose meaning was established from recorded
+// traps correlated against the poller's own status transitions, and only those.
+// The rest are still recorded and acted on by nothing, so the evidence for them
+// keeps accumulating. apply.go states what was established and from what.
 package main
 
 import (
@@ -62,6 +62,7 @@ func main() {
 	directory.refresh()
 
 	store := &trapStore{db: db, logger: logger}
+	applier := newStatusApplier(db, logger)
 
 	listener := gosnmp.NewTrapListener()
 	listener.Params = gosnmp.Default
@@ -76,6 +77,8 @@ func main() {
 		store.record(trap)
 
 		identity := identify(trap.Varbinds)
+		applier.apply(trap, identity)
+
 		logger.Info("Trap received",
 			zap.String("olt_id", trap.OLTID.String()),
 			zap.String("source", trap.Source),

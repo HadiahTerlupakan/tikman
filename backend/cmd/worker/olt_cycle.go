@@ -89,7 +89,7 @@ func applyReading(rt *workerRuntime, olt models.OLT, reading *oltReading, kind m
 				skipped++
 				continue
 			}
-			sample, change := processOnt(rt.db, reading, ont, rt.logger)
+			sample, change := processOnt(rt, reading, ont)
 			if reading.metrics != nil {
 				samples = append(samples, sample)
 			}

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"time"
-
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -16,16 +14,16 @@ import (
 // The sample is returned rather than written: the caller collects a page of
 // them and writes them in one statement, where this used to cost one INSERT and
 // three log lines per subscriber per cycle.
-func processOnt(db *gorm.DB, reading *oltReading, ont models.ONT, logger *zap.Logger) (services.MetricSample, services.StatusChange) {
+func processOnt(rt *workerRuntime, reading *oltReading, ont models.ONT) (services.MetricSample, services.StatusChange) {
 	foundMetrics, discoveredSlot := matchMetricsForONT(ont, reading)
 
 	ontRates := lookupRatesForONT(ont, discoveredSlot, reading.rates)
 
-	newStatus := determineOntStatus(ont, reading, foundMetrics, logger)
+	newStatus := determineOntStatus(ont, reading, foundMetrics, rt.logger)
 
-	handleStatusChange(db, ont, newStatus, logger)
+	handleStatusChange(rt.onts, ont, newStatus, rt.logger)
 
-	updateOntFields(db, ont, foundMetrics, discoveredSlot, logger)
+	updateOntFields(rt.db, ont, foundMetrics, discoveredSlot, rt.logger)
 
 	// Every ONT gets a row, including one the walk returned nothing for. A gap
 	// in the series would be indistinguishable from a cycle that never ran.
@@ -105,33 +103,21 @@ func determineOntStatus(ont models.ONT, reading *oltReading, foundMetrics *conne
 	return newStatus
 }
 
-func handleStatusChange(db *gorm.DB, ont models.ONT, newStatus models.ONTStatus, logger *zap.Logger) {
+// handleStatusChange writes a changed status through ONTService, which is also
+// what the trap receiver writes through. A subscriber's status therefore has one
+// way of being set rather than two implementations that can drift apart.
+func handleStatusChange(onts *services.ONTService, ont models.ONT, newStatus models.ONTStatus, logger *zap.Logger) {
 	if newStatus == "" || newStatus == ont.Status {
 		return
 	}
 
-	now := time.Now()
-	statusUpdates := map[string]interface{}{
-		"status":     string(newStatus),
-		"updated_at": now,
+	if err := onts.UpdateStatus(ont.ID, newStatus); err != nil {
+		logger.Error("Failed to update ONT status",
+			zap.String("serial", ont.SerialNumber), zap.Error(err))
+		return
 	}
-
-	if newStatus == models.ONTStatusOnline {
-		statusUpdates["last_seen_at"] = now
-		statusUpdates["last_online"] = now
-	} else {
-		statusUpdates["last_offline"] = now
-		statusUpdates["last_offline_reason"] = string(newStatus)
-	}
-
-	result := db.Model(&models.ONT{}).Where("id = ?", ont.ID).Updates(statusUpdates)
-	if result.Error != nil {
-		logger.Error("Failed to update ONT status", zap.String("serial", ont.SerialNumber), zap.Error(result.Error))
-	} else if result.RowsAffected > 0 {
-		logger.Info("Updated ONT status", zap.String("serial", ont.SerialNumber), zap.String("status", string(newStatus)), zap.Int64("rows", result.RowsAffected))
-	} else {
-		logger.Warn("No rows updated", zap.String("serial", ont.SerialNumber), zap.String("ont_id", ont.ID.String()))
-	}
+	logger.Info("Updated ONT status",
+		zap.String("serial", ont.SerialNumber), zap.String("status", string(newStatus)))
 }
 
 // statusChangeFor states the ONT's status for the page's event write, on every

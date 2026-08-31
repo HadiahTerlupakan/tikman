@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +36,7 @@ func TestHandleStatusChangeLeavesRowOnEmptyStatus(t *testing.T) {
 	ont := onlineONT()
 	require.NoError(t, db.Create(&ont).Error)
 
-	handleStatusChange(db, ont, "", zap.NewNop())
+	handleStatusChange(services.NewONTService(db), ont, "", zap.NewNop())
 
 	var stored models.ONT
 	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
