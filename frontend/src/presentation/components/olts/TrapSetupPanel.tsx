@@ -126,21 +126,34 @@ export function TrapSetupPanel({
     `commit`,
   ].join("\n");
 
-  // Only a site whose tunnel has never come up needs anything done on its
-  // MikroTik. Where the tunnel is already carrying the poller's SNMP, it
-  // carries the traps too, and adding a second wireguard interface would not
-  // be a harmless repeat — it would be a second tunnel.
-  const mikrotikCommands =
-    sitePeer && !sitePeer.connected
-      ? [
-          `/interface/wireguard/add name=${MIKROTIK_INTERFACE} listen-port=${MIKROTIK_LISTEN_PORT}`,
-          `/ip/address/add address=${sitePeer.tunnelAddress}/${server.tunnelSubnet.split("/")[1]} interface=${MIKROTIK_INTERFACE}`,
-          `/interface/wireguard/peers/add interface=${MIKROTIK_INTERFACE} \\`,
-          `  public-key="${server.publicKey}" \\`,
-          `  endpoint-address=${server.endpointHost} endpoint-port=${server.listenPort} \\`,
-          `  allowed-address=${server.tunnelSubnet} persistent-keepalive=25s`,
-        ].join("\n")
-      : null;
+  // A working tunnel is not enough for traps. Polling runs server -> OLT and is
+  // masqueraded on the way in; a trap runs the other way and meets the router's
+  // catch-all srcnat masquerade, which rewrites its source to the MikroTik. The
+  // receiver then sees an address no OLT claims and refuses it. So every site
+  // needs the exemption, whether or not its tunnel is already up.
+  const oltSource = ipAddress?.trim() || "<IP OLT>";
+  const natRules = [
+    `/ip/firewall/nat/add chain=srcnat action=accept \\`,
+    `  src-address=${oltSource} dst-address=${server.tunnelSubnet} \\`,
+    `  comment="TikMan traps - jangan NAT" place-before=0`,
+  ];
+
+  const tunnelSetup = [
+    `/interface/wireguard/add name=${MIKROTIK_INTERFACE} listen-port=${MIKROTIK_LISTEN_PORT}`,
+    `/ip/address/add address=${sitePeer?.tunnelAddress}/${server.tunnelSubnet.split("/")[1]} interface=${MIKROTIK_INTERFACE}`,
+    `/interface/wireguard/peers/add interface=${MIKROTIK_INTERFACE} \\`,
+    `  public-key="${server.publicKey}" \\`,
+    `  endpoint-address=${server.endpointHost} endpoint-port=${server.listenPort} \\`,
+    `  allowed-address=${server.tunnelSubnet} persistent-keepalive=25s`,
+    `/ip/firewall/nat/add chain=srcnat action=masquerade \\`,
+    `  src-address=${server.tunnelSubnet} dst-address=${oltSource} \\`,
+    `  comment="TikMan VPN"`,
+    ``,
+  ];
+
+  const mikrotikCommands = sitePeer
+    ? (sitePeer.connected ? natRules : [...tunnelSetup, ...natRules]).join("\n")
+    : null;
 
   return (
     <Collapse
@@ -201,10 +214,11 @@ export function TrapSetupPanel({
               )}
               {sitePeer?.connected && (
                 <Alert
-                  type="success"
+                  type="info"
                   showIcon
-                  message="Tunnel site ini sudah aktif — tidak ada perintah MikroTik"
-                  description="Trap lewat tunnel yang sama dengan polling SNMP, jadi jalurnya sudah terbuka. Menambah interface WireGuard lagi justru membuat tunnel kedua."
+                  style={{ marginTop: 8 }}
+                  message="Tunnel sudah aktif — hanya aturan NAT yang kurang"
+                  description="Interface dan peer WireGuard tidak perlu disentuh; menambahnya lagi membuat tunnel kedua. Yang tetap dibutuhkan adalah pengecualian NAT di atas: tanpa itu trap ter-masquerade jadi alamat MikroTik dan ditolak karena bukan alamat OLT manapun."
                 />
               )}
               {!sitePeer && (

@@ -99,14 +99,19 @@ describe("TrapSetupPanel", () => {
     expect(textOf("trap-setup-olt")).toContain("<gateway-LAN>");
   });
 
-  it("asks for nothing on the MikroTik once the site's tunnel is up", () => {
+  it("asks only for the NAT exemption once the site's tunnel is up", () => {
     useWireguardPeers.mockReturnValue({ data: [connectedPeer] });
     renderPanel();
 
-    // Traps ride the tunnel the poller already reaches this OLT through. Adding
-    // a second wireguard interface is not a no-op — it is a second tunnel.
-    expect(screen.queryByTestId("trap-setup-mikrotik")).not.toBeInTheDocument();
-    expect(screen.getByText(/sudah aktif/i)).toBeInTheDocument();
+    const commands = textOf("trap-setup-mikrotik");
+    // A working tunnel carries the poller inbound but not a trap outbound: the
+    // router's catch-all srcnat masquerade rewrites the trap's source, and the
+    // receiver refuses an address no OLT claims.
+    expect(commands).toContain("action=accept");
+    expect(commands).toContain("src-address=172.30.30.3");
+    expect(commands).toContain("place-before=0");
+    // The tunnel itself must not be rebuilt — that would be a second tunnel.
+    expect(commands).not.toContain("/interface/wireguard/add");
   });
 
   it("shows the MikroTik setup only for a site whose tunnel is not up yet", () => {
@@ -119,6 +124,8 @@ describe("TrapSetupPanel", () => {
     );
     expect(commands).toContain("allowed-address=10.88.0.0/24");
     expect(commands).toContain("address=10.88.0.5/24 interface=wg-tikman");
+    // A new site needs the exemption too, not only the tunnel.
+    expect(commands).toContain("action=accept");
   });
 
   it("says the site has no peer yet rather than inventing a tunnel address", () => {
