@@ -1,15 +1,21 @@
 import { Alert, Collapse, Descriptions, Typography, theme } from "antd";
 import { useWireguardPeers, useWireguardServer } from "@/application/hooks";
+import { OLT_MODELS, OltModel } from "@/domain/entities";
 
 const TRAP_PORT = 162;
 const MIKROTIK_INTERFACE = "wg-tikman";
 const MIKROTIK_LISTEN_PORT = 13231;
 const DEFAULT_COMMUNITY = "public";
 
+// The chassis the snmp-server line was read off. A C320 rejects it outright,
+// so the model this was verified against has to travel with the command.
+const VERIFIED_ON: OltModel = OltModel.ZTE_C300;
+
 interface TrapSetupPanelProps {
   siteId?: string;
   ipAddress?: string;
   snmpCommunity?: string;
+  model?: OltModel;
 }
 
 /** netmaskOf renders a CIDR prefix as the dotted mask ZTE's CLI expects. */
@@ -84,6 +90,7 @@ export function TrapSetupPanel({
   siteId,
   ipAddress,
   snmpCommunity,
+  model,
 }: TrapSetupPanelProps) {
   const { data: server } = useWireguardServer();
   const { data: peers } = useWireguardPeers();
@@ -95,6 +102,10 @@ export function TrapSetupPanel({
   const sitePeer = peers?.find((peer) => peer.siteId === siteId);
   const tunnel = splitCidr(server.tunnelSubnet);
   const gateway = gatewayFor(ipAddress);
+  const verifiedLabel =
+    OLT_MODELS.find((entry) => entry.value === VERIFIED_ON)?.label ??
+    VERIFIED_ON;
+  const modelDiffers = Boolean(model) && model !== VERIFIED_ON;
 
   const oltCommands = [
     `snmp-server host ${destination} version 2c ${community} enable NOTIFICATIONS ` +
@@ -200,6 +211,16 @@ export function TrapSetupPanel({
                     // already holds it.
                     "Buat peer untuk site ini di halaman VPN lebih dulu. Alamat tunnel-nya dipakai di perintah MikroTik."
                   }
+                />
+              )}
+
+              {modelDiffers && (
+                <Alert
+                  type="error"
+                  showIcon
+                  style={{ marginTop: 12 }}
+                  message="Sintaks di atas belum tentu diterima model ini"
+                  description={`Perintah snmp-server ini dibaca dari ${verifiedLabel}. Model lain menolaknya dengan "Invalid input detected". Jalankan \`show snmp configuration\` di chassis ini untuk melihat bentuk yang firmware-nya terima.`}
                 />
               )}
 

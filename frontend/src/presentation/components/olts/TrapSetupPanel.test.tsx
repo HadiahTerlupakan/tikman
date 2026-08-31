@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { OltModel } from "@/domain/entities";
 import type { WireguardPeer, WireguardServer } from "@/domain/entities";
 import { TrapSetupPanel } from "./TrapSetupPanel";
 
@@ -50,6 +51,7 @@ function renderPanel(
       siteId="site-1"
       ipAddress="172.30.30.3"
       snmpCommunity="public"
+      model={OltModel.ZTE_C300}
       {...props}
     />,
   );
@@ -127,6 +129,20 @@ describe("TrapSetupPanel", () => {
     // guessed one would collide with whichever site already holds it.
     expect(screen.getByText(/belum punya peer VPN/i)).toBeInTheDocument();
     expect(screen.queryByTestId("trap-setup-mikrotik")).not.toBeInTheDocument();
+  });
+
+  it("warns when the selected model is not the one the command was read from", () => {
+    renderPanel({ model: OltModel.ZTE_C320 });
+
+    // The snmp-server line was read off a C300. A C320 rejects it, which is how
+    // this warning came to exist rather than from caution.
+    expect(screen.getByText(/dibaca dari ZTE C300/i)).toBeInTheDocument();
+  });
+
+  it("does not warn for the model the command was read from", () => {
+    renderPanel({ model: OltModel.ZTE_C300 });
+
+    expect(screen.queryByText(/dibaca dari ZTE C300/i)).not.toBeInTheDocument();
   });
 
   it("renders nothing until the VPN server is known", () => {

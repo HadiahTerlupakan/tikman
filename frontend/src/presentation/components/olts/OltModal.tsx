@@ -58,6 +58,7 @@ export function OltModal({
   const watchedSiteId = Form.useWatch("siteId", form);
   const watchedIpAddress = Form.useWatch("ipAddress", form);
   const watchedCommunity = Form.useWatch("snmpCommunity", form);
+  const watchedModel = Form.useWatch("model", form);
 
   useEffect(() => {
     if (!open) return; // Don't manipulate form before Modal opens
@@ -330,6 +331,7 @@ export function OltModal({
           siteId={watchedSiteId}
           ipAddress={watchedIpAddress}
           snmpCommunity={watchedCommunity}
+          model={watchedModel}
         />
       </Form>
     </Modal>
