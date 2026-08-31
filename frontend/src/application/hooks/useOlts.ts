@@ -112,6 +112,22 @@ export function useRefreshOltSystem(oltId: string) {
   });
 }
 
+// Brings an OLT's inventory pass forward. Discovery is on a six-hour schedule,
+// which suits ONUs that appear a few times a day but not a technician standing
+// at the cabinet having just installed one.
+export function useDiscoverOltNow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (oltId: string) => oltRepository.discoverNow(oltId),
+    onSuccess: () => {
+      // The worker publishes discovery progress onto the OLT row, so the list
+      // is what shows the pass starting.
+      queryClient.invalidateQueries({ queryKey: ["olts"] });
+    },
+  });
+}
+
 // Summed traffic under an OLT, or under one PON port. It reads the same tiered
 // stores a per-ONT graph does, so a wide window is answerable.
 export function useOltAggregateTraffic(

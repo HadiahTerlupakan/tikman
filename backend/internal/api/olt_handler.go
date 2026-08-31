@@ -9,13 +9,15 @@ type OLTHandler struct {
 	validatorService *services.OLTValidatorService
 	auditService     *services.AuditService
 	ontService       *services.ONTService
+	pollJobService   *services.PollJobService
 }
 
-func NewOLTHandler(service *services.OLTService, validatorService *services.OLTValidatorService, auditService *services.AuditService, ontService *services.ONTService) *OLTHandler {
+func NewOLTHandler(service *services.OLTService, validatorService *services.OLTValidatorService, auditService *services.AuditService, ontService *services.ONTService, pollJobService *services.PollJobService) *OLTHandler {
 	return &OLTHandler{
 		service:          service,
 		validatorService: validatorService,
 		auditService:     auditService,
 		ontService:       ontService,
+		pollJobService:   pollJobService,
 	}
 }

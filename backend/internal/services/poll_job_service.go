@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,7 +24,7 @@ const (
 	MetricsInterval = 10 * time.Minute
 	// DiscoveryInterval covers ONUs added and removed. It used to run every
 	// cycle against every OLT and cost as much as the poll beside it.
-	DiscoveryInterval = time.Hour
+	DiscoveryInterval = 6 * time.Hour
 )
 
 // Lease durations. A worker that dies holds its row until the lease expires, so
@@ -200,6 +201,35 @@ func claimable(now time.Time) (string, []interface{}) {
 		args = append(args, kind, now.Add(-LeaseFor(kind)))
 	}
 	return "locked_at IS NULL OR " + strings.Join(conditions, " OR "), args
+}
+
+// ErrJobRunning reports that a tier is already being run for this OLT.
+var ErrJobRunning = errors.New("poll job is already running")
+
+// RunNow brings a tier's next run forward to immediately.
+//
+// It schedules rather than runs. Discovery against a populated chassis takes
+// minutes — over six on the largest here — so an endpoint that performed it
+// would hold an HTTP request open past every timeout between the browser and
+// the worker. Making the job due instead hands it to the queue, which already
+// has the lease that keeps two readers off one SNMP agent and already publishes
+// the progress the OLT page draws.
+//
+// A tier a worker currently holds is left alone: the caller is asking for the
+// pass that is already happening.
+func (s *PollJobService) RunNow(oltID uuid.UUID, kind models.PollKind) error {
+	var job models.OLTPollJob
+	if err := s.db.Where("olt_id = ? AND kind = ?", oltID, kind).First(&job).Error; err != nil {
+		return err
+	}
+
+	if job.LockedAt != nil && time.Since(*job.LockedAt) < LeaseFor(kind) {
+		return ErrJobRunning
+	}
+
+	return s.db.Model(&models.OLTPollJob{}).
+		Where("olt_id = ? AND kind = ?", oltID, kind).
+		Update("due_at", time.Now()).Error
 }
 
 // Complete releases the job and schedules its next run.

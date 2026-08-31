@@ -1,7 +1,8 @@
-import { Table, Button, Space, Tag, Popconfirm, Progress } from "antd";
+import { Table, Button, Space, Tag, Popconfirm, Progress, message } from "antd";
 import {
   EditOutlined,
   DeleteOutlined,
+  ReloadOutlined,
   SyncOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
@@ -14,8 +15,15 @@ import {
 } from "@/domain/entities";
 import { Link } from "react-router-dom";
 import type { ColumnsType } from "antd/es/table";
-import { useOltStats } from "@/application/hooks";
+import { useDiscoverOltNow, useOltStats } from "@/application/hooks";
+import { ApiError } from "@/infrastructure/http";
 import { getOltProgressDisplay } from "./oltProgress";
+
+// A refused schedule is not a failure when the reason is that the pass asked
+// for is already under way.
+function isConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.statusCode === 409;
+}
 
 interface OltTableProps {
   olts: Olt[];
@@ -73,6 +81,22 @@ function OltMetricsCell({ oltId }: { oltId: string }) {
 }
 
 export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
+  const discoverNow = useDiscoverOltNow();
+
+  const handleDiscover = (olt: Olt) => {
+    discoverNow.mutate(olt.id, {
+      onSuccess: () =>
+        message.success(`Discovery dijadwalkan untuk ${olt.name}`),
+      onError: (error) =>
+        // 409 is the pass already running, which is what was asked for anyway.
+        message.info(
+          isConflict(error)
+            ? `Discovery ${olt.name} sedang berjalan`
+            : `Gagal menjadwalkan discovery ${olt.name}`,
+        ),
+    });
+  };
+
   const getStatusColor = (status: OltStatus) => {
     switch (status) {
       case OltStatus.ONLINE:
@@ -147,7 +171,7 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
     {
       title: "ONT Metrics",
       key: "metrics",
-      width: 250,
+      width: 340,
       render: (_, record) => <OltMetricsCell oltId={record.id} />,
     },
     {
@@ -162,6 +186,14 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
               Settings
             </Button>
           </Link>
+          <Button
+            type="link"
+            icon={<ReloadOutlined />}
+            loading={discoverNow.isPending}
+            onClick={() => handleDiscover(record)}
+          >
+            Discover
+          </Button>
           <Button
             type="link"
             icon={<EditOutlined />}

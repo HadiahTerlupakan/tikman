@@ -81,6 +81,13 @@ export class OltRepository implements IOltRepository {
     return response.data.data;
   }
 
+  // Schedules the inventory pass rather than performing it: discovery takes
+  // minutes on a populated chassis, so the worker runs it and the OLT page's
+  // progress follows along.
+  async discoverNow(id: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.OLT_DISCOVER_NOW(id));
+  }
+
   async getOnuTypes(id: string): Promise<string[]> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_ONU_TYPES(id));
     return response.data.data ?? [];

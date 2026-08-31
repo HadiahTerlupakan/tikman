@@ -205,3 +205,43 @@ func TestDeferDoesNotCountAsAFailure(t *testing.T) {
 	require.Nil(t, stored.LockedBy)
 	require.WithinDuration(t, time.Now().Add(StatusInterval), stored.DueAt, 30*time.Second)
 }
+
+func TestRunNowBringsAScheduledJobForward(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewPollJobService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+	require.NoError(t, service.EnsureJobs())
+	setDue(t, db, oltID, models.PollKindDiscovery, time.Now().Add(5*time.Hour))
+
+	require.NoError(t, service.RunNow(oltID, models.PollKindDiscovery))
+
+	// Due, not run: the worker still claims and runs it, so the lease and the
+	// progress the OLT page shows keep working exactly as on a scheduled pass.
+	job := jobFor(t, db, oltID, models.PollKindDiscovery)
+	require.False(t, job.DueAt.After(time.Now()),
+		"the job was left in the future, so nothing would pick it up any sooner")
+}
+
+func TestRunNowLeavesAJobAWorkerIsAlreadyRunning(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewPollJobService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+	require.NoError(t, service.EnsureJobs())
+
+	held := time.Now()
+	require.NoError(t, db.Model(&models.OLTPollJob{}).
+		Where("olt_id = ? AND kind = ?", oltID, models.PollKindDiscovery).
+		Updates(map[string]interface{}{"locked_by": "worker-1", "locked_at": held}).Error)
+
+	// Asking twice must not queue a second pass over the same chassis: the ZTE
+	// agent does not tolerate two readers, which is what the lease exists for.
+	require.ErrorIs(t, service.RunNow(oltID, models.PollKindDiscovery), ErrJobRunning)
+}
+
+func TestRunNowReportsAnOLTWithNoSuchJob(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewPollJobService(db)
+
+	err := service.RunNow(uuid.New(), models.PollKindDiscovery)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
