@@ -1,4 +1,4 @@
-import { Alert, Collapse, Descriptions, Typography } from "antd";
+import { Alert, Collapse, Descriptions, Typography, theme } from "antd";
 import { useWireguardPeers, useWireguardServer } from "@/application/hooks";
 
 const TRAP_PORT = 162;
@@ -24,6 +24,13 @@ function splitCidr(cidr: string): { network: string; mask: string } {
 }
 
 function CommandBlock({ testId, text }: { testId: string; text: string }) {
+  // Colours come from the theme rather than being fixed: a hardcoded light
+  // background left the commands as pale text on a pale block under the dark
+  // theme, which is the one this system is actually used in. colorBgBase and
+  // colorText are set explicitly by the theme, unlike the derived fill tokens,
+  // which antd computes with the light algorithm here.
+  const { token } = theme.useToken();
+
   return (
     <Typography.Paragraph copyable={{ text }} style={{ marginBottom: 0 }}>
       <pre
@@ -31,9 +38,12 @@ function CommandBlock({ testId, text }: { testId: string; text: string }) {
         style={{
           margin: 0,
           padding: 12,
-          background: "#f5f5f5",
-          borderRadius: 4,
+          background: token.colorBgBase,
+          color: token.colorText,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          borderRadius: token.borderRadius,
           fontSize: 12,
+          lineHeight: 1.6,
           whiteSpace: "pre-wrap",
           wordBreak: "break-all",
         }}
@@ -115,7 +125,14 @@ export function TrapSetupPanel({
                   {server.endpointHost}:{server.listenPort}
                 </Descriptions.Item>
                 <Descriptions.Item label="Public key server">
-                  <Typography.Text copyable code style={{ fontSize: 12 }}>
+                  <Typography.Text
+                    copyable
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "monospace",
+                      wordBreak: "break-all",
+                    }}
+                  >
                     {server.publicKey}
                   </Typography.Text>
                 </Descriptions.Item>
