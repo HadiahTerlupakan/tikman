@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { OltRepository } from "@/infrastructure/repositories/OltRepository";
 import { TrapSetupPanel } from "./TrapSetupPanel";
+import { connectionTestHint } from "./connectionTestHint";
 
 interface OltModalProps {
   open: boolean;
@@ -52,6 +53,10 @@ export function OltModal({
     OltProtocol.SSH,
   );
   const oltRepository = new OltRepository();
+  const hint = connectionTestHint(
+    testResult?.failedTest,
+    testResult?.passedTests,
+  );
 
   // Watched rather than read on submit: the panel below shows the commands an
   // operator pastes into the OLT, and they have to follow what is being typed.
@@ -215,6 +220,7 @@ export function OltModal({
                   <CloseCircleOutlined style={{ color: "#ff4d4f" }} /> Passed:{" "}
                   {testResult.passedTests.join(", ") || "None"} | Failed:{" "}
                   {testResult.failedTest} - {testResult.failedReason}
+                  {hint && <div style={{ marginTop: 8 }}>{hint}</div>}
                 </div>
               )
             }

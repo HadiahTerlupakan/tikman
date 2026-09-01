@@ -50,9 +50,13 @@ func SNMPTest(ipAddress string, port int, community string, timeout time.Duratio
 	oids := []string{"1.3.6.1.2.1.1.1.0"} // sysDescr OID (standard system description)
 	result, err := client.Get(oids)
 	if err != nil {
-		// UDP is connectionless - timeout means wrong port or community
+		// A silent agent and a wrong community look identical from here: SNMP
+		// drops a packet it will not answer rather than refusing it. Whether the
+		// device is reachable at all is not this probe's to say — ping and the
+		// login answer that, and claiming it here has sent operators to check
+		// routing that was already proven clear.
 		log.Printf("[SNMP] GET request failed: %v", err)
-		return fmt.Errorf("no SNMP response (wrong port/community or device unreachable): %w", err)
+		return fmt.Errorf("no SNMP response (SNMP not enabled on the device, or wrong community/port): %w", err)
 	}
 
 	if len(result.Variables) == 0 {
