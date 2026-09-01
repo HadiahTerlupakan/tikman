@@ -159,6 +159,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		onts.Use(middleware.AuthMiddleware(authStore, logger))
 		{
 			onts.GET("", ontHandler.List)
+			onts.GET("/troubled", ontHandler.ListTroubled)
 			onts.GET("/:id", ontHandler.GetByID)
 			onts.POST("", middleware.RequireRole(models.UserRoleAdmin), ontHandler.Create)
 			onts.PUT("/:id", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), ontHandler.Update)

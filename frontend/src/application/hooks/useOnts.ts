@@ -99,3 +99,15 @@ export function useOntServiceConfig(ontId?: string) {
     enabled: !!ontId,
   });
 }
+
+// Subscribers ranked by churn. The ONT list answers "is this one up", which an
+// ONU that drops and returns every few seconds passes every time it is asked;
+// this answers which ones keep failing whatever they read at this instant.
+export function useTroubledOnts(hours: number) {
+  return useQuery({
+    queryKey: ["onts", "troubled", hours],
+    queryFn: () => ontRepository.getTroubled(hours),
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+}

@@ -6,6 +6,7 @@ import {
   MonitorOutlined,
   BarChartOutlined,
   QuestionCircleOutlined,
+  WarningOutlined,
   FileTextOutlined,
   CloudServerOutlined,
   SettingOutlined,
@@ -30,6 +31,11 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     { path: "/map", name: "Map", icon: <GlobalOutlined /> },
     { path: "/olts", name: "OLTs", icon: <ApiOutlined /> },
     { path: "/onts", name: "ONT Monitoring", icon: <MonitorOutlined /> },
+    {
+      path: "/onts/troubled",
+      name: "Pelanggan Bermasalah",
+      icon: <WarningOutlined />,
+    },
     {
       path: "/unconfigured-onus",
       name: "Unconfigured ONU",

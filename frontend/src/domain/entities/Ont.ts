@@ -113,3 +113,16 @@ export interface AggregateTrafficPoint {
   txMaxMbps: number;
   onlineOnts: number;
 }
+
+/** TroubledOnt is one subscriber and how much trouble it has been in. */
+export interface TroubledOnt {
+  ontId: string;
+  serialNumber: string;
+  name: string;
+  oltName: string;
+  portId: number;
+  ontNumber: number;
+  status: string;
+  trapCount: number;
+  downMinutes: number;
+}

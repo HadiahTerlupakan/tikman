@@ -12,6 +12,7 @@ import OltsPage from "../pages/Olts";
 import OltConfigurationPage from "../pages/OltConfigurationPage";
 import OntsPage from "../pages/OntListPage";
 import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
+import TroubledOntsPage from "../pages/TroubledOntsPage";
 import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
 import VpnPage from "../pages/VpnPage";
 import SettingsPage from "../pages/SettingsPage";
@@ -62,6 +63,10 @@ export const router = createBrowserRouter([
           {
             path: "onts",
             element: <OntsPage />,
+          },
+          {
+            path: "onts/troubled",
+            element: <TroubledOntsPage />,
           },
           {
             path: "unconfigured-onus",
