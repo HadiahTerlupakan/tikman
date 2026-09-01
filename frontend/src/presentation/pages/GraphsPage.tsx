@@ -19,6 +19,7 @@ import { useOnts } from "@/application/hooks/useOnts";
 import { useOlts } from "@/application/hooks/useOlts";
 import { SEARCH_DEBOUNCE_MS } from "@/shared/config/limits";
 import { useDebouncedValue } from "@/application/hooks/useDebouncedValue";
+import { CONTROL_MAX_WIDTH } from "@/presentation/components/controlWidth";
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -79,7 +80,7 @@ export function GraphsPage() {
             <div>
               <span style={{ marginRight: 8, fontSize: 13 }}>OLT:</span>
               <Select
-                style={{ width: 200 }}
+                style={{ width: 200, maxWidth: CONTROL_MAX_WIDTH }}
                 placeholder="Select OLT"
                 allowClear
                 value={selectedOlt}
@@ -97,10 +98,10 @@ export function GraphsPage() {
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
-              style={{ width: 260 }}
+              style={{ width: 260, maxWidth: CONTROL_MAX_WIDTH }}
             />
             <Select
-              style={{ width: 160 }}
+              style={{ width: 160, maxWidth: CONTROL_MAX_WIDTH }}
               placeholder="Select status"
               allowClear
               value={selectedStatus}
@@ -113,6 +114,7 @@ export function GraphsPage() {
               ))}
             </Select>
             <RangePicker
+              style={{ maxWidth: CONTROL_MAX_WIDTH }}
               placeholder={["Start date", "End date"]}
               onChange={(values) => {
                 if (values?.[0] && values[1]) {
@@ -129,7 +131,9 @@ export function GraphsPage() {
               }}
               allowEmpty={[false, false]}
             />
-            <div>
+            {/* Bounded so the tab bar collapses its overflow into Ant's own
+                "more" menu instead of pushing six periods past the screen. */}
+            <div style={{ maxWidth: CONTROL_MAX_WIDTH }}>
               <span style={{ marginRight: 8, fontSize: 13 }}>Period:</span>
               <Tabs
                 activeKey={dateRange ? "custom" : period}

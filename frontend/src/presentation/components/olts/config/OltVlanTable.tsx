@@ -37,6 +37,7 @@ export function OltVlanTable({ vlans }: OltVlanTableProps) {
   return (
     <Table<OltVlan>
       size="small"
+      scroll={{ x: 640 }}
       rowKey="vlanId"
       dataSource={vlans}
       pagination={false}

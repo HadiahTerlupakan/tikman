@@ -16,6 +16,7 @@ export function OltSpeedTable({ profiles }: OltSpeedTableProps) {
   return (
     <Table<TcontProfile>
       size="small"
+      scroll={{ x: 640 }}
       rowKey="name"
       dataSource={profiles}
       pagination={false}

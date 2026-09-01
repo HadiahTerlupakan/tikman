@@ -22,3 +22,27 @@ body {
 .troubled-row-contradiction > td:first-child {
   box-shadow: inset 2px 0 0 #f59e0b;
 }
+
+/*
+ * Ant lays a card's header out as a single non-wrapping row, so on a phone the
+ * buttons in `extra` take the space and the title is squeezed to nothing —
+ * measured at 390px, "ONT Monitoring" rendered 10px wide beside 227px of
+ * buttons. Card exposes no prop for the wrapper, so the rule reaches for its
+ * class. If Ant ever renames it the rule stops applying and the header returns
+ * to today's behaviour rather than breaking.
+ */
+@media (max-width: 575px) {
+  .ant-card-head-wrapper {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /*
+   * Wrapping alone changes nothing: the title shrinks before the row ever
+   * overflows, which is how it reached 10px. Giving it the whole line is what
+   * pushes the buttons onto their own.
+   */
+  .ant-card .ant-card-head .ant-card-head-title {
+    flex: 1 0 100%;
+  }
+}

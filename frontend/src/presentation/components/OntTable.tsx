@@ -144,6 +144,7 @@ export function OntTable({
   return (
     <Table
       columns={columns}
+      scroll={{ x: 1100 }}
       dataSource={dataSource}
       rowKey="id"
       loading={isLoading}

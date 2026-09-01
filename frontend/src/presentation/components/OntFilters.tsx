@@ -3,6 +3,7 @@ import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import type { OntStatus } from "@/domain/entities";
 import { ONT_STATUSES } from "./ontStatus";
 import { ontPositionLabel } from "./ontAddress";
+import { CONTROL_MAX_WIDTH } from "./controlWidth";
 
 const { Option } = Select;
 
@@ -71,7 +72,7 @@ export function OntFilters({
       <Space wrap>
         <Select
           placeholder="Select OLT"
-          style={{ width: 240 }}
+          style={{ width: 240, maxWidth: CONTROL_MAX_WIDTH }}
           value={selectedOltId}
           onChange={(value) => {
             setSelectedOltId(value);
@@ -91,7 +92,7 @@ export function OntFilters({
 
         <Select
           placeholder="Select Card/Slot"
-          style={{ width: 200 }}
+          style={{ width: 200, maxWidth: CONTROL_MAX_WIDTH }}
           value={selectedSlotId}
           onChange={(value) => {
             setSelectedSlotId(value);
@@ -120,7 +121,7 @@ export function OntFilters({
 
         <Select
           placeholder="Select PON Port"
-          style={{ width: 200 }}
+          style={{ width: 200, maxWidth: CONTROL_MAX_WIDTH }}
           value={selectedPortId}
           onChange={(value) => {
             setSelectedPortId(value);
@@ -163,12 +164,12 @@ export function OntFilters({
           prefix={<SearchOutlined />}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          style={{ width: 200 }}
+          style={{ width: 200, maxWidth: CONTROL_MAX_WIDTH }}
           allowClear
         />
         <Select
           placeholder="Filter status"
-          style={{ width: 150 }}
+          style={{ width: 150, maxWidth: CONTROL_MAX_WIDTH }}
           value={statusFilter}
           onChange={setStatusFilter}
           allowClear

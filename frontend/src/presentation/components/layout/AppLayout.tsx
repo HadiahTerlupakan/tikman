@@ -1,11 +1,12 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ProLayout } from "@ant-design/pro-components";
 import { UserOutlined, LogoutOutlined, BellOutlined } from "@ant-design/icons";
-import { Dropdown, Avatar, Badge, App } from "antd";
+import { Dropdown, Avatar, Badge, App, Grid } from "antd";
 import type { MenuProps } from "antd";
 import { useAuthStore } from "@/application/stores";
 import { useLogout } from "@/application/hooks";
 import { buildNavigationRoutes } from "./navigationRoutes";
+import { layoutPadding } from "./layoutPadding";
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ export function AppLayout() {
   ];
 
   const routes = buildNavigationRoutes(user?.role);
+  const padding = layoutPadding(Grid.useBreakpoint());
 
   return (
     <div
@@ -85,6 +87,7 @@ export function AppLayout() {
           location={location}
           route={{ routes }}
           siderWidth={256}
+          contentStyle={{ paddingInline: padding.contentInline }}
           token={{
             bgLayout: "transparent",
             sider: {
@@ -152,7 +155,7 @@ export function AppLayout() {
         >
           <div
             style={{
-              padding: 24,
+              padding: padding.page,
               minHeight: "calc(100vh - 56px)",
               background: "transparent",
             }}

@@ -316,7 +316,14 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
           </ResponsiveContainer>
 
           <div style={{ marginTop: 12, fontSize: 11, lineHeight: 1.6 }}>
-            <div style={{ display: "flex", gap: 16, marginBottom: 4 }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                marginBottom: 4,
+              }}
+            >
               <span style={{ color: "#ff69b4", fontWeight: 500 }}>
                 ■ Download
               </span>
@@ -328,7 +335,7 @@ export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
               )}
               <span>Total: {formatBytes(usage?.downloadBytes)}</span>
             </div>
-            <div style={{ display: "flex", gap: 16 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
               <span style={{ color: "#4169e1", fontWeight: 500 }}>
                 ■ Upload
               </span>

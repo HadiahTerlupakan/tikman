@@ -64,6 +64,7 @@ export function ProvisionHistoryModal({
     >
       <Table
         columns={columns}
+        scroll={{ x: 640 }}
         dataSource={jobs || []}
         loading={loading}
         rowKey="id"

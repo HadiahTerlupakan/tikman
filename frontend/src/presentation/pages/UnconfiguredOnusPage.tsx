@@ -49,7 +49,9 @@ export default function UnconfiguredOnusPage() {
       <Card
         title="Unconfigured ONU"
         extra={
-          <Space>
+          // The card's extra slot sits beside the title and does not wrap on its
+          // own: the select and the button together ran past a phone's edge.
+          <Space wrap>
             <Select
               style={{ minWidth: 220 }}
               placeholder="All OLTs"

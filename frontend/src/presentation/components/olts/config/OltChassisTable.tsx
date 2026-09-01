@@ -20,6 +20,7 @@ export function OltChassisTable({ entities }: OltChassisTableProps) {
   return (
     <Table
       size="small"
+      scroll={{ x: 640 }}
       rowKey="index"
       dataSource={entities}
       pagination={false}

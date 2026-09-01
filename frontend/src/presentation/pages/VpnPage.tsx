@@ -158,6 +158,7 @@ export default function VpnPage() {
       >
         <Table
           rowKey="id"
+          scroll={{ x: 900 }}
           loading={isLoading}
           dataSource={peers}
           columns={columns}

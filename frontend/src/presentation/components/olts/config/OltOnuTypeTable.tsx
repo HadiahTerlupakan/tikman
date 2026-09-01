@@ -18,6 +18,7 @@ export function OltOnuTypeTable({ types }: OltOnuTypeTableProps) {
   return (
     <Table<ZteOnuType>
       size="small"
+      scroll={{ x: 700 }}
       rowKey="name"
       dataSource={types}
       pagination={false}
