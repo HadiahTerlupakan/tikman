@@ -1,88 +1,58 @@
-import { useMemo, useState } from "react";
-import {
-  Card,
-  Table,
-  Radio,
-  Select,
-  Empty,
-  Skeleton,
-  Space,
-  Tabs,
-  Tag,
-  theme,
-} from "antd";
+import { useState } from "react";
+import { Card, Tabs } from "antd";
 import { PageHeader } from "@/presentation/components/common/PageHeader";
 import { useOlts, usePonHealth, useTroubledOnts } from "@/application/hooks";
-import { PonTopology } from "@/presentation/components/onts/PonTopology";
-import {
-  readsFineButIsNot,
-  troubledColumns,
-} from "@/presentation/components/onts/troubledColumns";
-import { durasi } from "@/presentation/components/onts/troubledDuration";
+import { TroubledFilterBar } from "@/presentation/components/onts/TroubledFilterBar";
+import { TroubledOntTab } from "@/presentation/components/onts/TroubledOntTab";
+import { TroubledPonTab } from "@/presentation/components/onts/TroubledPonTab";
+import type { PonHealth, TroubledResult } from "@/domain/entities";
 
-const WINDOWS = [
-  { label: "24 jam", hours: 24 },
-  { label: "7 hari", hours: 168 },
-];
+interface TabItemsArgs {
+  troubled: { data: TroubledResult | undefined; isLoading: boolean };
+  hours: number;
+  status?: string;
+  onStatusChange: (status?: string) => void;
+  ponFilter?: { slot: number; port: number };
+  onClearPonFilter: () => void;
+  oltId?: string;
+  ponHealth: PonHealth | undefined;
+  ponLoading: boolean;
+  onSelectPon: (slot: number, port: number) => void;
+}
 
-/**
- * Summary states the case the table then makes row by row.
- *
- * The middle figure is the point of the whole page: subscribers the ONT list
- * reports as online, which lost service anyway inside the same window. Counted
- * over every matching ONT rather than the page shown — with hundreds churning
- * on one chassis, a total drawn from the fifty listed would mislead.
- */
-function Summary({
-  ontCount,
-  hiddenByStatus,
-  totalDownMinutes,
-}: {
-  ontCount: number;
-  hiddenByStatus: number;
-  totalDownMinutes: number;
-}) {
-  const { token } = theme.useToken();
-
-  const figures = [
-    { value: ontCount.toLocaleString("id-ID"), label: "pelanggan beralarm" },
+// Data for the Tabs `items` prop, kept out of the component so the
+// component itself stays a short read: state, then wiring, then layout.
+function buildTabItems(args: TabItemsArgs) {
+  return [
     {
-      value: hiddenByStatus.toLocaleString("id-ID"),
-      label: "terbaca online, tetap sempat mati",
-      accent: token.colorWarning,
+      key: "pelanggan",
+      label: "Per Pelanggan",
+      children: (
+        <TroubledOntTab
+          rows={args.troubled.data?.data ?? []}
+          summary={args.troubled.data?.summary}
+          isLoading={args.troubled.isLoading}
+          hours={args.hours}
+          status={args.status}
+          onStatusChange={args.onStatusChange}
+          ponFilter={args.ponFilter}
+          onClearPonFilter={args.onClearPonFilter}
+        />
+      ),
     },
-    { value: durasi(totalDownMinutes), label: "akumulasi waktu mati" },
+    {
+      key: "pon",
+      label: "Per PON",
+      children: (
+        <TroubledPonTab
+          oltId={args.oltId}
+          ponHealth={args.ponHealth}
+          isLoading={args.ponLoading}
+          onSelectPon={args.onSelectPon}
+        />
+      ),
+    },
   ];
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 32,
-        padding: "4px 0 20px",
-      }}
-    >
-      {figures.map((figure) => (
-        <div key={figure.label} style={{ minWidth: 150 }}>
-          <div
-            style={{
-              fontSize: 26,
-              fontWeight: 600,
-              lineHeight: 1.2,
-              fontVariantNumeric: "tabular-nums",
-              color: figure.accent ?? token.colorText,
-            }}
-          >
-            {figure.value}
-          </div>
-          <div style={{ fontSize: 12, color: token.colorTextSecondary }}>
-            {figure.label}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 /**
@@ -93,46 +63,38 @@ function Summary({
  * reads online whenever anyone looks. Counting the traps it sent is what makes
  * such a subscriber visible; the outage beside it says what the churn cost the
  * person paying for the line.
+ *
+ * Two tabs share the OLT and range picked above them: one ranks subscribers,
+ * the other draws the fault tree that explains where the worst of them sit.
+ * Picking a PON on the second carries its subscribers into the first, closing
+ * the loop between "where is the fault" and "who is on it".
  */
 export function TroubledOntsPage() {
-  const { token } = theme.useToken();
   const [hours, setHours] = useState(24);
   const [oltId, setOltId] = useState<string | undefined>();
   const [status, setStatus] = useState<string | undefined>();
   const [tab, setTab] = useState("pelanggan");
   const [ponFilter, setPonFilter] = useState<{ slot: number; port: number }>();
-  const { data, isLoading } = useTroubledOnts(hours, oltId, status);
+  const troubled = useTroubledOnts(hours, oltId, status);
   const { data: olts } = useOlts();
-  const { data: ponHealth, isLoading: ponLoading } = usePonHealth(oltId, hours);
+  const ponHealthQuery = usePonHealth(oltId, hours);
 
-  const rows = data?.data ?? [];
-  const summary = data?.summary;
-  // Scaled to the unfiltered population, not `shown`: a mild PON's worst row
-  // would otherwise paint as red as the network's genuine worst once that PON
-  // is the only thing on screen.
-  const worstTrapCount = rows[0]?.trapCount ?? 0;
-  const hiddenByStatus = rows.filter(readsFineButIsNot).length;
-  const shown = ponFilter
-    ? rows.filter((r) => r.portId === ponFilter.port)
-    : rows;
-
-  // Chosen on the PON tab, applied on this one: the drill-down that closes
-  // the loop between "where is the fault" and "who is on it".
   const handleSelectPon = (slot: number, port: number) => {
     setPonFilter({ slot, port });
     setTab("pelanggan");
   };
-
-  const columns = useMemo(
-    () =>
-      troubledColumns(
-        worstTrapCount,
-        hours * 60,
-        token.colorError,
-        token.colorWarning,
-      ),
-    [worstTrapCount, hours, token.colorError, token.colorWarning],
-  );
+  const items = buildTabItems({
+    troubled,
+    hours,
+    status,
+    onStatusChange: setStatus,
+    ponFilter,
+    onClearPonFilter: () => setPonFilter(undefined),
+    oltId,
+    ponHealth: ponHealthQuery.data,
+    ponLoading: ponHealthQuery.isLoading,
+    onSelectPon: handleSelectPon,
+  });
 
   return (
     <div>
@@ -143,110 +105,16 @@ export function TroubledOntsPage() {
 
       <Card
         extra={
-          <Space>
-            <Select
-              allowClear
-              style={{ width: 170 }}
-              placeholder="Semua OLT"
-              value={oltId}
-              onChange={setOltId}
-              options={(olts ?? []).map((olt) => ({
-                value: olt.id,
-                label: olt.name,
-              }))}
-            />
-            <Radio.Group
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              optionType="button"
-              buttonStyle="solid"
-            >
-              {WINDOWS.map((w) => (
-                <Radio.Button key={w.hours} value={w.hours}>
-                  {w.label}
-                </Radio.Button>
-              ))}
-            </Radio.Group>
-          </Space>
+          <TroubledFilterBar
+            hours={hours}
+            onHoursChange={setHours}
+            oltId={oltId}
+            onOltChange={setOltId}
+            olts={olts ?? []}
+          />
         }
       >
-        <Tabs
-          activeKey={tab}
-          onChange={setTab}
-          items={[
-            {
-              key: "pelanggan",
-              label: "Per Pelanggan",
-              children: (
-                <>
-                  <Space style={{ marginBottom: 16 }}>
-                    <Select
-                      allowClear
-                      style={{ width: 150 }}
-                      placeholder="Semua status"
-                      value={status}
-                      onChange={setStatus}
-                      options={[
-                        { value: "online", label: "Online" },
-                        { value: "los", label: "LOS" },
-                        { value: "dying_gasp", label: "Dying gasp" },
-                        { value: "offline", label: "Offline" },
-                      ]}
-                    />
-                    {ponFilter && (
-                      <Tag closable onClose={() => setPonFilter(undefined)}>
-                        {/* The summary above keeps describing the whole
-                            population, so the narrowing has to be said here
-                            or the two numbers on screen would contradict. */}
-                        {`PON ${ponFilter.port} · ${shown.length} dari ${summary?.ontCount ?? 0} pelanggan`}
-                      </Tag>
-                    )}
-                  </Space>
-                  {!isLoading && rows.length === 0 ? (
-                    <Empty description="Tidak ada pelanggan yang beralarm dalam rentang ini" />
-                  ) : (
-                    <>
-                      <Summary
-                        ontCount={summary?.ontCount ?? 0}
-                        hiddenByStatus={hiddenByStatus}
-                        totalDownMinutes={summary?.totalDownMinutes ?? 0}
-                      />
-                      <Table
-                        rowKey="ontId"
-                        loading={isLoading}
-                        dataSource={shown}
-                        columns={columns}
-                        size="small"
-                        scroll={{ x: 900 }}
-                        pagination={{ pageSize: 20, showSizeChanger: false }}
-                        rowClassName={(record) =>
-                          readsFineButIsNot(record)
-                            ? "troubled-row-contradiction"
-                            : ""
-                        }
-                        locale={{
-                          emptyText:
-                            "Pelanggan PON ini tidak masuk daftar peringkat pada rentang ini",
-                        }}
-                      />
-                    </>
-                  )}
-                </>
-              ),
-            },
-            {
-              key: "pon",
-              label: "Per PON",
-              children: !oltId ? (
-                <Empty description="Pilih OLT untuk melihat topologinya" />
-              ) : ponLoading || !ponHealth ? (
-                <Skeleton active />
-              ) : (
-                <PonTopology health={ponHealth} onSelectPon={handleSelectPon} />
-              ),
-            },
-          ]}
-        />
+        <Tabs activeKey={tab} onChange={setTab} items={items} />
       </Card>
     </div>
   );
