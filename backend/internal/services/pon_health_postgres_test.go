@@ -126,3 +126,44 @@ func TestPonHealthReportsTheThresholdsItApplied(t *testing.T) {
 	assert.EqualValues(t, 20, health.MedianTrapPerONT)
 	assert.EqualValues(t, 100, health.TrapThreshold)
 }
+
+func TestPonHealthKeepsCardsApartOnTheSamePortNumber(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	ponOnPort(t, f, 1, 1, 10, 1, 0)
+	ponOnPort(t, f, 1, 2, 10, 1, 0)
+	// The same port number on two cards, only one of them at fault: the Cariu
+	// 8/12 and 9/8 shape, where a port-only match sends a technician to the
+	// wrong chassis slot.
+	ponOnPort(t, f, 8, 8, 6, 1, 0)
+	ponOnPort(t, f, 9, 8, 6, 900, 0)
+
+	health := healthFor(t, db, f.oltID)
+
+	require.Len(t, health.Cards, 1)
+	assert.Equal(t, 9, health.Cards[0].Slot)
+	require.Len(t, health.Cards[0].Pons, 1)
+	require.NotEmpty(t, health.Cards[0].Pons[0].Worst)
+	for _, worst := range health.Cards[0].Pons[0].Worst {
+		// The label has to name the card, or two subscribers on port 8 of
+		// different cards read as the same line on screen.
+		assert.Contains(t, worst.Label, "ONU-9/8:")
+		assert.EqualValues(t, 900, worst.TrapCount)
+	}
+}
+
+func TestPonHealthClampsTheWindowToRetention(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	ponOnPort(t, f, 1, 1, 10, 1, 0)
+	// Roughly a tenth of a week lost per subscriber. Over the seven days the
+	// trap table actually keeps that is a fault; spread over a month asked for
+	// it disappears, so the service has to clamp the way the ranking does.
+	ponOnPort(t, f, 2, 7, 10, 1, 60000)
+
+	health, err := NewONTService(db).PonHealthFor(f.oltID, 30*24*time.Hour)
+	require.NoError(t, err)
+
+	require.Len(t, health.Cards, 1)
+	assert.Equal(t, 2, health.Cards[0].Slot)
+}

@@ -126,6 +126,12 @@ export interface TroubledOnt {
   serialNumber: string;
   name: string;
   oltName: string;
+  /**
+   * The line card. Port numbers repeat across cards, so narrowing to a PON
+   * needs both. A row discovery could not place carries 0, the same card the
+   * topology groups it under, so it matches there and on no other card.
+   */
+  slot: number;
   portId: number;
   ontNumber: number;
   status: string;

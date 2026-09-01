@@ -294,3 +294,27 @@ func TestTroubledSummaryFollowsTheStatusFilter(t *testing.T) {
 	// showed one, and the operator would trust the larger number.
 	assert.EqualValues(t, 1, summary.ONTCount)
 }
+
+func TestTroubledONTsCarriesTheCardAsWellAsThePort(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	slot := 9
+	carded := models.ONT{
+		ID: uuid.New(), OLTID: f.oltID, Slot: &slot, PortID: 8, ONTID: 3,
+		SerialNumber: "SN-CARD9", Name: "Pelanggan", Status: models.ONTStatusOnline,
+	}
+	require.NoError(t, db.Create(&carded).Error)
+	f.traps(t, carded.SerialNumber, 40, time.Hour)
+	// Discovery has not always filled the slot in. Such a row is carried as card
+	// zero rather than as "any card", so narrowing to a PON cannot pick it up by
+	// accident.
+	uncarded := f.ont(t, "SN-NOSLOT", 8, 3)
+	f.traps(t, uncarded.SerialNumber, 10, time.Hour)
+
+	troubled, _, err := NewONTService(db).TroubledONTs(TroubledFilter{Window: 24 * time.Hour, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, troubled, 2)
+
+	assert.Equal(t, 9, troubled[0].Slot)
+	assert.Equal(t, 0, troubled[1].Slot)
+}

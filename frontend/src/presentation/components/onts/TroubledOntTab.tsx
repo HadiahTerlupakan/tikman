@@ -67,6 +67,21 @@ function Summary({
   );
 }
 
+/**
+ * onPon narrows the ranking to one port.
+ *
+ * Addressed by card as well as number, never by the port alone: port 8 exists
+ * on every card of the chassis, so matching on the number would list another
+ * card's subscribers under this card's fault.
+ */
+function onPon(
+  rows: TroubledOnt[],
+  filter?: { slot: number; port: number },
+): TroubledOnt[] {
+  if (!filter) return rows;
+  return rows.filter((r) => r.slot === filter.slot && r.portId === filter.port);
+}
+
 interface TroubledOntTabProps {
   rows: TroubledOnt[];
   summary?: TroubledSummary;
@@ -98,9 +113,7 @@ export function TroubledOntTab({
   // is the only thing on screen.
   const worstTrapCount = rows[0]?.trapCount ?? 0;
   const hiddenByStatus = rows.filter(readsFineButIsNot).length;
-  const shown = ponFilter
-    ? rows.filter((r) => r.portId === ponFilter.port)
-    : rows;
+  const shown = onPon(rows, ponFilter);
 
   return (
     <>

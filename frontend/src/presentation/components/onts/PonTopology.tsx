@@ -1,6 +1,7 @@
 import { Empty, theme } from "antd";
 import type { PonHealth } from "@/domain/entities";
 import { layoutPonTree, type LaidOutNode } from "./ponLayout";
+import { SEVERITY_HIGH, SEVERITY_MEDIUM } from "./severity";
 
 interface PonTopologyProps {
   health: PonHealth;
@@ -10,14 +11,14 @@ interface PonTopologyProps {
 type Token = ReturnType<typeof theme.useToken>["token"];
 
 function fillFor(node: LaidOutNode, token: Token): string {
-  if (node.severity > 0.66) return token.colorErrorBg;
-  if (node.severity > 0.33) return token.colorWarningBg;
+  if (node.severity > SEVERITY_HIGH) return token.colorErrorBg;
+  if (node.severity > SEVERITY_MEDIUM) return token.colorWarningBg;
   return token.colorBgContainer;
 }
 
 function strokeFor(node: LaidOutNode, token: Token): string {
-  if (node.severity > 0.66) return token.colorError;
-  if (node.severity > 0.33) return token.colorWarning;
+  if (node.severity > SEVERITY_HIGH) return token.colorError;
+  if (node.severity > SEVERITY_MEDIUM) return token.colorWarning;
   return token.colorBorderSecondary;
 }
 

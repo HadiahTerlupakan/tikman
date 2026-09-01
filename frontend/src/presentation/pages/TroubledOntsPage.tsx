@@ -77,7 +77,7 @@ export function TroubledOntsPage() {
   const [ponFilter, setPonFilter] = useState<{ slot: number; port: number }>();
   const troubled = useTroubledOnts(hours, oltId, status);
   const { data: olts } = useOlts();
-  const ponHealthQuery = usePonHealth(oltId, hours);
+  const ponHealthQuery = usePonHealth(oltId, hours, tab === "pon");
 
   const handleSelectPon = (slot: number, port: number) => {
     setPonFilter({ slot, port });

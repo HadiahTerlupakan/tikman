@@ -153,11 +153,19 @@ export function useOltAggregateTraffic(
 
 // The pruned fault tree for one OLT. Disabled until an OLT is chosen: a
 // topology of every chassis at once is the thing this view exists to avoid.
-export function usePonHealth(oltId: string | undefined, hours: number) {
+//
+// `active` gates it on the topology actually being on screen. The aggregate
+// reads the whole trap window, and polling it every minute behind a tab nobody
+// is looking at buys nothing.
+export function usePonHealth(
+  oltId: string | undefined,
+  hours: number,
+  active: boolean,
+) {
   return useQuery({
     queryKey: ["olts", oltId, "pon-health", hours],
     queryFn: () => oltRepository.getPonHealth(oltId as string, hours),
-    enabled: Boolean(oltId),
+    enabled: Boolean(oltId) && active,
     refetchInterval: 60000,
   });
 }

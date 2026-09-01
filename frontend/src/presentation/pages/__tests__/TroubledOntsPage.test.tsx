@@ -38,11 +38,25 @@ const flapping: TroubledOnt = {
   serialNumber: "ZTEGCACC308A",
   name: "MAD SURYA",
   oltName: "Cariu",
+  slot: 1,
   portId: 5,
   ontNumber: 3,
   status: "online",
   trapCount: 7901,
   downMinutes: 325,
+};
+
+// Port 5 again, on a different card. Port numbers repeat across cards, so this
+// is the row a port-only narrowing would wrongly list beside `flapping`.
+const otherCard: TroubledOnt = {
+  ...flapping,
+  ontId: "ont-3",
+  serialNumber: "ZTEGCACC7F11",
+  name: "ENDANG",
+  slot: 2,
+  status: "offline",
+  trapCount: 6000,
+  downMinutes: 90,
 };
 
 const dark: TroubledOnt = {
@@ -58,7 +72,7 @@ const dark: TroubledOnt = {
 };
 
 const result: TroubledResult = {
-  data: [flapping, dark],
+  data: [flapping, otherCard, dark],
   summary: { ontCount: 503, totalDownMinutes: 74000 },
 };
 
@@ -135,7 +149,7 @@ describe("TroubledOntsPage", () => {
     // The row the ONT list clears every time it is asked, which is the reason
     // this page exists.
     expect(screen.getByText("MAD SURYA")).toBeInTheDocument();
-    expect(screen.getByText("ONU-5:3")).toBeInTheDocument();
+    expect(screen.getByText("ONU-1/5:3")).toBeInTheDocument();
     expect(screen.getByText("7.901")).toBeInTheDocument();
   });
 
@@ -233,9 +247,34 @@ describe("TroubledOntsPage", () => {
     // (503) — only the tag says the table itself is down to one of them, so
     // nothing on screen can be read as two different totals.
     expect(
-      screen.getByText("PON 5 · 1 dari 503 pelanggan"),
+      screen.getByText("Kartu 1 · PON 5 · 1 dari 503 pelanggan"),
     ).toBeInTheDocument();
     expect(screen.getByText("503")).toBeInTheDocument();
+  });
+
+  it("does not poll the topology while the subscriber tab is open", () => {
+    render(<TroubledOntsPage />);
+
+    // The aggregate reads the whole trap window every minute; behind a tab
+    // nobody is looking at, that is paid for nothing.
+    expect(usePonHealth).toHaveBeenLastCalledWith(undefined, 24, false);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Per PON/i }));
+
+    expect(usePonHealth).toHaveBeenLastCalledWith(undefined, 24, true);
+  });
+
+  it("leaves out the same port number on another card", () => {
+    usePonHealth.mockReturnValue({ data: healthWithMatch, isLoading: false });
+    render(<TroubledOntsPage />);
+
+    selectOlt();
+    goToPonTabAndSelectPort();
+
+    // Card 1 port 5 was clicked. ENDANG is on card 2 port 5, and listing it
+    // would send a technician to the wrong card for a fault that is not there.
+    expect(screen.getByText("MAD SURYA")).toBeInTheDocument();
+    expect(screen.queryByText("ENDANG")).not.toBeInTheDocument();
   });
 
   it("explains why the table is empty when the picked PON has no ranked row", () => {

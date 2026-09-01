@@ -37,6 +37,38 @@ interface RowCounter {
   value: number;
 }
 
+/**
+ * Canvas is what every level appends to. `index` mirrors `nodes` by id so an
+ * edge finds its endpoints in constant time; scanning the array made laying out
+ * a card-wide failure quadratic in the number of ports drawn.
+ */
+interface Canvas {
+  nodes: LaidOutNode[];
+  index: Map<string, LaidOutNode>;
+  edges: LaidOutEdge[];
+}
+
+/**
+ * Scale is what severity is measured against: the worst churn and the worst
+ * service loss among the ports drawn.
+ *
+ * Both, because the server flags a port on either rule and neither sees the
+ * other's fault. Scoring on traps alone would leave a port whose subscribers
+ * lose a tenth of the day drawn in the neutral fill.
+ */
+interface Scale {
+  worstTrap: number;
+  worstOutage: number;
+}
+
+/** severityOf reads a port on whichever of the two measures it fails hardest. */
+function severityOf(pon: PonNode, scale: Scale): number {
+  const churn = pon.trapPerOnt / scale.worstTrap;
+  const outage =
+    scale.worstOutage > 0 ? pon.outageShare / scale.worstOutage : 0;
+  return Math.max(churn, outage);
+}
+
 /** curve draws the S-bend between two columns, as in a pipeline diagram. */
 function curve(x1: number, y1: number, x2: number, y2: number): string {
   const mid = (x1 + x2) / 2;
@@ -50,7 +82,7 @@ function centreOf(childYs: number[], fallbackRow: number): number {
 }
 
 function pushNode(
-  nodes: LaidOutNode[],
+  canvas: Canvas,
   kind: LaidOutNode["kind"],
   id: string,
   label: string,
@@ -59,7 +91,7 @@ function pushNode(
   severity: number,
 ): void {
   const level = ["olt", "card", "pon", "ont"].indexOf(kind);
-  nodes.push({
+  const node: LaidOutNode = {
     id,
     kind,
     label,
@@ -69,19 +101,16 @@ function pushNode(
     width: NODE_WIDTH[level],
     height: NODE_HEIGHT,
     severity,
-  });
+  };
+  canvas.nodes.push(node);
+  canvas.index.set(id, node);
 }
 
-function pushEdge(
-  nodes: LaidOutNode[],
-  edges: LaidOutEdge[],
-  from: string,
-  to: string,
-): void {
-  const a = nodes.find((n) => n.id === from);
-  const b = nodes.find((n) => n.id === to);
+function pushEdge(canvas: Canvas, from: string, to: string): void {
+  const a = canvas.index.get(from);
+  const b = canvas.index.get(to);
   if (!a || !b) return;
-  edges.push({
+  canvas.edges.push({
     id: `${from}->${to}`,
     from,
     to,
@@ -93,7 +122,7 @@ function pushEdge(
 function layoutSubscribers(
   pon: PonNode,
   row: RowCounter,
-  nodes: LaidOutNode[],
+  canvas: Canvas,
 ): number[] {
   const centres: number[] = [];
   const worstOfPon = Math.max(...pon.worst.map((w) => w.trapCount), 1);
@@ -101,7 +130,7 @@ function layoutSubscribers(
   for (const ont of pon.worst) {
     const y = row.value * (NODE_HEIGHT + GAP);
     pushNode(
-      nodes,
+      canvas,
       "ont",
       `ont-${ont.ontId}`,
       ont.label,
@@ -118,28 +147,26 @@ function layoutSubscribers(
 /** layoutPons places every troubled port on a card, centred on its subscribers. */
 function layoutPons(
   card: CardNode,
-  worstTrap: number,
+  scale: Scale,
   row: RowCounter,
-  nodes: LaidOutNode[],
-  edges: LaidOutEdge[],
+  canvas: Canvas,
 ): number[] {
   const centres: number[] = [];
 
   for (const pon of card.pons) {
     const ponId = `pon-${card.slot}-${pon.port}`;
-    const subscriberCentres = layoutSubscribers(pon, row, nodes);
+    const subscriberCentres = layoutSubscribers(pon, row, canvas);
     const ponY = centreOf(subscriberCentres, row.value);
     pushNode(
-      nodes,
+      canvas,
       "pon",
       ponId,
       `PON ${pon.port}`,
       `${pon.trapPerOnt} trap/ONT · ${Math.round(pon.outageShare * 100)}% mati`,
       ponY,
-      pon.trapPerOnt / worstTrap,
+      severityOf(pon, scale),
     );
-    for (const ont of pon.worst)
-      pushEdge(nodes, edges, ponId, `ont-${ont.ontId}`);
+    for (const ont of pon.worst) pushEdge(canvas, ponId, `ont-${ont.ontId}`);
     centres.push(ponY);
   }
   return centres;
@@ -148,19 +175,18 @@ function layoutPons(
 /** layoutCards places every troubled card, centred on its troubled ports. */
 function layoutCards(
   health: PonHealth,
-  worstTrap: number,
+  scale: Scale,
   row: RowCounter,
-  nodes: LaidOutNode[],
-  edges: LaidOutEdge[],
+  canvas: Canvas,
 ): number[] {
   const centres: number[] = [];
 
   for (const card of health.cards) {
     const cardId = `card-${card.slot}`;
-    const ponCentres = layoutPons(card, worstTrap, row, nodes, edges);
+    const ponCentres = layoutPons(card, scale, row, canvas);
     const cardY = centreOf(ponCentres, row.value);
     pushNode(
-      nodes,
+      canvas,
       "card",
       cardId,
       `Kartu ${card.slot}`,
@@ -169,7 +195,7 @@ function layoutCards(
       0,
     );
     for (const pon of card.pons)
-      pushEdge(nodes, edges, cardId, `pon-${card.slot}-${pon.port}`);
+      pushEdge(canvas, cardId, `pon-${card.slot}-${pon.port}`);
     centres.push(cardY);
   }
   return centres;
@@ -186,20 +212,21 @@ function layoutCards(
  * subscribers, then ports, then cards, then the OLT they sit under.
  */
 export function layoutPonTree(health: PonHealth): PonLayout {
-  const nodes: LaidOutNode[] = [];
-  const edges: LaidOutEdge[] = [];
+  const canvas: Canvas = { nodes: [], index: new Map(), edges: [] };
+  const { nodes, edges } = canvas;
   if (health.cards.length === 0) return { nodes, edges, width: 0, height: 0 };
 
-  const worstTrap = Math.max(
-    ...health.cards.flatMap((c) => c.pons.map((p) => p.trapPerOnt)),
-    1,
-  );
+  const pons = health.cards.flatMap((c) => c.pons);
+  const scale: Scale = {
+    worstTrap: Math.max(...pons.map((p) => p.trapPerOnt), 1),
+    worstOutage: Math.max(...pons.map((p) => p.outageShare), 0),
+  };
   const row: RowCounter = { value: 0 };
-  const cardCentres = layoutCards(health, worstTrap, row, nodes, edges);
+  const cardCentres = layoutCards(health, scale, row, canvas);
 
   const oltY = centreOf(cardCentres, row.value);
   pushNode(
-    nodes,
+    canvas,
     "olt",
     "olt",
     health.oltName,
@@ -207,8 +234,7 @@ export function layoutPonTree(health: PonHealth): PonLayout {
     oltY,
     0,
   );
-  for (const card of health.cards)
-    pushEdge(nodes, edges, "olt", `card-${card.slot}`);
+  for (const card of health.cards) pushEdge(canvas, "olt", `card-${card.slot}`);
 
   // Built leaf-first (an ONT's row has to exist before its PON can centre on
   // it), but the tree reads root-first, so sort into level order for return.

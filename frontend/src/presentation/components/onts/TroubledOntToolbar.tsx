@@ -43,7 +43,7 @@ export function TroubledOntToolbar({
       />
       {ponFilter && (
         <Tag closable onClose={onClearPonFilter}>
-          {`PON ${ponFilter.port} · ${shownCount} dari ${totalCount} pelanggan`}
+          {`Kartu ${ponFilter.slot} · PON ${ponFilter.port} · ${shownCount} dari ${totalCount} pelanggan`}
         </Tag>
       )}
     </Space>

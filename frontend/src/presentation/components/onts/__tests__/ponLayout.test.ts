@@ -82,3 +82,52 @@ describe("layoutPonTree", () => {
     expect(edges).toHaveLength(0);
   });
 });
+
+// Two ports failing in the two ways the server flags separately: one churning
+// with almost no outage (Cariu 9/8), one nearly silent while its subscribers
+// lose a tenth of the day (Depok 3/2).
+const twoShapes: PonHealth = {
+  ...health,
+  cards: [
+    {
+      slot: 9,
+      ponCount: 1,
+      pons: [
+        {
+          port: 8,
+          ontCount: 10,
+          trapPerOnt: 851,
+          outageShare: 0.01,
+          worst: [],
+        },
+      ],
+    },
+    {
+      slot: 3,
+      ponCount: 1,
+      pons: [
+        {
+          port: 2,
+          ontCount: 10,
+          trapPerOnt: 1,
+          outageShare: 0.107,
+          worst: [],
+        },
+      ],
+    },
+  ],
+};
+
+describe("layoutPonTree severity", () => {
+  it("reads both ways a port fails, not only the churn", () => {
+    const { nodes } = layoutPonTree(twoShapes);
+    const severityOf = (port: number) =>
+      nodes.find((n) => n.kind === "pon" && n.label.endsWith(`${port}`))
+        ?.severity ?? 0;
+
+    // Scoring on traps alone would paint the outage port neutral beside the
+    // churning one, losing on screen the second rule the server applied.
+    expect(severityOf(8)).toBeGreaterThan(0.66);
+    expect(severityOf(2)).toBeGreaterThan(0.66);
+  });
+});

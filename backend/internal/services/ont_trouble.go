@@ -16,15 +16,20 @@ const maxTroubledWindow = 7 * 24 * time.Hour
 
 // TroubledONT is one subscriber and how much trouble it has been in.
 type TroubledONT struct {
-	ONTID        uuid.UUID        `json:"ont_id"`
-	SerialNumber string           `json:"serial_number"`
-	Name         string           `json:"name"`
-	OLTName      string           `json:"olt_name"`
-	PortID       int              `json:"port_id"`
-	ONTNumber    int              `json:"ont_number"`
-	Status       models.ONTStatus `json:"status"`
-	TrapCount    int64            `json:"trap_count"`
-	DownMinutes  int64            `json:"down_minutes"`
+	ONTID        uuid.UUID `json:"ont_id"`
+	SerialNumber string    `json:"serial_number"`
+	Name         string    `json:"name"`
+	OLTName      string    `json:"olt_name"`
+	// Slot is the line card. Discovery leaves it NULL on rows it could not
+	// place, and those are carried as card 0 — the same card the PON topology
+	// already groups them under — so narrowing to one PON matches them exactly
+	// there and nowhere else, rather than on every card.
+	Slot        int              `json:"slot"`
+	PortID      int              `json:"port_id"`
+	ONTNumber   int              `json:"ont_number"`
+	Status      models.ONTStatus `json:"status"`
+	TrapCount   int64            `json:"trap_count"`
+	DownMinutes int64            `json:"down_minutes"`
 }
 
 // TroubledSummary is the whole picture the ranking is a page of.
@@ -95,7 +100,7 @@ func (s *ONTService) TroubledONTs(filter TroubledFilter) ([]TroubledONT, Trouble
 			GROUP BY ont_id
 		)
 		SELECT n.id AS ont_id, n.serial_number, n.name, o.name AS olt_name,
-		       n.port_id, n.ont_id AS ont_number, n.status,
+		       COALESCE(n.slot, 0) AS slot, n.port_id, n.ont_id AS ont_number, n.status,
 		       COALESCE(t.trap_count, 0) AS trap_count,
 		       (COALESCE(g.down_seconds, 0) / 60)::bigint AS down_minutes,
 		       count(*) OVER () AS total_rows,

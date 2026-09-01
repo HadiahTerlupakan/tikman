@@ -2,6 +2,7 @@ import { Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { TroubledOnt } from "@/domain/entities";
 import { OutageBar } from "./OutageBar";
+import { SEVERITY_HIGH, SEVERITY_MEDIUM } from "./severity";
 
 /**
  * troubledColumns builds the ranked table.
@@ -23,11 +24,13 @@ export function troubledColumns(
   return [
     { title: "OLT", dataIndex: "oltName", width: 100 },
     {
+      // The card is part of the address: ONU-8:12 exists on every card of the
+      // chassis, and a technician sent by this column needs to know which one.
       title: "Posisi",
-      width: 110,
+      width: 120,
       render: (_, r) => (
         <span style={{ fontVariantNumeric: "tabular-nums" }}>
-          ONU-{r.portId}:{r.ontNumber}
+          ONU-{r.slot}/{r.portId}:{r.ontNumber}
         </span>
       ),
     },
@@ -53,11 +56,11 @@ export function troubledColumns(
           <span
             style={{
               fontVariantNumeric: "tabular-nums",
-              fontWeight: share > 0.33 ? 600 : 400,
+              fontWeight: share > SEVERITY_MEDIUM ? 600 : 400,
               color:
-                share > 0.66
+                share > SEVERITY_HIGH
                   ? errorColor
-                  : share > 0.33
+                  : share > SEVERITY_MEDIUM
                     ? warningColor
                     : undefined,
             }}
