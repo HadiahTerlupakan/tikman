@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get OLT ID from database
-OLTS=$(curl -s http://localhost:8081/api/v1/olts)
+OLTS=$(curl -s http://localhost:8080/api/v1/olts)
 OLT_ID=$(echo "$OLTS" | python3 -c "import sys, json; olts = json.load(sys.stdin); print(olta.get('id') if (olta := next((o for o in olts), {})) else 'none')" 2>/dev/null || echo "none")
 
 if [ "$OLT_ID" == "none" ] || [ -z "$OLT_ID" ]; then
@@ -13,7 +13,7 @@ echo "Testing topology discovery for OLT: $OLT_ID"
 echo ""
 
 # Call topology endpoint
-RESPONSE=$(curl -s -X POST "http://localhost:8081/api/v1/olts/$OLT_ID/topology")
+RESPONSE=$(curl -s -X POST "http://localhost:8080/api/v1/olts/$OLT_ID/topology")
 
 # Pretty print first ONT to check fields
 echo "$RESPONSE" | python3 -m json.tool | head -50

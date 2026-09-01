@@ -11,7 +11,6 @@ backend/api
 backend/trapd
 backend/snmpbench
 backend/wgstat
-backend/test_traffic_stats
 
 # Test binary
 *.test

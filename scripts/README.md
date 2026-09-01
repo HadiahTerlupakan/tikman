@@ -12,14 +12,8 @@ Database fixes and maintenance scripts:
 - `check_and_fix_olts.sql` - Check and fix OLT data
 
 ### `/testing`
-Test scripts and utilities:
-- `decode_ifindex.go` - Test ifIndex decoding
-- `test_*.go` - SNMP testing scripts
-- `setup-ont-monitoring.sh` - ONT monitoring setup
-- `test-topology.sh` - Topology testing
-
-### `/maintenance`
-Reserved for future maintenance scripts.
+- `test-topology.sh` - Triggers topology discovery on the first OLT the API
+  lists, and prints the first ONT it returns.
 
 ### Git hooks
 - `install-hooks.sh` - Installs the repo's hooks into `.git/hooks/`. Run once per clone.
@@ -55,17 +49,11 @@ cd scripts/fixes
 
 ### Running Test Scripts
 
-**SNMP Tests:**
-```bash
-cd scripts/testing
-go run test_snmp_final.go
-```
+`test-topology.sh` calls the API on `localhost:8080` and starts a real discovery
+against a real chassis, so run it only when that is what you want.
 
-**Setup Scripts:**
 ```bash
-cd scripts/testing
-chmod +x setup-ont-monitoring.sh
-./setup-ont-monitoring.sh
+./scripts/testing/test-topology.sh
 ```
 
 ## Safety Notes
