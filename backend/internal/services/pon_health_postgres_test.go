@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -166,4 +167,19 @@ func TestPonHealthClampsTheWindowToRetention(t *testing.T) {
 
 	require.Len(t, health.Cards, 1)
 	assert.Equal(t, 2, health.Cards[0].Slot)
+}
+
+func TestPonHealthSendsAnEmptyCardListNotNull(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	ponOnPort(t, f, 1, 1, 10, 1, 0)
+	ponOnPort(t, f, 1, 2, 10, 1, 0)
+
+	health := healthFor(t, db, f.oltID)
+	body, err := json.Marshal(health)
+	require.NoError(t, err)
+
+	// A nil slice marshals to null, and the topology reads cards.length before
+	// it can decide there is nothing to draw. A healthy OLT crashed the page.
+	assert.Contains(t, string(body), `"cards":[]`)
 }

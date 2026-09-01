@@ -128,6 +128,9 @@ func (s *ONTService) PonHealthFor(oltID uuid.UUID, window time.Duration) (PonHea
 		OLTID: olt.ID, OLTName: olt.Name,
 		TrapThreshold:   ponTrapFloor,
 		OutageThreshold: ponOutageShareThreshold,
+		// A nil slice would reach the browser as null, and a quiet OLT with
+		// nothing to draw is the ordinary case, not the exceptional one.
+		Cards: []CardNode{},
 	}
 	if len(rows) > 0 {
 		health.MedianTrapPerONT = int64(rows[0].Median)
