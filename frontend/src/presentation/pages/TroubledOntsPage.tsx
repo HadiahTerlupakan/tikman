@@ -107,6 +107,9 @@ export function TroubledOntsPage() {
 
   const rows = data?.data ?? [];
   const summary = data?.summary;
+  // Scaled to the unfiltered population, not `shown`: a mild PON's worst row
+  // would otherwise paint as red as the network's genuine worst once that PON
+  // is the only thing on screen.
   const worstTrapCount = rows[0]?.trapCount ?? 0;
   const hiddenByStatus = rows.filter(readsFineButIsNot).length;
   const shown = ponFilter
@@ -191,10 +194,12 @@ export function TroubledOntsPage() {
                       ]}
                     />
                     {ponFilter && (
-                      <Tag
-                        closable
-                        onClose={() => setPonFilter(undefined)}
-                      >{`PON ${ponFilter.port}`}</Tag>
+                      <Tag closable onClose={() => setPonFilter(undefined)}>
+                        {/* The summary above keeps describing the whole
+                            population, so the narrowing has to be said here
+                            or the two numbers on screen would contradict. */}
+                        {`PON ${ponFilter.port} · ${shown.length} dari ${summary?.ontCount ?? 0} pelanggan`}
+                      </Tag>
                     )}
                   </Space>
                   {!isLoading && rows.length === 0 ? (
@@ -219,6 +224,10 @@ export function TroubledOntsPage() {
                             ? "troubled-row-contradiction"
                             : ""
                         }
+                        locale={{
+                          emptyText:
+                            "Pelanggan PON ini tidak masuk daftar peringkat pada rentang ini",
+                        }}
                       />
                     </>
                   )}

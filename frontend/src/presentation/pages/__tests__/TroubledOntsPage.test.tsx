@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TroubledOnt, TroubledResult } from "@/domain/entities";
+import type { PonHealth, TroubledOnt, TroubledResult } from "@/domain/entities";
 import { TroubledOntsPage } from "../TroubledOntsPage";
 
 const useTroubledOnts = vi.hoisted(() =>
@@ -13,6 +13,15 @@ const useTroubledOnts = vi.hoisted(() =>
   >(),
 );
 
+const usePonHealth = vi.hoisted(() =>
+  vi.fn<
+    (
+      oltId: string | undefined,
+      hours: number,
+    ) => { data: PonHealth | undefined; isLoading: boolean }
+  >(),
+);
+
 vi.mock("@/application/hooks", () => ({
   useTroubledOnts,
   useOlts: () => ({
@@ -21,7 +30,7 @@ vi.mock("@/application/hooks", () => ({
       { id: "olt-bekasi", name: "Bekasi" },
     ],
   }),
-  usePonHealth: () => ({ data: undefined, isLoading: false }),
+  usePonHealth,
 }));
 
 const flapping: TroubledOnt = {
@@ -53,9 +62,71 @@ const result: TroubledResult = {
   summary: { ontCount: 503, totalDownMinutes: 74000 },
 };
 
+// Matches `flapping`'s portId (5), so selecting it narrows the table to one row.
+const healthWithMatch: PonHealth = {
+  oltId: "olt-cariu",
+  oltName: "Cariu",
+  medianTrapPerOnt: 50,
+  trapThreshold: 100,
+  outageThreshold: 0.1,
+  cards: [
+    {
+      slot: 1,
+      ponCount: 1,
+      pons: [
+        {
+          port: 5,
+          ontCount: 10,
+          trapPerOnt: 200,
+          outageShare: 0.2,
+          worst: [
+            {
+              ontId: "ont-1",
+              label: "ONU-5:3",
+              name: "MAD SURYA",
+              trapCount: 7901,
+              downMinutes: 325,
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+// Port 7 matches neither `flapping` (5) nor `dark` (1): the worst port on the
+// topology isn't necessarily among the fifty rows the ranked page loaded.
+const healthWithoutMatch: PonHealth = {
+  ...healthWithMatch,
+  cards: [
+    {
+      slot: 1,
+      ponCount: 1,
+      pons: [{ ...healthWithMatch.cards[0].pons[0], port: 7 }],
+    },
+  ],
+};
+
+function selectOlt() {
+  fireEvent.mouseDown(screen.getByText("Semua OLT"));
+  // Plain `getByText("Cariu")` is ambiguous — it's also the OLT column
+  // already on screen — and antd's `role="option"` mirror is a visually
+  // hidden accessibility node, not the clickable one; the option a click
+  // actually lands on is this content div.
+  fireEvent.click(
+    screen.getByText("Cariu", { selector: ".ant-select-item-option-content" }),
+  );
+}
+
+function goToPonTabAndSelectPort() {
+  fireEvent.click(screen.getByRole("tab", { name: /Per PON/i }));
+  fireEvent.click(screen.getByText(/^PON \d+$/));
+}
+
 describe("TroubledOntsPage", () => {
   beforeEach(() => {
     useTroubledOnts.mockReturnValue({ data: result, isLoading: false });
+    usePonHealth.mockReturnValue({ data: undefined, isLoading: false });
   });
 
   it("shows a subscriber that reads online but keeps failing", () => {
@@ -149,5 +220,38 @@ describe("TroubledOntsPage", () => {
 
     // One chassis at a time is the whole reason the view stays readable.
     expect(screen.getByText(/pilih OLT/i)).toBeInTheDocument();
+  });
+
+  it("states the narrowing on the tag instead of on the summary", () => {
+    usePonHealth.mockReturnValue({ data: healthWithMatch, isLoading: false });
+    render(<TroubledOntsPage />);
+
+    selectOlt();
+    goToPonTabAndSelectPort();
+
+    // The summary keeps reporting the server's whole matching population
+    // (503) — only the tag says the table itself is down to one of them, so
+    // nothing on screen can be read as two different totals.
+    expect(
+      screen.getByText("PON 5 · 1 dari 503 pelanggan"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("503")).toBeInTheDocument();
+  });
+
+  it("explains why the table is empty when the picked PON has no ranked row", () => {
+    usePonHealth.mockReturnValue({
+      data: healthWithoutMatch,
+      isLoading: false,
+    });
+    render(<TroubledOntsPage />);
+
+    selectOlt();
+    goToPonTabAndSelectPort();
+
+    expect(
+      screen.getByText(
+        "Pelanggan PON ini tidak masuk daftar peringkat pada rentang ini",
+      ),
+    ).toBeInTheDocument();
   });
 });
