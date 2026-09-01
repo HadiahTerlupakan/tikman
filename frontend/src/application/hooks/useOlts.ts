@@ -151,6 +151,17 @@ export function useOltAggregateTraffic(
   });
 }
 
+// The pruned fault tree for one OLT. Disabled until an OLT is chosen: a
+// topology of every chassis at once is the thing this view exists to avoid.
+export function usePonHealth(oltId: string | undefined, hours: number) {
+  return useQuery({
+    queryKey: ["olts", oltId, "pon-health", hours],
+    queryFn: () => oltRepository.getPonHealth(oltId as string, hours),
+    enabled: Boolean(oltId),
+    refetchInterval: 60000,
+  });
+}
+
 export function useCreateOlt() {
   const queryClient = useQueryClient();
 

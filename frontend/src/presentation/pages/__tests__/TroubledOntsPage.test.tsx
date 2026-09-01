@@ -21,6 +21,7 @@ vi.mock("@/application/hooks", () => ({
       { id: "olt-bekasi", name: "Bekasi" },
     ],
   }),
+  usePonHealth: () => ({ data: undefined, isLoading: false }),
 }));
 
 const flapping: TroubledOnt = {
@@ -130,5 +131,23 @@ describe("TroubledOntsPage", () => {
     expect(
       screen.getByText(/Tidak ada pelanggan yang beralarm/i),
     ).toBeInTheDocument();
+  });
+
+  it("offers both views on one page", () => {
+    render(<TroubledOntsPage />);
+
+    expect(
+      screen.getByRole("tab", { name: /Per Pelanggan/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Per PON/i })).toBeInTheDocument();
+  });
+
+  it("asks for an OLT before it can draw a topology", () => {
+    render(<TroubledOntsPage />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Per PON/i }));
+
+    // One chassis at a time is the whole reason the view stays readable.
+    expect(screen.getByText(/pilih OLT/i)).toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import type {
   OltVlan,
   OltSystemSnapshot,
   AggregateTrafficPoint,
+  PonHealth,
 } from "@/domain/entities";
 
 export class OltRepository implements IOltRepository {
@@ -91,6 +92,13 @@ export class OltRepository implements IOltRepository {
   async getOnuTypes(id: string): Promise<string[]> {
     const response = await apiClient.get(API_ENDPOINTS.OLT_ONU_TYPES(id));
     return response.data.data ?? [];
+  }
+
+  async getPonHealth(id: string, hours: number): Promise<PonHealth> {
+    const response = await apiClient.get(API_ENDPOINTS.OLT_PON_HEALTH(id), {
+      params: { hours },
+    });
+    return response.data.data;
   }
 
   async create(data: CreateOltDto): Promise<Olt> {
