@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // Bounds on what a request may ask the ranking for. The window is capped by the
@@ -46,7 +47,20 @@ func troubledQuery(c *gin.Context) (time.Duration, int) {
 func (h *ONTHandler) ListTroubled(c *gin.Context) {
 	window, limit := troubledQuery(c)
 
-	troubled, err := h.ontService.TroubledONTs(window, limit)
+	var oltID *uuid.UUID
+	if raw := c.Query("olt_id"); raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:  "INVALID_OLT_ID",
+				Error: "Invalid OLT ID format",
+			})
+			return
+		}
+		oltID = &parsed
+	}
+
+	troubled, summary, err := h.ontService.TroubledONTs(window, limit, oltID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "TROUBLED_QUERY_FAILED",
@@ -56,7 +70,8 @@ func (h *ONTHandler) ListTroubled(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":  troubled,
-		"hours": int(window.Hours()),
+		"data":    troubled,
+		"summary": summary,
+		"hours":   int(window.Hours()),
 	})
 }

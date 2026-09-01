@@ -12,7 +12,7 @@ import type {
   AvailabilityStats,
   TopologySlotResponse,
   OntServiceConfig,
-  TroubledOnt,
+  TroubledResult,
 } from "@/domain/entities";
 
 export class OntRepository implements IOntRepository {
@@ -152,10 +152,17 @@ export class OntRepository implements IOntRepository {
 
   // Ranks subscribers by churn. The window is capped server-side at the trap
   // table's retention, so a wider one costs more and returns the same.
-  async getTroubled(hours: number, limit = 50): Promise<TroubledOnt[]> {
+  async getTroubled(
+    hours: number,
+    oltId?: string,
+    limit = 50,
+  ): Promise<TroubledResult> {
     const response = await apiClient.get(API_ENDPOINTS.ONTS_TROUBLED, {
-      params: { hours, limit },
+      params: { hours, limit, oltId },
     });
-    return response.data.data ?? [];
+    return {
+      data: response.data.data ?? [],
+      summary: response.data.summary ?? { ontCount: 0, totalDownMinutes: 0 },
+    };
   }
 }

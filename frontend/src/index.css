@@ -12,3 +12,13 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/*
+ * A subscriber the status column would clear: online now, and down earlier in
+ * the same window. The ONT list shows this row as healthy every time anyone
+ * looks at it, which is the reason the troubled page exists — so the row says
+ * so at its edge rather than needing another column to carry the contradiction.
+ */
+.troubled-row-contradiction > td:first-child {
+  box-shadow: inset 2px 0 0 #f59e0b;
+}

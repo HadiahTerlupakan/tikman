@@ -94,7 +94,7 @@ func TestTroubledONTsRanksTheNoisiestFirst(t *testing.T) {
 	f.traps(t, quiet.SerialNumber, 3, time.Hour)
 	f.traps(t, noisy.SerialNumber, 40, time.Hour)
 
-	troubled, err := NewONTService(db).TroubledONTs(24*time.Hour, 10)
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, nil)
 	require.NoError(t, err)
 	require.Len(t, troubled, 2)
 
@@ -113,7 +113,7 @@ func TestTroubledONTsCountsOutageMinutes(t *testing.T) {
 	f.outage(t, ont.ID, 600, time.Hour)
 	f.outage(t, ont.ID, 300, 2*time.Hour)
 
-	troubled, err := NewONTService(db).TroubledONTs(24*time.Hour, 10)
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, nil)
 	require.NoError(t, err)
 	require.Len(t, troubled, 1)
 
@@ -133,7 +133,7 @@ func TestTroubledONTsCountsAnOutageStillRunning(t *testing.T) {
 		EventTime: time.Now().Add(-30 * time.Minute),
 	}).Error)
 
-	troubled, err := NewONTService(db).TroubledONTs(24*time.Hour, 10)
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, nil)
 	require.NoError(t, err)
 	require.Len(t, troubled, 1)
 	assert.InDelta(t, 30, troubled[0].DownMinutes, 1)
@@ -147,7 +147,7 @@ func TestTroubledONTsHonoursTheWindow(t *testing.T) {
 	f.traps(t, recent.SerialNumber, 5, 2*time.Hour)
 	f.traps(t, old.SerialNumber, 50, 5*24*time.Hour)
 
-	troubled, err := NewONTService(db).TroubledONTs(24*time.Hour, 10)
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, nil)
 	require.NoError(t, err)
 
 	// The five-day-old storm is over; showing it above a live fault would send a
@@ -161,7 +161,7 @@ func TestTroubledONTsLeavesOutTheUntroubled(t *testing.T) {
 	f := newTroubleFixture(t, db)
 	f.ont(t, "SN-FINE", 1, 1)
 
-	troubled, err := NewONTService(db).TroubledONTs(24*time.Hour, 10)
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, nil)
 	require.NoError(t, err)
 	assert.Empty(t, troubled)
 }
@@ -174,7 +174,77 @@ func TestTroubledONTsRespectsTheLimit(t *testing.T) {
 		f.traps(t, ont.SerialNumber, i+1, time.Hour)
 	}
 
-	troubled, err := NewONTService(db).TroubledONTs(24*time.Hour, 3)
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 3, nil)
 	require.NoError(t, err)
 	assert.Len(t, troubled, 3)
+}
+
+func (f troubleFixture) secondOLT(t *testing.T) uuid.UUID {
+	t.Helper()
+	var site models.Site
+	require.NoError(t, f.db.First(&site).Error)
+	olt := models.OLT{
+		ID: uuid.New(), SiteID: site.ID, Name: "Bekasi", IPAddress: "172.30.30.2",
+		SNMPCommunity: "public", Username: "a", Password: "b",
+		SSHPort: 22, TelnetPort: 23, SNMPPort: 161,
+		PreferredProtocol: models.OLTProtocolTelnet, Status: models.OLTStatusOnline,
+	}
+	require.NoError(t, f.db.Create(&olt).Error)
+	return olt.ID
+}
+
+func TestTroubledONTsFiltersToOneOLT(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	here := f.ont(t, "SN-HERE", 1, 1)
+	f.traps(t, here.SerialNumber, 5, time.Hour)
+
+	otherOLT := f.secondOLT(t)
+	elsewhere := models.ONT{
+		ID: uuid.New(), OLTID: otherOLT, PortID: 1, ONTID: 1,
+		SerialNumber: "SN-ELSEWHERE", Name: "Lain", Status: models.ONTStatusOnline,
+	}
+	require.NoError(t, db.Create(&elsewhere).Error)
+	require.NoError(t, db.Create(&models.ONTTrapEvent{
+		OLTID: otherOLT, ReceivedAt: time.Now().Add(-time.Hour),
+		TrapOID: ".1", SourceAddress: "172.30.30.2",
+		SerialNumber: &elsewhere.SerialNumber, Varbinds: "x",
+	}).Error)
+
+	troubled, _, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, &f.oltID)
+	require.NoError(t, err)
+
+	require.Len(t, troubled, 1)
+	assert.Equal(t, "SN-HERE", troubled[0].SerialNumber)
+}
+
+func TestTroubledSummaryCountsBeyondThePageShown(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	for i := 0; i < 6; i++ {
+		ont := f.ont(t, "SN-"+uuid.NewString()[:8], 1, i+1)
+		f.traps(t, ont.SerialNumber, i+1, time.Hour)
+		f.outage(t, ont.ID, 60, time.Hour)
+	}
+
+	troubled, summary, err := NewONTService(db).TroubledONTs(24*time.Hour, 2, nil)
+	require.NoError(t, err)
+
+	// Two rows are shown, but a summary drawn from those two would tell an
+	// operator a third of the truth.
+	require.Len(t, troubled, 2)
+	assert.EqualValues(t, 6, summary.ONTCount)
+	assert.EqualValues(t, 6, summary.TotalDownMinutes)
+}
+
+func TestTroubledSummaryIsEmptyWhenNothingIsWrong(t *testing.T) {
+	db := setupTroublePostgres(t)
+	f := newTroubleFixture(t, db)
+	f.ont(t, "SN-FINE-2", 1, 1)
+
+	troubled, summary, err := NewONTService(db).TroubledONTs(24*time.Hour, 10, nil)
+	require.NoError(t, err)
+
+	assert.Empty(t, troubled)
+	assert.EqualValues(t, 0, summary.ONTCount)
 }

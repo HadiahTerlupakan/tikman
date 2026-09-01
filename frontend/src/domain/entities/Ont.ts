@@ -114,6 +114,12 @@ export interface AggregateTrafficPoint {
   onlineOnts: number;
 }
 
+/** TroubledSummary covers every matching ONT, not only the page returned. */
+export interface TroubledSummary {
+  ontCount: number;
+  totalDownMinutes: number;
+}
+
 /** TroubledOnt is one subscriber and how much trouble it has been in. */
 export interface TroubledOnt {
   ontId: string;
@@ -125,4 +131,10 @@ export interface TroubledOnt {
   status: string;
   trapCount: number;
   downMinutes: number;
+}
+
+/** TroubledResult is the ranked page and the picture it is a page of. */
+export interface TroubledResult {
+  data: TroubledOnt[];
+  summary: TroubledSummary;
 }

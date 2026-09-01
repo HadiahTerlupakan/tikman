@@ -1,15 +1,26 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TroubledOnt } from "@/domain/entities";
+import type { TroubledOnt, TroubledResult } from "@/domain/entities";
 import { TroubledOntsPage } from "../TroubledOntsPage";
 
 const useTroubledOnts = vi.hoisted(() =>
   vi.fn<
-    (hours: number) => { data: TroubledOnt[] | undefined; isLoading: boolean }
+    (
+      hours: number,
+      oltId?: string,
+    ) => { data: TroubledResult | undefined; isLoading: boolean }
   >(),
 );
 
-vi.mock("@/application/hooks", () => ({ useTroubledOnts }));
+vi.mock("@/application/hooks", () => ({
+  useTroubledOnts,
+  useOlts: () => ({
+    data: [
+      { id: "olt-cariu", name: "Cariu" },
+      { id: "olt-bekasi", name: "Bekasi" },
+    ],
+  }),
+}));
 
 const flapping: TroubledOnt = {
   ontId: "ont-1",
@@ -23,32 +34,70 @@ const flapping: TroubledOnt = {
   downMinutes: 325,
 };
 
+const dark: TroubledOnt = {
+  ...flapping,
+  ontId: "ont-2",
+  serialNumber: "HWTCDF219D9A",
+  name: "YADI",
+  portId: 1,
+  ontNumber: 21,
+  status: "offline",
+  trapCount: 4953,
+  downMinutes: 826,
+};
+
+const result: TroubledResult = {
+  data: [flapping, dark],
+  summary: { ontCount: 503, totalDownMinutes: 74000 },
+};
+
 describe("TroubledOntsPage", () => {
   beforeEach(() => {
-    useTroubledOnts.mockReturnValue({ data: [flapping], isLoading: false });
+    useTroubledOnts.mockReturnValue({ data: result, isLoading: false });
   });
 
   it("shows a subscriber that reads online but keeps failing", () => {
     render(<TroubledOntsPage />);
 
-    // The whole point of the page: this row is invisible on the ONT list,
-    // which only ever asks whether the subscriber is up right now.
+    // The row the ONT list clears every time it is asked, which is the reason
+    // this page exists.
     expect(screen.getByText("MAD SURYA")).toBeInTheDocument();
     expect(screen.getByText("ONU-5:3")).toBeInTheDocument();
-    expect(screen.getByText("ONLINE")).toBeInTheDocument();
-  });
-
-  it("renders the churn and what it cost in readable units", () => {
-    render(<TroubledOntsPage />);
-
     expect(screen.getByText("7.901")).toBeInTheDocument();
-    expect(screen.getByText("5 jam 25 mnt")).toBeInTheDocument();
   });
 
-  it("asks for a day by default", () => {
+  it("counts the whole population, not the page shown", () => {
     render(<TroubledOntsPage />);
 
-    expect(useTroubledOnts).toHaveBeenCalledWith(24);
+    // Two rows are listed; the summary speaks for all five hundred, or it would
+    // tell an operator a fraction of the truth.
+    expect(screen.getByText("503")).toBeInTheDocument();
+    expect(screen.getByText("1233 jam 20 mnt")).toBeInTheDocument();
+  });
+
+  it("names how many are hidden behind an online status", () => {
+    render(<TroubledOntsPage />);
+
+    // Asserted through the label rather than the bare figure: "1" also appears
+    // in the pagination, and a test that matches either proves neither.
+    const label = screen.getByText(/terbaca online, tetap sempat mati/i);
+    expect(label.parentElement).toHaveTextContent("1");
+  });
+
+  it("marks the contradicting row so it is visible while scanning", () => {
+    const { container } = render(<TroubledOntsPage />);
+
+    const marked = container.querySelectorAll(".troubled-row-contradiction");
+    expect(marked).toHaveLength(1);
+    expect(
+      within(marked[0] as HTMLElement).getByText("MAD SURYA"),
+    ).toBeTruthy();
+  });
+
+  it("asks for a day and every OLT by default", () => {
+    render(<TroubledOntsPage />);
+
+    expect(useTroubledOnts).toHaveBeenCalledWith(24, undefined);
   });
 
   it("asks for a week when the operator picks one", () => {
@@ -58,11 +107,14 @@ describe("TroubledOntsPage", () => {
     // behind pointer-events: none, which jsdom refuses to click through.
     fireEvent.click(screen.getByRole("radio", { name: "7 hari" }));
 
-    expect(useTroubledOnts).toHaveBeenLastCalledWith(168);
+    expect(useTroubledOnts).toHaveBeenLastCalledWith(168, undefined);
   });
 
   it("says so plainly when nothing is in trouble", () => {
-    useTroubledOnts.mockReturnValue({ data: [], isLoading: false });
+    useTroubledOnts.mockReturnValue({
+      data: { data: [], summary: { ontCount: 0, totalDownMinutes: 0 } },
+      isLoading: false,
+    });
     render(<TroubledOntsPage />);
 
     expect(
