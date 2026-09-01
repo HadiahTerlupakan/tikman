@@ -7,6 +7,71 @@ interface PonTopologyProps {
   onSelectPon: (slot: number, port: number) => void;
 }
 
+type Token = ReturnType<typeof theme.useToken>["token"];
+
+function fillFor(node: LaidOutNode, token: Token): string {
+  if (node.severity > 0.66) return token.colorErrorBg;
+  if (node.severity > 0.33) return token.colorWarningBg;
+  return token.colorBgContainer;
+}
+
+function strokeFor(node: LaidOutNode, token: Token): string {
+  if (node.severity > 0.66) return token.colorError;
+  if (node.severity > 0.33) return token.colorWarning;
+  return token.colorBorderSecondary;
+}
+
+interface TopologyNodeProps {
+  node: LaidOutNode;
+  token: Token;
+  onSelectPon: (slot: number, port: number) => void;
+}
+
+/**
+ * TopologyNode draws one box: its rect, coloured by severity, plus the label
+ * and detail text beside it. Split out of PonTopology so each stays under the
+ * project's function-length limit; it holds no arithmetic of its own.
+ */
+function TopologyNode({ node, token, onSelectPon }: TopologyNodeProps) {
+  return (
+    <g
+      onClick={() => {
+        if (node.kind !== "pon") return;
+        const [, slot, port] = node.id.split("-");
+        onSelectPon(Number(slot), Number(port));
+      }}
+      style={{ cursor: node.kind === "pon" ? "pointer" : "default" }}
+    >
+      <rect
+        x={node.x}
+        y={node.y}
+        width={node.width}
+        height={node.height}
+        rx={8}
+        fill={fillFor(node, token)}
+        stroke={strokeFor(node, token)}
+      />
+      <text
+        x={node.x + 12}
+        y={node.y + 21}
+        fill={token.colorText}
+        fontSize={13}
+        fontWeight={600}
+      >
+        {node.label}
+      </text>
+      <text
+        x={node.x + 12}
+        y={node.y + 39}
+        fill={token.colorTextSecondary}
+        fontSize={11}
+      >
+        {node.detail}
+      </text>
+    </g>
+  );
+}
+
 /**
  * PonTopology draws the pruned tree: OLT, then only the cards and ports in
  * trouble, then the subscribers worst hit on each.
@@ -27,18 +92,6 @@ export function PonTopology({ health, onSelectPon }: PonTopologyProps) {
     );
   }
 
-  const fill = (node: LaidOutNode) => {
-    if (node.severity > 0.66) return token.colorErrorBg;
-    if (node.severity > 0.33) return token.colorWarningBg;
-    return token.colorBgContainer;
-  };
-
-  const stroke = (node: LaidOutNode) => {
-    if (node.severity > 0.66) return token.colorError;
-    if (node.severity > 0.33) return token.colorWarning;
-    return token.colorBorderSecondary;
-  };
-
   return (
     <div style={{ overflowX: "auto" }}>
       <svg
@@ -57,42 +110,12 @@ export function PonTopology({ health, onSelectPon }: PonTopologyProps) {
           />
         ))}
         {nodes.map((node) => (
-          <g
+          <TopologyNode
             key={node.id}
-            onClick={() => {
-              if (node.kind !== "pon") return;
-              const [, slot, port] = node.id.split("-");
-              onSelectPon(Number(slot), Number(port));
-            }}
-            style={{ cursor: node.kind === "pon" ? "pointer" : "default" }}
-          >
-            <rect
-              x={node.x}
-              y={node.y}
-              width={node.width}
-              height={node.height}
-              rx={8}
-              fill={fill(node)}
-              stroke={stroke(node)}
-            />
-            <text
-              x={node.x + 12}
-              y={node.y + 21}
-              fill={token.colorText}
-              fontSize={13}
-              fontWeight={600}
-            >
-              {node.label}
-            </text>
-            <text
-              x={node.x + 12}
-              y={node.y + 39}
-              fill={token.colorTextSecondary}
-              fontSize={11}
-            >
-              {node.detail}
-            </text>
-          </g>
+            node={node}
+            token={token}
+            onSelectPon={onSelectPon}
+          />
         ))}
       </svg>
       <div
