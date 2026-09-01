@@ -106,6 +106,22 @@ export const theme: ThemeConfig = {
       defaultBg: "#27272a",
       defaultColor: "#e5e5e5",
     },
+    // This theme sets a dark colorBgBase without darkAlgorithm, so Ant Design
+    // still derives an alert's tinted background the light way: pale pink for
+    // an error, under text this theme has already turned near-white. The login
+    // failure was unreadable. Stating the tints here fixes every Alert at once.
+    Alert: {
+      colorErrorBg: "rgba(239, 68, 68, 0.12)",
+      colorErrorBorder: "rgba(239, 68, 68, 0.4)",
+      colorWarningBg: "rgba(245, 158, 11, 0.12)",
+      colorWarningBorder: "rgba(245, 158, 11, 0.4)",
+      colorSuccessBg: "rgba(62, 207, 142, 0.12)",
+      colorSuccessBorder: "rgba(62, 207, 142, 0.4)",
+      colorInfoBg: "rgba(59, 130, 246, 0.12)",
+      colorInfoBorder: "rgba(59, 130, 246, 0.4)",
+      colorText: "#e5e5e5",
+      colorTextHeading: "#ffffff",
+    },
     Statistic: {
       contentFontSize: 24,
       titleFontSize: 14,
