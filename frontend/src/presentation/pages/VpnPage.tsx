@@ -35,7 +35,7 @@ export default function VpnPage() {
   const deletePeer = useDeleteWireguardPeer();
 
   const columns = [
-    { title: "Site", dataIndex: "name", key: "name" },
+    { title: "Tunnel", dataIndex: "name", key: "name" },
     {
       title: "Alamat tunnel",
       dataIndex: "tunnelAddress",
@@ -152,7 +152,7 @@ export default function VpnPage() {
               setFormOpen(true);
             }}
           >
-            Tambah site
+            Tambah tunnel
           </Button>
         }
       >

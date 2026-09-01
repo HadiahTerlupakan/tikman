@@ -36,12 +36,12 @@ func (s *WireGuardServer) TableName() string {
 	return "wireguard_server"
 }
 
-// WireGuardPeer is one site. It carries no endpoint: sites sit behind NAT and
-// are the side that initiates, so the server learns their address from the
-// handshake.
+// WireGuardPeer is one tunnel into a site, and a site with more than one POP has
+// more than one. It carries no endpoint: sites sit behind NAT and are the side
+// that initiates, so the server learns their address from the handshake.
 type WireGuardPeer struct {
 	ID                  uuid.UUID      `gorm:"type:uuid;primaryKey"`
-	SiteID              uuid.UUID      `gorm:"type:uuid;not null;uniqueIndex"`
+	SiteID              uuid.UUID      `gorm:"type:uuid;not null;index"`
 	Name                string         `gorm:"type:varchar(255);not null"`
 	PublicKey           string         `gorm:"type:text;not null"`
 	PrivateKey          string         `gorm:"type:text;not null"` // encrypted

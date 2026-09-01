@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -94,18 +95,37 @@ func TestCreatePeerRejectsOverlappingSubnet(t *testing.T) {
 	require.Contains(t, err.Error(), "Site Bandung")
 }
 
-func TestCreatePeerRejectsSecondPeerForSameSite(t *testing.T) {
+func TestCreatePeerAcceptsASecondPopOnTheSameSite(t *testing.T) {
 	service, _, db := newWireGuardService(t)
 	_, err := service.EnsureServer("vpn.contoh.id")
 	require.NoError(t, err)
-	site := createTestSite(t, db, "Site A")
+	site := createTestSite(t, db, "Cariu")
 
-	_, err = service.CreatePeer(site.ID, "Site A", []string{"10.10.10.0/24"}, "")
+	first, err := service.CreatePeer(site.ID, "Cariu POP 1", []string{"10.10.10.0/24"}, "")
 	require.NoError(t, err)
 
-	_, err = service.CreatePeer(site.ID, "Site A lagi", []string{"10.20.20.0/24"}, "")
+	// One site, two POPs, each behind its own router: the shape that made the
+	// UNIQUE on site_id wrong rather than merely redundant.
+	second, err := service.CreatePeer(site.ID, "Cariu POP 2", []string{"10.20.20.0/24"}, "")
+	require.NoError(t, err)
+	assert.NotEqual(t, first.TunnelAddress, second.TunnelAddress)
+	assert.Equal(t, site.ID, second.SiteID)
+}
+
+func TestCreatePeerStillRejectsAnOverlappingSubnetOnTheSameSite(t *testing.T) {
+	service, _, db := newWireGuardService(t)
+	_, err := service.EnsureServer("vpn.contoh.id")
+	require.NoError(t, err)
+	site := createTestSite(t, db, "Cariu")
+
+	_, err = service.CreatePeer(site.ID, "Cariu POP 1", []string{"10.10.10.0/24"}, "")
+	require.NoError(t, err)
+
+	// Dropping the site rule must not drop the rule that matters: two tunnels
+	// claiming one subnet make the route ambiguous whichever site they serve.
+	_, err = service.CreatePeer(site.ID, "Cariu POP 2", []string{"10.10.10.128/25"}, "")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "already has a tunnel")
+	require.Contains(t, err.Error(), "overlaps")
 }
 
 func TestDisabledPeerIsNotAppliedToDevice(t *testing.T) {

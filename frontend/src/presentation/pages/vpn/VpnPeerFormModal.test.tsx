@@ -38,6 +38,10 @@ function subnetField() {
   return screen.getByLabelText("Subnet lokal di site");
 }
 
+function nameField() {
+  return screen.getByLabelText("Nama tunnel");
+}
+
 describe("VpnPeerFormModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,6 +78,26 @@ describe("VpnPeerFormModal", () => {
       siteId: "site-1",
       name: "Site Bandung",
       allowedIps: ["10.10.10.0/24"],
+    });
+  });
+
+  // A site with two POPs registers two tunnels, and both would arrive named
+  // after the site — indistinguishable in the table an operator reads to find
+  // which router is down.
+  it("submits the tunnel name the operator typed, not the site's", async () => {
+    render(<VpnPeerFormModal open onClose={vi.fn()} />);
+
+    await chooseSite("Site Bandung");
+    await waitFor(() => expect(nameField()).toHaveValue("Site Bandung"));
+
+    await userEvent.clear(nameField());
+    await userEvent.type(nameField(), "Site Bandung POP 2");
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() => expect(createPeer).toHaveBeenCalled());
+    expect(createPeer.mock.calls[0][0]).toMatchObject({
+      siteId: "site-1",
+      name: "Site Bandung POP 2",
     });
   });
 

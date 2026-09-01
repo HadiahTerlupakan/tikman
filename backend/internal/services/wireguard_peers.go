@@ -68,12 +68,6 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 	if err != nil {
 		return nil, err
 	}
-	for _, existing := range peers {
-		if existing.SiteID == siteID {
-			return nil, fmt.Errorf("%w: this site already has a tunnel", ErrValidation)
-		}
-	}
-
 	tunnelAddress, err = s.resolveNewPeerNetwork(server, peers, allowedIPs, tunnelAddress)
 	if err != nil {
 		return nil, err

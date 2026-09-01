@@ -17,6 +17,7 @@ interface Props {
 
 interface FormValues {
   siteId: string;
+  name: string;
   allowedIps: string;
   tunnelAddress?: string;
 }
@@ -37,6 +38,12 @@ export function VpnPeerFormModal({ open, peer, onClose }: Props) {
     // Clear immediately: a suggestion derived from the previous site must never
     // sit in the field under a different site's name.
     form.setFieldValue("allowedIps", "");
+    // The site's name is the right default and the wrong answer for the second
+    // POP, so it is offered rather than imposed.
+    form.setFieldValue(
+      "name",
+      sites?.find((site) => site.id === value)?.name ?? "",
+    );
   };
 
   // Editing shows the peer's stored subnets and asks for no suggestion: the
@@ -48,6 +55,7 @@ export function VpnPeerFormModal({ open, peer, onClose }: Props) {
     setSuggestFor(undefined);
     form.setFieldsValue({
       siteId: peer?.siteId,
+      name: peer?.name ?? "",
       allowedIps: peer?.allowedIps.join(", ") ?? "",
       tunnelAddress: undefined,
     });
@@ -70,8 +78,7 @@ export function VpnPeerFormModal({ open, peer, onClose }: Props) {
 
   const submit = async () => {
     const values = await form.validateFields();
-    const site = sites?.find((candidate) => candidate.id === values.siteId);
-    const name = site?.name ?? peer?.name ?? "Site";
+    const name = values.name.trim();
     const allowedIps = values.allowedIps
       .split(",")
       .map((entry) => entry.trim())
@@ -93,7 +100,7 @@ export function VpnPeerFormModal({ open, peer, onClose }: Props) {
   return (
     <Modal
       open={open}
-      title={isEdit ? "Sunting site VPN" : "Tambah site ke VPN"}
+      title={isEdit ? "Sunting tunnel" : "Tambah tunnel"}
       okText="Simpan"
       cancelText="Batal"
       confirmLoading={mutation.isPending}
@@ -129,6 +136,14 @@ export function VpnPeerFormModal({ open, peer, onClose }: Props) {
               label: site.name,
             }))}
           />
+        </Form.Item>
+        <Form.Item
+          name="name"
+          label="Nama tunnel"
+          extra="Beri nama berbeda bila satu site punya lebih dari satu POP."
+          rules={[{ required: true, message: "Nama tunnel wajib diisi" }]}
+        >
+          <Input placeholder="Cariu POP 1" />
         </Form.Item>
         <Form.Item
           name="allowedIps"
