@@ -290,7 +290,7 @@ halaman Sites, tapi peta tidak menggambarnya.
    memberi saran.
 3. Buat API key.
 4. Batasi: Application restrictions → Websites → tambahkan
-   `https://noc.radpro.id/*`; API restrictions → hanya **Maps JavaScript API**
+   `https://<domain-noc-anda>/*`; API restrictions → hanya **Maps JavaScript API**
    dan **Places API (New)**.
 
    Sekali lagi **(New)**. Memilih "Places API" yang lama di sini membuat key

@@ -78,7 +78,7 @@ viewer can read it from the network tab. This is how the product works and is
 documented by Google.
 
 What actually protects the key is a **restriction set in Google Cloud Console**:
-the key must accept requests only from `https://noc.radpro.id/*` and only for
+the key must accept requests only from `https://your-noc-domain/*` and only for
 the APIs it needs. Without that restriction, a copied key is billable to the
 account that owns it.
 
@@ -222,7 +222,7 @@ carrying the restriction steps:
 
 1. Google Cloud Console → APIs & Services → Credentials
 2. Open the key → Application restrictions → **Websites**
-3. Add `https://noc.radpro.id/*`
+3. Add `https://your-noc-domain/*`
 4. API restrictions → restrict to **Maps JavaScript API** and **Places API**
 
 with the plain statement that an unrestricted key is billable by anyone who

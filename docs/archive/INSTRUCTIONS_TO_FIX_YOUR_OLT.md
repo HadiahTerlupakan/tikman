@@ -29,10 +29,10 @@ docker exec -it tikman-postgres psql -U tikman -d tikman
 # Then paste this SQL:
 UPDATE olts 
 SET rack = 1, shelf = 3, slot = 1 
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 
 # Verify:
-SELECT id, name, ip_address, rack, shelf, slot FROM olts WHERE ip_address = '113.192.1.98';
+SELECT id, name, ip_address, rack, shelf, slot FROM olts WHERE ip_address = '192.0.2.10';
 ```
 
 #### **Method B: Using SQL File (Recommended)**
@@ -216,8 +216,8 @@ UPDATE olts SET rack=X, shelf=Y, slot=Z WHERE name='OLT_Name';
 
 Try different SNMP community string:
 ```sql
--- Try "public" instead of "ufiber2"
-UPDATE olts SET snmp_community = 'public' WHERE ip_address = '113.192.1.98';
+-- Try "public" instead of "<community-anda>"
+UPDATE olts SET snmp_community = 'public' WHERE ip_address = '192.0.2.10';
 ```
 
 ---

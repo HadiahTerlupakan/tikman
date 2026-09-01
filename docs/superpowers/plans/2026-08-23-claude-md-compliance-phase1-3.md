@@ -263,7 +263,7 @@ git commit -m "refactor(worker): delete the unused monitoring worker package"
 
 ### Task 4: Delete the scratch metrics tool
 
-`backend/cmd/test_metrics/` is a scratch tool with a hardcoded production OLT address, SNMP community, and port at `main.go:20` — `driver.WalkMetrics("113.192.1.98", "public", 23161)` — closing with `fmt.Println("\n✅ RX Power decoder fix verified!")`. It is shipped debug output, magic values, and a real device address plus community string in git history.
+`backend/cmd/test_metrics/` is a scratch tool with a hardcoded production OLT address, SNMP community, and port at `main.go:20` — `driver.WalkMetrics("192.0.2.10", "public", 23161)` — closing with `fmt.Println("\n✅ RX Power decoder fix verified!")`. It is shipped debug output, magic values, and a real device address plus community string in git history.
 
 Deleting the directory does **not** remove the credentials from git history; that needs a separate history rewrite, and the `public` community on a reachable OLT warrants rotation regardless. Both are out of scope here — flag them to the user, do not action them.
 
@@ -673,7 +673,7 @@ git commit -m "docs(superpowers): add the CLAUDE.md compliance spec and phase 1-
 - [ ] **Step 4: Report to the user, do not push**
 
 Summarise: lines deleted, the Redis test result from Task 2 Step 2 (including any genuine failures), and the new coverage figure. Then flag, without acting:
-- The OLT credentials (`113.192.1.98`, community `public`) remain in git history; purging needs a history rewrite.
+- The OLT credentials (`192.0.2.10`, community `public`) remain in git history; purging needs a history rewrite.
 - That community warrants rotation regardless.
 - Phases 4-5 (37 functions, 10 files, handler DB access, the raw `axios` call) need their own plan.
 - Phase 6 needs the user to set the coverage and line-limit numbers.

@@ -55,7 +55,7 @@ There are **THREE ways** to discover your actual location:
 
 1. Login to http://localhost:8080
 2. Go to **OLT Management**
-3. Click **Edit** on your OLT at IP 113.192.1.98
+3. Click **Edit** on your OLT at IP 192.0.2.10
 4. Look for existing rack/shelf/slot values
 5. If all zeros, proceed to Method B
 
@@ -82,7 +82,7 @@ Look at your physical equipment:
 If you can access OLT via SSH/Telnet:
 
 ```bash
-ssh admin@113.192.1.98
+ssh admin@192.0.2.10
 # Then run commands like:
 show system rack
 show system shelf  
@@ -92,7 +92,7 @@ show board
 Or use SNMP walk from another machine:
 
 ```bash
-snmpwalk -v2c -c ufiber2 113.192.1.98:23161 .1.3.6.1.4.1.3902.1012.3.28.1.1.1
+snmpwalk -v2c -c <community-anda> 192.0.2.10:23161 .1.3.6.1.4.1.3902.1012.3.28.1.1.1
 ```
 
 Parse the OID suffix to extract ifindex, then decode:
@@ -110,7 +110,7 @@ slot    = (134217728 >> 13) & 0x1F = 26
 ### Option 1: Via Web UI (Recommended)
 
 1. Login to dashboard
-2. **OLT Management** → Edit OLT `113.192.1.98`
+2. **OLT Management** → Edit OLT `192.0.2.10`
 3. Fill in Physical Location section:
    ```
    Rack:     [your discovered rack]
@@ -130,7 +130,7 @@ UPDATE olts
 SET rack = X,   -- Replace X with your rack (0-15)
     shelf = Y,  -- Replace Y with your shelf (0-7)
     slot = Z    -- Replace Z with your slot (0-31)
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 ```
 
 **Common configurations to try:**
@@ -139,13 +139,13 @@ If you don't know exact location, try these common setups:
 
 ```sql
 -- Try #1: Standard single GPON card setup
-UPDATE olts SET rack = 0, shelf = 0, slot = 1 WHERE ip_address = '113.192.1.98';
+UPDATE olts SET rack = 0, shelf = 0, slot = 1 WHERE ip_address = '192.0.2.10';
 
 -- Try #2: If in different rack
-UPDATE olts SET rack = 1, shelf = 0, slot = 1 WHERE ip_address = '113.192.1.98';
+UPDATE olts SET rack = 1, shelf = 0, slot = 1 WHERE ip_address = '192.0.2.10';
 
 -- Try #3: Multiple card setup (slot varies)
-UPDATE olts SET rack = 0, shelf = 0, slot = 2 WHERE ip_address = '113.192.1.98';
+UPDATE olts SET rack = 0, shelf = 0, slot = 2 WHERE ip_address = '192.0.2.10';
 ```
 
 After each update, restart worker and check if duplicate serials disappear.

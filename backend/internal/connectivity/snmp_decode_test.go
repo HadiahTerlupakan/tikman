@@ -63,7 +63,7 @@ func TestParseZxGponSuffix(t *testing.T) {
 	}
 }
 
-// Raw values below were read from a live ZTE C300 at 113.192.1.98.
+// Raw values below were read from a live ZTE C300, not invented.
 func TestDecodeZxGponPower(t *testing.T) {
 	tests := []struct {
 		name    string

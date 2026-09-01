@@ -18,7 +18,7 @@ export function MapsKeyGuidance() {
           <li>Google Cloud Console → APIs &amp; Services → Credentials</li>
           <li>Open the key → Application restrictions → Websites</li>
           <li>
-            Add <code>https://noc.radpro.id/*</code>
+            Add <code>https://your-noc-domain/*</code>
           </li>
           <li>
             API restrictions → restrict to Maps JavaScript API and Places API

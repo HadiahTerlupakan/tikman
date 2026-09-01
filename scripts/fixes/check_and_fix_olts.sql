@@ -48,21 +48,21 @@ SET
 WHERE name = 'Your-OFT-Name';
 */
 
--- Example for your OLT at 113.192.1.98
+-- Example for your OLT at 192.0.2.10
 -- Based on common ZTE C300 deployment, try these configurations:
 
 -- Option 1: Rack 0, Shelf 0, Slot 1 (most common single card setup)
 /*
 UPDATE olts
 SET rack = 0, shelf = 0, slot = 1
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 */
 
 -- Option 2: If you know it's in different slot, update accordingly
 /*
 UPDATE olts
 SET rack = X, shelf = Y, slot = Z
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 */
 
 -- 4. After updating, verify changes
@@ -75,4 +75,4 @@ SELECT
     slot,
     ((rack << 25) | (shelf << 19) | (slot << 13)) as base_ifindex
 FROM olts
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';

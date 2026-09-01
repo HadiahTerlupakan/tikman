@@ -50,6 +50,6 @@ describe("SettingsPage", () => {
     renderPage();
 
     expect(screen.getByText(/Application restrictions/i)).toBeInTheDocument();
-    expect(screen.getByText(/noc\.radpro\.id/)).toBeInTheDocument();
+    expect(screen.getByText(/your-noc-domain/)).toBeInTheDocument();
   });
 });

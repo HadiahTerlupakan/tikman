@@ -83,7 +83,7 @@ func splitONUVarbind(oid string) (column string, ifIndex int64, onuID int, ok bo
 	return parts[0], index, id, true
 }
 
-// trailingField takes the serial out of a value like "1,ZTEGCACC7172". The
+// trailingField takes the serial out of a value like "1,ZTEGC0000001". The
 // leading field is the ONU's authentication mode; the serial is what identifies
 // the box.
 func trailingField(value string) string {

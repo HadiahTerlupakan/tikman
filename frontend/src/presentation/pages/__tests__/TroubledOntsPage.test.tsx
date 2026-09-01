@@ -35,8 +35,8 @@ vi.mock("@/application/hooks", () => ({
 
 const flapping: TroubledOnt = {
   ontId: "ont-1",
-  serialNumber: "ZTEGCACC308A",
-  name: "MAD SURYA",
+  serialNumber: "ZTEGC0000002",
+  name: "PELANGGAN SATU",
   oltName: "Cariu",
   slot: 1,
   portId: 5,
@@ -51,8 +51,8 @@ const flapping: TroubledOnt = {
 const otherCard: TroubledOnt = {
   ...flapping,
   ontId: "ont-3",
-  serialNumber: "ZTEGCACC7F11",
-  name: "ENDANG",
+  serialNumber: "ZTEGC0000003",
+  name: "PELANGGAN DUA",
   slot: 2,
   status: "offline",
   trapCount: 6000,
@@ -62,8 +62,8 @@ const otherCard: TroubledOnt = {
 const dark: TroubledOnt = {
   ...flapping,
   ontId: "ont-2",
-  serialNumber: "HWTCDF219D9A",
-  name: "YADI",
+  serialNumber: "HWTCB0000001",
+  name: "PELANGGAN TIGA",
   portId: 1,
   ontNumber: 21,
   status: "offline",
@@ -97,7 +97,7 @@ const healthWithMatch: PonHealth = {
             {
               ontId: "ont-1",
               label: "ONU-5:3",
-              name: "MAD SURYA",
+              name: "PELANGGAN SATU",
               trapCount: 7901,
               downMinutes: 325,
             },
@@ -148,7 +148,7 @@ describe("TroubledOntsPage", () => {
 
     // The row the ONT list clears every time it is asked, which is the reason
     // this page exists.
-    expect(screen.getByText("MAD SURYA")).toBeInTheDocument();
+    expect(screen.getByText("PELANGGAN SATU")).toBeInTheDocument();
     expect(screen.getByText("ONU-1/5:3")).toBeInTheDocument();
     expect(screen.getByText("7.901")).toBeInTheDocument();
   });
@@ -177,7 +177,7 @@ describe("TroubledOntsPage", () => {
     const marked = container.querySelectorAll(".troubled-row-contradiction");
     expect(marked).toHaveLength(1);
     expect(
-      within(marked[0] as HTMLElement).getByText("MAD SURYA"),
+      within(marked[0] as HTMLElement).getByText("PELANGGAN SATU"),
     ).toBeTruthy();
   });
 
@@ -271,10 +271,10 @@ describe("TroubledOntsPage", () => {
     selectOlt();
     goToPonTabAndSelectPort();
 
-    // Card 1 port 5 was clicked. ENDANG is on card 2 port 5, and listing it
+    // Card 1 port 5 was clicked. PELANGGAN DUA is on card 2 port 5, and listing it
     // would send a technician to the wrong card for a fault that is not there.
-    expect(screen.getByText("MAD SURYA")).toBeInTheDocument();
-    expect(screen.queryByText("ENDANG")).not.toBeInTheDocument();
+    expect(screen.getByText("PELANGGAN SATU")).toBeInTheDocument();
+    expect(screen.queryByText("PELANGGAN DUA")).not.toBeInTheDocument();
   });
 
   it("explains why the table is empty when the picked PON has no ranked row", () => {

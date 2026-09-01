@@ -1262,7 +1262,7 @@ describe("SettingsPage", () => {
     renderPage();
 
     expect(screen.getByText(/Application restrictions/i)).toBeInTheDocument();
-    expect(screen.getByText(/noc\.radpro\.id/)).toBeInTheDocument();
+    expect(screen.getByText(/your-noc-domain/)).toBeInTheDocument();
   });
 });
 ```
@@ -1551,7 +1551,7 @@ export function MapsKeyGuidance() {
           <li>Google Cloud Console → APIs &amp; Services → Credentials</li>
           <li>Open the key → Application restrictions → Websites</li>
           <li>
-            Add <code>https://noc.radpro.id/*</code>
+            Add <code>https://your-noc-domain/*</code>
           </li>
           <li>
             API restrictions → restrict to Maps JavaScript API and Places API
@@ -2991,7 +2991,7 @@ listed beside the map, so a short map is never mistaken for a complete one.
 2. Enable **Maps JavaScript API** and **Places API**.
 3. Create an API key.
 4. Restrict it: Application restrictions → Websites → add
-   `https://noc.radpro.id/*`; API restrictions → Maps JavaScript API and
+   `https://your-noc-domain/*`; API restrictions → Maps JavaScript API and
    Places API only.
 5. In TikMan, go to **Settings** and save the key under Google Maps API key.
 
@@ -3040,5 +3040,5 @@ ssh radpro "sudo docker exec tikman-postgres psql -U tikman -d tikman -t -A -c \
 # expect 28, 27, 26
 
 # the browser endpoint answers empty before a key is saved, and never 404s
-curl -s -o /dev/null -w '%{http_code}\n' https://noc.radpro.id/api/v1/settings/browser
+curl -s -o /dev/null -w '%{http_code}\n' https://your-noc-domain/api/v1/settings/browser
 ```

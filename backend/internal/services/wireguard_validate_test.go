@@ -70,13 +70,13 @@ func TestValidateKeepalive(t *testing.T) {
 }
 
 func TestValidateEndpointHost(t *testing.T) {
-	for _, ok := range []string{"1.2.3.4", "vpn.radpro.id", "a-b.example.co.id", "2001:db8::1"} {
+	for _, ok := range []string{"1.2.3.4", "vpn.contoh.id", "a-b.example.co.id", "2001:db8::1"} {
 		require.NoError(t, ValidateEndpointHost(ok), ok)
 	}
 	for _, bad := range []string{
 		"1.2.3.4;/user/add name=hax password=hax group=full;",
-		"vpn.radpro.id ",
-		"vpn radpro id",
+		"vpn.contoh.id ",
+		"vpn contoh id",
 		"-leadinghyphen.example",
 		"",
 	} {

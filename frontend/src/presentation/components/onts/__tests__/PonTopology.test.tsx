@@ -23,7 +23,7 @@ const health: PonHealth = {
             {
               ontId: "ont-1",
               label: "ONU-8:12",
-              name: "MAD SURYA",
+              name: "PELANGGAN SATU",
               trapCount: 1204,
               downMinutes: 340,
             },

@@ -16,7 +16,7 @@ echo "  - Root cause: OLT rack/shelf/slot not configured or incorrect"
 echo ""
 
 echo "CURRENT SETUP (from your input):"
-echo "  OLT IP: 113.192.1.98"
+echo "  OLT IP: 192.0.2.10"
 echo "  SNMP Port: 23161"
 echo ""
 
@@ -88,7 +88,7 @@ do
             echo ""
             cat << 'DISCOVERY'
 # Run this command to discover actual location:
-snmpwalk -v2c -c ufiber2 113.192.1.98:23161 .1.3.6.1.4.1.3902.1012.3.28.1.1.1
+snmpwalk -v2c -c <community-anda> 192.0.2.10:23161 .1.3.6.1.4.1.3902.1012.3.28.1.1.1
 
 # Parse output to find ifindex values, then decode:
 # ifindex = rack<<25 | shelf<<19 | slot<<13 | port<<8
@@ -134,7 +134,7 @@ Example for Port 1, ONT ID 18:
 SELECTION_INFO
 
 echo ""
-read -p "Press Enter to apply this configuration to OLT at 113.192.1.98..."
+read -p "Press Enter to apply this configuration to OLT at 192.0.2.10..."
 
 echo ""
 echo "Creating SQL update script..."
@@ -143,21 +143,21 @@ cat > /tmp/update_olt_config.sql << EOF
 -- ============================================================================
 -- UPDATE OLT PHYSICAL LOCATION CONFIGURATION
 -- ============================================================================
--- Target OLT: 113.192.1.98
+-- Target OLT: 192.0.2.10
 -- New Configuration:
 --   Rack: $target_rack
 --   Shelf: $target_shelf
 --   Slot: $target_slot
 
 -- Backup current values first
-SELECT * FROM olts WHERE ip_address = '113.192.1.98';
+SELECT * FROM olts WHERE ip_address = '192.0.2.10';
 
 -- Update with new configuration
 UPDATE olts
 SET rack = $target_rack,
     shelf = $target_shelf,
     slot = $target_slot
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 
 -- Verify update
 SELECT
@@ -169,7 +169,7 @@ SELECT
     slot,
     ((rack << 25) | (shelf << 19) | (slot << 13)) as base_ifindex
 FROM olts
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 
 EOF
 

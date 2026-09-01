@@ -11,9 +11,9 @@ func main() {
 	ontID := 18
 	
 	client := &gosnmp.GoSNMP{
-		Target:    "113.192.1.98",
+		Target:    "192.0.2.10",
 		Port:      161,
-		Community: "ufiber2",
+		Community: "<community-anda>",
 		Version:   gosnmp.Version2c,
 		Timeout:   10 * time.Second,
 		Retries:   2,

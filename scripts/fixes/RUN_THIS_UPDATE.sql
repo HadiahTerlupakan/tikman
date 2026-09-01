@@ -16,7 +16,7 @@ SELECT
     slot as OLD_SLOT,
     ((rack << 25) | (shelf << 19) | (slot << 13)) as OLD_BASE_IFINDEX
 FROM olts
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 -- Note these values in case you need to restore
 
 -- 2. Update with CORRECT physical location from CLI output
@@ -25,7 +25,7 @@ SET
     rack = 1,      -- From gpon-olt_1/3/1 (Rack position)
     shelf = 3,     -- From gpon-olt_1/3/1 (Shelf position)
     slot = 1       -- From gpon-olt_1/3/1 (Slot position)
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 
 -- 3. Verify the update worked correctly
 SELECT
@@ -38,7 +38,7 @@ SELECT
     ((rack << 25) | (shelf << 19) | (slot << 13)) as NEW_BASE_IFINDEX,
     'ZTE C300 format confirmed' as status
 FROM olts
-WHERE ip_address = '113.192.1.98';
+WHERE ip_address = '192.0.2.10';
 
 -- 4. Expected SNMP OID calculations for each PON port
 -- Base ifindex calculation for Rack 1, Shelf 3, Slot 1:

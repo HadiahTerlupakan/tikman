@@ -622,7 +622,7 @@ func StartScheduler() {
 - Redis cache hit rates
 
 ### 11.4 Manual Testing
-- Test with real ZTE OLT (113.192.1.98)
+- Test with real ZTE OLT (192.0.2.10)
 - Verify SNMP OID correctness
 - Test alarm thresholds
 - UI responsiveness
@@ -678,7 +678,7 @@ func StartScheduler() {
     "olt": {
       "id": "uuid",
       "name": "OLT-Central-01",
-      "ip_address": "113.192.1.98"
+      "ip_address": "192.0.2.10"
     },
     "ont": {
       "id": "uuid",
@@ -699,7 +699,7 @@ func StartScheduler() {
     "description": "ONT offline: ZTEG12345678",
     "color": 15158332,
     "fields": [
-      {"name": "OLT", "value": "OLT-Central-01 (113.192.1.98)", "inline": true},
+      {"name": "OLT", "value": "OLT-Central-01 (192.0.2.10)", "inline": true},
       {"name": "Port", "value": "1/1/1:5", "inline": true}
     ],
     "timestamp": "2026-08-15T10:30:00Z"
