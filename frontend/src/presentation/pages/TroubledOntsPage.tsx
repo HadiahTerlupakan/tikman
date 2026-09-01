@@ -86,7 +86,8 @@ export function TroubledOntsPage() {
   const { token } = theme.useToken();
   const [hours, setHours] = useState(24);
   const [oltId, setOltId] = useState<string | undefined>();
-  const { data, isLoading } = useTroubledOnts(hours, oltId);
+  const [status, setStatus] = useState<string | undefined>();
+  const { data, isLoading } = useTroubledOnts(hours, oltId, status);
   const { data: olts } = useOlts();
 
   const rows = data?.data ?? [];
@@ -125,6 +126,19 @@ export function TroubledOntsPage() {
                 value: olt.id,
                 label: olt.name,
               }))}
+            />
+            <Select
+              allowClear
+              style={{ width: 150 }}
+              placeholder="Semua status"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { value: "online", label: "Online" },
+                { value: "los", label: "LOS" },
+                { value: "dying_gasp", label: "Dying gasp" },
+                { value: "offline", label: "Offline" },
+              ]}
             />
             <Radio.Group
               value={hours}

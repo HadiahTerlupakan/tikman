@@ -1,12 +1,15 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 )
 
 // Bounds on what a request may ask the ranking for. The window is capped by the
@@ -38,6 +41,22 @@ func troubledQuery(c *gin.Context) (time.Duration, int) {
 	return time.Duration(hours) * time.Hour, limit
 }
 
+// parseTroubledStatus reads the status filter, refusing a value no ONT can hold.
+func parseTroubledStatus(raw string) (*models.ONTStatus, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	for _, known := range []models.ONTStatus{
+		models.ONTStatusOnline, models.ONTStatusOffline,
+		models.ONTStatusLOS, models.ONTStatusDyingGas,
+	} {
+		if models.ONTStatus(raw) == known {
+			return &known, nil
+		}
+	}
+	return nil, fmt.Errorf("unknown status: %s", raw)
+}
+
 // ListTroubled ranks the subscribers in most trouble.
 //
 // The ONT list answers "is this subscriber up", which an ONU that drops and
@@ -60,7 +79,18 @@ func (h *ONTHandler) ListTroubled(c *gin.Context) {
 		oltID = &parsed
 	}
 
-	troubled, summary, err := h.ontService.TroubledONTs(window, limit, oltID)
+	status, err := parseTroubledStatus(c.Query("status"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_STATUS",
+			Error: err.Error(),
+		})
+		return
+	}
+
+	troubled, summary, err := h.ontService.TroubledONTs(services.TroubledFilter{
+		Window: window, Limit: limit, OLTID: oltID, Status: status,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "TROUBLED_QUERY_FAILED",

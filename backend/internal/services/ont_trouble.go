@@ -37,6 +37,18 @@ type TroubledSummary struct {
 	TotalDownMinutes int64 `json:"total_down_minutes"`
 }
 
+// TroubledFilter is what a request asks the ranking for.
+//
+// A struct rather than a parameter list because the list had reached three and
+// was about to reach four, and ONTListFilter in this same service already
+// settled how this codebase carries query options.
+type TroubledFilter struct {
+	Window time.Duration
+	Limit  int
+	OLTID  *uuid.UUID
+	Status *models.ONTStatus
+}
+
 // TroubledONTs ranks subscribers by how much they have been churning.
 //
 // The status column alone hides the worst faults: an ONU that drops and returns
@@ -48,7 +60,8 @@ type TroubledSummary struct {
 // string, which has only been kept since it was found to matter, so filtering on
 // it would leave most of the window empty. Alarms and their clears arrive in
 // pairs, so the total still measures the churn — it just counts each fault twice.
-func (s *ONTService) TroubledONTs(window time.Duration, limit int, oltID *uuid.UUID) ([]TroubledONT, TroubledSummary, error) {
+func (s *ONTService) TroubledONTs(filter TroubledFilter) ([]TroubledONT, TroubledSummary, error) {
+	window := filter.Window
 	if window > maxTroubledWindow {
 		window = maxTroubledWindow
 	}
@@ -93,9 +106,10 @@ func (s *ONTService) TroubledONTs(window time.Duration, limit int, oltID *uuid.U
 		LEFT JOIN outage g ON g.ont_id = n.id
 		WHERE (COALESCE(t.trap_count, 0) > 0 OR COALESCE(g.down_seconds, 0) > 0)
 		  AND (?::uuid IS NULL OR n.olt_id = ?::uuid)
+		  AND (?::text IS NULL OR n.status = ?::text)
 		ORDER BY trap_count DESC, down_minutes DESC
 		LIMIT ?
-	`, since, since, oltID, oltID, limit).Scan(&rows).Error
+	`, since, since, filter.OLTID, filter.OLTID, filter.Status, filter.Status, filter.Limit).Scan(&rows).Error
 	if err != nil {
 		return nil, TroubledSummary{}, err
 	}

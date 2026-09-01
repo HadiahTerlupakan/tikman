@@ -155,10 +155,11 @@ export class OntRepository implements IOntRepository {
   async getTroubled(
     hours: number,
     oltId?: string,
+    status?: string,
     limit = 50,
   ): Promise<TroubledResult> {
     const response = await apiClient.get(API_ENDPOINTS.ONTS_TROUBLED, {
-      params: { hours, limit, oltId },
+      params: { hours, limit, oltId, status },
     });
     return {
       data: response.data.data ?? [],

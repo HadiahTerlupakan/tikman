@@ -8,6 +8,7 @@ const useTroubledOnts = vi.hoisted(() =>
     (
       hours: number,
       oltId?: string,
+      status?: string,
     ) => { data: TroubledResult | undefined; isLoading: boolean }
   >(),
 );
@@ -97,7 +98,7 @@ describe("TroubledOntsPage", () => {
   it("asks for a day and every OLT by default", () => {
     render(<TroubledOntsPage />);
 
-    expect(useTroubledOnts).toHaveBeenCalledWith(24, undefined);
+    expect(useTroubledOnts).toHaveBeenCalledWith(24, undefined, undefined);
   });
 
   it("asks for a week when the operator picks one", () => {
@@ -107,7 +108,16 @@ describe("TroubledOntsPage", () => {
     // behind pointer-events: none, which jsdom refuses to click through.
     fireEvent.click(screen.getByRole("radio", { name: "7 hari" }));
 
-    expect(useTroubledOnts).toHaveBeenLastCalledWith(168, undefined);
+    expect(useTroubledOnts).toHaveBeenLastCalledWith(168, undefined, undefined);
+  });
+
+  it("asks for one status when the operator picks one", () => {
+    render(<TroubledOntsPage />);
+
+    fireEvent.mouseDown(screen.getByText("Semua status"));
+    fireEvent.click(screen.getByText("LOS"));
+
+    expect(useTroubledOnts).toHaveBeenLastCalledWith(24, undefined, "los");
   });
 
   it("says so plainly when nothing is in trouble", () => {

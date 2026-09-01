@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/models"
 )
 
 func TestTroubledQueryDefaultsToADayAndAPage(t *testing.T) {
@@ -44,4 +46,24 @@ func TestTroubledQueryFallsBackOnNonsense(t *testing.T) {
 
 	assert.Equal(t, 24*time.Hour, window)
 	assert.Equal(t, 50, limit)
+}
+
+func TestTroubledStatusRejectsAnUnknownValue(t *testing.T) {
+	// Rejected rather than ignored: a filter that fails silently shows an empty
+	// table, and the operator reads that as "nothing is wrong".
+	_, err := parseTroubledStatus("rusak")
+	require.Error(t, err)
+}
+
+func TestTroubledStatusAcceptsAKnownValue(t *testing.T) {
+	status, err := parseTroubledStatus("los")
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.Equal(t, models.ONTStatusLOS, *status)
+}
+
+func TestTroubledStatusIsOptional(t *testing.T) {
+	status, err := parseTroubledStatus("")
+	require.NoError(t, err)
+	assert.Nil(t, status)
 }
