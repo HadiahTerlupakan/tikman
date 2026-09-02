@@ -9,7 +9,9 @@ interface MessageComposerProps {
   conversation: CsConversation;
   currentUserId: string;
   holderName: string;
-  onSend: (body: string) => void;
+  /** Answers whether the reply actually left. A false clears nothing: the CS
+   * still has what they typed, and the hook has already said why it failed. */
+  onSend: (body: string) => Promise<boolean>;
   onTakeOver: () => void;
   quickReplies?: CsQuickReply[];
   sending?: boolean;
@@ -50,11 +52,12 @@ export function MessageComposer({
     );
   }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const body = text.trim();
     if (!body) return;
-    onSend(body);
-    setText("");
+    if (await onSend(body)) {
+      setText("");
+    }
   };
 
   return (

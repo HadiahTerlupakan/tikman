@@ -61,9 +61,18 @@ export function CsInboxPage() {
   // admin-only fetch it started from — once one arrives, it wins.
   const connectionStatus = waStatus ?? account?.status;
 
-  const handleSend = (body: string) => {
-    if (!selected) return;
-    sendMessage.mutate({ conversationId: selected.id, body });
+  // mutateAsync rather than mutate, so the composer learns whether the reply
+  // left before it throws away what the CS typed. The rejection is caught and
+  // turned into a false: useSendCsMessage has already shown the reason, and an
+  // uncaught rejection here would only add a console error on top of it.
+  const handleSend = async (body: string): Promise<boolean> => {
+    if (!selected) return false;
+    try {
+      await sendMessage.mutateAsync({ conversationId: selected.id, body });
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const handleTakeOver = () => {

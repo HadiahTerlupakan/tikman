@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MessageComposer } from "../MessageComposer";
 
 const conversation = {
@@ -44,5 +45,46 @@ describe("MessageComposer", () => {
     expect(
       screen.getByRole("button", { name: /^kirim$/i }),
     ).toBeInTheDocument();
+  });
+
+  // The composer used to clear itself before the result was known, so a send
+  // refused with a 409 cost the CS the reply they had just written.
+  it("keeps what was typed when the send does not go through", async () => {
+    const onSend = vi.fn().mockResolvedValue(false);
+    render(
+      <MessageComposer
+        conversation={{ ...conversation, assignedUserId: "me" }}
+        currentUserId="me"
+        holderName="Saya"
+        onSend={onSend}
+        onTakeOver={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByPlaceholderText(/tulis balasan/i);
+    await userEvent.type(box, "halo");
+    await userEvent.click(screen.getByRole("button", { name: /^kirim$/i }));
+
+    expect(onSend).toHaveBeenCalledWith("halo");
+    await waitFor(() => expect(box).toHaveValue("halo"));
+  });
+
+  it("clears the box once the reply has left", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    render(
+      <MessageComposer
+        conversation={{ ...conversation, assignedUserId: "me" }}
+        currentUserId="me"
+        holderName="Saya"
+        onSend={onSend}
+        onTakeOver={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByPlaceholderText(/tulis balasan/i);
+    await userEvent.type(box, "halo");
+    await userEvent.click(screen.getByRole("button", { name: /^kirim$/i }));
+
+    await waitFor(() => expect(box).toHaveValue(""));
   });
 });

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CsRepository } from "@/infrastructure/repositories";
+import { reportCsMutationError } from "./csMutationError";
 
 const csRepository = new CsRepository();
 
@@ -27,5 +28,6 @@ export function useConnectWaAccount() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cs", "wa-accounts"] });
     },
+    onError: reportCsMutationError,
   });
 }

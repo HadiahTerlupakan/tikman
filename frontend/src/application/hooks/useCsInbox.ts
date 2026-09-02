@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CsRepository } from "@/infrastructure/repositories";
+import { reportCsMutationError } from "./csMutationError";
 import type { CsConversationFilter } from "@/domain/entities";
 
 const csRepository = new CsRepository();
@@ -32,6 +33,7 @@ export function useSendCsMessage() {
         queryKey: ["cs", "messages", vars.conversationId],
       });
     },
+    onError: reportCsMutationError,
   });
 }
 
@@ -44,6 +46,7 @@ export function useAssignConversation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
     },
+    onError: reportCsMutationError,
   });
 }
 
@@ -60,6 +63,7 @@ export function useSetConversationStatus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
     },
+    onError: reportCsMutationError,
   });
 }
 
@@ -76,5 +80,6 @@ export function useLinkConversationOnt() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
     },
+    onError: reportCsMutationError,
   });
 }
