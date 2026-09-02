@@ -241,3 +241,59 @@ func (h *DistributionHandler) UnassignONT(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Unassigned"})
 }
+
+// ListODCFeeds answers with every feeder, so the map can draw them in one pass.
+func (h *DistributionHandler) ListODCFeeds(c *gin.Context) {
+	feeds, err := h.service.ListODCFeeds()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(), Code: "ODC_FEED_LIST_FAILED",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": feeds})
+}
+
+// SetODPRoute records the path a distribution cable takes, or clears it.
+func (h *DistributionHandler) SetODPRoute(c *gin.Context) {
+	odpID, ok := pathUUID(c, "id", "INVALID_ODP_ID")
+	if !ok {
+		return
+	}
+	var req SetRouteRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := h.service.SetODPRoute(odpID, req.Route); err != nil {
+		if badRequest(c, err, "INVALID_ROUTE") {
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(), Code: "ODP_ROUTE_FAILED",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Saved"})
+}
+
+// SetODCFeedRoute records the path a feeder cable takes, or clears it.
+func (h *DistributionHandler) SetODCFeedRoute(c *gin.Context) {
+	feedID, ok := pathUUID(c, "id", "INVALID_ODC_FEED_ID")
+	if !ok {
+		return
+	}
+	var req SetRouteRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := h.service.SetODCFeedRoute(feedID, req.Route); err != nil {
+		if badRequest(c, err, "INVALID_ROUTE") {
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(), Code: "ODC_FEED_ROUTE_FAILED",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Saved"})
+}

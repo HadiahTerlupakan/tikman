@@ -3,6 +3,7 @@ package services
 import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/datatypes"
 )
 
 // ODPWithUsage is a distribution box and how much room is left in it, which is
@@ -20,6 +21,10 @@ type ODPWithUsage struct {
 	OLTID     *uuid.UUID `json:"olt_id,omitempty"`
 	Slot      *int       `json:"slot,omitempty"`
 	PortID    *int       `json:"port_id,omitempty"`
+	// The traced cable path, empty when nobody has traced it and the map draws
+	// the straight line between the ends instead.
+	Route       datatypes.JSON `json:"route,omitempty"`
+	RouteMeters float64        `json:"route_meters"`
 }
 
 // ODCWithUsage is a cabinet, the ports feeding it, and how many boxes hang off
@@ -43,7 +48,7 @@ type ODCWithUsage struct {
 func (s *DistributionService) ListODPs() ([]ODPWithUsage, error) {
 	rows := []ODPWithUsage{}
 	err := s.db.Model(&models.ODP{}).
-		Select(`odps.id, odps.code, odps.port_count,
+		Select(`odps.id, odps.code, odps.port_count, odps.route, odps.route_meters,
 		        count(onts.id) AS used_ports,
 		        odps.latitude, odps.longitude, odps.address, odps.notes,
 		        odps.odc_id, odps.olt_id, odps.slot, odps.port_id`).
@@ -65,6 +70,14 @@ func (s *DistributionService) ListODCs() ([]ODCWithUsage, error) {
 		Order("odcs.code").
 		Scan(&rows).Error
 	return rows, err
+}
+
+// ListODCFeeds returns every feeder, so the map can draw them all at once
+// rather than asking cabinet by cabinet.
+func (s *DistributionService) ListODCFeeds() ([]models.ODCFeed, error) {
+	feeds := []models.ODCFeed{}
+	err := s.db.Order("slot, port_id").Find(&feeds).Error
+	return feeds, err
 }
 
 // ODCFeedsFor returns the PON ports supplying one cabinet.

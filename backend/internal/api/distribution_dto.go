@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
@@ -104,4 +105,10 @@ func (r CreateODPRequest) parent() (services.ODPInput, error) {
 type AssignONTToODPRequest struct {
 	ODPID string `json:"odp_id" binding:"required,uuid"`
 	Port  int    `json:"port" binding:"required,min=1"`
+}
+
+// SetRouteRequest is the path traced for one cable, or an empty list to hand it
+// back to the straight line the map draws on its own.
+type SetRouteRequest struct {
+	Route []models.RoutePoint `json:"route"`
 }

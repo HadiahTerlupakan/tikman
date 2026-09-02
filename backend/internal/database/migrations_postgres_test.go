@@ -183,3 +183,19 @@ func TestDatabaseAllowsManySubscribersWithNoDistributionPortYet(t *testing.T) {
 		}).Error)
 	}
 }
+
+func TestSchemaCarriesTheCableRoutes(t *testing.T) {
+	db := freshPostgres(t)
+
+	// Columns AutoMigrate adds from the model tags, which is why stage two
+	// needed no migration of its own. If that ever stops being true, the map
+	// draws nothing and this says so first.
+	for _, table := range []string{"odps", "odc_feeds"} {
+		var columns int64
+		require.NoError(t, db.Raw(`SELECT count(*) FROM information_schema.columns
+			WHERE table_schema = ? AND table_name = ?
+			AND column_name IN ('route', 'route_meters')`,
+			migrationCheckSchema, table).Scan(&columns).Error)
+		assert.EqualValues(t, 2, columns, table)
+	}
+}

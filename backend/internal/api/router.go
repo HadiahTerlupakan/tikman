@@ -192,12 +192,20 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			odcs.POST("/:id/feeds", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.AddODCFeed)
 		}
 
+		odcFeeds := api.Group("/odc-feeds")
+		odcFeeds.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			odcFeeds.GET("", distributionHandler.ListODCFeeds)
+			odcFeeds.PUT("/:id/route", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.SetODCFeedRoute)
+		}
+
 		odps := api.Group("/odps")
 		odps.Use(middleware.AuthMiddleware(authStore, logger))
 		{
 			odps.GET("", distributionHandler.ListODPs)
 			odps.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.CreateODP)
 			odps.GET("/:id/subscribers", distributionHandler.SubscribersOnODP)
+			odps.PUT("/:id/route", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.SetODPRoute)
 		}
 
 		configTemplates := api.Group("/config-templates")
