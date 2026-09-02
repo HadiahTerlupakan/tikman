@@ -79,4 +79,20 @@ export const API_ENDPOINTS = {
   ODC_FEED_LIST: "/api/v1/odc-feeds",
   ODC_FEED_ROUTE: (id: string) => `/api/v1/odc-feeds/${id}/route`,
   ODP_ROUTE: (id: string) => `/api/v1/odps/${id}/route`,
+
+  // CS inbox
+  CS_STREAM: "/api/v1/cs/stream",
+  CS_CONVERSATIONS: "/api/v1/cs/conversations",
+  CS_MESSAGES: (id: string) => `/api/v1/cs/conversations/${id}/messages`,
+  CS_MEDIA_UPLOAD: (id: string) => `/api/v1/cs/conversations/${id}/media`,
+  CS_ASSIGN: (id: string) => `/api/v1/cs/conversations/${id}/assign`,
+  CS_STATUS: (id: string) => `/api/v1/cs/conversations/${id}/status`,
+  CS_LINK_ONT: (id: string) => `/api/v1/cs/conversations/${id}/ont`,
+  CS_MEDIA: (messageId: string) => `/api/v1/cs/media/${messageId}`,
+  CS_MESSAGE_SEARCH: "/api/v1/cs/messages/search",
+  CS_QUICK_REPLIES: "/api/v1/cs/quick-replies",
+  CS_QUICK_REPLY_BY_ID: (id: string) => `/api/v1/cs/quick-replies/${id}`,
+  CS_WA_ACCOUNTS: "/api/v1/cs/wa-accounts",
+  CS_WA_CONNECT: (id: string) => `/api/v1/cs/wa-accounts/${id}/connect`,
+  CS_WA_DISCONNECT: (id: string) => `/api/v1/cs/wa-accounts/${id}/disconnect`,
 } as const;

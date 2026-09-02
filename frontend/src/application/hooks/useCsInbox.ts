@@ -1,0 +1,76 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CsRepository } from "@/infrastructure/repositories";
+import type { CsConversationFilter } from "@/domain/entities";
+
+const csRepository = new CsRepository();
+
+/** The inbox list: everyone's threads, or one of the CS's own views. */
+export function useCsConversations(filter?: CsConversationFilter) {
+  return useQuery({
+    queryKey: ["cs", "conversations", filter],
+    queryFn: () => csRepository.getConversations(filter),
+  });
+}
+
+/** One thread's messages, newest first. */
+export function useCsHistory(conversationId?: string) {
+  return useQuery({
+    queryKey: ["cs", "messages", conversationId],
+    queryFn: () => csRepository.getHistory(conversationId as string),
+    enabled: !!conversationId,
+  });
+}
+
+export function useSendCsMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { conversationId: string; body: string }) =>
+      csRepository.sendMessage(vars.conversationId, vars.body),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
+      queryClient.invalidateQueries({
+        queryKey: ["cs", "messages", vars.conversationId],
+      });
+    },
+  });
+}
+
+/** Hands a thread to one CS, including taking over one someone else holds. */
+export function useAssignConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { conversationId: string; userId: string }) =>
+      csRepository.assign(vars.conversationId, vars.userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
+    },
+  });
+}
+
+/**
+ * Closes a thread. There is no reopen here — the backend only accepts
+ * "closed": a thread reopens on its own when the customer writes again, or a
+ * CS takes it back with useAssignConversation.
+ */
+export function useSetConversationStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { conversationId: string; status: "closed" }) =>
+      csRepository.setStatus(vars.conversationId, vars.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
+    },
+  });
+}
+
+/** Ties a thread to a subscriber's ONT, or unties it when ontId is null. */
+export function useLinkConversationOnt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { conversationId: string; ontId: string | null }) =>
+      csRepository.linkOnt(vars.conversationId, vars.ontId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
+    },
+  });
+}
