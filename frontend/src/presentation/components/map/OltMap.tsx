@@ -9,12 +9,17 @@ import {
   // first.
   Marker,
 } from "@vis.gl/react-google-maps";
-import { OltStatus, type Olt } from "@/domain/entities";
+import { OltStatus, type Odc, type Odp, type Olt } from "@/domain/entities";
 import { mappedOlts, type MappedOlt } from "./oltMapFilters";
+import { PlantLayer } from "./PlantLayer";
 
 interface OltMapProps {
   apiKey: string;
   olts: Olt[];
+  /** Cabinets and distribution boxes, drawn alongside the OLTs. */
+  odcs?: Odc[];
+  odps?: Odp[];
+  onSelectOdp?: (odp: Odp) => void;
 }
 
 // Indonesia, so an installation with no pins yet opens somewhere recognisable
@@ -55,7 +60,13 @@ function framingOf(pins: MappedOlt[]) {
   };
 }
 
-export function OltMap({ apiKey, olts }: OltMapProps) {
+export function OltMap({
+  apiKey,
+  olts,
+  odcs = [],
+  odps = [],
+  onSelectOdp,
+}: OltMapProps) {
   const [selected, setSelected] = useState<MappedOlt | null>(null);
   const pins = mappedOlts(olts);
 
@@ -75,6 +86,8 @@ export function OltMap({ apiKey, olts }: OltMapProps) {
             onClick={() => setSelected(olt)}
           />
         ))}
+
+        <PlantLayer odcs={odcs} odps={odps} onSelectOdp={onSelectOdp} />
 
         {selected && (
           <InfoWindow

@@ -69,4 +69,11 @@ export const API_ENDPOINTS = {
   WIREGUARD_PEER_TEST: (id: string) => `/api/v1/wireguard/peers/${id}/test`,
   WIREGUARD_SUGGESTED_SUBNETS: (siteId: string) =>
     `/api/v1/wireguard/sites/${siteId}/suggested-subnets`,
+
+  // Fibre plant: cabinets, distribution boxes, and where a drop lands
+  ODCS: "/api/v1/odcs",
+  ODC_FEEDS: (id: string) => `/api/v1/odcs/${id}/feeds`,
+  ODPS: "/api/v1/odps",
+  ODP_SUBSCRIBERS: (id: string) => `/api/v1/odps/${id}/subscribers`,
+  ONT_ODP: (id: string) => `/api/v1/onts/${id}/odp`,
 } as const;

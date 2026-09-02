@@ -8,3 +8,4 @@ export * from "./DashboardRepository";
 export * from "./ZteProvisioningRepository";
 export * from "./WireguardRepository";
 export * from "./SettingRepository";
+export * from "./DistributionRepository";

@@ -15,11 +15,15 @@ const renderMapPage = () =>
 const state = {
   key: undefined as string | undefined,
   olts: [] as unknown[],
+  odcs: [] as unknown[],
+  odps: [] as unknown[],
 };
 
 vi.mock("@/application/hooks", () => ({
   useGoogleMapsKey: () => ({ key: state.key, isLoading: false }),
   useOlts: () => ({ data: state.olts, isLoading: false }),
+  useOdcs: () => ({ data: state.odcs }),
+  useOdps: () => ({ data: state.odps }),
 }));
 
 // The map itself needs a Google API to draw anything; OltMap has its own test.
@@ -31,6 +35,8 @@ describe("MapPage", () => {
   beforeEach(() => {
     state.key = "AIzaSyTESTKEY123";
     state.olts = [];
+    state.odcs = [];
+    state.odps = [];
   });
 
   it("explains a missing key instead of rendering a broken map", () => {
@@ -74,6 +80,8 @@ describe("MapPage", () => {
 
     renderMapPage();
 
-    expect(screen.getByText("1 OLTs on the map")).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 OLT · 0 ODC · 0 ODP di peta/),
+    ).toBeInTheDocument();
   });
 });
