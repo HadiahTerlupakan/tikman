@@ -2206,7 +2206,7 @@ git commit -m "feat(cs): let a CS insert the sentence they type forty times a da
 **Interfaces:**
 - Produces:
   - `services.NewCSMediaRetention(db *gorm.DB, root string, keepDays int) *CSMediaRetention`
-  - `(*CSMediaRetention).Sweep() (int, error)` — jumlah berkas yang dihapus
+  - `(*CSMediaRetention).Sweep() (int, error)` — jumlah baris yang dibersihkan (baris, bukan byte: berkas yang sudah hilang duluan tetap dihitung)
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -2218,6 +2218,7 @@ package services
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -2275,6 +2276,47 @@ func TestSweepDeletesOldFilesButKeepsTheMessages(t *testing.T) {
 	assert.Equal(t, models.MessageKindImage, stored.Kind, "the message survives its file")
 	assert.Empty(t, stored.MediaPath, "but no longer points at one")
 }
+
+// Somebody clearing disk space by hand must not jam the sweep forever. If a
+// missing file aborted it, every row behind that one would keep its path and
+// the disk would never drain again.
+func TestSweepStepsOverAFileSomebodyAlreadyDeleted(t *testing.T) {
+	db := setupTestDB(t)
+	conversations := NewCSConversationService(db)
+	messages := NewCSMessageService(db, conversations)
+	account := csAccount(t, db)
+
+	conv, err := conversations.FindOrCreate(IncomingPeer{
+		WAAccountID: account.ID, JID: "628111@s.whatsapp.net", Phone: "628111222333", Name: "Budi",
+	})
+	require.NoError(t, err)
+
+	root := t.TempDir()
+	// Two expired rows. Only the second still has its file on disk; the first
+	// points at a path that was never written.
+	for i, rel := range []string{filepath.Join("2026", "01", "vanished.jpg"), filepath.Join("2026", "01", "present.jpg")} {
+		if i == 1 {
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o644))
+		}
+		_, _, err := messages.SaveInbound(InboundMessage{
+			ConversationID: conv.ID,
+			WAMessageID:    "3EB0GONE" + strconv.Itoa(i),
+			Kind:           models.MessageKindImage,
+			Media:          &MediaFile{Path: rel, Mime: "image/jpeg", Filename: "x.jpg", Size: 1},
+			At:             time.Now().Add(-100 * 24 * time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	cleared, err := NewCSMediaRetention(db, root, 90).Sweep()
+	require.NoError(t, err, "a file that is already gone is not a failure")
+	assert.Equal(t, 2, cleared, "both rows are cleared, including the one whose file had vanished")
+
+	var stillPointing int64
+	require.NoError(t, db.Model(&models.CSMessage{}).Where("media_path <> ''").Count(&stillPointing).Error)
+	assert.Zero(t, stillPointing, "no row is left pointing at a file")
+}
 ```
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
@@ -2313,9 +2355,14 @@ func NewCSMediaRetention(db *gorm.DB, root string, keepDays int) *CSMediaRetenti
 	return &CSMediaRetention{db: db, root: root, keepDays: keepDays}
 }
 
-// Sweep deletes attachments past the retention window and forgets their paths.
+// Sweep drops attachments past the retention window and forgets their paths,
+// answering how many rows it cleared. That is rows, not bytes: a file someone
+// had already removed by hand still counts, because the row was still pointing
+// at it and now is not.
+//
 // The message rows stay: a CS reading old history should still see that the
-// customer sent a photo, even when the photo itself is gone.
+// customer sent a photo, even when the photo itself is gone. MediaMime and
+// MediaFilename stay with them, so the history can still name what was sent.
 func (r *CSMediaRetention) Sweep() (int, error) {
 	cutoff := time.Now().AddDate(0, 0, -r.keepDays)
 
@@ -2325,19 +2372,19 @@ func (r *CSMediaRetention) Sweep() (int, error) {
 		return 0, fmt.Errorf("list expired media: %w", err)
 	}
 
-	removed := 0
+	cleared := 0
 	for _, row := range rows {
 		if err := os.Remove(filepath.Join(r.root, row.MediaPath)); err != nil && !os.IsNotExist(err) {
-			return removed, fmt.Errorf("remove %s: %w", row.MediaPath, err)
+			return cleared, fmt.Errorf("remove %s: %w", row.MediaPath, err)
 		}
 		err := r.db.Model(&models.CSMessage{}).Where("id = ?", row.ID).
 			Updates(map[string]any{"media_path": "", "media_size": 0}).Error
 		if err != nil {
-			return removed, fmt.Errorf("forget media path: %w", err)
+			return cleared, fmt.Errorf("forget media path: %w", err)
 		}
-		removed++
+		cleared++
 	}
-	return removed, nil
+	return cleared, nil
 }
 ```
 
@@ -2859,7 +2906,13 @@ func (h *InboundHandler) handleMessage(ctx context.Context, evt *events.Message)
 }
 ```
 
-`media.go` mengunduh lampiran lewat `client.Download`, menulisnya ke `<root>/<tahun>/<bulan>/<uuid><ext>`, dan mengembalikan `*services.MediaFile`. Kegagalan unduh **bukan** kegagalan pesan: kembalikan `nil` media beserta galat yang dicatat pemanggil, dan simpan pesannya dengan `Body` diberi keterangan `"[media gagal diunduh]"` supaya CS tetap tahu pelanggan mengirim sesuatu.
+`media.go` mengunduh lampiran lewat `client.Download`, menulisnya ke
+`<root>/<tahun>/<bulan>/<uuid><ext>`. Setiap ruas jalur itu kita yang membuat:
+UUID, bukan nama berkas dari WhatsApp, dan `<ext>` dipetakan dari daftar mime
+yang kita kenali — bukan diambil dari nama kiriman. Nama asli dari pelanggan
+disimpan di kolom `MediaFilename` untuk ditampilkan, dan tidak pernah menyentuh
+sistem berkas. Nama itu datang dari luar; sebuah kiriman bernama
+`../../etc/passwd` tidak boleh pernah menjadi jalur. dan mengembalikan `*services.MediaFile`. Kegagalan unduh **bukan** kegagalan pesan: kembalikan `nil` media beserta galat yang dicatat pemanggil, dan simpan pesannya dengan `Body` diberi keterangan `"[media gagal diunduh]"` supaya CS tetap tahu pelanggan mengirim sesuatu.
 
 `receipts.go` menerjemahkan `*events.Receipt` menjadi `messages.ApplyReceipt(id, models.MessageDelivered)` untuk `types.ReceiptTypeDelivered` dan `models.MessageRead` untuk `types.ReceiptTypeRead`, satu panggilan per id di `evt.MessageIDs`.
 
