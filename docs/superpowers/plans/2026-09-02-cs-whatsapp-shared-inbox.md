@@ -4038,6 +4038,14 @@ Di `docker-compose.yml`:
     restart: unless-stopped
 ```
 
+`restart: unless-stopped` di sini **wajib, bukan kebiasaan.** Setelah admin
+menekan Putuskan, proses `wa` sengaja berhenti: whatsmeow menandai perangkatnya
+terhapus, dan setiap upaya menyambung berikutnya di proses yang sama akan
+ditolak, sehingga tombol Sambungkan mati diam-diam. Berhenti lalu dibangkitkan
+Compose adalah cara ia mendapat store bersih yang bisa dipasangkan lagi. Tanpa
+kebijakan restart, "Putuskan" menjadi tombol yang mematikan modul CS sampai
+seseorang menjalankan container-nya kembali dengan tangan.
+
 Tambahkan `cs_media:` ke blok `volumes:` di bawah, dan pasang volume yang sama ke service `api` (mode baca) agar `ServeMedia` bisa membaca berkasnya.
 
 - [ ] **Step 2: Tambahkan variabel ke `.env.example`**
