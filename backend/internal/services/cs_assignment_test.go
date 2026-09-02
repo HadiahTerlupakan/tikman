@@ -100,6 +100,36 @@ func TestAssignWaitingHandsOutEverythingLeftOvernight(t *testing.T) {
 	}
 }
 
+// A customer's second message must not move their thread to another agent.
+func TestAssignOneLeavesAThreadThatAlreadyHasAHolder(t *testing.T) {
+	a, b := uuid.New(), uuid.New()
+	_, conversations, assignment, account, _ := assignmentSetup(t, a, b)
+	ctx := context.Background()
+
+	conv := waitingConversation(t, conversations, account.ID, "628111@s.whatsapp.net", "628111222333")
+
+	first, err := assignment.AssignOne(ctx, conv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+
+	again, err := assignment.AssignOne(ctx, conv.ID)
+	require.NoError(t, err)
+	assert.Nil(t, again, "a thread somebody already holds is not handed out again")
+
+	after, err := conversations.Get(conv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, after.AssignedUserID)
+	assert.Equal(t, *first, *after.AssignedUserID, "and it stays with the agent who had it")
+
+	// The refusal must also not have burned a rotation turn, or every message on
+	// an open thread would skew the share-out for everyone else.
+	next := waitingConversation(t, conversations, account.ID, "628222@s.whatsapp.net", "628222333444")
+	holder, err := assignment.AssignOne(ctx, next.ID)
+	require.NoError(t, err)
+	require.NotNil(t, holder)
+	assert.NotEqual(t, *first, *holder, "the rotation advanced by exactly one")
+}
+
 // A closed thread is finished; the morning sweep must not drag it back out.
 func TestAssignWaitingIgnoresClosedThreads(t *testing.T) {
 	a := uuid.New()
