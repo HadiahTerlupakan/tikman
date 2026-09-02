@@ -29,11 +29,6 @@ const (
 	maxReconnectDelay = 5 * time.Minute
 )
 
-// waClientDisplayName is what WhatsApp shows the phone during phone-number
-// pairing. The server validates this against its own allowlist of
-// "Browser (OS)" strings, so it cannot be an arbitrary label like "TikMan".
-const waClientDisplayName = "Chrome (Linux)"
-
 // Options are what a Client needs to do its work.
 type Options struct {
 	Container     *sqlstore.Container
@@ -61,6 +56,12 @@ type Client struct {
 	// supervisor. It holds one slot because a second drop before the first is
 	// answered says nothing new.
 	dropped chan struct{}
+	// paired carries "a device just linked" from the pairing event handler to
+	// the supervisor. A session that starts — or becomes, after a logout —
+	// unpaired has nothing for the supervisor to reconnect, and it waits here
+	// instead of exiting: exiting would leave nothing running to recover the
+	// very session this pairing is about to produce.
+	paired chan struct{}
 	// ctx is the process lifetime, and is what the event handlers work under:
 	// whatsmeow hands them no context of their own.
 	ctx context.Context
@@ -89,6 +90,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		publisher: opt.Publisher,
 		logger:    opt.Logger,
 		dropped:   make(chan struct{}, 1),
+		paired:    make(chan struct{}, 1),
 		ctx:       ctx,
 	}
 	client.inbound = &inboundHandler{
@@ -148,47 +150,6 @@ func (c *Client) Logout(ctx context.Context) error {
 	return c.wa.Logout(ctx)
 }
 
-// Pair answers an admin's "connect" request. A session with a device already
-// linked just gets its status re-announced — phone pairing is for
-// establishing a link that does not exist yet, and asking WhatsApp for
-// another code on top of one already in place would spend its rate limit on
-// nothing. An unlinked session (re)opens the connection — the unauthenticated
-// socket whatsmeow used at startup lives only around 160 seconds, so it may
-// already be gone by the time an admin acts — then asks for an
-// eight-character linking code and announces it, so the admin who clicked
-// Connect sees it on the same screen instead of a container log.
-func (c *Client) Pair(ctx context.Context, phone string) error {
-	if !c.NeedsPairing() {
-		c.setStatus(ctx, models.WAAccountConnected)
-		return nil
-	}
-
-	if err := c.wa.Connect(); err != nil && !errors.Is(err, whatsmeow.ErrAlreadyConnected) {
-		return fmt.Errorf("open a session to pair: %w", err)
-	}
-
-	code, err := c.wa.PairPhone(ctx, phone, false, whatsmeow.PairClientChrome, waClientDisplayName)
-	if err != nil {
-		return fmt.Errorf("pair by phone: %w", err)
-	}
-
-	event := Event{Type: EventAccountStatus, AccountStatus: string(models.WAAccountPairing), PairingCode: code}
-	if err := c.publisher.Publish(ctx, event); err != nil {
-		c.logger.Warn("Could not announce the WhatsApp pairing code", zap.Error(err))
-	}
-	return nil
-}
-
-// Unpair gives up the pairing and tells the browsers the number is
-// disconnected. The next connect needs a fresh phone-number pairing.
-func (c *Client) Unpair(ctx context.Context) error {
-	if err := c.Logout(ctx); err != nil {
-		return fmt.Errorf("logout: %w", err)
-	}
-	c.setStatus(ctx, models.WAAccountDisconnected)
-	return nil
-}
-
 func (c *Client) route(rawEvt any) {
 	switch evt := rawEvt.(type) {
 	case *events.Message:
@@ -200,6 +161,11 @@ func (c *Client) route(rawEvt any) {
 		if err := c.receipts.handle(c.ctx, evt); err != nil {
 			c.logger.Error("Could not apply WhatsApp receipt", zap.Error(err))
 		}
+	case *events.PairSuccess:
+		// Fired for both QR and phone-number pairing once the phone approves —
+		// the store now has a device, so the supervisor no longer needs to
+		// wait for one.
+		c.signalPaired()
 	case *events.Connected:
 		c.setStatus(c.ctx, models.WAAccountConnected)
 	case *events.Disconnected:
@@ -237,7 +203,18 @@ func (c *Client) signalDropped() {
 	}
 }
 
-// supervise puts the session back after every drop until ctx ends.
+func (c *Client) signalPaired() {
+	select {
+	case c.paired <- struct{}{}:
+	default:
+	}
+}
+
+// supervise puts the session back after every drop until ctx ends. A drop
+// while the store is unpaired is not something reconnecting can fix — there
+// is no device to reconnect — so supervise waits for a pairing to succeed
+// instead of returning. Returning here was the bug: it left nothing running
+// to recover the very next drop once the account did get paired.
 func (c *Client) supervise(ctx context.Context) {
 	delay := minReconnectDelay
 	for {
@@ -248,8 +225,15 @@ func (c *Client) supervise(ctx context.Context) {
 		}
 
 		delay = c.reconnect(ctx, delay)
-		if delay == 0 {
+		if delay != 0 {
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
 			return
+		case <-c.paired:
+			delay = minReconnectDelay
 		}
 	}
 }

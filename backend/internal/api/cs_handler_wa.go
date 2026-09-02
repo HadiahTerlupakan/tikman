@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/utils"
 	"github.com/tikman/olt-provisioning/internal/wa"
@@ -15,14 +16,6 @@ import (
 // WhatsApp number, in whatever form they wrote it.
 type ConnectAccountRequest struct {
 	Phone string `json:"phone" binding:"required"`
-}
-
-// waControlMessage is one admin action on wa.ControlChannel. The wa process
-// is the only thing subscribed to it — the API never touches WhatsApp itself.
-type waControlMessage struct {
-	Action    string `json:"action"`
-	AccountID string `json:"account_id"`
-	Phone     string `json:"phone,omitempty"`
 }
 
 // ListAccounts answers every WhatsApp number the team can answer from.
@@ -39,9 +32,7 @@ func (h *CSHandler) ListAccounts(c *gin.Context) {
 // immediately, before the wa process even sees the request, so a browser
 // polling the list shows the change without delay; the eight-character
 // linking code the admin types into WhatsApp arrives moments later over the
-// SSE stream the browser already listens to. PairPhone on the wa side
-// rejects a number written with a leading zero, so it is normalized to
-// 628... form here rather than left to fail on the other side of Redis.
+// SSE stream the browser already listens to.
 func (h *CSHandler) Connect(c *gin.Context) {
 	id, ok := pathUUID(c, "id", "INVALID_ACCOUNT_ID")
 	if !ok {
@@ -52,7 +43,7 @@ func (h *CSHandler) Connect(c *gin.Context) {
 		return
 	}
 
-	phone, err := utils.NormalizePhone(req.Phone)
+	msg, err := connectControlMessage(id, req.Phone)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "INVALID_PHONE"})
 		return
@@ -63,8 +54,20 @@ func (h *CSHandler) Connect(c *gin.Context) {
 		return
 	}
 
-	h.publishControl(c, waControlMessage{Action: "connect", AccountID: id.String(), Phone: phone})
+	h.publishControl(c, msg)
 	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"status": string(models.WAAccountPairing)}})
+}
+
+// connectControlMessage builds the control message Connect publishes, after
+// normalizing the phone number the way PairPhone on the wa side requires:
+// it rejects a number written with a leading zero, so 628... form is built
+// here rather than left to fail on the other side of Redis.
+func connectControlMessage(id uuid.UUID, rawPhone string) (wa.ControlMessage, error) {
+	phone, err := utils.NormalizePhone(rawPhone)
+	if err != nil {
+		return wa.ControlMessage{}, err
+	}
+	return wa.ControlMessage{Action: wa.ControlConnect, AccountID: id.String(), Phone: phone}, nil
 }
 
 // Disconnect asks the wa process to give up the pairing. The wa process
@@ -80,14 +83,14 @@ func (h *CSHandler) Disconnect(c *gin.Context) {
 		return
 	}
 
-	h.publishControl(c, waControlMessage{Action: "disconnect", AccountID: id.String()})
-	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"status": "disconnect_requested"}})
+	h.publishControl(c, wa.ControlMessage{Action: wa.ControlDisconnect, AccountID: id.String()})
+	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"status": string(models.WAAccountDisconnected)}})
 }
 
 // publishControl sends one action to the wa process. Redis here is a nudge,
 // not the truth — a failed publish is logged and never fails the request,
 // same as every other announcement in this module.
-func (h *CSHandler) publishControl(c *gin.Context, msg waControlMessage) {
+func (h *CSHandler) publishControl(c *gin.Context, msg wa.ControlMessage) {
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		h.logger.Warn("Could not encode a WhatsApp control message", zap.Error(err))

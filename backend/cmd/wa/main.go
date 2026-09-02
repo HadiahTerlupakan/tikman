@@ -144,14 +144,6 @@ func firstAccount(db *gorm.DB) (models.WAAccount, error) {
 	return account, err
 }
 
-// controlMessage is an admin action arriving on wa.ControlChannel: pair a
-// number by phone, or give one up.
-type controlMessage struct {
-	Action    string `json:"action"`
-	AccountID string `json:"account_id"`
-	Phone     string `json:"phone"`
-}
-
 // controlLoop applies admin actions meant for this process's account. The
 // channel is shared by every wa process the way wa.OutboxChannel is, so a
 // message naming a different account is ignored rather than acted on by the
@@ -180,7 +172,7 @@ func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Clie
 // or an action naming another account is logged and dropped, never fatal —
 // nothing here can take the process down over an admin click.
 func applyControl(ctx context.Context, payload string, client *wa.Client, accountID uuid.UUID, logger *zap.Logger) {
-	var msg controlMessage
+	var msg wa.ControlMessage
 	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 		logger.Warn("Could not decode a WhatsApp control message", zap.Error(err))
 		return
@@ -190,11 +182,11 @@ func applyControl(ctx context.Context, payload string, client *wa.Client, accoun
 	}
 
 	switch msg.Action {
-	case "connect":
+	case wa.ControlConnect:
 		if err := client.Pair(ctx, msg.Phone); err != nil {
 			logger.Error("Could not pair the WhatsApp session", zap.Error(err))
 		}
-	case "disconnect":
+	case wa.ControlDisconnect:
 		if err := client.Unpair(ctx); err != nil {
 			logger.Error("Could not disconnect the WhatsApp session", zap.Error(err))
 		}
