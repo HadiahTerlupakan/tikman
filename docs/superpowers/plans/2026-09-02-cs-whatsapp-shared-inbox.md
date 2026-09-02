@@ -429,6 +429,13 @@ ALTER TABLE wa_accounts DROP CONSTRAINT IF EXISTS wa_accounts_status_valid;
 ALTER TABLE wa_accounts ADD CONSTRAINT wa_accounts_status_valid
     CHECK (status IN ('disconnected', 'pairing', 'connected', 'banned'));
 
+-- One row per label, which is what makes the wa process's FirstOrCreate seeding
+-- idempotent: two processes starting against an empty table would otherwise
+-- each insert an account and then run two WhatsApp sessions against different
+-- ids. Two accounts sharing a label would be indistinguishable to an operator
+-- anyway.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_wa_accounts_label ON wa_accounts (label);
+
 ALTER TABLE cs_conversations DROP CONSTRAINT IF EXISTS cs_conversations_status_valid;
 ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_status_valid
     CHECK (status IN ('unassigned', 'open', 'closed'));
