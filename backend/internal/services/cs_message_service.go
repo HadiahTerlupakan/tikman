@@ -190,6 +190,16 @@ func (s *CSMessageService) ApplyReceipt(waMessageID string, status models.Messag
 	return s.updateMessage(msg.ID, map[string]any{"status": status})
 }
 
+// Get loads one message. ServeMedia uses it to find where an attachment for
+// this message is stored on disk before serving it.
+func (s *CSMessageService) Get(id uuid.UUID) (*models.CSMessage, error) {
+	var msg models.CSMessage
+	if err := s.db.First(&msg, "id = ?", id).Error; err != nil {
+		return nil, fmt.Errorf("load message: %w", err)
+	}
+	return &msg, nil
+}
+
 // History returns one page of a thread, newest first.
 func (s *CSMessageService) History(conversationID uuid.UUID, limit, offset int) ([]models.CSMessage, error) {
 	if limit <= 0 || limit > defaultHistoryLimit {

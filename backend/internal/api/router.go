@@ -1,15 +1,18 @@
 package api
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"github.com/tikman/olt-provisioning/internal/wa"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -67,6 +70,24 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	wireguardHandler := NewWireGuardHandler(wgService, auditService)
 	settingHandler := NewSettingHandler(settingService, auditService)
 	distributionHandler := NewDistributionHandler(services.NewDistributionService(db))
+
+	// A dedicated connection: the CS inbox's presence and pub/sub traffic is
+	// unrelated to the session store above, and giving it its own client keeps
+	// one from being starved by the other's load.
+	csRedisClient := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
+		Password: cfg.RedisPassword,
+	})
+	csConversationService := services.NewCSConversationService(db)
+	csMessageService := services.NewCSMessageService(db, csConversationService)
+	csQuickReplyService := services.NewCSQuickReplyService(db)
+	csPresence := services.NewRedisPresence(csRedisClient)
+	csAssignmentService := services.NewCSAssignmentService(db, csConversationService, csPresence)
+	csPublisher := wa.NewPublisher(csRedisClient)
+	csHandler := NewCSHandler(
+		csConversationService, csMessageService, csQuickReplyService, csAssignmentService,
+		csPresence, auditService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
+	)
 
 	// Provisioning pipeline: the factory above creates per-OLT commanders since
 	// each OLT has its own address and credentials.
@@ -190,6 +211,25 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			odcs.GET("", distributionHandler.ListODCs)
 			odcs.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.CreateODC)
 			odcs.POST("/:id/feeds", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.AddODCFeed)
+		}
+
+		// The CS inbox is read by the whole team on purpose: seeing each other's
+		// threads is what keeps two agents off one customer. Only replying is
+		// restricted, and that check lives in the handler because it depends on
+		// who holds the thread rather than on a role.
+		cs := api.Group("/cs")
+		cs.Use(middleware.AuthMiddleware(authStore, logger))
+		cs.Use(middleware.RequireRole(models.UserRoleAdmin, models.UserRoleCS, models.UserRoleTechnician))
+		{
+			cs.GET("/conversations", csHandler.ListConversations)
+			cs.GET("/conversations/:id/messages", csHandler.History)
+			cs.POST("/conversations/:id/messages", csHandler.Send)
+			cs.POST("/conversations/:id/media", csHandler.SendMedia)
+			cs.PUT("/conversations/:id/assign", csHandler.Assign)
+			cs.PUT("/conversations/:id/status", csHandler.SetStatus)
+			cs.PUT("/conversations/:id/ont", csHandler.LinkONT)
+			cs.GET("/media/:message_id", csHandler.ServeMedia)
+			cs.GET("/messages/search", csHandler.SearchMessages)
 		}
 
 		odcFeeds := api.Group("/odc-feeds")
