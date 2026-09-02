@@ -1730,7 +1730,25 @@ func TestSearchFindsAMessageByItsWordsOnPostgres(t *testing.T) {
 }
 ```
 
-Catatan: `setupPostgresTestDB(t)` mengikuti pola yang sudah dipakai `distribution_postgres_test.go`. Baca berkas itu dan pakai pembantu yang sama — jangan buat versi kedua.
+Catatan tentang `setupPostgresTestDB(t)`: repo ini **tidak** punya pembantu
+Postgres bersama — tiap berkas tes Postgres menulis pembantunya sendiri (lihat
+`setupPlantPostgres` di `distribution_postgres_test.go`). Tulis satu pembantu
+lokal dengan pola yang sama: baca `TEST_POSTGRES_DSN`, `t.Fatal` bila kosong di
+CI, `t.Skip` bila kosong di lokal, lalu `DROP TABLE IF EXISTS ... CASCADE` untuk
+tabel CS sebelum membangunnya.
+
+Bedanya satu, dan penting: kolom `tsv` yang dipakai `Search` **tidak** dibuat
+oleh `AutoMigrate` — ia lahir di migrasi 41. Jadi pembantu ini harus memanggil
+`database.RunSQLMigrations(db, "../../migrations")` setelah `models.AutoMigrate`,
+bukan `AutoMigrate` saja. Karena itu menjalankan seluruh migrasi, DSN-nya harus
+menunjuk Postgres yang punya ekstensi TimescaleDB — `docker-compose.dev.yml`
+memakai `postgres:15-alpine` yang tidak punya, jadi pakai container sekali pakai:
+
+```bash
+docker run --rm -d --name tikman-pgtest -p 5439:5432 \
+  -e POSTGRES_DB=tikman -e POSTGRES_USER=tikman -e POSTGRES_PASSWORD=test \
+  timescale/timescaledb:latest-pg15
+```
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
 
@@ -1983,7 +2001,7 @@ Expected: PASS keenamnya.
 
 Run:
 ```bash
-cd backend && TEST_POSTGRES_DSN="host=localhost port=5437 user=tikman password=$POSTGRES_PASSWORD dbname=tikman sslmode=disable" \
+cd backend && TEST_POSTGRES_DSN="host=localhost port=5439 user=tikman password=test dbname=tikman sslmode=disable" \
   go test ./internal/services/ -run TestSearchFindsAMessage -v
 ```
 Expected: PASS.
