@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/datatypes"
 )
 
 // SetODPRoute records the path a distribution cable takes, or clears it.
@@ -45,7 +46,10 @@ func encodeRoute(points []models.RoutePoint) (interface{}, float64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	return raw, RouteMeters(points), nil
+	// datatypes.JSON, not the raw []byte: the pool talks the simple protocol,
+	// where a []byte parameter is written as a bytea literal and jsonb refuses
+	// it. datatypes.JSON hands the driver a string, which jsonb parses.
+	return datatypes.JSON(raw), RouteMeters(points), nil
 }
 
 // ODPByID reads one distribution box, path included.

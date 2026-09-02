@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -81,7 +82,14 @@ func buildMigrationSchema(t *testing.T, dsn string) *gorm.DB {
 	// A session opened after the extension exists: TimescaleDB is only fully
 	// loaded for such sessions, and creating it mid-session made the continuous
 	// aggregates in migration 06 fail on a first run and pass on a second.
-	db, err := gorm.Open(postgres.Open(withSearchPath(dsn, migrationCheckSchema)),
+	// Opened the way production opens it. Under the simple protocol a []byte
+	// parameter arrives as a bytea literal, which a jsonb column rejects, so a
+	// connection made any other way would not see that failure at all.
+	db, err := gorm.Open(
+		postgres.New(postgres.Config{
+			DSN:                  withSearchPath(dsn, migrationCheckSchema),
+			PreferSimpleProtocol: true,
+		}),
 		&gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
@@ -198,4 +206,33 @@ func TestSchemaCarriesTheCableRoutes(t *testing.T) {
 			migrationCheckSchema, table).Scan(&columns).Error)
 		assert.EqualValues(t, 2, columns, table)
 	}
+}
+
+func TestStoringACableRouteOnTheRealSchema(t *testing.T) {
+	db := freshPostgres(t)
+	site, _ := plantFixture(t, db)
+	service := services.NewDistributionService(db)
+	odc, err := service.CreateODC(services.ODCInput{SiteID: site.ID, Code: "ODC-" + uuid.NewString()[:6]})
+	require.NoError(t, err)
+	odp, err := service.CreateODP(services.ODPInput{
+		Code: "ODP-" + uuid.NewString()[:6], PortCount: 32, ODCID: &odc.ID,
+	})
+	require.NoError(t, err)
+
+	// AutoMigrate alone was not enough to catch this: the schema this runs
+	// against carries the checks and foreign keys migration 39 adds, which is
+	// what production has and what a route update has to survive.
+	err = service.SetODPRoute(odp.ID, []models.RoutePoint{
+		{Lat: -6.4000, Lng: 107.0000},
+		{Lat: -6.4050, Lng: 107.0100},
+		{Lat: -6.4100, Lng: 107.0000},
+	})
+
+	require.NoError(t, err)
+	stored, err := service.ODPByID(odp.ID)
+	require.NoError(t, err)
+	points, err := stored.RoutePath()
+	require.NoError(t, err)
+	assert.Len(t, points, 3)
+	assert.Greater(t, stored.RouteMeters, 0.0)
 }
