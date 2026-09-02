@@ -11,10 +11,12 @@ import (
 // OLT and the subscribers. Its feeds live in ODCFeed rather than here, because
 // a cabinet can be fed by more than one PON port.
 type ODC struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	SiteID    uuid.UUID `gorm:"type:uuid;not null;index" json:"site_id"`
-	Name      string    `gorm:"type:varchar(255);not null" json:"name"`
-	Code      string    `gorm:"type:varchar(64)" json:"code"`
+	ID     uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	SiteID uuid.UUID `gorm:"type:uuid;not null;index" json:"site_id"`
+	// Code is the cabinet's identity. There is no separate name: operators call
+	// these by their code, and a second column holding the same words would
+	// only drift from it.
+	Code      string    `gorm:"type:varchar(64);not null" json:"code"`
 	Latitude  *float64  `gorm:"type:double precision" json:"latitude,omitempty"`
 	Longitude *float64  `gorm:"type:double precision" json:"longitude,omitempty"`
 	Address   string    `gorm:"type:text" json:"address"`
@@ -72,14 +74,14 @@ func (ODCFeed) TableName() string {
 // neither. Networks grow both ways, and a model that allowed only one of them
 // would be wrong for half of this one.
 type ODP struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	Name      string    `gorm:"type:varchar(255);not null" json:"name"`
-	Code      string    `gorm:"type:varchar(64)" json:"code"`
-	PortCount int       `gorm:"not null" json:"port_count"`
-	Latitude  *float64  `gorm:"type:double precision" json:"latitude,omitempty"`
-	Longitude *float64  `gorm:"type:double precision" json:"longitude,omitempty"`
-	Address   string    `gorm:"type:text" json:"address"`
-	Notes     string    `gorm:"type:text" json:"notes"`
+	ID uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	// Code is the box's identity, for the same reason a cabinet's is.
+	Code      string   `gorm:"type:varchar(64);not null" json:"code"`
+	PortCount int      `gorm:"not null" json:"port_count"`
+	Latitude  *float64 `gorm:"type:double precision" json:"latitude,omitempty"`
+	Longitude *float64 `gorm:"type:double precision" json:"longitude,omitempty"`
+	Address   string   `gorm:"type:text" json:"address"`
+	Notes     string   `gorm:"type:text" json:"notes"`
 
 	// Exactly one parent: ODCID, or the OLTID/Slot/PortID triple.
 	ODCID  *uuid.UUID `gorm:"type:uuid;index" json:"odc_id,omitempty"`

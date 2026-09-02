@@ -34,12 +34,12 @@ func distributionHandlerFixture(t *testing.T, db *gorm.DB) (models.Site, models.
 func TestCreateODPHandlerRefusesTwoParents(t *testing.T) {
 	handler, db := setupDistributionHandlerTest(t)
 	site, olt := distributionHandlerFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Name: "ODC"}
+	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
 	require.NoError(t, db.Create(&odc).Error)
 	slot, port := 1, 4
 
 	w, c := SetupTestContext(http.MethodPost, "/api/v1/odps", CreateODPRequest{
-		Name: "ODP", PortCount: 8,
+		Code: "ODP", PortCount: 8,
 		ODCID: odc.ID.String(), OLTID: olt.ID.String(), Slot: &slot, PortID: &port,
 	})
 
@@ -60,7 +60,7 @@ func TestCreateODPHandlerAcceptsAPONPortParent(t *testing.T) {
 	slot, port := 1, 4
 
 	w, c := SetupTestContext(http.MethodPost, "/api/v1/odps", CreateODPRequest{
-		Name: "ODP-02", PortCount: 16,
+		Code: "ODP-02", PortCount: 16,
 		OLTID: olt.ID.String(), Slot: &slot, PortID: &port,
 	})
 
@@ -78,9 +78,9 @@ func TestCreateODPHandlerAcceptsAPONPortParent(t *testing.T) {
 func TestAssignONTHandlerRefusesAPortBeyondTheSplitter(t *testing.T) {
 	handler, db := setupDistributionHandlerTest(t)
 	site, olt := distributionHandlerFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Name: "ODC"}
+	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
 	require.NoError(t, db.Create(&odc).Error)
-	odp := models.ODP{Name: "ODP", PortCount: 8, ODCID: &odc.ID}
+	odp := models.ODP{Code: "ODP", PortCount: 8, ODCID: &odc.ID}
 	require.NoError(t, db.Create(&odp).Error)
 	slot := 1
 	ont := models.ONT{
@@ -104,9 +104,9 @@ func TestAssignONTHandlerRefusesAPortBeyondTheSplitter(t *testing.T) {
 func TestListODPsHandlerReportsTheRoomLeft(t *testing.T) {
 	handler, db := setupDistributionHandlerTest(t)
 	site, olt := distributionHandlerFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Name: "ODC"}
+	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
 	require.NoError(t, db.Create(&odc).Error)
-	odp := models.ODP{Name: "ODP", PortCount: 8, ODCID: &odc.ID}
+	odp := models.ODP{Code: "ODP", PortCount: 8, ODCID: &odc.ID}
 	require.NoError(t, db.Create(&odp).Error)
 	slot, port := 1, 2
 	require.NoError(t, db.Create(&models.ONT{

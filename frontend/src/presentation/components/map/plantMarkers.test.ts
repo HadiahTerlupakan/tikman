@@ -4,8 +4,7 @@ import { mappedPlant, odpFullness, odpPinColor } from "./plantMarkers";
 
 const box = (over: Partial<Odp> = {}): Odp => ({
   id: "odp-1",
-  name: "ODP-01",
-  code: "",
+  code: "ODP-01",
   portCount: 8,
   usedPorts: 0,
   address: "",

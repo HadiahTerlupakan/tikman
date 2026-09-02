@@ -50,7 +50,7 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
       <Descriptions bordered column={1} size="small">
         <Descriptions.Item label="ODP saat ini">
           {current
-            ? `${current.name} · port ${ont.odpPort}`
+            ? `${current.code} · port ${ont.odpPort}`
             : "Belum ditautkan"}
         </Descriptions.Item>
       </Descriptions>
@@ -72,7 +72,7 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
           onChange={setOdpId}
           options={(odps ?? []).map((odp) => ({
             value: odp.id,
-            label: `${odp.name} (${odp.usedPorts}/${odp.portCount})`,
+            label: `${odp.code} (${odp.usedPorts}/${odp.portCount})`,
           }))}
         />
         <Select
@@ -106,7 +106,7 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
         <Alert
           type="warning"
           showIcon
-          message={`${chosen.name} sudah penuh — tidak ada port kosong`}
+          message={`${chosen.code} sudah penuh — tidak ada port kosong`}
         />
       )}
     </Space>

@@ -60,7 +60,7 @@ func (h *DistributionHandler) CreateODC(c *gin.Context) {
 	}
 
 	odc, err := h.service.CreateODC(services.ODCInput{
-		SiteID: siteID, Name: req.Name, Code: req.Code,
+		SiteID: siteID, Code: req.Code,
 		Latitude: req.Latitude, Longitude: req.Longitude,
 		Address: req.Address, Notes: req.Notes,
 	})
@@ -136,7 +136,6 @@ func (h *DistributionHandler) CreateODP(c *gin.Context) {
 		return
 	}
 
-	parent.Name = req.Name
 	parent.Code = req.Code
 	parent.PortCount = req.PortCount
 	parent.Latitude = req.Latitude

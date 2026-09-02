@@ -38,9 +38,9 @@ func pathUUID(c *gin.Context, param, code string) (uuid.UUID, bool) {
 
 // CreateODCRequest records a cabinet.
 type CreateODCRequest struct {
-	SiteID    string   `json:"site_id" binding:"required,uuid"`
-	Name      string   `json:"name" binding:"required,min=1,max=255"`
-	Code      string   `json:"code" binding:"omitempty,max=64"`
+	SiteID string `json:"site_id" binding:"required,uuid"`
+	// The code is the cabinet's identity, so it is what the form must carry.
+	Code      string   `json:"code" binding:"required,min=1,max=64"`
 	Latitude  *float64 `json:"latitude"`
 	Longitude *float64 `json:"longitude"`
 	Address   string   `json:"address"`
@@ -59,8 +59,7 @@ type CreateODCFeedRequest struct {
 // CreateODPRequest records a distribution box. Exactly one parent is named:
 // odc_id, or the olt_id/slot/port_id triple.
 type CreateODPRequest struct {
-	Name      string   `json:"name" binding:"required,min=1,max=255"`
-	Code      string   `json:"code" binding:"omitempty,max=64"`
+	Code      string   `json:"code" binding:"required,min=1,max=64"`
 	PortCount int      `json:"port_count" binding:"required,min=1"`
 	Latitude  *float64 `json:"latitude"`
 	Longitude *float64 `json:"longitude"`

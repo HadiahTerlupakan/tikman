@@ -120,14 +120,14 @@ func plantFixture(t *testing.T, db *gorm.DB) (models.Site, models.OLT) {
 func TestDatabaseRefusesADistributionBoxWithTwoParents(t *testing.T) {
 	db := freshPostgres(t)
 	site, olt := plantFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Name: "ODC"}
+	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
 	require.NoError(t, db.Create(&odc).Error)
 	slot, port := 1, 4
 
 	// The service refuses this too, but an import or a hand-written UPDATE
 	// answers only to the database, which is why the rule is stated twice.
 	err := db.Create(&models.ODP{
-		Name: "ODP", PortCount: 8, ODCID: &odc.ID,
+		Code: "ODP", PortCount: 8, ODCID: &odc.ID,
 		OLTID: &olt.ID, Slot: &slot, PortID: &port,
 	}).Error
 
@@ -138,7 +138,7 @@ func TestDatabaseRefusesADistributionBoxWithTwoParents(t *testing.T) {
 func TestDatabaseRefusesADistributionBoxWithNoParent(t *testing.T) {
 	db := freshPostgres(t)
 
-	err := db.Create(&models.ODP{Name: "ODP", PortCount: 8}).Error
+	err := db.Create(&models.ODP{Code: "ODP", PortCount: 8}).Error
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "odps_exactly_one_parent")
@@ -147,9 +147,9 @@ func TestDatabaseRefusesADistributionBoxWithNoParent(t *testing.T) {
 func TestDatabaseRefusesTwoSubscribersOnOneDistributionPort(t *testing.T) {
 	db := freshPostgres(t)
 	site, olt := plantFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Name: "ODC"}
+	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
 	require.NoError(t, db.Create(&odc).Error)
-	odp := models.ODP{Name: "ODP", PortCount: 8, ODCID: &odc.ID}
+	odp := models.ODP{Code: "ODP", PortCount: 8, ODCID: &odc.ID}
 	require.NoError(t, db.Create(&odp).Error)
 	slot, port := 1, 1
 

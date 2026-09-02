@@ -51,7 +51,7 @@ export function PlantLayer({ odcs, odps, onSelectOdp }: PlantLayerProps) {
         <Marker
           key={odc.id}
           position={{ lat: odc.latitude, lng: odc.longitude }}
-          title={odc.name}
+          title={odc.code}
           icon={pinIcon(ODC_COLOR, "C")}
           onClick={() => setSelected({ kind: "odc", item: odc })}
         />
@@ -61,7 +61,7 @@ export function PlantLayer({ odcs, odps, onSelectOdp }: PlantLayerProps) {
         <Marker
           key={odp.id}
           position={{ lat: odp.latitude, lng: odp.longitude }}
-          title={`${odp.name} — ${odpOccupancyLabel(odp)}`}
+          title={`${odp.code} — ${odpOccupancyLabel(odp)}`}
           icon={pinIcon(odpPinColor(odp), "P")}
           onClick={() => setSelected({ kind: "odp", item: odp })}
         />
@@ -77,14 +77,12 @@ export function PlantLayer({ odcs, odps, onSelectOdp }: PlantLayerProps) {
         >
           {selected.kind === "odc" ? (
             <PlantSummary
-              title={selected.item.name}
-              code={selected.item.code}
+              title={selected.item.code}
               detail={odcSummaryLabel(selected.item)}
             />
           ) : (
             <PlantSummary
-              title={selected.item.name}
-              code={selected.item.code}
+              title={selected.item.code}
               detail={odpOccupancyLabel(selected.item)}
               onOpen={
                 onSelectOdp
@@ -101,19 +99,16 @@ export function PlantLayer({ odcs, odps, onSelectOdp }: PlantLayerProps) {
 
 function PlantSummary({
   title,
-  code,
   detail,
   onOpen,
 }: {
   title: string;
-  code: string;
   detail: string;
   onOpen?: () => void;
 }) {
   return (
     <div style={{ color: "#18181b", minWidth: 170 }}>
       <div style={{ fontWeight: 600 }}>{title}</div>
-      {code && <div style={{ fontSize: 12 }}>{code}</div>}
       <div style={{ fontSize: 12, marginTop: 6 }}>{detail}</div>
       {onOpen && (
         <button

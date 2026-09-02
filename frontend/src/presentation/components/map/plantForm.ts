@@ -4,8 +4,7 @@ import type { CreateOdpDto } from "@/domain/entities";
 export type ParentKind = "odc" | "pon";
 
 export interface OdpFormValues {
-  name: string;
-  code?: string;
+  code: string;
   portCount: number;
   address?: string;
   notes?: string;
@@ -34,8 +33,7 @@ export function buildOdpDto(
   coordinates: Coordinates | undefined,
 ): CreateOdpDto {
   const dto: CreateOdpDto = {
-    name: values.name.trim(),
-    code: values.code?.trim() || undefined,
+    code: values.code.trim(),
     portCount: values.portCount,
     address: values.address?.trim() || undefined,
     notes: values.notes?.trim() || undefined,

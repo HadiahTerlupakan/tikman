@@ -11,11 +11,11 @@ func TestListODPsCountsThePortsInUse(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
-	busy, err := service.CreateODP(ODPInput{Name: "ODP penuh", PortCount: 8, ODCID: &odc.ID})
+	busy, err := service.CreateODP(ODPInput{Code: "ODP penuh", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
-	empty, err := service.CreateODP(ODPInput{Name: "ODP kosong", PortCount: 16, ODCID: &odc.ID})
+	empty, err := service.CreateODP(ODPInput{Code: "ODP kosong", PortCount: 16, ODCID: &odc.ID})
 	require.NoError(t, err)
 
 	for port := 1; port <= 3; port++ {
@@ -44,11 +44,11 @@ func TestListODPsLeavesOutSubscribersOnOtherBoxes(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
-	first, err := service.CreateODP(ODPInput{Name: "ODP A", PortCount: 8, ODCID: &odc.ID})
+	first, err := service.CreateODP(ODPInput{Code: "ODP A", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
-	second, err := service.CreateODP(ODPInput{Name: "ODP B", PortCount: 8, ODCID: &odc.ID})
+	second, err := service.CreateODP(ODPInput{Code: "ODP B", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
 
 	one := seedDistributionONT(t, db, olt.ID, uniqueSerial())
@@ -62,6 +62,6 @@ func TestListODPsLeavesOutSubscribersOnOtherBoxes(t *testing.T) {
 	// A join that counted every assigned subscriber against every box would
 	// report both as full, and the map would send nobody anywhere.
 	for _, box := range boxes {
-		assert.Equal(t, 1, box.UsedPorts, box.Name)
+		assert.Equal(t, 1, box.UsedPorts, box.Code)
 	}
 }

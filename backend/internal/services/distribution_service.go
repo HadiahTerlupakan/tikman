@@ -28,7 +28,6 @@ func NewDistributionService(db *gorm.DB) *DistributionService {
 // ODCInput is what an operator states when recording a cabinet.
 type ODCInput struct {
 	SiteID    uuid.UUID
-	Name      string
 	Code      string
 	Latitude  *float64
 	Longitude *float64
@@ -49,7 +48,6 @@ type ODCFeedInput struct {
 // ODPInput is a distribution box and the one parent it hangs off: either
 // ODCID, or the OLTID/Slot/PortID triple.
 type ODPInput struct {
-	Name      string
 	Code      string
 	PortCount int
 	Latitude  *float64
@@ -66,11 +64,11 @@ type ODPInput struct {
 // CreateODC records a cabinet. Its feeds are added separately, because a
 // cabinet can be fed by more than one PON port.
 func (s *DistributionService) CreateODC(in ODCInput) (*models.ODC, error) {
-	if in.Name == "" {
-		return nil, fmt.Errorf("%w: the cabinet needs a name", ErrValidation)
+	if in.Code == "" {
+		return nil, fmt.Errorf("%w: the cabinet needs a code", ErrValidation)
 	}
 	odc := &models.ODC{
-		SiteID: in.SiteID, Name: in.Name, Code: in.Code,
+		SiteID: in.SiteID, Code: in.Code,
 		Latitude: in.Latitude, Longitude: in.Longitude,
 		Address: in.Address, Notes: in.Notes,
 	}
@@ -109,8 +107,8 @@ func (s *DistributionService) AddODCFeed(in ODCFeedInput) (*models.ODCFeed, erro
 
 // CreateODP records a distribution box under exactly one parent.
 func (s *DistributionService) CreateODP(in ODPInput) (*models.ODP, error) {
-	if in.Name == "" {
-		return nil, fmt.Errorf("%w: the distribution box needs a name", ErrValidation)
+	if in.Code == "" {
+		return nil, fmt.Errorf("%w: the distribution box needs a code", ErrValidation)
 	}
 	if in.PortCount <= 0 {
 		return nil, fmt.Errorf("%w: a splitter has outputs", ErrValidation)
@@ -120,7 +118,7 @@ func (s *DistributionService) CreateODP(in ODPInput) (*models.ODP, error) {
 	}
 
 	odp := &models.ODP{
-		Name: in.Name, Code: in.Code, PortCount: in.PortCount,
+		Code: in.Code, PortCount: in.PortCount,
 		Latitude: in.Latitude, Longitude: in.Longitude,
 		Address: in.Address, Notes: in.Notes,
 		ODCID: in.ODCID, OLTID: in.OLTID, Slot: in.Slot, PortID: in.PortID,
@@ -159,7 +157,7 @@ func (s *DistributionService) AssignONT(ontID, odpID uuid.UUID, port int) error 
 	}
 	if port < 1 || port > odp.PortCount {
 		return fmt.Errorf("%w: %s has %d ports, so port %d does not exist",
-			ErrValidation, odp.Name, odp.PortCount, port)
+			ErrValidation, odp.Code, odp.PortCount, port)
 	}
 
 	var holder models.ONT

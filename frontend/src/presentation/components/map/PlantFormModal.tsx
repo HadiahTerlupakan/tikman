@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Alert, Form, Input, InputNumber, Modal, Radio, Select } from "antd";
 import {
   useCreateOdc,
@@ -13,6 +13,7 @@ import {
   type Coordinates,
   type OdpFormValues,
 } from "./plantForm";
+import { AddressResolver } from "./AddressResolver";
 
 export type PlantKind = "odc" | "odp";
 
@@ -53,13 +54,23 @@ export function PlantFormModal({
     }
   }, [open, form]);
 
+  // Only fills a field the operator has not typed into: a resolved address
+  // arriving late must never overwrite what someone corrected by hand.
+  const fillAddress = useCallback(
+    (address: string) => {
+      if (address && !form.getFieldValue("address")) {
+        form.setFieldValue("address", address);
+      }
+    },
+    [form],
+  );
+
   const submit = async () => {
     const values = await form.validateFields();
     if (kind === "odc") {
       await createOdc.mutateAsync({
         siteId: values.siteId,
-        name: values.name,
-        code: values.code || undefined,
+        code: values.code,
         address: values.address || undefined,
         notes: values.notes || undefined,
         latitude: coordinates?.latitude,
@@ -110,17 +121,17 @@ export function PlantFormModal({
         }
       />
 
+      {open && (
+        <AddressResolver coordinates={coordinates} onResolved={fillAddress} />
+      )}
+
       <Form form={form} layout="vertical" initialValues={{ parentKind: "odc" }}>
         <Form.Item
-          name="name"
-          label="Nama"
-          rules={[{ required: true, message: "Nama wajib diisi" }]}
+          name="code"
+          label={kind === "odc" ? "Kode ODC" : "Kode ODP"}
+          rules={[{ required: true, message: "Kode wajib diisi" }]}
         >
-          <Input placeholder={kind === "odc" ? "ODC Cariu 1" : "ODP-CRU-012"} />
-        </Form.Item>
-
-        <Form.Item name="code" label="Kode" extra="Boleh dikosongkan.">
-          <Input placeholder="ODC-CRU-01" />
+          <Input placeholder={kind === "odc" ? "ODC-CRU-01" : "ODP-CRU-012"} />
         </Form.Item>
 
         {kind === "odc" ? (
@@ -161,7 +172,7 @@ export function PlantFormModal({
                   placeholder="Pilih ODC"
                   options={(odcs ?? []).map((odc) => ({
                     value: odc.id,
-                    label: odc.name,
+                    label: odc.code,
                   }))}
                 />
               </Form.Item>
@@ -187,7 +198,11 @@ export function PlantFormModal({
           </>
         )}
 
-        <Form.Item name="address" label="Alamat">
+        <Form.Item
+          name="address"
+          label="Alamat"
+          extra="Terisi otomatis dari titik yang diklik; boleh diperbaiki."
+        >
           <Input placeholder="Alamat atau patokan" />
         </Form.Item>
         <Form.Item name="notes" label="Catatan">

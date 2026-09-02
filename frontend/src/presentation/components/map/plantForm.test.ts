@@ -4,7 +4,7 @@ import { buildOdpDto, odpFormProblem, type OdpFormValues } from "./plantForm";
 const here = { latitude: -6.4, longitude: 106.8 };
 
 const values = (over: Partial<OdpFormValues> = {}): OdpFormValues => ({
-  name: "ODP-01",
+  code: "ODP-01",
   portCount: 8,
   parentKind: "odc",
   odcId: "odc-1",
@@ -51,9 +51,8 @@ describe("buildOdpDto", () => {
   });
 
   it("drops blank optional text rather than storing empty strings", () => {
-    const dto = buildOdpDto(values({ code: "  ", notes: "" }), here);
+    const dto = buildOdpDto(values({ notes: "" }), here);
 
-    expect(dto.code).toBeUndefined();
     expect(dto.notes).toBeUndefined();
   });
 

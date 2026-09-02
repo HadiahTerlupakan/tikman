@@ -28,10 +28,10 @@ func TestCreateODPAcceptsACabinetParent(t *testing.T) {
 	service := NewDistributionService(db)
 	site, _ := distributionFixture(t, db)
 
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC Cariu 1"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC Cariu 1"})
 	require.NoError(t, err)
 
-	odp, err := service.CreateODP(ODPInput{Name: "ODP-01", PortCount: 8, ODCID: &odc.ID})
+	odp, err := service.CreateODP(ODPInput{Code: "ODP-01", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
 	assert.Equal(t, odc.ID, *odp.ODCID)
 	assert.Nil(t, odp.OLTID)
@@ -46,7 +46,7 @@ func TestCreateODPAcceptsAPONPortParent(t *testing.T) {
 	// Some ports reach a distribution box with no cabinet in between, which is
 	// why the parent cannot simply be a cabinet.
 	odp, err := service.CreateODP(ODPInput{
-		Name: "ODP-02", PortCount: 16, OLTID: &olt.ID, Slot: &slot, PortID: &port,
+		Code: "ODP-02", PortCount: 16, OLTID: &olt.ID, Slot: &slot, PortID: &port,
 	})
 	require.NoError(t, err)
 	assert.Nil(t, odp.ODCID)
@@ -57,12 +57,12 @@ func TestCreateODPRejectsTwoParents(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
 	slot, port := 1, 4
 
 	_, err = service.CreateODP(ODPInput{
-		Name: "ODP", PortCount: 8, ODCID: &odc.ID,
+		Code: "ODP", PortCount: 8, ODCID: &odc.ID,
 		OLTID: &olt.ID, Slot: &slot, PortID: &port,
 	})
 
@@ -76,7 +76,7 @@ func TestCreateODPRejectsNoParent(t *testing.T) {
 	distributionFixture(t, db)
 
 	// A box connected to nothing is not a box anyone can find light in.
-	_, err := service.CreateODP(ODPInput{Name: "ODP", PortCount: 8})
+	_, err := service.CreateODP(ODPInput{Code: "ODP", PortCount: 8})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "one parent")
@@ -86,9 +86,9 @@ func TestAddODCFeedRejectsAPONPortAlreadyFeedingAnotherCabinet(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	first, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC A"})
+	first, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC A"})
 	require.NoError(t, err)
-	second, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC B"})
+	second, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC B"})
 	require.NoError(t, err)
 
 	_, err = service.AddODCFeed(ODCFeedInput{
@@ -110,9 +110,9 @@ func TestAssignONTRejectsAPortBeyondTheSplitter(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
-	odp, err := service.CreateODP(ODPInput{Name: "ODP", PortCount: 8, ODCID: &odc.ID})
+	odp, err := service.CreateODP(ODPInput{Code: "ODP", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
 	ont := seedDistributionONT(t, db, olt.ID, "ZTEGC0000001")
 
@@ -127,9 +127,9 @@ func TestAssignONTRejectsAPortAnotherSubscriberHolds(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
-	odp, err := service.CreateODP(ODPInput{Name: "ODP", PortCount: 8, ODCID: &odc.ID})
+	odp, err := service.CreateODP(ODPInput{Code: "ODP", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
 	first := seedDistributionONT(t, db, olt.ID, "ZTEGC0000001")
 	second := seedDistributionONT(t, db, olt.ID, "ZTEGC0000002")
@@ -148,9 +148,9 @@ func TestAssignONTMovesASubscriberBetweenPorts(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
-	odp, err := service.CreateODP(ODPInput{Name: "ODP", PortCount: 8, ODCID: &odc.ID})
+	odp, err := service.CreateODP(ODPInput{Code: "ODP", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
 	ont := seedDistributionONT(t, db, olt.ID, "ZTEGC0000001")
 	require.NoError(t, service.AssignONT(ont.ID, odp.ID, 3))
@@ -191,9 +191,9 @@ func TestODPAssignmentSurvivesADiscoveryCycle(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewDistributionService(db)
 	site, olt := distributionFixture(t, db)
-	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Name: "ODC"})
+	odc, err := service.CreateODC(ODCInput{SiteID: site.ID, Code: "ODC"})
 	require.NoError(t, err)
-	odp, err := service.CreateODP(ODPInput{Name: "ODP", PortCount: 8, ODCID: &odc.ID})
+	odp, err := service.CreateODP(ODPInput{Code: "ODP", PortCount: 8, ODCID: &odc.ID})
 	require.NoError(t, err)
 	ont := seedDistributionONT(t, db, olt.ID, "ZTEGC0000001")
 	require.NoError(t, service.AssignONT(ont.ID, odp.ID, 3))

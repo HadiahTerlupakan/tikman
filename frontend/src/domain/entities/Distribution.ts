@@ -2,7 +2,7 @@
 export interface Odc {
   id: string;
   siteId: string;
-  name: string;
+  /** The cabinet's identity. There is no separate name. */
   code: string;
   latitude?: number;
   longitude?: number;
@@ -22,7 +22,7 @@ export interface Odc {
  */
 export interface Odp {
   id: string;
-  name: string;
+  /** The box's identity, for the same reason a cabinet's is. */
   code: string;
   portCount: number;
   usedPorts: number;
@@ -38,8 +38,7 @@ export interface Odp {
 
 export interface CreateOdcDto {
   siteId: string;
-  name: string;
-  code?: string;
+  code: string;
   latitude?: number;
   longitude?: number;
   address?: string;
@@ -47,8 +46,7 @@ export interface CreateOdcDto {
 }
 
 export interface CreateOdpDto {
-  name: string;
-  code?: string;
+  code: string;
   portCount: number;
   latitude?: number;
   longitude?: number;

@@ -9,7 +9,6 @@ import (
 // the one thing the map has to say without being clicked.
 type ODPWithUsage struct {
 	ID        uuid.UUID  `json:"id"`
-	Name      string     `json:"name"`
 	Code      string     `json:"code"`
 	PortCount int        `json:"port_count"`
 	UsedPorts int        `json:"used_ports"`
@@ -28,7 +27,6 @@ type ODPWithUsage struct {
 type ODCWithUsage struct {
 	ID        uuid.UUID `json:"id"`
 	SiteID    uuid.UUID `json:"site_id"`
-	Name      string    `json:"name"`
 	Code      string    `json:"code"`
 	Latitude  *float64  `json:"latitude,omitempty"`
 	Longitude *float64  `json:"longitude,omitempty"`
@@ -45,13 +43,13 @@ type ODCWithUsage struct {
 func (s *DistributionService) ListODPs() ([]ODPWithUsage, error) {
 	rows := []ODPWithUsage{}
 	err := s.db.Model(&models.ODP{}).
-		Select(`odps.id, odps.name, odps.code, odps.port_count,
+		Select(`odps.id, odps.code, odps.port_count,
 		        count(onts.id) AS used_ports,
 		        odps.latitude, odps.longitude, odps.address, odps.notes,
 		        odps.odc_id, odps.olt_id, odps.slot, odps.port_id`).
 		Joins("LEFT JOIN onts ON onts.odp_id = odps.id").
 		Group("odps.id").
-		Order("odps.name").
+		Order("odps.code").
 		Scan(&rows).Error
 	return rows, err
 }
@@ -60,11 +58,11 @@ func (s *DistributionService) ListODPs() ([]ODPWithUsage, error) {
 func (s *DistributionService) ListODCs() ([]ODCWithUsage, error) {
 	rows := []ODCWithUsage{}
 	err := s.db.Model(&models.ODC{}).
-		Select(`odcs.id, odcs.site_id, odcs.name, odcs.code,
+		Select(`odcs.id, odcs.site_id, odcs.code,
 		        odcs.latitude, odcs.longitude, odcs.address, odcs.notes,
 		        (SELECT count(*) FROM odc_feeds f WHERE f.odc_id = odcs.id) AS feed_count,
 		        (SELECT count(*) FROM odps p WHERE p.odc_id = odcs.id) AS odp_count`).
-		Order("odcs.name").
+		Order("odcs.code").
 		Scan(&rows).Error
 	return rows, err
 }

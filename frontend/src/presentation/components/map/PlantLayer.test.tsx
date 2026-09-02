@@ -30,7 +30,6 @@ vi.mock("@vis.gl/react-google-maps", () => ({
 const cabinet: Odc = {
   id: "odc-1",
   siteId: "site-1",
-  name: "ODC Cariu 1",
   code: "ODC-CRU-01",
   latitude: -6.4,
   longitude: 106.8,
@@ -42,8 +41,7 @@ const cabinet: Odc = {
 
 const box = (over: Partial<Odp> = {}): Odp => ({
   id: "odp-1",
-  name: "ODP-01",
-  code: "",
+  code: "ODP-01",
   portCount: 8,
   usedPorts: 0,
   latitude: -6.41,
@@ -73,8 +71,8 @@ describe("PlantLayer", () => {
       <PlantLayer
         odcs={[]}
         odps={[
-          box({ id: "a", name: "ODP-A", usedPorts: 1 }),
-          box({ id: "b", name: "ODP-B", usedPorts: 8 }),
+          box({ id: "a", code: "ODP-A", usedPorts: 1 }),
+          box({ id: "b", code: "ODP-B", usedPorts: 8 }),
         ]}
       />,
     );
@@ -87,8 +85,8 @@ describe("PlantLayer", () => {
       <PlantLayer
         odcs={[]}
         odps={[
-          box({ id: "a", name: "ODP-A" }),
-          box({ id: "b", name: "ODP-B", latitude: undefined }),
+          box({ id: "a", code: "ODP-A" }),
+          box({ id: "b", code: "ODP-B", latitude: undefined }),
         ]}
       />,
     );
@@ -102,7 +100,7 @@ describe("PlantLayer", () => {
   it("opens a cabinet's fan-out when its pin is clicked", async () => {
     render(<PlantLayer odcs={[cabinet]} odps={[]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "ODC Cariu 1" }));
+    await userEvent.click(screen.getByRole("button", { name: "ODC-CRU-01" }));
 
     expect(screen.getByTestId("info")).toHaveTextContent("2 feed · 5 ODP");
   });
