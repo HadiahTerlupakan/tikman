@@ -36,9 +36,19 @@ export interface Odp {
   portId?: number;
 }
 
+/** One PON port feeding a cabinet, as the form states it. */
+export interface CreateOdcFeedDto {
+  oltId: string;
+  slot: number;
+  portId: number;
+  splitterOutputs: number;
+}
+
 export interface CreateOdcDto {
   siteId: string;
   code: string;
+  /** Saved with the cabinet, so a refused feed keeps neither. */
+  feeds?: CreateOdcFeedDto[];
   latitude?: number;
   longitude?: number;
   address?: string;

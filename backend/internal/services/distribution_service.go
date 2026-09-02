@@ -78,14 +78,56 @@ func (s *DistributionService) CreateODC(in ODCInput) (*models.ODC, error) {
 	return odc, nil
 }
 
-// AddODCFeed records one PON port supplying a cabinet.
+// CreateODCWithFeeds records a cabinet and the PON ports feeding it together.
+//
+// One transaction, because a cabinet saved without the feed that was refused
+// would stand fed by nothing, and there is no screen to add the feed from
+// afterwards. A cabinet with no feeds at all is fine: recording where it stands
+// before its feeder is spliced is ordinary field order.
+func (s *DistributionService) CreateODCWithFeeds(
+	in ODCInput, feeds []ODCFeedInput,
+) (*models.ODC, error) {
+	if in.Code == "" {
+		return nil, fmt.Errorf("%w: the cabinet needs a code", ErrValidation)
+	}
+
+	odc := &models.ODC{
+		SiteID: in.SiteID, Code: in.Code,
+		Latitude: in.Latitude, Longitude: in.Longitude,
+		Address: in.Address, Notes: in.Notes,
+	}
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(odc).Error; err != nil {
+			return err
+		}
+		for _, feed := range feeds {
+			feed.ODCID = odc.ID
+			if _, err := addODCFeed(tx, feed); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return odc, nil
+}
+
+// AddODCFeed records one PON port supplying a cabinet that already exists.
 func (s *DistributionService) AddODCFeed(in ODCFeedInput) (*models.ODCFeed, error) {
+	return addODCFeed(s.db, in)
+}
+
+// addODCFeed holds the rule in one place so it applies whether a feed arrives
+// with its cabinet or later, and inside a transaction or outside one.
+func addODCFeed(db *gorm.DB, in ODCFeedInput) (*models.ODCFeed, error) {
 	if in.SplitterOutputs <= 0 {
 		return nil, fmt.Errorf("%w: a splitter has outputs", ErrValidation)
 	}
 
 	var taken models.ODCFeed
-	err := s.db.Where("olt_id = ? AND slot = ? AND port_id = ?",
+	err := db.Where("olt_id = ? AND slot = ? AND port_id = ?",
 		in.OLTID, in.Slot, in.PortID).First(&taken).Error
 	if err == nil {
 		return nil, fmt.Errorf("%w: PON port %d/%d already feeds another cabinet",
@@ -99,7 +141,7 @@ func (s *DistributionService) AddODCFeed(in ODCFeedInput) (*models.ODCFeed, erro
 		ODCID: in.ODCID, OLTID: in.OLTID, Slot: in.Slot, PortID: in.PortID,
 		SplitterOutputs: in.SplitterOutputs, Notes: in.Notes,
 	}
-	if err := s.db.Create(feed).Error; err != nil {
+	if err := db.Create(feed).Error; err != nil {
 		return nil, err
 	}
 	return feed, nil

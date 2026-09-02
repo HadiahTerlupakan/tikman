@@ -213,3 +213,69 @@ func TestODPAssignmentSurvivesADiscoveryCycle(t *testing.T) {
 	assert.Equal(t, 3, *stored.ODPPort)
 	assert.Equal(t, "nama dari OLT", stored.Name, "the OLT's own label should still land")
 }
+
+func TestCreateODCWithFeedsRecordsBoth(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewDistributionService(db)
+	site, olt := distributionFixture(t, db)
+
+	odc, err := service.CreateODCWithFeeds(
+		ODCInput{SiteID: site.ID, Code: "ODC-CRU-01"},
+		[]ODCFeedInput{
+			{OLTID: olt.ID, Slot: 1, PortID: 1, SplitterOutputs: 8},
+			{OLTID: olt.ID, Slot: 1, PortID: 2, SplitterOutputs: 8},
+		},
+	)
+	require.NoError(t, err)
+
+	feeds, err := service.ODCFeedsFor(odc.ID)
+	require.NoError(t, err)
+	assert.Len(t, feeds, 2)
+}
+
+func TestCreateODCWithFeedsKeepsNothingWhenAFeedIsRefused(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewDistributionService(db)
+	site, olt := distributionFixture(t, db)
+	first, err := service.CreateODCWithFeeds(
+		ODCInput{SiteID: site.ID, Code: "ODC-A"},
+		[]ODCFeedInput{{OLTID: olt.ID, Slot: 1, PortID: 1, SplitterOutputs: 8}},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+
+	// The second port is free, the first is not. Saving the cabinet and losing
+	// only the refused feed would leave a cabinet fed by nothing, and no screen
+	// to add the feed from.
+	_, err = service.CreateODCWithFeeds(
+		ODCInput{SiteID: site.ID, Code: "ODC-B"},
+		[]ODCFeedInput{
+			{OLTID: olt.ID, Slot: 1, PortID: 2, SplitterOutputs: 8},
+			{OLTID: olt.ID, Slot: 1, PortID: 1, SplitterOutputs: 8},
+		},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already feeds")
+
+	var cabinets int64
+	require.NoError(t, db.Model(&models.ODC{}).Count(&cabinets).Error)
+	assert.EqualValues(t, 1, cabinets, "the refused cabinet was left behind")
+
+	var feeds int64
+	require.NoError(t, db.Model(&models.ODCFeed{}).Count(&feeds).Error)
+	assert.EqualValues(t, 1, feeds, "the feed that would have succeeded was left behind")
+}
+
+func TestCreateODCWithFeedsAcceptsACabinetWithNoFeedYet(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewDistributionService(db)
+	site, _ := distributionFixture(t, db)
+
+	// Recording where a cabinet stands before its feeder is spliced is ordinary
+	// field order, not an error.
+	odc, err := service.CreateODCWithFeeds(
+		ODCInput{SiteID: site.ID, Code: "ODC-CRU-02"}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "ODC-CRU-02", odc.Code)
+}

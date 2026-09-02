@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -59,11 +60,19 @@ func (h *DistributionHandler) CreateODC(c *gin.Context) {
 		return
 	}
 
-	odc, err := h.service.CreateODC(services.ODCInput{
+	feeds, err := odcFeedInputs(req.Feeds)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(), Code: "INVALID_OLT_ID",
+		})
+		return
+	}
+
+	odc, err := h.service.CreateODCWithFeeds(services.ODCInput{
 		SiteID: siteID, Code: req.Code,
 		Latitude: req.Latitude, Longitude: req.Longitude,
 		Address: req.Address, Notes: req.Notes,
-	})
+	}, feeds)
 	if err != nil {
 		if badRequest(c, err, "INVALID_ODC") {
 			return
@@ -74,6 +83,22 @@ func (h *DistributionHandler) CreateODC(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": odc})
+}
+
+// odcFeedInputs turns the feeds named in a create request into service inputs.
+func odcFeedInputs(requests []CreateODCFeedRequest) ([]services.ODCFeedInput, error) {
+	feeds := make([]services.ODCFeedInput, 0, len(requests))
+	for _, req := range requests {
+		oltID, err := uuid.Parse(req.OLTID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid OLT ID format")
+		}
+		feeds = append(feeds, services.ODCFeedInput{
+			OLTID: oltID, Slot: req.Slot, PortID: req.PortID,
+			SplitterOutputs: req.SplitterOutputs, Notes: req.Notes,
+		})
+	}
+	return feeds, nil
 }
 
 // AddODCFeed records one PON port supplying a cabinet.

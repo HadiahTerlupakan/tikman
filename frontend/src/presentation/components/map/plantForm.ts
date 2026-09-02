@@ -1,4 +1,4 @@
-import type { CreateOdpDto } from "@/domain/entities";
+import type { CreateOdcFeedDto, CreateOdpDto } from "@/domain/entities";
 
 /**
  * The splitter ratios a distribution box is built with.
@@ -86,4 +86,36 @@ export function odpFormProblem(
     }
   }
   return null;
+}
+
+/** What the cabinet form collects about the port feeding it. */
+export interface OdcFeedValues {
+  oltId?: string;
+  slot?: number;
+  portId?: number;
+  splitterOutputs?: number;
+}
+
+/**
+ * The feed to save with a cabinet, if one was fully named.
+ *
+ * A PON address is the OLT, the card and the port together; two of the three is
+ * not an address. Half a feed would be refused by the server, and refusing it
+ * would take the whole cabinet with it, so a partial one is simply not sent —
+ * recording where a cabinet stands before its feeder is spliced is ordinary
+ * field order.
+ */
+export function odcFeeds(
+  values: OdcFeedValues,
+): CreateOdcFeedDto[] | undefined {
+  const { oltId, slot, portId, splitterOutputs } = values;
+  if (
+    !oltId ||
+    slot === undefined ||
+    portId === undefined ||
+    !splitterOutputs
+  ) {
+    return undefined;
+  }
+  return [{ oltId, slot, portId, splitterOutputs }];
 }

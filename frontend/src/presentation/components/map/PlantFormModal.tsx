@@ -1,22 +1,16 @@
 import { useCallback, useEffect } from "react";
-import { Alert, Form, Input, Modal, Radio, Select } from "antd";
-import {
-  useCreateOdc,
-  useCreateOdp,
-  useOdcs,
-  useOltTopology,
-  useOlts,
-  useSites,
-} from "@/application/hooks";
+import { Alert, Form, Input, Modal } from "antd";
+import { useCreateOdc, useCreateOdp } from "@/application/hooks";
 import {
   buildOdpDto,
+  odcFeeds,
   odpFormProblem,
-  SPLITTER_RATIOS,
   type Coordinates,
   type OdpFormValues,
 } from "./plantForm";
 import { AddressResolver } from "./AddressResolver";
-import { cardOptions, portOptions } from "./ponOptions";
+import { OdcFields } from "./OdcFields";
+import { OdpFields } from "./OdpFields";
 
 export type PlantKind = "odc" | "odp";
 
@@ -42,20 +36,9 @@ export function PlantFormModal({
   onClose,
 }: PlantFormModalProps) {
   const [form] = Form.useForm();
-  const { data: sites } = useSites();
-  const { data: odcs } = useOdcs();
-  const { data: olts } = useOlts();
   const createOdc = useCreateOdc();
   const createOdp = useCreateOdp();
-
   const mutation = kind === "odc" ? createOdc : createOdp;
-  const parentKind = Form.useWatch("parentKind", form) ?? "odc";
-  const parentOltId = Form.useWatch("oltId", form);
-  const parentSlot = Form.useWatch("slot", form);
-  const { data: topology, isLoading: topologyLoading } =
-    useOltTopology(parentOltId);
-  const cards = cardOptions(topology);
-  const ports = portOptions(topology, parentSlot);
 
   useEffect(() => {
     if (open) {
@@ -84,6 +67,7 @@ export function PlantFormModal({
         notes: values.notes || undefined,
         latitude: coordinates?.latitude,
         longitude: coordinates?.longitude,
+        feeds: odcFeeds(values),
       });
       onClose();
       return;
@@ -143,102 +127,7 @@ export function PlantFormModal({
           <Input placeholder={kind === "odc" ? "ODC-CRU-01" : "ODP-CRU-012"} />
         </Form.Item>
 
-        {kind === "odc" ? (
-          <Form.Item
-            name="siteId"
-            label="Site"
-            rules={[{ required: true, message: "Pilih site" }]}
-          >
-            <Select
-              placeholder="Pilih site"
-              options={(sites ?? []).map((site) => ({
-                value: site.id,
-                label: site.name,
-              }))}
-            />
-          </Form.Item>
-        ) : (
-          <>
-            <Form.Item
-              name="portCount"
-              label="Rasio splitter"
-              rules={[{ required: true, message: "Pilih rasio splitternya" }]}
-            >
-              <Select
-                placeholder="Pilih rasio"
-                options={SPLITTER_RATIOS.map((outputs) => ({
-                  value: outputs,
-                  label: `1:${outputs}`,
-                }))}
-              />
-            </Form.Item>
-
-            <Form.Item name="parentKind" label="Menggantung pada">
-              <Radio.Group optionType="button">
-                <Radio.Button value="odc">ODC</Radio.Button>
-                <Radio.Button value="pon">PON port langsung</Radio.Button>
-              </Radio.Group>
-            </Form.Item>
-
-            {parentKind === "odc" ? (
-              <Form.Item name="odcId" label="ODC induk">
-                <Select
-                  placeholder="Pilih ODC"
-                  options={(odcs ?? []).map((odc) => ({
-                    value: odc.id,
-                    label: odc.code,
-                  }))}
-                />
-              </Form.Item>
-            ) : (
-              <>
-                <Form.Item name="oltId" label="OLT">
-                  <Select
-                    placeholder="Pilih OLT"
-                    // The card and port below belong to whichever OLT is
-                    // chosen, so they cannot survive a change of chassis.
-                    onChange={() =>
-                      form.setFieldsValue({
-                        slot: undefined,
-                        portId: undefined,
-                      })
-                    }
-                    options={(olts ?? []).map((olt) => ({
-                      value: olt.id,
-                      label: olt.name,
-                    }))}
-                  />
-                </Form.Item>
-                <Form.Item
-                  name="slot"
-                  label="Card"
-                  extra={
-                    parentOltId && !topologyLoading && cards.length === 0
-                      ? "OLT ini belum pernah di-discover, jadi kartunya belum diketahui."
-                      : undefined
-                  }
-                >
-                  <Select
-                    placeholder={
-                      topologyLoading ? "Membaca kartu..." : "Pilih card"
-                    }
-                    disabled={!parentOltId}
-                    loading={topologyLoading}
-                    onChange={() => form.setFieldValue("portId", undefined)}
-                    options={cards}
-                  />
-                </Form.Item>
-                <Form.Item name="portId" label="PON port">
-                  <Select
-                    placeholder="Pilih PON port"
-                    disabled={parentSlot === undefined}
-                    options={ports}
-                  />
-                </Form.Item>
-              </>
-            )}
-          </>
-        )}
+        {kind === "odc" ? <OdcFields form={form} /> : <OdpFields form={form} />}
 
         <Form.Item
           name="address"

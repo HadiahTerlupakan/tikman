@@ -45,6 +45,9 @@ type CreateODCRequest struct {
 	Longitude *float64 `json:"longitude"`
 	Address   string   `json:"address"`
 	Notes     string   `json:"notes"`
+	// Feeds arrive with the cabinet so the two are saved together: a cabinet
+	// kept without the feed that was refused would stand fed by nothing.
+	Feeds []CreateODCFeedRequest `json:"feeds"`
 }
 
 // CreateODCFeedRequest records one PON port supplying a cabinet.

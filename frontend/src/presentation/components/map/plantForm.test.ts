@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildOdpDto, odpFormProblem, type OdpFormValues } from "./plantForm";
+import {
+  buildOdpDto,
+  odcFeeds,
+  odpFormProblem,
+  type OdpFormValues,
+} from "./plantForm";
 
 const here = { latitude: -6.4, longitude: 106.8 };
 
@@ -89,5 +94,37 @@ describe("odpFormProblem", () => {
         here,
       ),
     ).toBeNull();
+  });
+});
+
+describe("odcFeeds", () => {
+  const full = { oltId: "olt-1", slot: 1, portId: 4, splitterOutputs: 8 };
+
+  it("sends the feed when the whole PON address is named", () => {
+    expect(odcFeeds(full)).toEqual([full]);
+  });
+
+  it("sends nothing when the feeder is not spliced yet", () => {
+    // Recording where a cabinet stands before its feeder exists is ordinary
+    // field order, not an incomplete form.
+    expect(odcFeeds({})).toBeUndefined();
+  });
+
+  it("sends nothing for half an address", () => {
+    // The server would refuse it, and refusing it would take the whole cabinet
+    // down with it, since the two are saved together.
+    expect(odcFeeds({ ...full, portId: undefined })).toBeUndefined();
+    expect(odcFeeds({ ...full, slot: undefined })).toBeUndefined();
+    expect(odcFeeds({ ...full, oltId: undefined })).toBeUndefined();
+  });
+
+  it("sends nothing without a splitter ratio", () => {
+    expect(odcFeeds({ ...full, splitterOutputs: undefined })).toBeUndefined();
+  });
+
+  it("keeps a card or port numbered zero, which chassis do use", () => {
+    expect(odcFeeds({ ...full, slot: 0, portId: 0 })).toEqual([
+      { ...full, slot: 0, portId: 0 },
+    ]);
   });
 });
