@@ -146,3 +146,41 @@ func TestListSeparatesMineFromUnheld(t *testing.T) {
 	require.Len(t, waiting, 1)
 	assert.Equal(t, "628222333444", waiting[0].CustomerPhone)
 }
+
+// A customer whose number this cannot read must still reach the inbox. WhatsApp
+// now addresses many chats by LID, and a foreign customer is a number too — both
+// used to be dropped before the message was ever stored, so the CS never learned
+// anyone had written.
+func TestFindOrCreateKeepsAThreadWhoseNumberCannotBeNormalised(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewCSConversationService(db)
+	account := csAccount(t, db)
+
+	conv, err := svc.FindOrCreate(IncomingPeer{
+		WAAccountID: account.ID,
+		JID:         "213911014010978@lid",
+		Phone:       "213911014010978",
+		Name:        "Pelanggan",
+	})
+	require.NoError(t, err, "an unreadable number must not cost the message")
+	assert.Equal(t, "213911014010978", conv.CustomerPhone,
+		"kept as-is, because an unreadable identifier still says who wrote")
+	assert.Nil(t, conv.ONTID, "and it matches no subscriber, which is correct")
+}
+
+// The column is varchar(20); a longer identifier must be cut rather than
+// rejected, or Postgres refuses the insert and the message is lost again.
+func TestFindOrCreateTrimsAnOverlongIdentifier(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewCSConversationService(db)
+	account := csAccount(t, db)
+
+	conv, err := svc.FindOrCreate(IncomingPeer{
+		WAAccountID: account.ID,
+		JID:         "wildly-long@lid",
+		Phone:       "9999999999999999999999999999",
+		Name:        "Pelanggan",
+	})
+	require.NoError(t, err)
+	assert.Len(t, conv.CustomerPhone, 20)
+}

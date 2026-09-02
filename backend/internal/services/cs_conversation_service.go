@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,11 @@ var ErrNotHolder = errors.New("percakapan sedang dipegang orang lain")
 // defaultConversationLimit keeps one inbox page bounded; at thousands of chats
 // a day an unbounded list would fetch a year of history to draw one screen.
 const defaultConversationLimit = 50
+
+// maxStoredPhone is the customer_phone column's width. An identifier we could
+// not normalise is kept as-is up to that, because an unreadable identifier is
+// still better than none when a CS asks who this was.
+const maxStoredPhone = 20
 
 // CSConversationService owns a customer's thread: who they are, which ONT is
 // theirs, who is holding the thread, and when it is done.
@@ -53,9 +59,16 @@ type ConversationFilter struct {
 // on first contact. A thread that was closed is reopened and released, because
 // a customer writing again has a new problem and it must reach somebody's queue.
 func (s *CSConversationService) FindOrCreate(p IncomingPeer) (*models.CSConversation, error) {
+	// Best effort, never a gate. Matching a chat to an ONT is a convenience;
+	// storing what a customer said is the job. A number this cannot read — a
+	// foreign one, or a LID WhatsApp gave us instead of a phone number — used
+	// to drop the whole message, so the CS never learned anyone had written.
 	phone, err := utils.NormalizePhone(p.Phone)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrValidation, err.Error())
+		phone = strings.TrimSpace(p.Phone)
+		if len(phone) > maxStoredPhone {
+			phone = phone[:maxStoredPhone]
+		}
 	}
 
 	var conv models.CSConversation

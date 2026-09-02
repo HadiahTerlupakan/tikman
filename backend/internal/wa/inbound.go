@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 )
@@ -48,8 +49,8 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 
 	conv, err := h.conversations.FindOrCreate(services.IncomingPeer{
 		WAAccountID: h.accountID,
-		JID:         evt.Info.Sender.ToNonAD().String(),
-		Phone:       evt.Info.Sender.User,
+		JID:         evt.Info.Chat.ToNonAD().String(),
+		Phone:       senderPhone(evt.Info.MessageSource),
 		Name:        evt.Info.PushName,
 	})
 	if err != nil {
@@ -127,4 +128,23 @@ func (h *inboundHandler) fetch(ctx context.Context, evt *events.Message, att att
 		return strings.TrimSpace(att.caption + " " + mediaUnavailable), nil
 	}
 	return att.caption, file
+}
+
+// senderPhone digs out the customer's actual number.
+//
+// WhatsApp now addresses many chats by LID — a privacy identifier that looks
+// like a number and is not one. When it does, Sender holds the LID and
+// SenderAlt holds the phone number; addressed the old way, Sender is the
+// number and SenderAlt is empty. Reading Sender unconditionally is how a real
+// customer arrived as "213911014010978" and was thrown away for not looking
+// Indonesian.
+func senderPhone(src types.MessageSource) string {
+	if src.Sender.Server == types.DefaultUserServer {
+		return src.Sender.User
+	}
+	if src.SenderAlt.Server == types.DefaultUserServer {
+		return src.SenderAlt.User
+	}
+	// Neither is a phone number: keep the LID so the thread still has a label.
+	return src.Sender.User
 }
