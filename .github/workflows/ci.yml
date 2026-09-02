@@ -57,7 +57,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       postgres:
-        image: postgres:15-alpine
+        # TimescaleDB, not plain Postgres: migration 01 enables the extension and
+        # six test files apply the full migration set, so a plain image fails them
+        # by design rather than skipping. The image configures
+        # shared_preload_libraries itself, which is why no command is needed here.
+        image: timescale/timescaledb:latest-pg15
         env:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: tikman_test

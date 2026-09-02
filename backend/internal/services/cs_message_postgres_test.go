@@ -2,6 +2,7 @@ package services
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,7 +15,32 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// setupPostgresTestDB builds the CS module tables on real Postgres.
+// csTestSchema keeps this test's tables out of `public`.
+//
+// It has to be its own schema, not a shared one: the tsv column comes from
+// migration 41, reaching it means running the whole migration set, and that
+// set builds hypertables and continuous aggregates on ont_metrics. Built in
+// `public`, those dependencies make the metrics tests' own DROP TABLE fail —
+// tests that pass alone and break when this one runs first.
+const csTestSchema = "cs_check"
+
+// csSearchPath puts one schema in front of the path, in either of the two DSN
+// shapes this project uses: a URL locally, key=value in CI. `public` stays
+// behind it, because TimescaleDB installs create_hypertable there and the
+// migrations call it unqualified.
+func csSearchPath(dsn, schema string) string {
+	if strings.Contains(dsn, "://") {
+		separator := "?"
+		if strings.Contains(dsn, "?") {
+			separator = "&"
+		}
+		return dsn + separator + "search_path=" + schema + ",public"
+	}
+	return dsn + " search_path=" + schema + ",public"
+}
+
+// setupPostgresTestDB builds the CS module tables on real Postgres, in a
+// schema of their own.
 //
 // Search relies on the tsv generated column, which AutoMigrate cannot create
 // (GORM tags have no way to say "generated always as"); it is added by
@@ -31,19 +57,28 @@ func setupPostgresTestDB(t *testing.T) *gorm.DB {
 		t.Skip("set TEST_POSTGRES_DSN to search against Postgres")
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	// Extensions land in `public` on this connection, before the private schema
+	// exists. Created from inside it instead, migration 33's pg_trgm would put
+	// gin_trgm_ops somewhere no other session can see, and IF NOT EXISTS would
+	// then skip the repair for everyone.
+	setup, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
-	for _, table := range []string{"cs_messages", "cs_quick_replies", "cs_conversations", "wa_accounts"} {
-		require.NoError(t, db.Exec("DROP TABLE IF EXISTS "+table+" CASCADE").Error)
+	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS timescaledb").Error)
+	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm").Error)
+	require.NoError(t, setup.Exec("DROP SCHEMA IF EXISTS "+csTestSchema+" CASCADE").Error)
+	require.NoError(t, setup.Exec("CREATE SCHEMA "+csTestSchema).Error)
+	if sql, err := setup.DB(); err == nil {
+		require.NoError(t, sql.Close())
 	}
-	// Dropping the CS tables above also erases what migration 41 built on them
-	// (the tsv column, its constraints). Forget that it ran, so a repeat run
-	// against the same disposable container rebuilds them instead of skipping.
-	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
-		version VARCHAR(20) PRIMARY KEY,
-		applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`).Error)
-	require.NoError(t, db.Exec("DELETE FROM schema_migrations WHERE version = '41'").Error)
+
+	// A session opened after the extensions exist: TimescaleDB is only fully
+	// loaded for such sessions, and creating it mid-session makes the
+	// continuous aggregates fail on a first run and pass on a second.
+	db, err := gorm.Open(
+		postgres.Open(csSearchPath(dsn, csTestSchema)),
+		&gorm.Config{Logger: logger.Discard},
+	)
+	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
 	require.NoError(t, database.RunSQLMigrations(db, "../../migrations"))
 	return db

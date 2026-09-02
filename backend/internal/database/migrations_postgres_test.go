@@ -72,6 +72,11 @@ func buildMigrationSchema(t *testing.T, dsn string) *gorm.DB {
 	setup, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS timescaledb").Error)
+	// pg_trgm goes into public on this connection, before the private schema
+	// exists. Migration 33 would otherwise create it inside migration_check,
+	// where gin_trgm_ops is invisible to every other test that later runs the
+	// migrations against public — and IF NOT EXISTS then skips the repair.
+	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm").Error)
 	require.NoError(t, setup.Exec(
 		"DROP SCHEMA IF EXISTS "+migrationCheckSchema+" CASCADE").Error)
 	require.NoError(t, setup.Exec("CREATE SCHEMA "+migrationCheckSchema).Error)
