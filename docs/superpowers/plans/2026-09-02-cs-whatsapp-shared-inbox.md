@@ -3457,6 +3457,19 @@ Yang ditambahkan di `internal/wa`:
   lewat kode yang tidak pernah sampai ke siapa pun kecuali log, dan sekarang ada
   satu jalan memasang yang benar-benar terlihat operator. Dua jalan menuju satu
   keadaan adalah satu jalan terlalu banyak.
+**Satu invarian yang mudah hilang saat jalur QR dihapus.** `supervise` berhenti
+permanen begitu `reconnect` melihat `NeedsPairing()`, dan selama ini itu tidak
+pernah terjadi karena QR channel menutup soketnya sendiri — pemutusan yang
+*diharapkan*, sehingga whatsmeow tidak menerbitkan `events.Disconnected`. Tanpa
+jalur itu, server WhatsApp yang menutup soket login dari jauh, itu terhitung
+drop, dan supervisor keluar sekitar 160 detik setelah proses start tanpa
+pasangan. Nomor yang dipasang belakangan lewat tombol Sambungkan lalu berjalan
+tanpa pengawasan: putus berikutnya tidak pernah dipulihkan, inbox diam, dan tidak
+ada tes yang gagal.
+
+Jadi `supervise` **tidak boleh keluar saat belum tertaut**. Ia menunggu di sana —
+sampai `ctx` selesai, atau sampai pemasangan berhasil — lalu melanjutkan
+pengawasan seperti biasa.
 
 `Connect` di API menandai akun `pairing`, lalu menerbitkan pesan kontrol itu.
 Kodenya kembali ke browser admin lewat stream SSE yang sudah ada. API tidak
