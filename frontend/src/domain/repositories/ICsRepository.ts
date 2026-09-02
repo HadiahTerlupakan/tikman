@@ -40,4 +40,5 @@ export interface ICsRepository {
   deleteQuickReply(id: string): Promise<void>;
   listWaAccounts(): Promise<WaAccount[]>;
   connectWaAccount(id: string, phone: string): Promise<{ status: string }>;
+  disconnectWaAccount(id: string): Promise<{ status: string }>;
 }

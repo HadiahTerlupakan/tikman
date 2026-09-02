@@ -31,3 +31,20 @@ export function useConnectWaAccount() {
     onError: reportCsMutationError,
   });
 }
+
+/**
+ * Gives a number up. The wa process logs the session out and exits, so
+ * Compose brings it back with a store that can pair again — the account row
+ * turns "disconnected" when that has actually happened, not when this
+ * returns.
+ */
+export function useDisconnectWaAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => csRepository.disconnectWaAccount(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "wa-accounts"] });
+    },
+    onError: reportCsMutationError,
+  });
+}

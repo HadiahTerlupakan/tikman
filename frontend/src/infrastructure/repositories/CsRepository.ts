@@ -155,4 +155,9 @@ export class CsRepository implements ICsRepository {
     });
     return response.data.data;
   }
+
+  async disconnectWaAccount(id: string): Promise<{ status: string }> {
+    const response = await apiClient.post(API_ENDPOINTS.CS_WA_DISCONNECT(id));
+    return response.data.data;
+  }
 }

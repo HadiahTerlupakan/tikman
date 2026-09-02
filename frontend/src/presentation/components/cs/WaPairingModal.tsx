@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Input, Modal, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Divider,
+  Input,
+  Modal,
+  Popconfirm,
+  Typography,
+} from "antd";
 import type { WaAccountStatus } from "@/domain/entities";
 
 const { Text, Title } = Typography;
@@ -15,6 +23,8 @@ interface WaPairingModalProps {
   accountId?: string;
   connecting: boolean;
   onConnect: (phone: string) => void;
+  disconnecting: boolean;
+  onDisconnect: () => void;
 }
 
 /**
@@ -30,6 +40,8 @@ export function WaPairingModal({
   accountId,
   connecting,
   onConnect,
+  disconnecting,
+  onDisconnect,
 }: WaPairingModalProps) {
   const [phone, setPhone] = useState("");
 
@@ -83,6 +95,22 @@ export function WaPairingModal({
           )}
         </>
       )}
+
+      <Divider />
+      {/* Also offered while a pairing code is on screen: an admin who typed
+          the wrong number needs a way back to the form, and giving the
+          session up is it. */}
+      <Popconfirm
+        title="Putuskan nomor ini dari TikMan?"
+        description="Inbox berhenti menerima pesan sampai nomor disambungkan lagi."
+        okText="Ya, putuskan"
+        cancelText="Batal"
+        onConfirm={onDisconnect}
+      >
+        <Button danger block loading={disconnecting} disabled={!accountId}>
+          Putuskan
+        </Button>
+      </Popconfirm>
     </Modal>
   );
 }

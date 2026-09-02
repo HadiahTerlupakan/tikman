@@ -5,6 +5,7 @@ import { useAuthStore } from "@/application/stores";
 import {
   useAssignConversation,
   useConnectWaAccount,
+  useDisconnectWaAccount,
   useCsConversations,
   useCsHistory,
   useCsQuickReplies,
@@ -58,6 +59,7 @@ export function CsInboxPage() {
   const sendMedia = useSendCsMedia();
   const assignConversation = useAssignConversation();
   const connectAccount = useConnectWaAccount();
+  const disconnectAccount = useDisconnectWaAccount();
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
@@ -245,6 +247,8 @@ export function CsInboxPage() {
           onConnect={(phone) =>
             account && connectAccount.mutate({ id: account.id, phone })
           }
+          disconnecting={disconnectAccount.isPending}
+          onDisconnect={() => account && disconnectAccount.mutate(account.id)}
         />
       )}
     </div>
