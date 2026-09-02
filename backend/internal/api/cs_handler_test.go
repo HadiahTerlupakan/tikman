@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -201,4 +203,67 @@ func TestTechnicianMayReadAndSend(t *testing.T) {
 	env.asUser(uuid.New(), models.UserRoleTechnician).ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+// ServeMedia's containment check is the one control in this task that a
+// broken database row can actually exercise: MediaPath comes straight out of
+// the message table, never validated on the way in, so a corrupted or
+// tampered value must still not become a read outside mediaRoot.
+func TestServeMediaRefusesAPathThatEscapesTheMediaRoot(t *testing.T) {
+	env := setupCSHandler(t)
+
+	conv := env.conversation(t, "628111@s.whatsapp.net", "628111222333")
+	require.NoError(t, env.conversations.Assign(conv.ID, env.cs))
+
+	msg, err := env.messages.Queue(conv.ID, env.cs, models.MessageKindDocument, "", &services.MediaFile{
+		Path:     "../../../../../../../../etc/passwd",
+		Mime:     "text/plain",
+		Filename: "passwd",
+		Size:     0,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/media/"+msg.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.NotContains(t, rec.Body.String(), "root:", "the guard must refuse before anything is read, not just fail to find it useful")
+}
+
+// A legitimate attachment must come back as the type it was actually stored
+// with, and locked against sniffing — not whatever http.ServeFile would infer
+// on its own. The file on disk is deliberately given a .txt extension and
+// plain-text bytes while MediaMime says image/jpeg: net/http's ServeContent
+// only falls back to guessing (by extension, then by sniffing) when the
+// response has no Content-Type set yet, so if the handler's explicit header
+// were missing this would come back as "text/plain", not "image/jpeg" — the
+// mismatch is what makes the assertion prove the override, not just agree
+// with what ServeFile would have guessed anyway.
+func TestServeMediaSetsTheStoredContentType(t *testing.T) {
+	env := setupCSHandler(t)
+
+	conv := env.conversation(t, "628111@s.whatsapp.net", "628111222333")
+	require.NoError(t, env.conversations.Assign(conv.ID, env.cs))
+
+	rel := filepath.Join("2026", "09", "photo.txt")
+	full := filepath.Join(env.handler.mediaRoot, rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o750))
+	require.NoError(t, os.WriteFile(full, []byte("plain text, not a jpeg"), 0o640))
+
+	msg, err := env.messages.Queue(conv.ID, env.cs, models.MessageKindImage, "", &services.MediaFile{
+		Path:     rel,
+		Mime:     "image/jpeg",
+		Filename: "photo.jpg",
+		Size:     22,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/media/"+msg.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "image/jpeg", rec.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 }

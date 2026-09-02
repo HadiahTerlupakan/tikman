@@ -91,18 +91,18 @@ func TestRemoveDropsAnUnreferencedAttachment(t *testing.T) {
 }
 
 func TestNormalizeMimeStripsParametersAndOverLongValues(t *testing.T) {
-	if got := normalizeMime("audio/ogg; codecs=opus"); got != "audio/ogg" {
+	if got := NormalizeMime("audio/ogg; codecs=opus"); got != "audio/ogg" {
 		t.Fatalf("voice note mime = %q", got)
 	}
-	if got := extensionFor(normalizeMime("audio/ogg; codecs=opus")); got != ".ogg" {
+	if got := ExtensionFor(NormalizeMime("audio/ogg; codecs=opus")); got != ".ogg" {
 		t.Fatalf("voice note extension = %q, want .ogg", got)
 	}
-	if got := normalizeMime(""); got != defaultMime {
+	if got := NormalizeMime(""); got != defaultMime {
 		t.Fatalf("empty mime = %q", got)
 	}
 
 	hostile := "image/" + strings.Repeat("a", maxMimeLength)
-	got := normalizeMime(hostile)
+	got := NormalizeMime(hostile)
 	if len(got) > maxMimeLength {
 		t.Fatalf("mime = %d bytes, media_mime holds %d", len(got), maxMimeLength)
 	}
@@ -112,11 +112,27 @@ func TestNormalizeMimeStripsParametersAndOverLongValues(t *testing.T) {
 }
 
 func TestExtensionComesFromMimeNotFilename(t *testing.T) {
-	if got := extensionFor("image/jpeg"); got != ".jpg" {
+	if got := ExtensionFor("image/jpeg"); got != ".jpg" {
 		t.Fatalf("image/jpeg = %q", got)
 	}
-	if got := extensionFor("application/x-sh"); got != unknownExtension {
+	if got := ExtensionFor("application/x-sh"); got != unknownExtension {
 		t.Fatalf("unknown mime = %q, want %q", got, unknownExtension)
+	}
+}
+
+// AllowedExtension is what an outbound upload uses to refuse a type ExtensionFor
+// would otherwise quietly turn into .bin — the two must actually disagree on an
+// unrecognised mime, or the refusal path has nothing to trigger it.
+func TestAllowedExtensionRefusesWhatIsNotOnTheList(t *testing.T) {
+	ext, ok := AllowedExtension("image/jpeg")
+	if !ok || ext != ".jpg" {
+		t.Fatalf("image/jpeg = (%q, %v), want (.jpg, true)", ext, ok)
+	}
+	if _, ok := AllowedExtension("text/html"); ok {
+		t.Fatalf("text/html was allowed; it must not be")
+	}
+	if _, ok := AllowedExtension("image/svg+xml"); ok {
+		t.Fatalf("image/svg+xml was allowed; it must not be")
 	}
 }
 

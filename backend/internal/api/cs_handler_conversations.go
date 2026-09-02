@@ -177,7 +177,7 @@ func (h *CSHandler) SetStatus(c *gin.Context) {
 
 	if req.Status != models.ConversationClosed {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "only closing a thread is supported here; reopen it by assigning it to someone",
+			Error: "only closing a thread is supported here; it reopens on its own when the customer writes again, or you can take it with PUT .../assign",
 			Code:  "UNSUPPORTED_STATUS",
 		})
 		return

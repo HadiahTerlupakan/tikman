@@ -15,7 +15,9 @@ type AssignRequest struct {
 	UserID uuid.UUID `json:"user_id" binding:"required"`
 }
 
-// SetStatusRequest closes or reopens a thread.
+// SetStatusRequest closes a thread. There is no manual reopen: a thread
+// comes back on its own when the customer writes again, and a CS who closed
+// one by mistake takes it back with Assign.
 type SetStatusRequest struct {
 	Status models.ConversationStatus `json:"status" binding:"required"`
 }

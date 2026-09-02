@@ -84,15 +84,30 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	media, kind, err := h.storeUpload(fileHeader)
+	// The allowlist check happens on the declared type before anything is
+	// written, not after: html/svg/xhtml/xml are deliberately absent from it,
+	// because ServeMedia later hands this file back from the API's own origin,
+	// and a CS must not be able to put a script in front of a customer there.
+	mime := wa.NormalizeMime(fileHeader.Header.Get("Content-Type"))
+	ext, allowed := wa.AllowedExtension(mime)
+	if !allowed {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: fmt.Sprintf("attachment type %q is not accepted", mime),
+			Code:  "MEDIA_TYPE_NOT_ALLOWED",
+		})
+		return
+	}
+
+	media, err := h.storeUpload(fileHeader, mime, ext)
 	if err != nil {
 		h.logger.Error("store outgoing attachment failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to store attachment", Code: "MEDIA_STORE_FAILED"})
 		return
 	}
 
-	msg, err := h.messages.Queue(convID, userID, kind, c.PostForm("caption"), media)
+	msg, err := h.messages.Queue(convID, userID, kindForMime(mime), c.PostForm("caption"), media)
 	if err != nil {
+		h.removeOrphanedUpload(media.Path)
 		mapCSError(c, err, "SEND_MEDIA_FAILED")
 		return
 	}
@@ -134,44 +149,54 @@ func (h *CSHandler) announce(ctx context.Context, convID, msgID uuid.UUID) {
 	}
 }
 
-// storeUpload writes an outgoing attachment to <mediaRoot>/<year>/<month>/<uuid><ext>
-// and reports what kind of message it makes. The extension comes from the
-// uploaded file's own name, but filepath.Ext never returns anything past the
-// last path separator, so a crafted name cannot walk the write outside that
-// directory.
-func (h *CSHandler) storeUpload(header *multipart.FileHeader) (*services.MediaFile, models.MessageKind, error) {
-	mime := header.Header.Get("Content-Type")
-	rel := filepath.Join(time.Now().Format("2006"), time.Now().Format("01"), uuid.NewString()+filepath.Ext(header.Filename))
+// storeUpload writes an outgoing attachment to <mediaRoot>/<year>/<month>/<uuid><ext>.
+// mime and ext are the caller's already-allowlisted values (see SendMedia) —
+// this never derives either from the uploader's declared Content-Type or
+// filename, which is what let a mislabelled upload come back as HTML before.
+func (h *CSHandler) storeUpload(header *multipart.FileHeader, mime, ext string) (*services.MediaFile, error) {
+	rel := filepath.Join(time.Now().Format("2006"), time.Now().Format("01"), uuid.NewString()+ext)
 	full := filepath.Join(h.mediaRoot, rel)
 
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		return nil, "", fmt.Errorf("create media directory: %w", err)
+		return nil, fmt.Errorf("create media directory: %w", err)
 	}
 
 	src, err := header.Open()
 	if err != nil {
-		return nil, "", fmt.Errorf("open upload: %w", err)
+		return nil, fmt.Errorf("open upload: %w", err)
 	}
 	defer src.Close()
 
 	dst, err := os.OpenFile(full, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o640)
 	if err != nil {
-		return nil, "", fmt.Errorf("create media file: %w", err)
+		return nil, fmt.Errorf("create media file: %w", err)
 	}
 	defer dst.Close()
 
 	written, err := io.Copy(dst, src)
 	if err != nil {
 		_ = os.Remove(full)
-		return nil, "", fmt.Errorf("write media file: %w", err)
+		return nil, fmt.Errorf("write media file: %w", err)
 	}
 
-	return &services.MediaFile{Path: rel, Mime: mime, Filename: header.Filename, Size: written}, kindForMime(mime), nil
+	return &services.MediaFile{Path: rel, Mime: mime, Filename: header.Filename, Size: written}, nil
+}
+
+// removeOrphanedUpload deletes a file storeUpload just wrote when the message
+// row that was supposed to own it never got created — the same class of leak
+// Task 10 closed for inbound media, now on the outbound side too.
+func (h *CSHandler) removeOrphanedUpload(rel string) {
+	full := filepath.Join(h.mediaRoot, rel)
+	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+		h.logger.Warn("remove orphaned upload failed", zap.String("path", rel), zap.Error(err))
+	}
 }
 
 // kindForMime buckets an uploaded file's declared type into what WhatsApp
 // distinguishes; anything unrecognised goes as a document, the one form that
-// carries any file.
+// carries any file. Called only after wa.AllowedExtension has already
+// accepted the mime, so default here is unreachable in practice — it exists
+// because the switch has to be exhaustive over more than three kinds.
 func kindForMime(mime string) models.MessageKind {
 	switch {
 	case strings.HasPrefix(mime, "image/"):
@@ -188,7 +213,9 @@ func kindForMime(mime string) models.MessageKind {
 // ServeMedia streams a stored attachment. MediaPath comes out of the
 // database, not the request, but a corrupted or tampered row must not become
 // an arbitrary file read — so the joined path is checked against mediaRoot
-// before anything is opened.
+// before anything is opened. The response headers are equally deliberate: the
+// browser is told the type this file was actually stored as, not left to
+// guess one from the extension or the bytes.
 func (h *CSHandler) ServeMedia(c *gin.Context) {
 	msgID, ok := pathUUID(c, "message_id", "INVALID_MESSAGE_ID")
 	if !ok {
@@ -211,6 +238,7 @@ func (h *CSHandler) ServeMedia(c *gin.Context) {
 		return
 	}
 
+	setMediaResponseHeaders(c, msg)
 	c.File(full)
 }
 
@@ -223,6 +251,43 @@ func mediaPathWithin(root, rel string) (string, bool) {
 		return "", false
 	}
 	return full, true
+}
+
+// setMediaResponseHeaders locks the response to exactly the type a message
+// was stored with. Without this, gin's c.File delegates to http.ServeFile,
+// which infers Content-Type from the served path's extension (or by sniffing
+// its bytes) — and since an upload's extension came from an allowlisted mime
+// (see SendMedia), setting it explicitly here is what actually makes the
+// allowlist binding, rather than leaving a second, independent inference to
+// possibly disagree with it. Content-Disposition only changes how a direct
+// fetch of this URL is offered to save; it is ignored for a subresource
+// fetch like <img src>, so the inbox still renders photos inline.
+func setMediaResponseHeaders(c *gin.Context, msg *models.CSMessage) {
+	mime := msg.MediaMime
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	c.Header("Content-Type", mime)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", sanitizeContentDispositionFilename(msg.MediaFilename)))
+	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
+}
+
+// sanitizeContentDispositionFilename keeps a stored filename safe to place
+// inside a quoted header value: no quote to end the string early, no control
+// character (a CR/LF pair among them) to inject a second header line.
+func sanitizeContentDispositionFilename(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r == '"' || r == '\\' || r < 0x20 {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	if b.Len() == 0 {
+		return "attachment"
+	}
+	return b.String()
 }
 
 // SearchMessages finds messages by their words, across every thread.

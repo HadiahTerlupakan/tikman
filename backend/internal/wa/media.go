@@ -149,7 +149,7 @@ func (s mediaStore) save(ctx context.Context, cli *whatsmeow.Client, att attachm
 
 	return &services.MediaFile{
 		Path:     rel,
-		Mime:     normalizeMime(att.mime),
+		Mime:     NormalizeMime(att.mime),
 		Filename: clampFilename(att.filename),
 		Size:     size,
 	}, nil
@@ -165,16 +165,16 @@ func (s mediaStore) remove(rel string) error {
 // customer's filename is deliberately not an input — it is display text, and a
 // document called "../../etc/passwd" must not be able to become a path.
 func relPath(now time.Time, att attachment) string {
-	name := uuid.NewString() + extensionFor(normalizeMime(att.mime))
+	name := uuid.NewString() + ExtensionFor(NormalizeMime(att.mime))
 	return filepath.Join(now.Format("2006"), now.Format("01"), name)
 }
 
-// normalizeMime reduces what WhatsApp declares to something the column holds
+// NormalizeMime reduces what a sender declares to something the column holds
 // and the extension table can match. Voice notes arrive as
 // "audio/ogg; codecs=opus", so the parameters have to go before the lookup; and
 // the value is written by the sender, so an over-long one would fail the insert
 // and cost the whole message rather than just the picture.
-func normalizeMime(declared string) string {
+func NormalizeMime(declared string) string {
 	mime := declared
 	if cut := strings.IndexByte(mime, ';'); cut >= 0 {
 		mime = mime[:cut]
@@ -198,11 +198,26 @@ func downloadInto(ctx context.Context, cli *whatsmeow.Client, msg whatsmeow.Down
 	return info.Size(), nil
 }
 
-func extensionFor(mime string) string {
+// ExtensionFor answers the file extension a mime type is stored under. An
+// unrecognised type gets .bin: an inbound WhatsApp message the customer
+// already sent must still be stored somewhere, so this never refuses one.
+// Something that must refuse an unrecognised type instead — an outbound
+// upload, which arrived by nobody's obligation — wants AllowedExtension.
+func ExtensionFor(mime string) string {
 	if ext, ok := mediaExtensions[mime]; ok {
 		return ext
 	}
 	return unknownExtension
+}
+
+// AllowedExtension reports the extension for a mime type only when it is on
+// the allowlist, and answers false otherwise — unlike ExtensionFor, which
+// always answers something so an inbound message is never lost over its type.
+// A caller that must refuse an unrecognised type (an outbound upload) needs
+// that false, not a fallback it would otherwise trust as legitimate.
+func AllowedExtension(mime string) (string, bool) {
+	ext, ok := mediaExtensions[mime]
+	return ext, ok
 }
 
 // clampFilename keeps the customer's name short enough for the column. It is
