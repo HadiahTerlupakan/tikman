@@ -150,7 +150,7 @@ func (s mediaStore) save(ctx context.Context, cli *whatsmeow.Client, att attachm
 	return &services.MediaFile{
 		Path:     rel,
 		Mime:     NormalizeMime(att.mime),
-		Filename: clampFilename(att.filename),
+		Filename: ClampFilename(att.filename),
 		Size:     size,
 	}, nil
 }
@@ -220,9 +220,13 @@ func AllowedExtension(mime string) (string, bool) {
 	return ext, ok
 }
 
-// clampFilename keeps the customer's name short enough for the column. It is
-// cut on a rune boundary so the stored name stays valid UTF-8.
-func clampFilename(name string) string {
+// ClampFilename keeps a display filename short enough for the media_filename
+// column (varchar(255)) on both the inbound and outbound paths — a Postgres
+// insert over that length fails outright, and a filename is attacker-supplied
+// on either side (a customer's client, or a CS's own upload) so neither side
+// gets to skip this. It cuts on a rune boundary so the stored name stays
+// valid UTF-8.
+func ClampFilename(name string) string {
 	if len(name) <= maxFilenameLength {
 		return name
 	}

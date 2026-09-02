@@ -153,6 +153,10 @@ func (h *CSHandler) announce(ctx context.Context, convID, msgID uuid.UUID) {
 // mime and ext are the caller's already-allowlisted values (see SendMedia) —
 // this never derives either from the uploader's declared Content-Type or
 // filename, which is what let a mislabelled upload come back as HTML before.
+// The display filename goes through wa.ClampFilename, the same guard the
+// inbound path uses: media_filename is varchar(255), and an over-long name
+// here would otherwise fail the insert on Postgres — a 500 the SQLite tests
+// cannot catch — where a graceful truncation should do instead.
 func (h *CSHandler) storeUpload(header *multipart.FileHeader, mime, ext string) (*services.MediaFile, error) {
 	rel := filepath.Join(time.Now().Format("2006"), time.Now().Format("01"), uuid.NewString()+ext)
 	full := filepath.Join(h.mediaRoot, rel)
@@ -179,7 +183,7 @@ func (h *CSHandler) storeUpload(header *multipart.FileHeader, mime, ext string) 
 		return nil, fmt.Errorf("write media file: %w", err)
 	}
 
-	return &services.MediaFile{Path: rel, Mime: mime, Filename: header.Filename, Size: written}, nil
+	return &services.MediaFile{Path: rel, Mime: mime, Filename: wa.ClampFilename(header.Filename), Size: written}, nil
 }
 
 // removeOrphanedUpload deletes a file storeUpload just wrote when the message
@@ -259,13 +263,23 @@ func mediaPathWithin(root, rel string) (string, bool) {
 // its bytes) — and since an upload's extension came from an allowlisted mime
 // (see SendMedia), setting it explicitly here is what actually makes the
 // allowlist binding, rather than leaving a second, independent inference to
-// possibly disagree with it. Content-Disposition only changes how a direct
-// fetch of this URL is offered to save; it is ignored for a subresource
-// fetch like <img src>, so the inbox still renders photos inline.
+// possibly disagree with it.
+//
+// The stored MediaMime itself is only trusted when wa.AllowedExtension
+// accepts it. An outbound upload always satisfies that — SendMedia refuses
+// anything else before it is stored — but an inbound message is stored with
+// whatever the customer's client declared: NormalizeMime truncates and caps
+// that value, it does not allowlist it. Echoing an unchecked inbound mime
+// straight into the response would let the storing side's necessary leniency
+// (a message that already arrived must be stored somehow) become the serving
+// side's problem too — the same asymmetry that made the upload path
+// exploitable before SendMedia was gated. Content-Disposition only changes
+// how a direct fetch of this URL is offered to save; it is ignored for a
+// subresource fetch like <img src>, so the inbox still renders photos inline.
 func setMediaResponseHeaders(c *gin.Context, msg *models.CSMessage) {
-	mime := msg.MediaMime
-	if mime == "" {
-		mime = "application/octet-stream"
+	mime := "application/octet-stream"
+	if _, allowed := wa.AllowedExtension(msg.MediaMime); allowed {
+		mime = msg.MediaMime
 	}
 	c.Header("Content-Type", mime)
 	c.Header("X-Content-Type-Options", "nosniff")

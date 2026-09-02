@@ -267,3 +267,37 @@ func TestServeMediaSetsTheStoredContentType(t *testing.T) {
 	assert.Equal(t, "image/jpeg", rec.Header().Get("Content-Type"))
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 }
+
+// Inbound messages store whatever mime the customer's client declared —
+// NormalizeMime only truncates and caps it, it does not restrict it to what
+// wa.AllowedExtension accepts on the upload path. ServeMedia must not trust
+// an inbound-stored value just because it made it into the column: a message
+// stored with e.g. "text/html" is served as an inert download, not echoed
+// back as the type it claims to be.
+func TestServeMediaFallsBackToOctetStreamForAnUnallowlistedStoredMime(t *testing.T) {
+	env := setupCSHandler(t)
+
+	conv := env.conversation(t, "628111@s.whatsapp.net", "628111222333")
+	require.NoError(t, env.conversations.Assign(conv.ID, env.cs))
+
+	rel := filepath.Join("2026", "09", "attachment.bin")
+	full := filepath.Join(env.handler.mediaRoot, rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o750))
+	require.NoError(t, os.WriteFile(full, []byte("<script>alert(1)</script>"), 0o640))
+
+	msg, err := env.messages.Queue(conv.ID, env.cs, models.MessageKindDocument, "", &services.MediaFile{
+		Path:     rel,
+		Mime:     "text/html",
+		Filename: "notes.html",
+		Size:     26,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/media/"+msg.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/octet-stream", rec.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+}

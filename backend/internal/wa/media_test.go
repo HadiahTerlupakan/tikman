@@ -138,7 +138,7 @@ func TestAllowedExtensionRefusesWhatIsNotOnTheList(t *testing.T) {
 
 func TestClampFilenameStaysValidUTF8(t *testing.T) {
 	name := strings.Repeat("é", 200) // 400 bytes
-	got := clampFilename(name)
+	got := ClampFilename(name)
 
 	if len(got) > maxFilenameLength {
 		t.Fatalf("clamped to %d bytes", len(got))
