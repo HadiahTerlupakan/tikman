@@ -229,8 +229,11 @@ pengisian data tersendiri.
 Lencana status koneksi WhatsApp tampil di halaman ini, bukan tersembunyi di
 pengaturan.
 
-### 9.2 Pengaturan → WhatsApp
-Status koneksi, isian nomor CS dengan tombol Sambungkan, dan tombol Putuskan.
+### 9.2 Menyambungkan nomor (dari lencana koneksi di inbox)
+Lencana status koneksi di kepala halaman inbox dapat diklik oleh admin dan
+membuka panel berisi isian nomor CS, tombol Sambungkan, dan tombol Putuskan.
+Pintu masuknya di sana, bukan di halaman Pengaturan, karena admin menyadari
+masalahnya justru saat membuka inbox dan melihat koneksi merah.
 Menekan Sambungkan menampilkan **kode delapan karakter**, yang diketikkan admin
 di HP pemegang nomor lewat WhatsApp -> Perangkat Tertaut -> "Tautkan dengan nomor
 telepon". Server masuk sebagai perangkat tertaut seperti WhatsApp Web, jadi HP

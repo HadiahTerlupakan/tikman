@@ -3964,6 +3964,21 @@ if (!isHolder) {
 
 `WaConnectionBadge.tsx` menampilkan lencana merah mencolok di kepala halaman ketika `status !== "connected"`, karena CS harus langsung tahu bahwa pesannya tidak akan sampai.
 
+`WaPairingModal.tsx` dibuka dari lencana koneksi, dan hanya untuk admin. Isinya
+satu isian nomor CS dan tombol Sambungkan; setelah ditekan, ia menunggu kode
+delapan karakter datang lewat stream SSE (`pairing_code` pada peristiwa
+`account_status`) lalu menampilkannya besar-besar beserta satu kalimat cara
+memakainya: buka WhatsApp di HP pemegang nomor, Perangkat Tertaut, "Tautkan
+dengan nomor telepon", ketik kode itu. Tidak ada QR yang digambar — tidak ada
+pustaka perender di proyek ini, dan delapan karakter tidak membutuhkannya.
+
+Lencana itu pula pintu masuknya, bukan halaman Pengaturan. Admin melihat
+masalahnya justru saat membuka inbox dan mendapati koneksi merah; menaruh
+perbaikannya satu klik dari situ lebih baik daripada menyuruh mereka mencari
+halaman lain. Bagi peran selain admin, lencana tetap terlihat tetapi tidak bisa
+diklik — mereka perlu tahu pesannya tidak akan sampai, tanpa diberi tombol yang
+akan ditolak server.
+
 `CsInboxPage.tsx` merangkai tiga kolom, memanggil `useCsStream()` sekali, dan menyimpan `selectedId` di state.
 
 - [ ] **Step 4: Daftarkan rute dan navigasi**
