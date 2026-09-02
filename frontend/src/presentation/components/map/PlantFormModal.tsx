@@ -1,9 +1,10 @@
 import { useCallback, useEffect } from "react";
-import { Alert, Form, Input, InputNumber, Modal, Radio, Select } from "antd";
+import { Alert, Form, Input, Modal, Radio, Select } from "antd";
 import {
   useCreateOdc,
   useCreateOdp,
   useOdcs,
+  useOltTopology,
   useOlts,
   useSites,
 } from "@/application/hooks";
@@ -15,6 +16,7 @@ import {
   type OdpFormValues,
 } from "./plantForm";
 import { AddressResolver } from "./AddressResolver";
+import { cardOptions, portOptions } from "./ponOptions";
 
 export type PlantKind = "odc" | "odp";
 
@@ -48,6 +50,12 @@ export function PlantFormModal({
 
   const mutation = kind === "odc" ? createOdc : createOdp;
   const parentKind = Form.useWatch("parentKind", form) ?? "odc";
+  const parentOltId = Form.useWatch("oltId", form);
+  const parentSlot = Form.useWatch("slot", form);
+  const { data: topology, isLoading: topologyLoading } =
+    useOltTopology(parentOltId);
+  const cards = cardOptions(topology);
+  const ports = portOptions(topology, parentSlot);
 
   useEffect(() => {
     if (open) {
@@ -187,17 +195,45 @@ export function PlantFormModal({
                 <Form.Item name="oltId" label="OLT">
                   <Select
                     placeholder="Pilih OLT"
+                    // The card and port below belong to whichever OLT is
+                    // chosen, so they cannot survive a change of chassis.
+                    onChange={() =>
+                      form.setFieldsValue({
+                        slot: undefined,
+                        portId: undefined,
+                      })
+                    }
                     options={(olts ?? []).map((olt) => ({
                       value: olt.id,
                       label: olt.name,
                     }))}
                   />
                 </Form.Item>
-                <Form.Item name="slot" label="Slot">
-                  <InputNumber min={0} style={{ width: "100%" }} />
+                <Form.Item
+                  name="slot"
+                  label="Card"
+                  extra={
+                    parentOltId && !topologyLoading && cards.length === 0
+                      ? "OLT ini belum pernah di-discover, jadi kartunya belum diketahui."
+                      : undefined
+                  }
+                >
+                  <Select
+                    placeholder={
+                      topologyLoading ? "Membaca kartu..." : "Pilih card"
+                    }
+                    disabled={!parentOltId}
+                    loading={topologyLoading}
+                    onChange={() => form.setFieldValue("portId", undefined)}
+                    options={cards}
+                  />
                 </Form.Item>
                 <Form.Item name="portId" label="PON port">
-                  <InputNumber min={0} style={{ width: "100%" }} />
+                  <Select
+                    placeholder="Pilih PON port"
+                    disabled={parentSlot === undefined}
+                    options={ports}
+                  />
                 </Form.Item>
               </>
             )}

@@ -115,3 +115,18 @@ export function useTroubledOnts(
     staleTime: 30000,
   });
 }
+
+/**
+ * The cards and PON ports one OLT actually has, from the topology the poller
+ * already stored.
+ *
+ * The cached endpoint, not a fresh discovery: filling in a form must never
+ * reach out and talk to a live chassis.
+ */
+export function useOltTopology(oltId?: string) {
+  return useQuery({
+    queryKey: ["olts", oltId, "topology"],
+    queryFn: () => ontRepository.getTopology(oltId as string),
+    enabled: !!oltId,
+  });
+}
