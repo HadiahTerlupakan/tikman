@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Alert, Button, Input, Space } from "antd";
+import { Alert, Button, Input, Space, Upload, message } from "antd";
+import { PaperClipOutlined } from "@ant-design/icons";
 import type { CsConversation, CsQuickReply } from "@/domain/entities";
+import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
 import { QuickReplyPicker } from "./QuickReplyPicker";
 
 const { TextArea } = Input;
@@ -13,8 +15,11 @@ interface MessageComposerProps {
    * still has what they typed, and the hook has already said why it failed. */
   onSend: (body: string) => Promise<boolean>;
   onTakeOver: () => void;
+  /** Sends one attachment, carrying whatever caption is in the box with it. */
+  onAttach: (file: File, caption: string) => Promise<boolean>;
   quickReplies?: CsQuickReply[];
   sending?: boolean;
+  attaching?: boolean;
 }
 
 /**
@@ -29,8 +34,10 @@ export function MessageComposer({
   holderName,
   onSend,
   onTakeOver,
+  onAttach,
   quickReplies = [],
   sending = false,
+  attaching = false,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const isHolder = conversation.assignedUserId === currentUserId;
@@ -60,9 +67,35 @@ export function MessageComposer({
     }
   };
 
+  // beforeUpload always answers false: antd would otherwise post the file
+  // itself, and this endpoint needs the session cookie and the caption that
+  // is sitting in the box.
+  const handleAttach = async (file: File) => {
+    const rejection = attachmentRejection(file);
+    if (rejection) {
+      message.error(rejection);
+      return false;
+    }
+    if (await onAttach(file, text.trim())) {
+      setText("");
+    }
+    return false;
+  };
+
   return (
     <Space.Compact style={{ width: "100%" }}>
       <QuickReplyPicker quickReplies={quickReplies} onPick={setText} />
+      <Upload
+        accept={CS_MEDIA_ACCEPT}
+        showUploadList={false}
+        beforeUpload={handleAttach}
+      >
+        <Button
+          icon={<PaperClipOutlined />}
+          loading={attaching}
+          title="Lampirkan berkas"
+        />
+      </Upload>
       <TextArea
         value={text}
         onChange={(e) => setText(e.target.value)}

@@ -18,8 +18,10 @@ apiClient.interceptors.request.use(
     // Add correlation ID for logging
     config.headers["X-Request-ID"] = crypto.randomUUID();
 
-    // Transform request data from camelCase to snake_case
-    if (config.data) {
+    // Transform request data from camelCase to snake_case. FormData is left
+    // alone: its fields are not own properties, so decamelizeKeys would copy
+    // an empty object over it and the upload would arrive with no file.
+    if (config.data && !(config.data instanceof FormData)) {
       config.data = decamelizeKeys(config.data);
     }
 

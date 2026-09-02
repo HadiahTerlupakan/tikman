@@ -37,6 +37,26 @@ export function useSendCsMessage() {
   });
 }
 
+/** Sends a photo or a document on a thread. The caption travels with it, the
+ * way WhatsApp itself carries one, rather than as a second message. */
+export function useSendCsMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      conversationId: string;
+      file: File;
+      caption?: string;
+    }) => csRepository.sendMedia(vars.conversationId, vars.file, vars.caption),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
+      queryClient.invalidateQueries({
+        queryKey: ["cs", "messages", vars.conversationId],
+      });
+    },
+    onError: reportCsMutationError,
+  });
+}
+
 /** Hands a thread to one CS, including taking over one someone else holds. */
 export function useAssignConversation() {
   const queryClient = useQueryClient();

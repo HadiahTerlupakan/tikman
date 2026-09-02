@@ -8,6 +8,7 @@ import {
   useCsHistory,
   useCsQuickReplies,
   useCsStream,
+  useSendCsMedia,
   useSendCsMessage,
   useUsers,
   useWaAccounts,
@@ -50,6 +51,7 @@ export function CsInboxPage() {
   const accountsQuery = useWaAccounts();
 
   const sendMessage = useSendCsMessage();
+  const sendMedia = useSendCsMedia();
   const assignConversation = useAssignConversation();
   const connectAccount = useConnectWaAccount();
 
@@ -69,6 +71,23 @@ export function CsInboxPage() {
     if (!selected) return false;
     try {
       await sendMessage.mutateAsync({ conversationId: selected.id, body });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAttach = async (
+    file: File,
+    caption: string,
+  ): Promise<boolean> => {
+    if (!selected) return false;
+    try {
+      await sendMedia.mutateAsync({
+        conversationId: selected.id,
+        file,
+        caption,
+      });
       return true;
     } catch {
       return false;
@@ -150,8 +169,10 @@ export function CsInboxPage() {
                   }
                   onSend={handleSend}
                   onTakeOver={handleTakeOver}
+                  onAttach={handleAttach}
                   quickReplies={quickRepliesQuery.data ?? []}
                   sending={sendMessage.isPending}
+                  attaching={sendMedia.isPending}
                 />
               </div>
             </>

@@ -53,6 +53,29 @@ export class CsRepository implements ICsRepository {
     return response.data.data;
   }
 
+  async sendMedia(
+    conversationId: string,
+    file: File,
+    caption?: string,
+  ): Promise<CsMessage> {
+    const form = new FormData();
+    form.append("file", file);
+    if (caption) {
+      form.append("caption", caption);
+    }
+
+    const response = await apiClient.post(
+      API_ENDPOINTS.CS_MEDIA_UPLOAD(conversationId),
+      form,
+      // Dropping the header hands the boundary to the browser, which is the
+      // only thing that knows it. Leaving the client's default
+      // application/json in place would make axios JSON-encode the FormData
+      // instead of sending it, and the file would never leave.
+      { headers: { "Content-Type": false } },
+    );
+    return response.data.data;
+  }
+
   async assign(
     conversationId: string,
     userId: string,

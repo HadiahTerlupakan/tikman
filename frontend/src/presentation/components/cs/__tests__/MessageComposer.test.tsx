@@ -23,6 +23,7 @@ describe("MessageComposer", () => {
         holderName="Budi CS"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
       />,
     );
 
@@ -39,6 +40,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
       />,
     );
 
@@ -58,6 +60,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={onSend}
         onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
       />,
     );
 
@@ -78,6 +81,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={onSend}
         onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
       />,
     );
 

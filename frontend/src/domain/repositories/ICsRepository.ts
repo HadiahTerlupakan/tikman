@@ -22,6 +22,11 @@ export interface ICsRepository {
     offset?: number,
   ): Promise<CsMessage[]>;
   sendMessage(conversationId: string, body: string): Promise<CsMessage>;
+  sendMedia(
+    conversationId: string,
+    file: File,
+    caption?: string,
+  ): Promise<CsMessage>;
   assign(conversationId: string, userId: string): Promise<CsConversation>;
   setStatus(conversationId: string, status: "closed"): Promise<CsConversation>;
   linkOnt(conversationId: string, ontId: string | null): Promise<LinkOntResult>;
