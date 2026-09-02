@@ -43,9 +43,12 @@ type ONT struct {
 	// The index is partial because the inventory walk does not report a serial
 	// for every ONU. A plain unique index makes "" a value, and then only one
 	// serial-less ONT can exist in the whole table.
-	SerialNumber    string    `gorm:"type:varchar(20);not null;uniqueIndex:idx_onts_serial_number,where:serial_number <> ''" json:"serial_number"`
-	Name            string    `gorm:"type:varchar(255)" json:"name"`
-	Description     string    `gorm:"type:varchar(255)" json:"description"`
+	SerialNumber string `gorm:"type:varchar(20);not null;uniqueIndex:idx_onts_serial_number,where:serial_number <> ''" json:"serial_number"`
+	Name         string `gorm:"type:varchar(255)" json:"name"`
+	Description  string `gorm:"type:varchar(255)" json:"description"`
+	// Phone is the subscriber's WhatsApp number in 628xxx form. It is what ties
+	// an incoming chat to the ONT whose light the CS is about to check.
+	Phone           string    `gorm:"type:varchar(20)" json:"phone"`
 	Status          ONTStatus `gorm:"type:varchar(20);index" json:"status"`
 	DeviceType      string    `gorm:"type:varchar(100)" json:"device_type,omitempty"`
 	HardwareVersion string    `gorm:"type:varchar(50)" json:"hardware_version,omitempty"`

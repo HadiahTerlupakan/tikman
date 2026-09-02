@@ -22,5 +22,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&ODC{},
 		&ODCFeed{},
 		&ODP{},
+		&WAAccount{},
+		&CSConversation{},
+		&CSMessage{},
+		&CSQuickReply{},
 	)
 }
