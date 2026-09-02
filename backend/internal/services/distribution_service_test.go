@@ -175,6 +175,11 @@ func seedDistributionONT(t *testing.T, db *gorm.DB, oltID uuid.UUID, serial stri
 	return ont
 }
 
+func uniqueSerial() string {
+	distributionONTSeq++
+	return "ZTEGC" + string(rune('A'+distributionONTSeq%26)) + "0000000"
+}
+
 var distributionONTSeq int
 
 func nextDistributionONTID() int {

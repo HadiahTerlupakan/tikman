@@ -66,6 +66,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	dashboardHandler := NewDashboardHandler(services.NewDashboardService(db))
 	wireguardHandler := NewWireGuardHandler(wgService, auditService)
 	settingHandler := NewSettingHandler(settingService, auditService)
+	distributionHandler := NewDistributionHandler(services.NewDistributionService(db))
 
 	// Provisioning pipeline: the factory above creates per-OLT commanders since
 	// each OLT has its own address and credentials.
@@ -176,6 +177,27 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			onts.GET("/:id/availability", eventHandler.GetAvailability)
 			onts.POST("/:id/gpon/configure", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.ConfigureExisting)
 			onts.POST("/:id/gpon/preview", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), zteProvisionHandler.PreviewConfigure)
+
+			// Which distribution box a drop lands in is field knowledge, so a
+			// technician records it; only an admin may remove plant.
+			onts.PUT("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.AssignONT)
+			onts.DELETE("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.UnassignONT)
+		}
+
+		odcs := api.Group("/odcs")
+		odcs.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			odcs.GET("", distributionHandler.ListODCs)
+			odcs.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.CreateODC)
+			odcs.POST("/:id/feeds", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.AddODCFeed)
+		}
+
+		odps := api.Group("/odps")
+		odps.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			odps.GET("", distributionHandler.ListODPs)
+			odps.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), distributionHandler.CreateODP)
+			odps.GET("/:id/subscribers", distributionHandler.SubscribersOnODP)
 		}
 
 		configTemplates := api.Group("/config-templates")
