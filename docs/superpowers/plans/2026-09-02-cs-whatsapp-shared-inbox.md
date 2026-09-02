@@ -3759,6 +3759,20 @@ Run:
 docker compose up -d --build
 curl -s http://localhost:8080/health
 ```
+Sebelum menyentuh browser, pastikan sekali bahwa tabel percakapan tidak
+membawa kolom sisa dari cacat penamaan GORM yang ditemukan saat Task 4. Kalau
+sebuah environment pernah menjalankan `AutoMigrate` pada model versi awal,
+`AutoMigrate` akan **menambah** kolom `jid`/`customer_jid` di samping
+`j_id`/`customer_j_id` yang lama, bukan mengganti namanya — dan datanya
+tertinggal di kolom yang salah:
+
+```bash
+docker compose exec postgres psql -U tikman -d tikman -c "\d cs_conversations" | grep -i jid
+```
+
+Yang benar hanya `customer_jid`. Kalau `customer_j_id` atau `j_id` muncul,
+hentikan deploy dan pindahkan datanya dulu.
+
 Lalu di browser: masuk sebagai admin → Pengaturan → WhatsApp → Sambungkan → pindai QR dari HP pemegang nomor CS. Kirim satu pesan dari nomor lain dan pastikan ia muncul di `/cs` tanpa memuat ulang halaman, dan bahwa balasan sampai ke HP penguji.
 
 Ini satu-satunya langkah yang tidak bisa dibuktikan oleh tes otomatis mana pun, dan tanpa langkah ini modul ini belum terbukti bekerja.
