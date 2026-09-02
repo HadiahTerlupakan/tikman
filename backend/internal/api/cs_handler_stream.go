@@ -39,6 +39,13 @@ func (h *CSHandler) Stream(c *gin.Context) {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 
+	// A proxy that buffers this connection makes the whole feature silently
+	// dead: no error, no log, just an inbox that stops updating. There is no
+	// proxy in front of the API today, but there will be one the day someone
+	// puts nginx or a CDN there, and by then the symptom is very hard to trace.
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+
 	// c.Stream relies on http.ResponseWriter.CloseNotify, which a real server
 	// connection provides but httptest.ResponseRecorder does not; watching
 	// ctx.Done() ourselves covers client disconnect just as well and is the
