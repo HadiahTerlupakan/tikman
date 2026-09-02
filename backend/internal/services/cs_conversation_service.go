@@ -186,8 +186,18 @@ func (s *CSConversationService) EnsureHolder(conversationID, userID uuid.UUID) e
 	return nil
 }
 
+// touchTx is Touch inside a caller's transaction, so that a message and the
+// inbox ordering that surfaces it commit together or not at all.
+func (s *CSConversationService) touchTx(tx *gorm.DB, conversationID uuid.UUID, at time.Time) error {
+	return updateConversation(tx, conversationID, map[string]any{"last_message_at": at})
+}
+
 func (s *CSConversationService) update(conversationID uuid.UUID, fields map[string]any) error {
-	res := s.db.Model(&models.CSConversation{}).Where("id = ?", conversationID).Updates(fields)
+	return updateConversation(s.db, conversationID, fields)
+}
+
+func updateConversation(db *gorm.DB, conversationID uuid.UUID, fields map[string]any) error {
+	res := db.Model(&models.CSConversation{}).Where("id = ?", conversationID).Updates(fields)
 	if res.Error != nil {
 		return fmt.Errorf("update conversation: %w", res.Error)
 	}

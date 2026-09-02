@@ -67,6 +67,8 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		At:             evt.Info.Timestamp,
 	})
 	if err != nil {
+		// Safe to delete because SaveInbound is one transaction: an error here
+		// means no row was committed, so nothing names this file.
 		h.discard(evt, media)
 		return err
 	}

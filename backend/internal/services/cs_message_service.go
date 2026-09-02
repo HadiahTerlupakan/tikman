@@ -58,35 +58,53 @@ func NewCSMessageService(db *gorm.DB, conversations *CSConversationService) *CSM
 // The lookup is done here as well as by the partial unique index in migration
 // 41, because SQLite tests never get that index.
 func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bool, error) {
-	var existing models.CSMessage
-	err := s.db.Where("wa_message_id = ?", in.WAMessageID).First(&existing).Error
-	if err == nil {
-		return &existing, false, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, false, fmt.Errorf("look for existing message: %w", err)
-	}
+	var (
+		stored  models.CSMessage
+		created bool
+	)
 
-	waID := in.WAMessageID
-	msg := models.CSMessage{
-		ConversationID: in.ConversationID,
-		WAMessageID:    &waID,
-		Direction:      models.MessageIn,
-		Kind:           in.Kind,
-		Body:           in.Body,
-		Status:         models.MessageDelivered,
-		WATimestamp:    in.At,
-	}
-	applyMedia(&msg, in.Media)
+	// One transaction, for two reasons. The caller in the wa process deletes the
+	// attachment when this answers with an error, so a message row that survived
+	// a failed conversation bump would have its file deleted out from under it —
+	// and nothing repairs that, because Sweep tolerates a missing file. And a
+	// message stored behind a stale last_message_at would sit in the inbox
+	// without surfacing. Storing the message and the inbox knowing about it are
+	// one fact, so they commit as one.
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		lookup := tx.Where("wa_message_id = ?", in.WAMessageID).First(&stored).Error
+		if lookup == nil {
+			return nil // WhatsApp re-delivered one it had already given us
+		}
+		if !errors.Is(lookup, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("look for existing message: %w", lookup)
+		}
 
-	if err := s.db.Create(&msg).Error; err != nil {
-		return nil, false, fmt.Errorf("store inbound message: %w", err)
-	}
+		waID := in.WAMessageID
+		stored = models.CSMessage{
+			ConversationID: in.ConversationID,
+			WAMessageID:    &waID,
+			Direction:      models.MessageIn,
+			Kind:           in.Kind,
+			Body:           in.Body,
+			Status:         models.MessageDelivered,
+			WATimestamp:    in.At,
+		}
+		applyMedia(&stored, in.Media)
 
-	if err := s.bumpConversation(in.ConversationID, in.At); err != nil {
+		if err := tx.Create(&stored).Error; err != nil {
+			return fmt.Errorf("store inbound message: %w", err)
+		}
+		if err := bumpConversation(tx, in.ConversationID, in.At); err != nil {
+			return err
+		}
+
+		created = true
+		return nil
+	})
+	if err != nil {
 		return nil, false, err
 	}
-	return &msg, true, nil
+	return &stored, created, nil
 }
 
 // Queue writes a CS reply as waiting to be sent. The row is the outbox: the wa
@@ -108,10 +126,15 @@ func (s *CSMessageService) Queue(
 	}
 	applyMedia(&msg, media)
 
-	if err := s.db.Create(&msg).Error; err != nil {
-		return nil, fmt.Errorf("queue message: %w", err)
-	}
-	if err := s.conversations.Touch(conversationID, msg.WATimestamp); err != nil {
+	// Same reason as SaveInbound: a reply queued behind a stale last_message_at
+	// would sink down the inbox while the handler told the CS it had failed.
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&msg).Error; err != nil {
+			return fmt.Errorf("queue message: %w", err)
+		}
+		return s.conversations.touchTx(tx, conversationID, msg.WATimestamp)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &msg, nil
@@ -196,8 +219,10 @@ func (s *CSMessageService) Search(term string, limit int) ([]models.CSMessage, e
 	return rows, nil
 }
 
-func (s *CSMessageService) bumpConversation(conversationID uuid.UUID, at time.Time) error {
-	err := s.db.Model(&models.CSConversation{}).Where("id = ?", conversationID).
+// bumpConversation runs on the caller's transaction, never on s.db: it is half
+// of storing a message, and must not be able to commit or fail on its own.
+func bumpConversation(tx *gorm.DB, conversationID uuid.UUID, at time.Time) error {
+	err := tx.Model(&models.CSConversation{}).Where("id = ?", conversationID).
 		Updates(map[string]any{
 			"last_message_at": at,
 			"unread_count":    gorm.Expr("unread_count + 1"),
