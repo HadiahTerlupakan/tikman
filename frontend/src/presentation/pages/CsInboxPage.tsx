@@ -24,6 +24,7 @@ import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
+import { TransferPicker } from "@/presentation/components/cs/TransferPicker";
 
 function holderNameMap(users: User[]): Record<string, string> {
   return Object.fromEntries(users.map((u) => [u.id, u.username]));
@@ -170,6 +171,25 @@ export function CsInboxPage() {
                     onRetry={handleSend}
                   />
                 )}
+              </div>
+              <div
+                style={{
+                  padding: "8px 8px 0",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <TransferPicker
+                  users={usersQuery.data ?? []}
+                  holderId={selected.assignedUserId}
+                  transferring={assignConversation.isPending}
+                  onTransfer={(userId) =>
+                    assignConversation.mutate({
+                      conversationId: selected.id,
+                      userId,
+                    })
+                  }
+                />
               </div>
               <div style={{ padding: 8 }}>
                 <MessageComposer
