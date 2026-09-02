@@ -1,7 +1,9 @@
 package services
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -183,4 +185,53 @@ func TestFindOrCreateTrimsAnOverlongIdentifier(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Len(t, conv.CustomerPhone, 20)
+}
+
+// The inbox list is unreadable without knowing what was last said — a column of
+// names tells a CS nothing about which thread needs them first.
+func TestListCarriesTheLastMessageOfEachThread(t *testing.T) {
+	db := setupTestDB(t)
+	conversations := NewCSConversationService(db)
+	messages := NewCSMessageService(db, conversations)
+	account := csAccount(t, db)
+
+	conv, err := conversations.FindOrCreate(IncomingPeer{
+		WAAccountID: account.ID, JID: "628111@s.whatsapp.net", Phone: "628111222333", Name: "Budi",
+	})
+	require.NoError(t, err)
+
+	for i, body := range []string{"pertama", "terakhir"} {
+		_, _, err := messages.SaveInbound(InboundMessage{
+			ConversationID: conv.ID,
+			WAMessageID:    "3EB0LAST" + strconv.Itoa(i),
+			Kind:           models.MessageKindText,
+			Body:           body,
+			At:             time.Now().Add(time.Duration(i) * time.Minute),
+		})
+		require.NoError(t, err)
+	}
+
+	rows, err := conversations.List(ConversationFilter{})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].LastMessage, "a thread with messages must carry one")
+	assert.Equal(t, "terakhir", rows[0].LastMessage.Body, "the newest, not the first")
+	assert.Equal(t, models.MessageIn, rows[0].LastMessage.Direction)
+}
+
+// A thread that exists but has no message yet must not break the list.
+func TestListLeavesLastMessageEmptyWhenNothingWasSaidYet(t *testing.T) {
+	db := setupTestDB(t)
+	conversations := NewCSConversationService(db)
+	account := csAccount(t, db)
+
+	_, err := conversations.FindOrCreate(IncomingPeer{
+		WAAccountID: account.ID, JID: "628222@s.whatsapp.net", Phone: "628222333444", Name: "Siti",
+	})
+	require.NoError(t, err)
+
+	rows, err := conversations.List(ConversationFilter{})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Nil(t, rows[0].LastMessage)
 }

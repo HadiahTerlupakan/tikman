@@ -1,5 +1,13 @@
 export type ConversationStatus = "unassigned" | "open" | "closed";
 
+/** The line the inbox list shows under a customer's name. */
+export interface CsLastMessage {
+  body: string;
+  kind: "text" | "image" | "document" | "audio" | "video";
+  direction: "in" | "out";
+  at: string;
+}
+
 /** One customer's WhatsApp thread on one connected number. */
 export interface CsConversation {
   id: string;
@@ -10,6 +18,8 @@ export interface CsConversation {
   ontId?: string;
   lastMessageAt: string;
   unreadCount: number;
+  /** Absent on a thread nothing has been said in yet. */
+  lastMessage?: CsLastMessage;
 }
 
 /**

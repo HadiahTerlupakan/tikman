@@ -44,6 +44,21 @@ type IncomingPeer struct {
 	Name        string
 }
 
+// LastMessage is the one line a CS reads to decide whether to open a thread.
+type LastMessage struct {
+	Body      string                  `json:"body"`
+	Kind      models.MessageKind      `json:"kind"`
+	Direction models.MessageDirection `json:"direction"`
+	At        time.Time               `json:"at"`
+}
+
+// ConversationSummary is a thread as the inbox list shows it. The conversation
+// is embedded, so a caller that only wants the thread reads it unchanged.
+type ConversationSummary struct {
+	models.CSConversation
+	LastMessage *LastMessage `json:"last_message,omitempty"`
+}
+
 // ConversationFilter narrows the inbox to one of the views a CS switches
 // between: their own threads, the ones nobody holds, or the finished ones.
 type ConversationFilter struct {
@@ -132,7 +147,7 @@ func (s *CSConversationService) Get(id uuid.UUID) (*models.CSConversation, error
 }
 
 // List draws one page of the inbox, newest first.
-func (s *CSConversationService) List(f ConversationFilter) ([]models.CSConversation, error) {
+func (s *CSConversationService) List(f ConversationFilter) ([]ConversationSummary, error) {
 	q := s.db.Model(&models.CSConversation{})
 
 	switch {
@@ -158,7 +173,65 @@ func (s *CSConversationService) List(f ConversationFilter) ([]models.CSConversat
 	if err := q.Order("last_message_at DESC").Limit(limit).Offset(f.Offset).Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list conversations: %w", err)
 	}
-	return rows, nil
+
+	summaries := make([]ConversationSummary, len(rows))
+	ids := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		summaries[i] = ConversationSummary{CSConversation: row}
+		ids[i] = row.ID
+	}
+
+	latest, err := s.lastMessages(ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range summaries {
+		if m, ok := latest[summaries[i].ID]; ok {
+			summaries[i].LastMessage = m
+		}
+	}
+	return summaries, nil
+}
+
+// lastMessages fetches the newest message of each thread in one query. One
+// query rather than one per row: an inbox page is fifty threads, and fifty
+// round trips to render a list is how a list stops being worth rendering.
+func (s *CSConversationService) lastMessages(ids []uuid.UUID) (map[uuid.UUID]*LastMessage, error) {
+	latest := map[uuid.UUID]*LastMessage{}
+	if len(ids) == 0 {
+		return latest, nil
+	}
+
+	type row struct {
+		ConversationID uuid.UUID
+		Body           string
+		Kind           models.MessageKind
+		Direction      models.MessageDirection
+		WATimestamp    time.Time
+	}
+	var found []row
+	err := s.db.Raw(`
+		SELECT conversation_id, body, kind, direction, wa_timestamp
+		FROM (
+			SELECT conversation_id, body, kind, direction, wa_timestamp,
+			       ROW_NUMBER() OVER (
+			           PARTITION BY conversation_id
+			           ORDER BY wa_timestamp DESC, id DESC
+			       ) AS rn
+			FROM cs_messages
+			WHERE conversation_id IN ?
+		) ranked
+		WHERE rn = 1`, ids).Scan(&found).Error
+	if err != nil {
+		return nil, fmt.Errorf("load last messages: %w", err)
+	}
+
+	for _, r := range found {
+		latest[r.ConversationID] = &LastMessage{
+			Body: r.Body, Kind: r.Kind, Direction: r.Direction, At: r.WATimestamp,
+		}
+	}
+	return latest, nil
 }
 
 // Assign hands a conversation to one CS. Taking over someone else's thread goes

@@ -24,8 +24,19 @@ import { MessageComposer } from "@/presentation/components/cs/MessageComposer";
 import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
+import { ThreadHeader } from "@/presentation/components/cs/ThreadHeader";
+import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 import { TransferPicker } from "@/presentation/components/cs/TransferPicker";
+
+// One shape for all three columns: without it they read as content floating on
+// the page rather than as panes of one screen.
+const panel = {
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
+  borderRadius: 10,
+  overflow: "hidden",
+} as const;
 
 function holderNameMap(users: User[]): Record<string, string> {
   return Object.fromEntries(users.map((u) => [u.id, u.username]));
@@ -137,14 +148,8 @@ export function CsInboxPage() {
         }
       />
 
-      <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            width: 300,
-            overflowY: "auto",
-            borderRight: "1px solid #27272a",
-          }}
-        >
+      <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
+        <div style={{ ...panel, width: 340, overflowY: "auto" }}>
           <ConversationList
             conversations={conversations}
             selectedId={selectedId}
@@ -156,6 +161,7 @@ export function CsInboxPage() {
 
         <div
           style={{
+            ...panel,
             flex: 1,
             display: "flex",
             flexDirection: "column",
@@ -164,7 +170,26 @@ export function CsInboxPage() {
         >
           {selected ? (
             <>
-              <div style={{ flex: 1, overflowY: "auto", padding: "0 8px" }}>
+              <ThreadHeader
+                conversation={selected}
+                holderName={
+                  selected.assignedUserId
+                    ? holderNames[selected.assignedUserId]
+                    : undefined
+                }
+                isHolder={selected.assignedUserId === currentUser?.id}
+              />
+
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: "12px 14px",
+                  // A shade under the panel, so the thread reads as the
+                  // surface the bubbles sit on rather than more chrome.
+                  background: "#141416",
+                }}
+              >
                 {historyQuery.isLoading ? (
                   <Spin />
                 ) : (
@@ -174,57 +199,75 @@ export function CsInboxPage() {
                   />
                 )}
               </div>
-              <div
-                style={{
-                  padding: "8px 8px 0",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <TransferPicker
-                  users={usersQuery.data ?? []}
-                  holderId={selected.assignedUserId}
-                  transferring={assignConversation.isPending}
-                  onTransfer={(userId) =>
-                    assignConversation.mutate({
-                      conversationId: selected.id,
-                      userId,
-                    })
-                  }
-                />
-              </div>
-              <div style={{ padding: 8 }}>
-                <MessageComposer
-                  conversation={selected}
-                  currentUserId={currentUser?.id ?? ""}
-                  holderName={
-                    selected.assignedUserId
-                      ? holderNames[selected.assignedUserId] ?? "pengguna lain"
-                      : ""
-                  }
-                  onSend={handleSend}
-                  onTakeOver={handleTakeOver}
-                  onAttach={handleAttach}
-                  quickReplies={quickRepliesQuery.data ?? []}
-                  sending={sendMessage.isPending}
-                  attaching={sendMedia.isPending}
-                />
-              </div>
+
+              {selected.assignedUserId === currentUser?.id && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    padding: "6px 12px 0",
+                  }}
+                >
+                  <TransferPicker
+                    users={usersQuery.data ?? []}
+                    holderId={selected.assignedUserId}
+                    transferring={assignConversation.isPending}
+                    onTransfer={(userId) =>
+                      assignConversation.mutate({
+                        conversationId: selected.id,
+                        userId,
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              <MessageComposer
+                conversation={selected}
+                currentUserId={currentUser?.id ?? ""}
+                holderName={
+                  selected.assignedUserId
+                    ? holderNames[selected.assignedUserId] ?? "pengguna lain"
+                    : ""
+                }
+                onSend={handleSend}
+                onTakeOver={handleTakeOver}
+                onAttach={handleAttach}
+                quickReplies={quickRepliesQuery.data ?? []}
+                sending={sendMessage.isPending}
+                attaching={sendMedia.isPending}
+              />
             </>
           ) : (
-            <Empty description="Pilih percakapan" style={{ marginTop: 80 }} />
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Empty description="Pilih percakapan untuk mulai membalas" />
+            </div>
           )}
         </div>
 
         <div
           style={{
-            width: 300,
+            ...panel,
+            width: 320,
             overflowY: "auto",
-            borderLeft: "1px solid #27272a",
-            padding: "0 12px",
+            padding: 14,
           }}
         >
-          {selected && <CustomerPanel conversation={selected} />}
+          {selected ? (
+            <CustomerPanel conversation={selected} />
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Data pelanggan muncul di sini"
+            />
+          )}
         </div>
       </div>
 

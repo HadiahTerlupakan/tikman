@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Alert, Button, Input, Space, Upload, message } from "antd";
-import { PaperClipOutlined } from "@ant-design/icons";
+import { PaperClipOutlined, SendOutlined } from "@ant-design/icons";
+import { colors } from "@/shared/theme/colors";
 import type { CsConversation, CsQuickReply } from "@/domain/entities";
 import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
 import { QuickReplyPicker } from "./QuickReplyPicker";
@@ -44,7 +45,15 @@ export function MessageComposer({
 
   if (!isHolder) {
     return (
-      <Space direction="vertical" style={{ width: "100%" }}>
+      <Space
+        direction="vertical"
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          borderTop: `1px solid ${colors.border}`,
+          background: colors.surface,
+        }}
+      >
         <Alert
           type="info"
           showIcon
@@ -83,7 +92,16 @@ export function MessageComposer({
   };
 
   return (
-    <Space.Compact style={{ width: "100%" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-end",
+        gap: 6,
+        padding: "10px 12px",
+        borderTop: `1px solid ${colors.border}`,
+        background: colors.surface,
+      }}
+    >
       <QuickReplyPicker quickReplies={quickReplies} onPick={setText} />
       <Upload
         accept={CS_MEDIA_ACCEPT}
@@ -91,9 +109,11 @@ export function MessageComposer({
         beforeUpload={handleAttach}
       >
         <Button
+          type="text"
           icon={<PaperClipOutlined />}
           loading={attaching}
           title="Lampirkan berkas"
+          aria-label="Lampirkan berkas"
         />
       </Upload>
       <TextArea
@@ -105,17 +125,21 @@ export function MessageComposer({
             handleSend();
           }
         }}
-        autoSize={{ minRows: 1, maxRows: 4 }}
-        placeholder="Tulis balasan..."
+        autoSize={{ minRows: 1, maxRows: 5 }}
+        placeholder="Tulis balasan"
+        variant="filled"
+        style={{ borderRadius: 18, padding: "6px 12px", resize: "none" }}
       />
       <Button
         type="primary"
+        shape="circle"
+        icon={<SendOutlined />}
         onClick={handleSend}
         loading={sending}
         disabled={!text.trim()}
-      >
-        Kirim
-      </Button>
-    </Space.Compact>
+        aria-label="Kirim"
+        title="Kirim"
+      />
+    </div>
   );
 }
