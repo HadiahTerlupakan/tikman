@@ -161,7 +161,7 @@ sendiri tanpa perlu pembersihan.
 7. Umumkan ke Redis channel `cs:events`.
 
 ### 6.2 Keluar
-1. CS mengirim `POST /api/cs/conversations/:id/messages`.
+1. CS mengirim `POST /api/v1/cs/conversations/:id/messages`.
 2. API memvalidasi bahwa pengirim adalah pemegang percakapan.
 3. Baris `cs_messages` ditulis berstatus `queued`; diumumkan ke `cs:outbox`.
 4. `wa` mengambilnya, mengirim lewat whatsmeow, lalu memperbarui status menjadi
@@ -196,7 +196,7 @@ ada. Otomatis untuk keadaan normal, manual sebagai jalan keluar.
 
 ## 8. Realtime
 
-`GET /api/cs/stream` (SSE, satu koneksi per CS). API berlangganan channel Redis
+`GET /api/v1/cs/stream` (SSE, satu koneksi per CS). API berlangganan channel Redis
 dan meneruskan peristiwa: pesan baru, perubahan penugasan, perubahan status
 percakapan, dan perubahan status koneksi WhatsApp. Denyut tiap 15 detik menjaga
 koneksi tetap hidup melewati proxy sekaligus memperpanjang penanda online.
@@ -250,19 +250,20 @@ Bertambah satu isian Nomor HP pelanggan.
 
 | Metode | Jalur | Role |
 |---|---|---|
-| GET | `/api/cs/stream` | cs, technician, admin |
-| GET | `/api/cs/conversations` | cs, technician, admin |
-| GET | `/api/cs/conversations/:id/messages` | cs, technician, admin |
-| POST | `/api/cs/conversations/:id/messages` | cs, technician, admin |
-| POST | `/api/cs/conversations/:id/media` | cs, technician, admin |
-| PUT | `/api/cs/conversations/:id/assign` | cs, technician, admin |
-| PUT | `/api/cs/conversations/:id/status` | cs, technician, admin |
-| PUT | `/api/cs/conversations/:id/ont` | cs, technician, admin |
-| GET | `/api/cs/media/:message_id` | cs, technician, admin |
-| GET/POST/PUT/DELETE | `/api/cs/quick-replies` | baca: semua di atas; ubah: admin |
-| GET | `/api/cs/wa-accounts` | admin |
-| POST | `/api/cs/wa-accounts/:id/connect` | admin |
-| POST | `/api/cs/wa-accounts/:id/disconnect` | admin |
+| GET | `/api/v1/cs/stream` | cs, technician, admin |
+| GET | `/api/v1/cs/conversations` | cs, technician, admin |
+| GET | `/api/v1/cs/conversations/:id/messages` | cs, technician, admin |
+| POST | `/api/v1/cs/conversations/:id/messages` | cs, technician, admin |
+| POST | `/api/v1/cs/conversations/:id/media` | cs, technician, admin |
+| PUT | `/api/v1/cs/conversations/:id/assign` | cs, technician, admin |
+| PUT | `/api/v1/cs/conversations/:id/status` | cs, technician, admin |
+| PUT | `/api/v1/cs/conversations/:id/ont` | cs, technician, admin |
+| GET | `/api/v1/cs/messages/search` | cs, technician, admin |
+| GET | `/api/v1/cs/media/:message_id` | cs, technician, admin |
+| GET/POST/PUT/DELETE | `/api/v1/cs/quick-replies` | baca: semua di atas; ubah: admin |
+| GET | `/api/v1/cs/wa-accounts` | admin |
+| POST | `/api/v1/cs/wa-accounts/:id/connect` | admin |
+| POST | `/api/v1/cs/wa-accounts/:id/disconnect` | admin |
 
 ## 12. Penanganan Galat
 
