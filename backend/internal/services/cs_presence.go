@@ -48,6 +48,9 @@ func (p *RedisPresence) MarkOnline(ctx context.Context, userID uuid.UUID) error 
 // Online lists the CS currently at their desks, sorted so that the rotation is
 // the same order for every caller.
 func (p *RedisPresence) Online(ctx context.Context) ([]uuid.UUID, error) {
+	// Redis SCAN can return the same key multiple times in a single iteration,
+	// so we de-duplicate to prevent giving one agent multiple slots in the rotation.
+	seen := make(map[uuid.UUID]struct{})
 	var ids []uuid.UUID
 	iter := p.client.Scan(ctx, 0, presenceKeyPrefix+"*", 100).Iterator()
 	for iter.Next(ctx) {
@@ -55,7 +58,10 @@ func (p *RedisPresence) Online(ctx context.Context) ([]uuid.UUID, error) {
 		if err != nil {
 			continue
 		}
-		ids = append(ids, id)
+		if _, exists := seen[id]; !exists {
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
 	}
 	if err := iter.Err(); err != nil {
 		return nil, fmt.Errorf("scan presence: %w", err)

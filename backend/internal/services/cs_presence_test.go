@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,9 +25,15 @@ func TestFakePresenceAdvancesItsTurn(t *testing.T) {
 
 	assert.Equal(t, first+1, second)
 
+	// Order, not just membership: the rotation walks this slice by index, so a
+	// list that came back in a different order each call would hand work out at
+	// random while still containing exactly the right people.
+	want := []uuid.UUID{a, b}
+	sort.Slice(want, func(i, j int) bool { return want[i].String() < want[j].String() })
+
 	online, err := p.Online(ctx)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []uuid.UUID{a, b}, online)
+	assert.Equal(t, want, online)
 }
 
 func TestFakePresenceForgetsWhoWentOffline(t *testing.T) {
