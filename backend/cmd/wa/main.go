@@ -167,8 +167,11 @@ func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Clie
 }
 
 // applyControl decodes and acts on one control message. A malformed message
-// or an action naming another account is logged and dropped, never fatal —
-// nothing here can take the process down over an admin click.
+// or one naming another account is logged and dropped, harmlessly. A
+// successful disconnect is the one deliberate exception: it calls stop() and
+// takes the process down on purpose, because a logged-out session cannot be
+// reconnected in place (see the ControlDisconnect case below) — that exit is
+// the fix, not a bug to chase.
 func applyControl(ctx context.Context, payload string, client *wa.Client, accountID uuid.UUID, stop context.CancelFunc, logger *zap.Logger) {
 	var msg wa.ControlMessage
 	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
