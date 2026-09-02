@@ -243,6 +243,7 @@ export function CsInboxPage() {
           status={connectionStatus}
           pairingCode={pairingCode}
           accountId={account?.id}
+          connectedNumber={account?.jid?.split("@")[0]}
           connecting={connectAccount.isPending}
           onConnect={(phone) =>
             account && connectAccount.mutate({ id: account.id, phone })

@@ -46,4 +46,31 @@ describe("WaPairingModal", () => {
 
     expect(screen.getByRole("button", { name: /^putuskan$/i })).toBeDisabled();
   });
+
+  // The modal used to branch only on the pairing code, so a live session fell
+  // through to the form and asked an admin to connect what was already
+  // connected — which is exactly what it looked like in production.
+  it("says the number is already linked instead of asking to connect it", () => {
+    render(
+      <WaPairingModal
+        open
+        onClose={vi.fn()}
+        status="connected"
+        accountId="acc-1"
+        connectedNumber="6281399977707"
+        connecting={false}
+        onConnect={vi.fn()}
+        disconnecting={false}
+        onDisconnect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/sudah tersambung/i)).toBeInTheDocument();
+    expect(screen.getByText(/6281399977707/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^sambungkan$/i })).toBeNull();
+    // Putuskan stays: giving the session up is the only action left here.
+    expect(
+      screen.getByRole("button", { name: /putuskan/i }),
+    ).toBeInTheDocument();
+  });
 });

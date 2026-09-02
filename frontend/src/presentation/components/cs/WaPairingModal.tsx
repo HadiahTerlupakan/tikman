@@ -21,6 +21,10 @@ interface WaPairingModalProps {
    * disabled until this exists — clicking it before that silently did
    * nothing, since there was no account id to connect. */
   accountId?: string;
+  /** The number already linked, when there is one. Without it the modal has
+   * no way to tell "connected" apart from "never paired", and asks an admin
+   * to connect a session that is already up. */
+  connectedNumber?: string;
   connecting: boolean;
   onConnect: (phone: string) => void;
   disconnecting: boolean;
@@ -38,6 +42,7 @@ export function WaPairingModal({
   status,
   pairingCode,
   accountId,
+  connectedNumber,
   connecting,
   onConnect,
   disconnecting,
@@ -51,12 +56,32 @@ export function WaPairingModal({
 
   return (
     <Modal
-      title="Sambungkan Nomor WhatsApp"
+      title={
+        status === "connected" ? "Nomor WhatsApp" : "Sambungkan Nomor WhatsApp"
+      }
       open={open}
       onCancel={onClose}
       footer={null}
     >
-      {pairingCode ? (
+      {status === "connected" && !pairingCode ? (
+        <div style={{ textAlign: "center", padding: "8px 0" }}>
+          <Alert
+            type="success"
+            showIcon
+            message="Nomor ini sudah tersambung"
+            description={
+              connectedNumber
+                ? `TikMan menerima dan mengirim pesan lewat ${connectedNumber}.`
+                : "TikMan menerima dan mengirim pesan lewat nomor ini."
+            }
+          />
+          <Text type="secondary" style={{ display: "block", marginTop: 12 }}>
+            Percakapan yang sudah ada di HP sebelum penyambungan tidak ikut
+            terbawa — WhatsApp tidak mengirimkannya ke perangkat tertaut. Yang
+            masuk ke sini adalah pesan sejak nomor tersambung.
+          </Text>
+        </div>
+      ) : pairingCode ? (
         <div style={{ textAlign: "center", padding: "8px 0" }}>
           <Text type="secondary">Masukkan kode ini di WhatsApp</Text>
           <Title level={2} style={{ letterSpacing: 6, margin: "12px 0" }}>
