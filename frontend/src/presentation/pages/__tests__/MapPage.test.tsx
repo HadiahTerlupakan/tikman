@@ -31,6 +31,12 @@ vi.mock("@/presentation/components/map/OltMap", () => ({
   OltMap: () => <div data-testid="olt-map" />,
 }));
 
+// The form reaches for sites, cabinets and OLTs of its own. Those belong to its
+// test, not to the page's.
+vi.mock("@/presentation/components/map/PlantFormModal", () => ({
+  PlantFormModal: () => null,
+}));
+
 describe("MapPage", () => {
   beforeEach(() => {
     state.key = "AIzaSyTESTKEY123";

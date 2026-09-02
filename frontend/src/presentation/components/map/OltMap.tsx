@@ -20,6 +20,8 @@ interface OltMapProps {
   odcs?: Odc[];
   odps?: Odp[];
   onSelectOdp?: (odp: Odp) => void;
+  /** Where the operator clicked, when the map is being used to place plant. */
+  onPlace?: (coordinates: { latitude: number; longitude: number }) => void;
 }
 
 // Indonesia, so an installation with no pins yet opens somewhere recognisable
@@ -66,6 +68,7 @@ export function OltMap({
   odcs = [],
   odps = [],
   onSelectOdp,
+  onPlace,
 }: OltMapProps) {
   const [selected, setSelected] = useState<MappedOlt | null>(null);
   const pins = mappedOlts(olts);
@@ -77,6 +80,12 @@ export function OltMap({
         {...framingOf(pins)}
         gestureHandling="greedy"
         disableDefaultUI={false}
+        onClick={(event) => {
+          const point = event.detail.latLng;
+          if (point && onPlace) {
+            onPlace({ latitude: point.lat, longitude: point.lng });
+          }
+        }}
       >
         {pins.map((olt) => (
           <Marker

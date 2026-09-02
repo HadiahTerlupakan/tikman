@@ -1,4 +1,5 @@
-import { Alert, Col, Row, Skeleton } from "antd";
+import { useState } from "react";
+import { Alert, Button, Col, Row, Skeleton, Space, Tag } from "antd";
 import { Link } from "react-router-dom";
 import {
   useGoogleMapsKey,
@@ -12,12 +13,19 @@ import { PageHeader, DarkCard } from "../components/common";
 import { OltMap } from "../components/map/OltMap";
 import { mappedOlts, unmappedOlts } from "../components/map/oltMapFilters";
 import { UnmappedOltsPanel } from "../components/map/UnmappedOltsPanel";
+import {
+  PlantFormModal,
+  type PlantKind,
+} from "../components/map/PlantFormModal";
+import type { Coordinates } from "../components/map/plantForm";
 
 export default function MapPage() {
   const { key, isLoading: keyLoading } = useGoogleMapsKey();
   const { data: olts, isLoading: oltsLoading } = useOlts();
   const { data: odcs } = useOdcs();
   const { data: odps } = useOdps();
+  const [placing, setPlacing] = useState<PlantKind | null>(null);
+  const [placed, setPlaced] = useState<Coordinates>();
 
   const unmapped = unmappedOlts(olts);
 
@@ -46,11 +54,27 @@ export default function MapPage() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={17}>
             <DarkCard style={{ height: "100%" }}>
+              <Space style={{ marginBottom: 12 }}>
+                <Button onClick={() => setPlacing("odc")}>Tambah ODC</Button>
+                <Button onClick={() => setPlacing("odp")}>Tambah ODP</Button>
+                {placing && (
+                  <Tag color="green">
+                    Klik di peta untuk menaruh {placing.toUpperCase()}
+                  </Tag>
+                )}
+              </Space>
               <OltMap
                 apiKey={key}
                 olts={olts ?? []}
                 odcs={odcs ?? []}
                 odps={odps ?? []}
+                onPlace={
+                  placing
+                    ? (coordinates) => {
+                        setPlaced(coordinates);
+                      }
+                    : undefined
+                }
               />
             </DarkCard>
           </Col>
@@ -59,6 +83,16 @@ export default function MapPage() {
           </Col>
         </Row>
       )}
+
+      <PlantFormModal
+        open={!!placing && !!placed}
+        kind={placing ?? "odc"}
+        coordinates={placed}
+        onClose={() => {
+          setPlacing(null);
+          setPlaced(undefined);
+        }}
+      />
     </div>
   );
 }
