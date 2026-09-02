@@ -47,6 +47,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	conversations := services.NewCSConversationService(db)
 	messages := services.NewCSMessageService(db, conversations)
 	quickReplies := services.NewCSQuickReplyService(db)
+	accounts := services.NewCSAccountService(db)
 	presence := services.NewFakePresence()
 	assignment := services.NewCSAssignmentService(db, conversations, presence)
 	logger := zap.NewNop()
@@ -59,7 +60,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	publisher := wa.NewPublisher(redisClient)
 
 	handler := NewCSHandler(
-		conversations, messages, quickReplies, assignment, presence,
+		conversations, messages, quickReplies, accounts, assignment, presence,
 		audit, publisher, redisClient, logger, t.TempDir(),
 	)
 
@@ -101,6 +102,15 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.GET("/media/:message_id", e.handler.ServeMedia)
 		cs.GET("/messages/search", e.handler.SearchMessages)
 		cs.GET("/stream", e.handler.Stream)
+
+		cs.GET("/quick-replies", e.handler.ListQuickReplies)
+		cs.POST("/quick-replies", middleware.RequireRole(models.UserRoleAdmin), e.handler.CreateQuickReply)
+		cs.PUT("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), e.handler.UpdateQuickReply)
+		cs.DELETE("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), e.handler.DeleteQuickReply)
+
+		cs.GET("/wa-accounts", middleware.RequireRole(models.UserRoleAdmin), e.handler.ListAccounts)
+		cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Connect)
+		cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Disconnect)
 	}
 	return router
 }

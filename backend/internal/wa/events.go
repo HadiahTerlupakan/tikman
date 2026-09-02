@@ -16,12 +16,19 @@ const EventsChannel = "cs:events"
 // process drains it in seconds instead of waiting for its next sweep.
 const OutboxChannel = "cs:outbox"
 
+// ControlChannel carries admin actions — pair a number, or give one up — to
+// the wa process, the only thing that holds the WhatsApp connection.
+const ControlChannel = "cs:control"
+
 // Event is one inbox change worth waking a browser for.
 type Event struct {
 	Type           string `json:"type"`
 	ConversationID string `json:"conversation_id,omitempty"`
 	MessageID      string `json:"message_id,omitempty"`
 	AccountStatus  string `json:"account_status,omitempty"`
+	// PairingCode is the eight-character code an admin types into WhatsApp
+	// under Linked Devices, set only while AccountStatus is "pairing".
+	PairingCode string `json:"pairing_code,omitempty"`
 }
 
 // Event types.

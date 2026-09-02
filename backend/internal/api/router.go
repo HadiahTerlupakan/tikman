@@ -81,11 +81,12 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csConversationService := services.NewCSConversationService(db)
 	csMessageService := services.NewCSMessageService(db, csConversationService)
 	csQuickReplyService := services.NewCSQuickReplyService(db)
+	csAccountService := services.NewCSAccountService(db)
 	csPresence := services.NewRedisPresence(csRedisClient)
 	csAssignmentService := services.NewCSAssignmentService(db, csConversationService, csPresence)
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
-		csConversationService, csMessageService, csQuickReplyService, csAssignmentService,
+		csConversationService, csMessageService, csQuickReplyService, csAccountService, csAssignmentService,
 		csPresence, auditService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
 	)
 
@@ -231,6 +232,15 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.GET("/media/:message_id", csHandler.ServeMedia)
 			cs.GET("/messages/search", csHandler.SearchMessages)
 			cs.GET("/stream", csHandler.Stream)
+
+			cs.GET("/quick-replies", csHandler.ListQuickReplies)
+			cs.POST("/quick-replies", middleware.RequireRole(models.UserRoleAdmin), csHandler.CreateQuickReply)
+			cs.PUT("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.UpdateQuickReply)
+			cs.DELETE("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.DeleteQuickReply)
+
+			cs.GET("/wa-accounts", middleware.RequireRole(models.UserRoleAdmin), csHandler.ListAccounts)
+			cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Connect)
+			cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Disconnect)
 		}
 
 		odcFeeds := api.Group("/odc-feeds")

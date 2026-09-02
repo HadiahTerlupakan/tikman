@@ -22,6 +22,7 @@ type CSHandler struct {
 	conversations *services.CSConversationService
 	messages      *services.CSMessageService
 	quickReplies  *services.CSQuickReplyService
+	accounts      *services.CSAccountService
 	assignment    *services.CSAssignmentService
 	presence      services.Presence
 	audit         *services.AuditService
@@ -36,6 +37,7 @@ func NewCSHandler(
 	conversations *services.CSConversationService,
 	messages *services.CSMessageService,
 	quickReplies *services.CSQuickReplyService,
+	accounts *services.CSAccountService,
 	assignment *services.CSAssignmentService,
 	presence services.Presence,
 	audit *services.AuditService,
@@ -48,6 +50,7 @@ func NewCSHandler(
 		conversations: conversations,
 		messages:      messages,
 		quickReplies:  quickReplies,
+		accounts:      accounts,
 		assignment:    assignment,
 		presence:      presence,
 		audit:         audit,

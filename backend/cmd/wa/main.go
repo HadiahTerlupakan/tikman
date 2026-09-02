@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/database"
@@ -96,14 +98,6 @@ func main() {
 		logger.Fatal("Failed to open the WhatsApp session store", zap.Error(err))
 	}
 
-	if client.NeedsPairing() {
-		codes, err := client.QRChannel(ctx)
-		if err != nil {
-			logger.Fatal("Failed to start WhatsApp pairing", zap.Error(err))
-		}
-		go showPairingCodes(codes, logger)
-	}
-
 	if err := client.Connect(ctx); err != nil {
 		logger.Fatal("Failed to connect to WhatsApp", zap.Error(err))
 	}
@@ -115,6 +109,7 @@ func main() {
 	drainer := wa.NewDrainer(messages, conversations, client, cfg.WAMediaDir,
 		time.Duration(cfg.WASendIntervalMS)*time.Millisecond)
 
+	go controlLoop(ctx, redisClient, client, account.ID, logger)
 	go drainOnAnnouncement(ctx, redisClient, drainer, logger)
 	go every(ctx, max(time.Duration(cfg.WADrainIntervalSeconds)*time.Second, time.Second), func() {
 		drainOutbox(ctx, drainer, logger)
@@ -149,12 +144,62 @@ func firstAccount(db *gorm.DB) (models.WAAccount, error) {
 	return account, err
 }
 
-// showPairingCodes writes each pairing code to the log. Drawing a scannable
-// square would mean another dependency, so an operator pastes the string into
-// any QR generator instead.
-func showPairingCodes(codes <-chan string, logger *zap.Logger) {
-	for code := range codes {
-		logger.Info("Scan this WhatsApp pairing code", zap.String("code", code))
+// controlMessage is an admin action arriving on wa.ControlChannel: pair a
+// number by phone, or give one up.
+type controlMessage struct {
+	Action    string `json:"action"`
+	AccountID string `json:"account_id"`
+	Phone     string `json:"phone"`
+}
+
+// controlLoop applies admin actions meant for this process's account. The
+// channel is shared by every wa process the way wa.OutboxChannel is, so a
+// message naming a different account is ignored rather than acted on by the
+// wrong session.
+func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Client, accountID uuid.UUID, logger *zap.Logger) {
+	sub := redisClient.Subscribe(ctx, wa.ControlChannel)
+	defer func() {
+		_ = sub.Close()
+	}()
+
+	messages := sub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, open := <-messages:
+			if !open {
+				return
+			}
+			applyControl(ctx, msg.Payload, client, accountID, logger)
+		}
+	}
+}
+
+// applyControl decodes and acts on one control message. A malformed message
+// or an action naming another account is logged and dropped, never fatal —
+// nothing here can take the process down over an admin click.
+func applyControl(ctx context.Context, payload string, client *wa.Client, accountID uuid.UUID, logger *zap.Logger) {
+	var msg controlMessage
+	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
+		logger.Warn("Could not decode a WhatsApp control message", zap.Error(err))
+		return
+	}
+	if msg.AccountID != accountID.String() {
+		return
+	}
+
+	switch msg.Action {
+	case "connect":
+		if err := client.Pair(ctx, msg.Phone); err != nil {
+			logger.Error("Could not pair the WhatsApp session", zap.Error(err))
+		}
+	case "disconnect":
+		if err := client.Unpair(ctx); err != nil {
+			logger.Error("Could not disconnect the WhatsApp session", zap.Error(err))
+		}
+	default:
+		logger.Warn("Unknown WhatsApp control action", zap.String("action", msg.Action))
 	}
 }
 

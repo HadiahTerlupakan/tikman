@@ -29,6 +29,11 @@ const (
 	maxReconnectDelay = 5 * time.Minute
 )
 
+// waClientDisplayName is what WhatsApp shows the phone during phone-number
+// pairing. The server validates this against its own allowlist of
+// "Browser (OS)" strings, so it cannot be an arbitrary label like "TikMan".
+const waClientDisplayName = "Chrome (Linux)"
+
 // Options are what a Client needs to do its work.
 type Options struct {
 	Container     *sqlstore.Container
@@ -106,40 +111,6 @@ func (c *Client) NeedsPairing() bool {
 	return c.wa.Store.ID == nil
 }
 
-// QRChannel yields the pairing codes to show an operator, one at a time until
-// the phone scans one. It has to be called before Connect.
-func (c *Client) QRChannel(ctx context.Context) (<-chan string, error) {
-	items, err := c.wa.GetQRChannel(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("open pairing channel: %w", err)
-	}
-
-	codes := make(chan string, 1)
-	go c.relayPairing(ctx, items, codes)
-	return codes, nil
-}
-
-func (c *Client) relayPairing(ctx context.Context, items <-chan whatsmeow.QRChannelItem, codes chan<- string) {
-	defer close(codes)
-	c.setStatus(ctx, models.WAAccountPairing)
-
-	for item := range items {
-		if item.Event != whatsmeow.QRChannelEventCode {
-			if item.Event != whatsmeow.QRChannelSuccess.Event {
-				c.logger.Warn("WhatsApp pairing ended without a scan",
-					zap.String("event", item.Event), zap.Error(item.Error))
-				c.setStatus(ctx, models.WAAccountDisconnected)
-			}
-			return
-		}
-		select {
-		case codes <- item.Code:
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 // Connect opens the session and keeps it open for as long as ctx lives.
 func (c *Client) Connect(ctx context.Context) error {
 	c.ctx = ctx
@@ -172,9 +143,50 @@ func (c *Client) Disconnect() {
 	c.wa.Disconnect()
 }
 
-// Logout gives up the pairing. The next start needs a new QR scan.
+// Logout gives up the pairing. The next start needs pairing again.
 func (c *Client) Logout(ctx context.Context) error {
 	return c.wa.Logout(ctx)
+}
+
+// Pair answers an admin's "connect" request. A session with a device already
+// linked just gets its status re-announced — phone pairing is for
+// establishing a link that does not exist yet, and asking WhatsApp for
+// another code on top of one already in place would spend its rate limit on
+// nothing. An unlinked session (re)opens the connection — the unauthenticated
+// socket whatsmeow used at startup lives only around 160 seconds, so it may
+// already be gone by the time an admin acts — then asks for an
+// eight-character linking code and announces it, so the admin who clicked
+// Connect sees it on the same screen instead of a container log.
+func (c *Client) Pair(ctx context.Context, phone string) error {
+	if !c.NeedsPairing() {
+		c.setStatus(ctx, models.WAAccountConnected)
+		return nil
+	}
+
+	if err := c.wa.Connect(); err != nil && !errors.Is(err, whatsmeow.ErrAlreadyConnected) {
+		return fmt.Errorf("open a session to pair: %w", err)
+	}
+
+	code, err := c.wa.PairPhone(ctx, phone, false, whatsmeow.PairClientChrome, waClientDisplayName)
+	if err != nil {
+		return fmt.Errorf("pair by phone: %w", err)
+	}
+
+	event := Event{Type: EventAccountStatus, AccountStatus: string(models.WAAccountPairing), PairingCode: code}
+	if err := c.publisher.Publish(ctx, event); err != nil {
+		c.logger.Warn("Could not announce the WhatsApp pairing code", zap.Error(err))
+	}
+	return nil
+}
+
+// Unpair gives up the pairing and tells the browsers the number is
+// disconnected. The next connect needs a fresh phone-number pairing.
+func (c *Client) Unpair(ctx context.Context) error {
+	if err := c.Logout(ctx); err != nil {
+		return fmt.Errorf("logout: %w", err)
+	}
+	c.setStatus(ctx, models.WAAccountDisconnected)
+	return nil
 }
 
 func (c *Client) route(rawEvt any) {
