@@ -91,7 +91,16 @@ export function ZteProvisionModal({
   // rejected it on the first field it checked. The steps stay mounted and are
   // hidden instead.
   const stepFields: string[][] = [
-    ["card", "pon", "onuIdMode", "onuId", "serialNumber", "onuType"],
+    [
+      "card",
+      "pon",
+      "onuIdMode",
+      "onuId",
+      "serialNumber",
+      "onuType",
+      "odpId",
+      "odpPort",
+    ],
     [
       "vlanMode",
       "serviceType",

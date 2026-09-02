@@ -62,6 +62,17 @@ export function useAssignOntToOdp() {
   });
 }
 
+export function useUnassignOntFromOdp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ontId: string) => repository.unassignOnt(ontId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["odps"] });
+      queryClient.invalidateQueries({ queryKey: ["onts"] });
+    },
+  });
+}
+
 /** Every feeder, so the map can draw them all in one pass. */
 export function useOdcFeeds() {
   return useQuery({

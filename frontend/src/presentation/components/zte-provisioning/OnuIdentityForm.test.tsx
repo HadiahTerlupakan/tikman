@@ -8,6 +8,11 @@ const useOltOnuTypes = vi.hoisted(() => vi.fn());
 
 vi.mock("@/application/hooks/useOlts", () => ({ useOltOnuTypes }));
 
+vi.mock("@/application/hooks/useDistribution", () => ({
+  useOdps: () => ({ data: [], isLoading: false }),
+  useOdpSubscribers: () => ({ data: [] }),
+}));
+
 const target: ZteProvisionTarget = {
   oltId: "olt-1",
   card: 3,

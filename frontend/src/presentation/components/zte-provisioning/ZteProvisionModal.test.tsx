@@ -13,6 +13,11 @@ const useOntServiceConfig = vi.hoisted(() =>
 
 vi.mock("@/application/hooks/useOnts", () => ({ useOntServiceConfig }));
 
+vi.mock("@/application/hooks/useDistribution", () => ({
+  useOdps: () => ({ data: [], isLoading: false }),
+  useOdpSubscribers: () => ({ data: [] }),
+}));
+
 // The review step asks the server what it would send. These tests are about
 // the wizard, so the answer is stubbed; the redaction itself is the server's
 // job and is covered there.
@@ -222,7 +227,9 @@ describe("ZteProvisionModal", () => {
     const submit = screen.getByRole("button", { name: "Submit" });
     expect(submit).toBeDisabled();
 
-    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.click(
+      screen.getByRole("switch", { name: /I have reviewed/i }),
+    );
     expect(submit).toBeEnabled();
   });
 
@@ -244,7 +251,9 @@ describe("ZteProvisionModal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await fillInternetService("pass");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.click(
+      screen.getByRole("switch", { name: /I have reviewed/i }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     expect(onSubmit).toHaveBeenCalled();
@@ -279,7 +288,9 @@ describe("ZteProvisionModal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await fillInternetService("pass");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.click(
+      screen.getByRole("switch", { name: /I have reviewed/i }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     expect(onSubmit.mock.calls[0][0]).toMatchObject({

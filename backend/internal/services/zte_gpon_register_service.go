@@ -72,6 +72,12 @@ func (s *ZTEGPONRegisterService) RegisterAndConfigure(ctx context.Context, req m
 	if err := ValidateZTEGPONRegister(req, olt); err != nil {
 		return nil, err
 	}
+	// Checked before the transaction, and so before any command reaches the
+	// OLT: a bad ODP port should cost the operator a corrected form, not an ONU
+	// half-registered on hardware.
+	if err := validateRegisterODP(s.db.WithContext(ctx), req); err != nil {
+		return nil, err
+	}
 
 	// The position is reserved in the same transaction as the ONT row. The
 	// composite unique index is the final arbiter when two registrations race.
@@ -83,7 +89,7 @@ func (s *ZTEGPONRegisterService) RegisterAndConfigure(ctx context.Context, req m
 		if err != nil {
 			return err
 		}
-		ont = models.ONT{OLTID: req.OLTID, PortID: req.PON, ONTID: onuID, Slot: &req.Card, SerialNumber: req.SerialNumber, Name: req.Name, Description: req.Description, DeviceType: req.ONUType, Status: models.ONTStatusUnknown}
+		ont = models.ONT{OLTID: req.OLTID, PortID: req.PON, ONTID: onuID, Slot: &req.Card, SerialNumber: req.SerialNumber, Name: req.Name, Description: req.Description, DeviceType: req.ONUType, Status: models.ONTStatusUnknown, ODPID: req.ODPID, ODPPort: req.ODPPort}
 		if err := tx.Create(&ont).Error; err != nil {
 			return reserveONUError(tx, req.SerialNumber, err)
 		}

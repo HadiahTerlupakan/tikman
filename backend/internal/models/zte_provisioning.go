@@ -36,6 +36,11 @@ type ZTEGPONRegisterRequest struct {
 	VLANProfile   string `json:"vlan_profile"`
 	PPPoEUsername string `json:"pppoe_username"`
 	PPPoEPassword string `json:"pppoe_password"`
+	// ODPID and ODPPort record where the drop lands in the plant. Optional: an
+	// ONU is often registered before its box has been mapped, and the pairing
+	// can be made later from the ONT list.
+	ODPID   *uuid.UUID `json:"odp_id"`
+	ODPPort *int       `json:"odp_port"`
 }
 
 // VLAN tagging modes on the UNI side of an ONU.

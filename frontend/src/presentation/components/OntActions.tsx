@@ -4,6 +4,7 @@ import {
   DeleteOutlined,
   EllipsisOutlined,
   EyeOutlined,
+  ApartmentOutlined,
   HistoryOutlined,
   SettingOutlined,
   ThunderboltOutlined,
@@ -17,6 +18,7 @@ interface OntActionsProps {
   onProvision?: (ont: Ont) => void;
   onConfigureService?: (ont: Ont) => void;
   onViewHistory?: (ont: Ont) => void;
+  onSetOdp?: (ont: Ont) => void;
 }
 
 // Five labelled buttons per row pushed the ONT table into horizontal scroll and
@@ -29,6 +31,7 @@ export function OntActions({
   onProvision,
   onConfigureService,
   onViewHistory,
+  onSetOdp,
 }: OntActionsProps) {
   // The page owns the confirmation, because it fetches the commands a removal
   // would send to the OLT and shows them before anything is done.
@@ -51,6 +54,16 @@ export function OntActions({
             icon: <HistoryOutlined />,
             label: "History",
             onClick: () => onViewHistory(ont),
+          },
+        ]
+      : []),
+    ...(onSetOdp
+      ? [
+          {
+            key: "odp",
+            icon: <ApartmentOutlined />,
+            label: ont.odpId ? "Ubah ODP" : "Pasang ke ODP",
+            onClick: () => onSetOdp(ont),
           },
         ]
       : []),

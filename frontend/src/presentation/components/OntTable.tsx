@@ -1,5 +1,5 @@
 import { Table, Tag } from "antd";
-import type { Ont, OntStatus } from "@/domain/entities";
+import type { Odp, Ont, OntStatus } from "@/domain/entities";
 import { OntActions } from "./OntActions";
 import { ontStatusColor, ontStatusLabel } from "./ontStatus";
 import { ontPageSizeOptions } from "./ontPageSize";
@@ -26,6 +26,9 @@ interface OntTableProps {
   onProvision?: (ont: Ont) => void;
   onConfigureService?: (ont: Ont) => void;
   onViewHistory?: (ont: Ont) => void;
+  onSetOdp?: (ont: Ont) => void;
+  /** The plant, so a row can name the box it lands in rather than its id. */
+  odps?: Odp[];
 }
 
 export function OntTable({
@@ -41,7 +44,10 @@ export function OntTable({
   onProvision,
   onConfigureService,
   onViewHistory,
+  onSetOdp,
+  odps,
 }: OntTableProps) {
+  const odpCodes = new Map((odps ?? []).map((odp) => [odp.id, odp.code]));
   const columns = [
     {
       title: "Serial Number",
@@ -78,6 +84,14 @@ export function OntTable({
           </span>
         </div>
       ),
+    },
+    {
+      title: "ODP",
+      key: "odp",
+      render: (_: unknown, record: Ont) =>
+        record.odpId
+          ? `${odpCodes.get(record.odpId) ?? "ODP"} · port ${record.odpPort}`
+          : "-",
     },
     {
       title: "Status",
@@ -136,6 +150,7 @@ export function OntTable({
           onProvision={onProvision}
           onConfigureService={onConfigureService}
           onViewHistory={onViewHistory}
+          onSetOdp={onSetOdp}
         />
       ),
     },
@@ -144,7 +159,7 @@ export function OntTable({
   return (
     <Table
       columns={columns}
-      scroll={{ x: 1100 }}
+      scroll={{ x: 1260 }}
       dataSource={dataSource}
       rowKey="id"
       loading={isLoading}

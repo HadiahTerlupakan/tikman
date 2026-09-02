@@ -1,6 +1,7 @@
 import { Form, Input, InputNumber, Radio, Select, Switch } from "antd";
 import type { ZteProvisionTarget } from "@/domain/entities";
 import { useOltOnuTypes } from "@/application/hooks/useOlts";
+import { OdpPortFields } from "@/presentation/components/OdpPortFields";
 
 interface OnuIdentityFormProps {
   target: ZteProvisionTarget;
@@ -113,6 +114,10 @@ export function OnuIdentityForm({ target, mode }: OnuIdentityFormProps) {
       <Form.Item name="description" label="Description">
         <Input.TextArea rows={2} />
       </Form.Item>
+      {/* Only registration creates the ONT row this would be stored on.
+          Configuring an ONU the OLT already knows leaves its placement to the
+          ONT list, where it can also be moved. */}
+      {mode === "register" && <OdpPortFields />}
       <input type="hidden" value={target.oltId} readOnly />
     </>
   );

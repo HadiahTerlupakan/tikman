@@ -30,6 +30,9 @@ export interface ZteGPONRegisterRequest {
   pppoeUsername: string;
   pppoePassword: string;
   confirm: boolean;
+  /** Where the drop lands. Optional: the box may not be mapped yet. */
+  odpId?: string;
+  odpPort?: number;
 }
 
 export interface ZteProvisionTarget {

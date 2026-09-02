@@ -13,12 +13,14 @@ import {
 } from "@/presentation/components/provisioning";
 import {
   useConfigTemplates,
+  useOdps,
   useProvisionOnt,
   useProvisionJobsByONT,
 } from "@/application/hooks";
 import type { ProvisionRequest } from "@/domain/entities/Provisioning";
 import type { Ont, ZteProvisionTarget } from "@/domain/entities";
 import { ZteProvisionModal } from "@/presentation/components/zte-provisioning";
+import { OntOdpModal } from "@/presentation/components/ont-detail/OntOdpModal";
 import { useZteExistingService } from "@/application/hooks";
 
 export default function OntListPage() {
@@ -35,6 +37,8 @@ export default function OntListPage() {
   } | null>(null);
   const serviceMutation = useZteExistingService();
   const [historyTargetOnt, setHistoryTargetOnt] = useState<Ont | null>(null);
+  const [odpTargetOnt, setOdpTargetOnt] = useState<Ont | null>(null);
+  const { data: odps } = useOdps();
 
   const {
     searchText,
@@ -179,8 +183,14 @@ export default function OntListPage() {
           onProvision={handleProvision}
           onConfigureService={handleConfigureService}
           onViewHistory={handleViewHistory}
+          onSetOdp={setOdpTargetOnt}
+          odps={odps}
         />
       </Card>
+
+      {odpTargetOnt && (
+        <OntOdpModal ont={odpTargetOnt} onClose={() => setOdpTargetOnt(null)} />
+      )}
 
       <OntRemoveDialog
         ont={ontPendingRemoval}

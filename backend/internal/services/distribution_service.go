@@ -193,8 +193,22 @@ func validateODPParent(in ODPInput) error {
 // the same subscriber to another port is ordinary field work; landing on a port
 // another subscriber holds is not.
 func (s *DistributionService) AssignONT(ontID, odpID uuid.UUID, port int) error {
+	if err := ValidateODPPort(s.db, odpID, port, ontID); err != nil {
+		return err
+	}
+	return s.db.Model(&models.ONT{}).Where("id = ?", ontID).
+		Updates(map[string]interface{}{"odp_id": odpID, "odp_port": port}).Error
+}
+
+// ValidateODPPort refuses a port that the box does not have, or that another
+// subscriber already occupies. Pass uuid.Nil as excluding when the ONT does not
+// exist yet, as it does not while an ONU is being registered.
+//
+// A racing pair of assignments can still both pass this; the composite unique
+// index on (odp_id, odp_port) is the final arbiter.
+func ValidateODPPort(db *gorm.DB, odpID uuid.UUID, port int, excluding uuid.UUID) error {
 	var odp models.ODP
-	if err := s.db.First(&odp, "id = ?", odpID).Error; err != nil {
+	if err := db.First(&odp, "id = ?", odpID).Error; err != nil {
 		return err
 	}
 	if port < 1 || port > odp.PortCount {
@@ -203,7 +217,7 @@ func (s *DistributionService) AssignONT(ontID, odpID uuid.UUID, port int) error 
 	}
 
 	var holder models.ONT
-	err := s.db.Where("odp_id = ? AND odp_port = ? AND id <> ?", odpID, port, ontID).
+	err := db.Where("odp_id = ? AND odp_port = ? AND id <> ?", odpID, port, excluding).
 		First(&holder).Error
 	if err == nil {
 		return fmt.Errorf("%w: port %d is taken by %s",
@@ -212,9 +226,7 @@ func (s *DistributionService) AssignONT(ontID, odpID uuid.UUID, port int) error 
 	if err != gorm.ErrRecordNotFound {
 		return err
 	}
-
-	return s.db.Model(&models.ONT{}).Where("id = ?", ontID).
-		Updates(map[string]interface{}{"odp_id": odpID, "odp_port": port}).Error
+	return nil
 }
 
 // UnassignONT takes a subscriber off its port, freeing it for someone else.
