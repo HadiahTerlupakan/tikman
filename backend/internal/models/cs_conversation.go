@@ -21,8 +21,10 @@ const (
 // allowed from the start, so adding a second number later to spread the load —
 // or to survive one number being blocked — costs a row rather than a migration.
 type WAAccount struct {
-	ID              uuid.UUID       `gorm:"type:uuid;primaryKey" json:"id"`
-	Label           string          `gorm:"type:varchar(100);not null" json:"label"`
+	ID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	Label string    `gorm:"type:varchar(100);not null" json:"label"`
+	// The column tag is load-bearing: GORM's naming strategy renders JID as
+	// "j_id", which is not the column the spec and every query name.
 	JID             string          `gorm:"column:jid;type:varchar(64)" json:"jid"`
 	Status          WAAccountStatus `gorm:"type:varchar(20);not null" json:"status"`
 	LastConnectedAt *time.Time      `json:"last_connected_at,omitempty"`
@@ -51,8 +53,10 @@ const (
 
 // CSConversation is one customer's thread on one WhatsApp number.
 type CSConversation struct {
-	ID             uuid.UUID          `gorm:"type:uuid;primaryKey" json:"id"`
-	WAAccountID    uuid.UUID          `gorm:"type:uuid;not null;uniqueIndex:uq_cs_conversations_peer,priority:1" json:"wa_account_id"`
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	WAAccountID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:uq_cs_conversations_peer,priority:1" json:"wa_account_id"`
+	// Same reason as WAAccount.JID: without the column tag GORM names this
+	// "customer_j_id", and FindOrCreate's lookup finds no such column.
 	CustomerJID    string             `gorm:"column:customer_jid;type:varchar(64);not null;uniqueIndex:uq_cs_conversations_peer,priority:2" json:"customer_jid"`
 	CustomerPhone  string             `gorm:"type:varchar(20);not null;index" json:"customer_phone"`
 	CustomerName   string             `gorm:"type:varchar(255)" json:"customer_name"`
