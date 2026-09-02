@@ -17,6 +17,7 @@ const state = {
   olts: [] as unknown[],
   odcs: [] as unknown[],
   odps: [] as unknown[],
+  feeds: [] as unknown[],
 };
 
 vi.mock("@/application/hooks", () => ({
@@ -24,6 +25,8 @@ vi.mock("@/application/hooks", () => ({
   useOlts: () => ({ data: state.olts, isLoading: false }),
   useOdcs: () => ({ data: state.odcs }),
   useOdps: () => ({ data: state.odps }),
+  useOdcFeeds: () => ({ data: state.feeds }),
+  useSetCableRoute: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 // The map itself needs a Google API to draw anything; OltMap has its own test.
@@ -43,6 +46,7 @@ describe("MapPage", () => {
     state.olts = [];
     state.odcs = [];
     state.odps = [];
+    state.feeds = [];
   });
 
   it("explains a missing key instead of rendering a broken map", () => {

@@ -49,6 +49,7 @@ const box = (over: Partial<Odp> = {}): Odp => ({
   address: "",
   notes: "",
   odcId: "odc-1",
+  routeMeters: 0,
   ...over,
 });
 

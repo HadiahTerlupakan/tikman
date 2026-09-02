@@ -34,6 +34,27 @@ export interface Odp {
   oltId?: string;
   slot?: number;
   portId?: number;
+  /** The traced path, absent when the map should draw the straight line. */
+  route?: RoutePoint[];
+  routeMeters: number;
+}
+
+/** One vertex of a cable's path. */
+export interface RoutePoint {
+  lat: number;
+  lng: number;
+}
+
+/** One PON port feeding a cabinet, with the path its feeder cable takes. */
+export interface OdcFeed {
+  id: string;
+  odcId: string;
+  oltId: string;
+  slot: number;
+  portId: number;
+  splitterOutputs: number;
+  route?: RoutePoint[];
+  routeMeters: number;
 }
 
 /** One PON port feeding a cabinet, as the form states it. */

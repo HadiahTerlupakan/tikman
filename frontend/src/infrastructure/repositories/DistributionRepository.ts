@@ -1,6 +1,13 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
-import type { CreateOdcDto, CreateOdpDto, Odc, Odp } from "@/domain/entities";
+import type {
+  CreateOdcDto,
+  CreateOdpDto,
+  Odc,
+  OdcFeed,
+  Odp,
+  RoutePoint,
+} from "@/domain/entities";
 import type { Ont } from "@/domain/entities";
 
 /**
@@ -20,6 +27,20 @@ export class DistributionRepository {
   async createOdc(data: CreateOdcDto): Promise<Odc> {
     const response = await apiClient.post(API_ENDPOINTS.ODCS, data);
     return response.data.data;
+  }
+
+  async listOdcFeeds(): Promise<OdcFeed[]> {
+    const response = await apiClient.get(API_ENDPOINTS.ODC_FEED_LIST);
+    return response.data.data ?? [];
+  }
+
+  /** An empty path hands the cable back to the straight line the map draws. */
+  async setOdpRoute(odpId: string, route: RoutePoint[]): Promise<void> {
+    await apiClient.put(API_ENDPOINTS.ODP_ROUTE(odpId), { route });
+  }
+
+  async setOdcFeedRoute(feedId: string, route: RoutePoint[]): Promise<void> {
+    await apiClient.put(API_ENDPOINTS.ODC_FEED_ROUTE(feedId), { route });
   }
 
   async listOdps(): Promise<Odp[]> {

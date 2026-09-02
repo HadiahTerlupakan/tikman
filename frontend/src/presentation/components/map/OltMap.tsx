@@ -12,6 +12,8 @@ import {
 import { OltStatus, type Odc, type Odp, type Olt } from "@/domain/entities";
 import { mappedOlts, type MappedOlt } from "./oltMapFilters";
 import { PlantLayer } from "./PlantLayer";
+import { CableLayer } from "./CableLayer";
+import type { CableSegment } from "./cableSegments";
 
 interface OltMapProps {
   apiKey: string;
@@ -22,6 +24,12 @@ interface OltMapProps {
   onSelectOdp?: (odp: Odp) => void;
   /** Where the operator clicked, when the map is being used to place plant. */
   onPlace?: (coordinates: { latitude: number; longitude: number }) => void;
+  /** The cables to draw, derived from the plant rather than stored as a list. */
+  cables?: CableSegment[];
+  selectedCableId?: string;
+  onSelectCable?: (segment: CableSegment) => void;
+  /** The path being traced right now, drawn over the cable it will replace. */
+  draft?: CableSegment;
 }
 
 // Indonesia, so an installation with no pins yet opens somewhere recognisable
@@ -69,6 +77,10 @@ export function OltMap({
   odps = [],
   onSelectOdp,
   onPlace,
+  cables = [],
+  selectedCableId,
+  onSelectCable,
+  draft,
 }: OltMapProps) {
   const [selected, setSelected] = useState<MappedOlt | null>(null);
   const pins = mappedOlts(olts);
@@ -95,6 +107,12 @@ export function OltMap({
             onClick={() => setSelected(olt)}
           />
         ))}
+
+        <CableLayer
+          segments={draft ? [...cables, draft] : cables}
+          selectedId={draft ? draft.id : selectedCableId}
+          onSelectCable={onSelectCable}
+        />
 
         <PlantLayer odcs={odcs} odps={odps} onSelectOdp={onSelectOdp} />
 

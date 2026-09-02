@@ -76,4 +76,7 @@ export const API_ENDPOINTS = {
   ODPS: "/api/v1/odps",
   ODP_SUBSCRIBERS: (id: string) => `/api/v1/odps/${id}/subscribers`,
   ONT_ODP: (id: string) => `/api/v1/onts/${id}/odp`,
+  ODC_FEED_LIST: "/api/v1/odc-feeds",
+  ODC_FEED_ROUTE: (id: string) => `/api/v1/odc-feeds/${id}/route`,
+  ODP_ROUTE: (id: string) => `/api/v1/odps/${id}/route`,
 } as const;

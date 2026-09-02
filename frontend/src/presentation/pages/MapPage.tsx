@@ -3,6 +3,7 @@ import { Alert, Button, Col, Row, Skeleton, Space, Tag } from "antd";
 import { Link } from "react-router-dom";
 import {
   useGoogleMapsKey,
+  useOdcFeeds,
   useOdcs,
   useOdps,
   useOlts,
@@ -18,14 +19,20 @@ import {
   type PlantKind,
 } from "../components/map/PlantFormModal";
 import type { Coordinates } from "../components/map/plantForm";
+import { cableSegments } from "../components/map/cableSegments";
+import { CableEditor } from "../components/map/CableEditor";
+import { useCableEditing } from "../components/map/useCableEditing";
 
 export default function MapPage() {
   const { key, isLoading: keyLoading } = useGoogleMapsKey();
   const { data: olts, isLoading: oltsLoading } = useOlts();
   const { data: odcs } = useOdcs();
   const { data: odps } = useOdps();
+  const { data: feeds } = useOdcFeeds();
   const [placing, setPlacing] = useState<PlantKind | null>(null);
   const [placed, setPlaced] = useState<Coordinates>();
+  const cable = useCableEditing();
+  const cables = cableSegments(olts, odcs, odps, feeds);
 
   const unmapped = unmappedOlts(olts);
 
@@ -54,27 +61,51 @@ export default function MapPage() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={17}>
             <DarkCard style={{ height: "100%" }}>
-              <Space style={{ marginBottom: 12 }}>
-                <Button onClick={() => setPlacing("odc")}>Tambah ODC</Button>
-                <Button onClick={() => setPlacing("odp")}>Tambah ODP</Button>
-                {placing && (
-                  <Tag color="green">
-                    Klik di peta untuk menaruh {placing.toUpperCase()}
-                  </Tag>
-                )}
-              </Space>
+              {cable.selected ? (
+                <CableEditor
+                  segment={cable.selected}
+                  drafting={cable.drafting}
+                  draftCount={cable.drawn.length}
+                  saving={cable.saving}
+                  onStartDraw={cable.startDraw}
+                  onSave={cable.saveDraft}
+                  onCancel={cable.close}
+                  onStraighten={cable.straighten}
+                />
+              ) : (
+                <Space wrap style={{ marginBottom: 12 }}>
+                  <Button onClick={() => setPlacing("odc")}>Tambah ODC</Button>
+                  <Button onClick={() => setPlacing("odp")}>Tambah ODP</Button>
+                  {placing && (
+                    <Tag color="green">
+                      Klik di peta untuk menaruh {placing.toUpperCase()}
+                    </Tag>
+                  )}
+                </Space>
+              )}
               <OltMap
                 apiKey={key}
                 olts={olts ?? []}
                 odcs={odcs ?? []}
                 odps={odps ?? []}
-                onPlace={
-                  placing
-                    ? (coordinates) => {
-                        setPlaced(coordinates);
-                      }
-                    : undefined
-                }
+                cables={cables}
+                selectedCableId={cable.selected?.id}
+                onSelectCable={cable.select}
+                draft={cable.draftSegment()}
+                // One click, three possible meanings, in the order that keeps
+                // each mode from stealing the other's clicks.
+                onPlace={(coordinates) => {
+                  if (cable.drafting) {
+                    cable.addPoint({
+                      lat: coordinates.latitude,
+                      lng: coordinates.longitude,
+                    });
+                    return;
+                  }
+                  if (placing) {
+                    setPlaced(coordinates);
+                  }
+                }}
               />
             </DarkCard>
           </Col>

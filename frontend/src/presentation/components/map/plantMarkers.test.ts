@@ -11,6 +11,7 @@ const box = (over: Partial<Odp> = {}): Odp => ({
   notes: "",
   latitude: -6.4,
   longitude: 106.8,
+  routeMeters: 0,
   ...over,
 });
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DistributionRepository } from "@/infrastructure/repositories";
-import type { CreateOdcDto, CreateOdpDto } from "@/domain/entities";
+import type { CreateOdcDto, CreateOdpDto, RoutePoint } from "@/domain/entities";
 
 const repository = new DistributionRepository();
 
@@ -58,6 +58,36 @@ export function useAssignOntToOdp() {
       // Occupancy moved, so the pin's colour has to move with it.
       queryClient.invalidateQueries({ queryKey: ["odps"] });
       queryClient.invalidateQueries({ queryKey: ["onts"] });
+    },
+  });
+}
+
+/** Every feeder, so the map can draw them all in one pass. */
+export function useOdcFeeds() {
+  return useQuery({
+    queryKey: ["odc-feeds"],
+    queryFn: () => repository.listOdcFeeds(),
+  });
+}
+
+/**
+ * Records the path a cable takes. An empty path hands it back to the straight
+ * line, which is what choosing "automatic" means.
+ */
+export function useSetCableRoute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      kind: "feeder" | "distribution";
+      id: string;
+      route: RoutePoint[];
+    }) =>
+      vars.kind === "feeder"
+        ? repository.setOdcFeedRoute(vars.id, vars.route)
+        : repository.setOdpRoute(vars.id, vars.route),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["odps"] });
+      queryClient.invalidateQueries({ queryKey: ["odc-feeds"] });
     },
   });
 }
