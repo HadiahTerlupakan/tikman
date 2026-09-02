@@ -19,5 +19,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&AppSetting{},
 		&OLTPollJob{},
 		&ONTTrapEvent{},
+		&ODC{},
+		&ODCFeed{},
+		&ODP{},
 	)
 }

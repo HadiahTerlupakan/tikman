@@ -43,15 +43,20 @@ type ONT struct {
 	// The index is partial because the inventory walk does not report a serial
 	// for every ONU. A plain unique index makes "" a value, and then only one
 	// serial-less ONT can exist in the whole table.
-	SerialNumber         string     `gorm:"type:varchar(20);not null;uniqueIndex:idx_onts_serial_number,where:serial_number <> ''" json:"serial_number"`
-	Name                 string     `gorm:"type:varchar(255)" json:"name"`
-	Description          string     `gorm:"type:varchar(255)" json:"description"`
-	Status               ONTStatus  `gorm:"type:varchar(20);index" json:"status"`
-	DeviceType           string     `gorm:"type:varchar(100)" json:"device_type,omitempty"`
-	HardwareVersion      string     `gorm:"type:varchar(50)" json:"hardware_version,omitempty"`
-	SoftwareVersion      string     `gorm:"type:varchar(50)" json:"software_version,omitempty"`
-	IPAddress            string     `gorm:"type:varchar(45)" json:"ip_address,omitempty"`
-	MACAddress           string     `gorm:"type:varchar(17)" json:"mac_address,omitempty"`
+	SerialNumber    string    `gorm:"type:varchar(20);not null;uniqueIndex:idx_onts_serial_number,where:serial_number <> ''" json:"serial_number"`
+	Name            string    `gorm:"type:varchar(255)" json:"name"`
+	Description     string    `gorm:"type:varchar(255)" json:"description"`
+	Status          ONTStatus `gorm:"type:varchar(20);index" json:"status"`
+	DeviceType      string    `gorm:"type:varchar(100)" json:"device_type,omitempty"`
+	HardwareVersion string    `gorm:"type:varchar(50)" json:"hardware_version,omitempty"`
+	SoftwareVersion string    `gorm:"type:varchar(50)" json:"software_version,omitempty"`
+	IPAddress       string    `gorm:"type:varchar(45)" json:"ip_address,omitempty"`
+	MACAddress      string    `gorm:"type:varchar(17)" json:"mac_address,omitempty"`
+	// Where this subscriber's drop cable lands. Operator knowledge, not
+	// something the OLT can report, so discovery never writes these: see
+	// discoveryUpdates, which only sets the columns a walk actually knows.
+	ODPID                *uuid.UUID `gorm:"type:uuid;uniqueIndex:uq_onts_odp_port,priority:1" json:"odp_id,omitempty"`
+	ODPPort              *int       `gorm:"uniqueIndex:uq_onts_odp_port,priority:2" json:"odp_port,omitempty"`
 	RxPower              *float64   `gorm:"type:decimal(10,2)" json:"rx_power"`                     // Receiving optical power in dBm (nullable: null means no signal)
 	TxPower              *float64   `gorm:"type:decimal(10,2)" json:"tx_power"`                     // Transmitting optical power in dBm (nullable: null means no signal)
 	Distance             int        `gorm:"default:0" json:"distance"`                              // GPON optical distance in meters
