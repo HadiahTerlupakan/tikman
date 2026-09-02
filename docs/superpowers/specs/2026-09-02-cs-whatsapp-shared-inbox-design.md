@@ -278,6 +278,19 @@ Prinsipnya: tidak ada kegagalan yang diam.
 | Redis mati | Penyapu database tetap bekerja; inbox benar, terlambat sampai 30 detik |
 | Nomor cocok ke dua ONT | Dicegah indeks unik parsial; penautan kedua ditolak dengan pesan jelas |
 
+Satu sifat yang dipilih secara sadar: outbox ini **at-least-once**, bukan
+exactly-once. Hanya satu pengurasan berjalan pada satu waktu, sehingga dua
+pemicu — sapuan berkala dan pengumuman saat CS menekan kirim — tidak pernah
+mengambil baris yang sama. Tetapi bila proses mati setelah WhatsApp menerima
+sebuah pesan dan sebelum statusnya sempat dicatat, pesan itu akan terkirim ulang
+saat proses hidup lagi.
+
+Itu pilihan, bukan kelalaian. Menutupnya berarti menambah status "sedang
+dikirim" beserta penyapu untuk baris yang tersangkut di sana — dan baris yang
+tersangkut adalah balasan yang diam-diam tidak pernah sampai. Kami menukar
+duplikat yang bisa dilihat pelanggan dengan kehilangan yang tidak bisa dilihat
+siapa pun, dan menolak arah sebaliknya.
+
 ## 13. Retensi
 
 Media lebih tua dari 90 hari dihapus beserta jalurnya di database oleh tugas

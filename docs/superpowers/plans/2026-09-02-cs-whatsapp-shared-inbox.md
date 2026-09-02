@@ -2386,6 +2386,7 @@ package wa
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -2398,11 +2399,14 @@ import (
 )
 
 type fakeSender struct {
+	mu   sync.Mutex
 	sent []string
 	err  error
 }
 
 func (f *fakeSender) SendText(_ context.Context, _, body string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return "", f.err
 	}
@@ -2411,6 +2415,8 @@ func (f *fakeSender) SendText(_ context.Context, _, body string) (string, error)
 }
 
 func (f *fakeSender) SendMedia(_ context.Context, _ string, _ models.MessageKind, path, _, _, _ string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.err != nil {
 		return "", f.err
 	}
@@ -2490,6 +2496,30 @@ func TestDrainDoesNotSendTheSameMessageTwice(t *testing.T) {
 
 	assert.Len(t, sender.sent, 1)
 }
+
+// Two things call Drain: the thirty-second ticker and the Redis announcement
+// that a CS just hit send. If they overlap, ClaimQueued hands both the same row
+// and the customer receives the reply twice.
+func TestConcurrentDrainsSendAReplyOnce(t *testing.T) {
+	_, messages, conversations, conv := drainSetup(t)
+	sender := &fakeSender{}
+	drainer := NewDrainer(messages, conversations, sender, t.TempDir(), 0)
+
+	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = drainer.Drain(context.Background(), 10)
+		}()
+	}
+	wg.Wait()
+
+	assert.Len(t, sender.sent, 1, "one queued reply reaches WhatsApp exactly once")
+}
 ```
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
@@ -2530,6 +2560,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -2537,7 +2568,19 @@ import (
 )
 
 // Drainer sends the replies waiting in the outbox.
+//
+// Only one drain runs at a time. Two things call it — the periodic sweep and
+// the announcement that a CS just hit send — and ClaimQueued reads rows without
+// locking them, so overlapping drains would hand both the same row and the
+// customer would receive the reply twice.
+//
+// This still leaves the outbox at-least-once: a crash after WhatsApp accepts a
+// message but before MarkSent records it will resend on restart. That trade is
+// deliberate. Closing it would mean an in-flight status plus a reaper for rows
+// stranded in it, and a stranded row is a reply that silently never arrives —
+// trading a duplicate the customer can see for a loss nobody can.
 type Drainer struct {
+	mu            sync.Mutex
 	messages      *services.CSMessageService
 	conversations *services.CSConversationService
 	sender        Sender
@@ -2569,6 +2612,9 @@ func NewDrainer(
 // WhatsApp refuses is recorded with its reason and the drain continues: one bad
 // number must not hold up every other customer's reply.
 func (d *Drainer) Drain(ctx context.Context, limit int) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	waiting, err := d.messages.ClaimQueued(limit)
 	if err != nil {
 		return 0, err
