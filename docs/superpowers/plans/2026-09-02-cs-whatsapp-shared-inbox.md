@@ -2435,6 +2435,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -2443,36 +2444,52 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type fakeSender struct {
 	mu   sync.Mutex
 	sent []string
 	err  error
+	// failOn refuses exactly one message body, so a drain can be watched
+	// carrying on past a number WhatsApp will not accept.
+	failOn string
+	// delay holds a send open. Without it the goroutines in the concurrency
+	// test finish before they can overlap, and the test passes whether the
+	// drain lock is there or not — proving nothing.
+	delay time.Duration
+}
+
+// The sleep sits outside the lock on purpose: taking it first would serialise
+// the fake itself and hide the very overlap the test is trying to create.
+func (f *fakeSender) send(record string, fail bool) (string, error) {
+	if f.delay > 0 {
+		time.Sleep(f.delay)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return "", f.err
+	}
+	if fail {
+		return "", errors.New("nomor tidak terdaftar di WhatsApp")
+	}
+	f.sent = append(f.sent, record)
+	return "3EB0" + record, nil
 }
 
 func (f *fakeSender) SendText(_ context.Context, _, body string) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return "", f.err
-	}
-	f.sent = append(f.sent, body)
-	return "3EB0" + body, nil
+	return f.send(body, f.failOn != "" && body == f.failOn)
 }
 
 func (f *fakeSender) SendMedia(_ context.Context, _ string, _ models.MessageKind, path, _, _, _ string) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return "", f.err
-	}
-	f.sent = append(f.sent, path)
-	return "3EB0MEDIA", nil
+	return f.send(path, false)
 }
 
 func drainSetup(t *testing.T) (*gorm.DB, *services.CSMessageService, *services.CSConversationService, *models.CSConversation) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// Logger discarded: FindOrCreate's first lookup is an expected miss, and
+	// GORM logs every one of them as an error, burying real failures in noise.
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
 
@@ -2526,6 +2543,34 @@ func TestDrainRecordsWhyAMessageCouldNotBeSent(t *testing.T) {
 	assert.Contains(t, history[0].FailReason, "nomor tidak terdaftar")
 }
 
+// One number WhatsApp refuses must not hold up every other customer's reply.
+func TestDrainKeepsGoingPastAMessageWhatsAppRefuses(t *testing.T) {
+	_, messages, conversations, conv := drainSetup(t)
+	sender := &fakeSender{failOn: "kedua"}
+
+	for _, body := range []string{"pertama", "kedua", "ketiga"} {
+		_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, body, nil)
+		require.NoError(t, err)
+	}
+
+	n, err := NewDrainer(messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, n)
+	assert.Equal(t, []string{"pertama", "ketiga"}, sender.sent,
+		"the refusal in the middle does not swallow the message behind it")
+
+	history, err := messages.History(conv.ID, 10, 0)
+	require.NoError(t, err)
+	byBody := map[string]models.MessageStatus{}
+	for _, msg := range history {
+		byBody[msg.Body] = msg.Status
+	}
+	assert.Equal(t, models.MessageSent, byBody["pertama"])
+	assert.Equal(t, models.MessageFailed, byBody["kedua"])
+	assert.Equal(t, models.MessageSent, byBody["ketiga"])
+}
+
 // Draining twice must not send the same reply twice: a customer receiving the
 // same answer repeatedly is worse than a slow answer.
 func TestDrainDoesNotSendTheSameMessageTwice(t *testing.T) {
@@ -2549,7 +2594,9 @@ func TestDrainDoesNotSendTheSameMessageTwice(t *testing.T) {
 // and the customer receives the reply twice.
 func TestConcurrentDrainsSendAReplyOnce(t *testing.T) {
 	_, messages, conversations, conv := drainSetup(t)
-	sender := &fakeSender{}
+	// The delay is what gives the goroutines room to overlap. Without it they
+	// finish one after another and the test passes even with the lock removed.
+	sender := &fakeSender{delay: 20 * time.Millisecond}
 	drainer := NewDrainer(messages, conversations, sender, t.TempDir(), 0)
 
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
