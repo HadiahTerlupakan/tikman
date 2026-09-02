@@ -31,22 +31,36 @@ func TestOnlyAdminMayConnectANumber(t *testing.T) {
 	}
 }
 
-// Listing accounts and cutting one off are the same admin-only decision as
-// connecting one — this covers the two routes the connect test above does not.
-func TestOnlyAdminMayListOrDisconnectAccounts(t *testing.T) {
+// Cutting a number off is the same admin-only decision as connecting one —
+// this covers the one route the connect test above does not.
+func TestOnlyAdminMayDisconnectAnAccount(t *testing.T) {
 	env := setupCSHandler(t)
 
-	requests := map[string]*http.Request{
-		"list":       httptest.NewRequest(http.MethodGet, "/api/v1/cs/wa-accounts", nil),
-		"disconnect": httptest.NewRequest(http.MethodPost, "/api/v1/cs/wa-accounts/"+env.account.ID.String()+"/disconnect", nil),
+	for _, role := range []models.UserRole{models.UserRoleCS, models.UserRoleTechnician, models.UserRoleViewer} {
+		req := httptest.NewRequest(http.MethodPost,
+			"/api/v1/cs/wa-accounts/"+env.account.ID.String()+"/disconnect", nil)
+		rec := httptest.NewRecorder()
+		env.asUser(uuid.New(), role).ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusForbidden, rec.Code, string(role))
 	}
+}
 
-	for name, req := range requests {
-		for _, role := range []models.UserRole{models.UserRoleCS, models.UserRoleTechnician, models.UserRoleViewer} {
-			rec := httptest.NewRecorder()
-			env.asUser(uuid.New(), role).ServeHTTP(rec, req)
-			assert.Equal(t, http.StatusForbidden, rec.Code, name+" "+string(role))
-		}
+// Reading the account list is not the same decision as changing it: a CS or
+// technician who cannot see whether the number is connected has no way to
+// know their replies are not going out. Viewer stays out — the whole /cs
+// group is closed to that role, this is not a wa-accounts-specific check.
+func TestCSAndTechnicianMayListAccountsButViewerMayNot(t *testing.T) {
+	env := setupCSHandler(t)
+
+	for role, want := range map[models.UserRole]int{
+		models.UserRoleCS:         http.StatusOK,
+		models.UserRoleTechnician: http.StatusOK,
+		models.UserRoleViewer:     http.StatusForbidden,
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/wa-accounts", nil)
+		rec := httptest.NewRecorder()
+		env.asUser(uuid.New(), role).ServeHTTP(rec, req)
+		assert.Equal(t, want, rec.Code, string(role))
 	}
 }
 

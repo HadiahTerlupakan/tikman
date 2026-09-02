@@ -9,6 +9,10 @@ interface WaPairingModalProps {
   onClose: () => void;
   status?: WaAccountStatus;
   pairingCode?: string;
+  /** Undefined while the account list is still loading. Sambungkan stays
+   * disabled until this exists — clicking it before that silently did
+   * nothing, since there was no account id to connect. */
+  accountId?: string;
   connecting: boolean;
   onConnect: (phone: string) => void;
 }
@@ -23,6 +27,7 @@ export function WaPairingModal({
   onClose,
   status,
   pairingCode,
+  accountId,
   connecting,
   onConnect,
 }: WaPairingModalProps) {
@@ -63,7 +68,7 @@ export function WaPairingModal({
             type="primary"
             block
             loading={connecting}
-            disabled={!phone.trim()}
+            disabled={!phone.trim() || !accountId}
             onClick={() => onConnect(phone.trim())}
           >
             Sambungkan

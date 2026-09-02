@@ -44,7 +44,10 @@ export function CsInboxPage() {
   const historyQuery = useCsHistory(selectedId);
   const usersQuery = useUsers();
   const quickRepliesQuery = useCsQuickReplies();
-  const accountsQuery = useWaAccounts(isAdmin);
+  // Reading the account list is open to the whole inbox team, not just an
+  // admin — a connection down for hours produces no live SSE event, so this
+  // initial fetch is what makes the badge honest for a CS or technician too.
+  const accountsQuery = useWaAccounts();
 
   const sendMessage = useSendCsMessage();
   const assignConversation = useAssignConversation();
@@ -166,6 +169,7 @@ export function CsInboxPage() {
           onClose={() => setPairingOpen(false)}
           status={connectionStatus}
           pairingCode={pairingCode}
+          accountId={account?.id}
           connecting={connectAccount.isPending}
           onConnect={(phone) =>
             account && connectAccount.mutate({ id: account.id, phone })

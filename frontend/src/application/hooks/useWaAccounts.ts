@@ -4,15 +4,16 @@ import { CsRepository } from "@/infrastructure/repositories";
 const csRepository = new CsRepository();
 
 /**
- * The WhatsApp numbers the team answers from. Listing them is admin-only on
- * the backend, so callers gate this on the current user's role — a non-admin
- * calling it just gets a 403, not "no accounts".
+ * The WhatsApp numbers the team answers from. Reading this list is open to
+ * everyone the CS inbox is open to — a connection that has been down for
+ * hours produces no live event to tell a non-admin about it, so the initial
+ * fetch is what makes the badge honest for them too. Only connecting or
+ * disconnecting a number stays admin-only (see useConnectWaAccount).
  */
-export function useWaAccounts(enabled: boolean) {
+export function useWaAccounts() {
   return useQuery({
     queryKey: ["cs", "wa-accounts"],
     queryFn: () => csRepository.listWaAccounts(),
-    enabled,
   });
 }
 

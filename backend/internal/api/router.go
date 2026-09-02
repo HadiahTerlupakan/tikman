@@ -238,7 +238,10 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.PUT("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.UpdateQuickReply)
 			cs.DELETE("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.DeleteQuickReply)
 
-			cs.GET("/wa-accounts", middleware.RequireRole(models.UserRoleAdmin), csHandler.ListAccounts)
+			// Reading the number's state is not an admin matter the way pairing or
+			// disconnecting it is: the whole team answering that number needs to know
+			// whether their replies are actually going out.
+			cs.GET("/wa-accounts", csHandler.ListAccounts)
 			cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Connect)
 			cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Disconnect)
 		}

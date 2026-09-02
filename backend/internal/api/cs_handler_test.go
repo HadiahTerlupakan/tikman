@@ -111,7 +111,7 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.PUT("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), e.handler.UpdateQuickReply)
 		cs.DELETE("/quick-replies/:id", middleware.RequireRole(models.UserRoleAdmin), e.handler.DeleteQuickReply)
 
-		cs.GET("/wa-accounts", middleware.RequireRole(models.UserRoleAdmin), e.handler.ListAccounts)
+		cs.GET("/wa-accounts", e.handler.ListAccounts)
 		cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Connect)
 		cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Disconnect)
 	}
