@@ -98,9 +98,7 @@ func main() {
 		logger.Fatal("Failed to open the WhatsApp session store", zap.Error(err))
 	}
 
-	if err := client.Connect(ctx); err != nil {
-		logger.Fatal("Failed to connect to WhatsApp", zap.Error(err))
-	}
+	client.Connect(ctx)
 	defer client.Disconnect()
 
 	// One Drainer, shared by both callers. The lock that stops two drains from
@@ -109,7 +107,7 @@ func main() {
 	drainer := wa.NewDrainer(messages, conversations, client, cfg.WAMediaDir,
 		time.Duration(cfg.WASendIntervalMS)*time.Millisecond)
 
-	go controlLoop(ctx, redisClient, client, account.ID, logger)
+	go controlLoop(ctx, redisClient, client, account.ID, stop, logger)
 	go drainOnAnnouncement(ctx, redisClient, drainer, logger)
 	go every(ctx, max(time.Duration(cfg.WADrainIntervalSeconds)*time.Second, time.Second), func() {
 		drainOutbox(ctx, drainer, logger)
@@ -148,7 +146,7 @@ func firstAccount(db *gorm.DB) (models.WAAccount, error) {
 // channel is shared by every wa process the way wa.OutboxChannel is, so a
 // message naming a different account is ignored rather than acted on by the
 // wrong session.
-func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Client, accountID uuid.UUID, logger *zap.Logger) {
+func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Client, accountID uuid.UUID, stop context.CancelFunc, logger *zap.Logger) {
 	sub := redisClient.Subscribe(ctx, wa.ControlChannel)
 	defer func() {
 		_ = sub.Close()
@@ -163,7 +161,7 @@ func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Clie
 			if !open {
 				return
 			}
-			applyControl(ctx, msg.Payload, client, accountID, logger)
+			applyControl(ctx, msg.Payload, client, accountID, stop, logger)
 		}
 	}
 }
@@ -171,7 +169,7 @@ func controlLoop(ctx context.Context, redisClient *redis.Client, client *wa.Clie
 // applyControl decodes and acts on one control message. A malformed message
 // or an action naming another account is logged and dropped, never fatal —
 // nothing here can take the process down over an admin click.
-func applyControl(ctx context.Context, payload string, client *wa.Client, accountID uuid.UUID, logger *zap.Logger) {
+func applyControl(ctx context.Context, payload string, client *wa.Client, accountID uuid.UUID, stop context.CancelFunc, logger *zap.Logger) {
 	var msg wa.ControlMessage
 	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 		logger.Warn("Could not decode a WhatsApp control message", zap.Error(err))
@@ -189,7 +187,22 @@ func applyControl(ctx context.Context, payload string, client *wa.Client, accoun
 	case wa.ControlDisconnect:
 		if err := client.Unpair(ctx); err != nil {
 			logger.Error("Could not disconnect the WhatsApp session", zap.Error(err))
+			return
 		}
+		// whatsmeow's Logout deletes the on-disk device (Store.Delete), and
+		// every later Connect on a deleted device fails immediately with
+		// store.ErrDeviceDeleted — there is no in-process way back to a
+		// pairable state. Exiting cleanly here and letting Compose's
+		// restart: unless-stopped bring the process back gives it a fresh
+		// store from GetFirstDevice, which is exactly what pairing needs.
+		// Rebuilding the client in place would mean re-registering handlers
+		// and restarting the supervisor by hand for the same result, and
+		// there is nothing to lose in the meantime: the number is
+		// disconnected either way. This is a deliberate, graceful shutdown
+		// via the same context Connect and the signal handler already share
+		// — not a crash.
+		logger.Info("WhatsApp session logged out; exiting so the container restarts with a fresh, pairable session")
+		stop()
 	default:
 		logger.Warn("Unknown WhatsApp control action", zap.String("action", msg.Action))
 	}

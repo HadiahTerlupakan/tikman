@@ -43,6 +43,12 @@ const qrWaitTimeout = 5 * time.Second
 func (c *Client) Pair(ctx context.Context, phone string) error {
 	if !c.NeedsPairing() {
 		if !c.wa.IsConnected() {
+			// The row still says "pairing" (the API wrote that before this
+			// call even reached the wa process) or whatever it said before a
+			// drop. Disconnected is true at this instant, and it clears
+			// itself on the next events.Connected — an admin must not be
+			// left watching a spinner that nothing is working toward.
+			c.setStatus(ctx, models.WAAccountDisconnected)
 			c.signalDropped()
 			return nil
 		}

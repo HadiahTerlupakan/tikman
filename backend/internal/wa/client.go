@@ -114,7 +114,14 @@ func (c *Client) NeedsPairing() bool {
 }
 
 // Connect opens the session and keeps it open for as long as ctx lives.
-func (c *Client) Connect(ctx context.Context) error {
+// Nothing here is fatal, paired or not: supervise waits for a pairing to
+// succeed instead of exiting when the store has no device (see supervise),
+// so there is always something alive to recover — reconnect() finding the
+// network again, or an admin pairing later through the control channel this
+// same process is about to start listening on. Crashing here over what is
+// usually a boot-time network hiccup would tear that listener down before it
+// ever started.
+func (c *Client) Connect(ctx context.Context) {
 	c.ctx = ctx
 	// This is the context whatsmeow runs its own background work under — the
 	// keepalive and handler loops among it — so shutting the process down stops
@@ -124,11 +131,6 @@ func (c *Client) Connect(ctx context.Context) error {
 	go c.supervise(ctx)
 
 	if err := c.wa.Connect(); err != nil {
-		if c.NeedsPairing() {
-			// There is no session for the supervisor to put back, and it exits
-			// as soon as it sees that. Refusing to start is the honest answer.
-			return err
-		}
 		// A network hiccup at boot must not become a restart loop: exiting here
 		// would let the container manager retry faster, and harder, than the
 		// backoff this process was given to protect the number.
@@ -137,7 +139,6 @@ func (c *Client) Connect(ctx context.Context) error {
 		c.setStatus(ctx, models.WAAccountDisconnected)
 		c.signalDropped()
 	}
-	return nil
 }
 
 // Disconnect closes the session without giving up the pairing.
@@ -166,6 +167,12 @@ func (c *Client) route(rawEvt any) {
 		// the store now has a device, so the supervisor no longer needs to
 		// wait for one.
 		c.signalPaired()
+	case *events.PairError:
+		// The phone approved, but whatsmeow could not finish pairing locally.
+		// Nothing else clears the "pairing" row the API wrote before this —
+		// PairSuccess never fired, so signalPaired never will either.
+		c.logger.Error("WhatsApp pairing failed after the phone approved", zap.Error(evt.Error))
+		c.setStatus(c.ctx, models.WAAccountDisconnected)
 	case *events.Connected:
 		c.setStatus(c.ctx, models.WAAccountConnected)
 	case *events.Disconnected:
