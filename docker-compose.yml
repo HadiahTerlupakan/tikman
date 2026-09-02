@@ -93,12 +93,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile.wa
     container_name: tikman-wa
+    # container_name is what makes this the inverse of worker: Compose refuses
+    # --scale on a service that has one, so this is the setting that keeps
+    # two processes from ever sharing one WhatsApp session.
+    #
     # Deliberately not network_mode: service:api. That namespace carries wg0,
     # and restarting api would take the WhatsApp session down with it — repeated
     # reconnects are exactly the pattern that gets an unofficial number flagged.
-    #
-    # Deliberately not scalable either: two processes on one WhatsApp session is
-    # the fastest way to lose the number.
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -109,6 +110,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SESSION_SECRET=${SESSION_SECRET}
       - LOG_LEVEL=info
       - WA_MEDIA_DIR=/data/cs-media
       - WA_SEND_INTERVAL_MS=${WA_SEND_INTERVAL_MS:-1200}
