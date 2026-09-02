@@ -140,12 +140,23 @@ func (h *CSHandler) refuseNotHolder(c *gin.Context, convID uuid.UUID, err error,
 // truth here — the message is already stored — so a failure to publish either
 // is logged and never fails the request; the sweep still picks the reply up.
 func (h *CSHandler) announce(ctx context.Context, convID, msgID uuid.UUID) {
-	event := wa.Event{Type: wa.EventMessage, ConversationID: convID.String(), MessageID: msgID.String()}
-	if err := h.publisher.Publish(ctx, event); err != nil {
-		h.logger.Warn("publish cs event failed", zap.Error(err))
-	}
+	h.announceEvent(ctx, wa.Event{
+		Type:           wa.EventMessage,
+		ConversationID: convID.String(),
+		MessageID:      msgID.String(),
+	})
 	if err := h.redis.Publish(ctx, wa.OutboxChannel, "").Err(); err != nil {
 		h.logger.Warn("publish cs outbox notice failed", zap.Error(err))
+	}
+}
+
+// announceEvent nudges the other browsers and stops there. A change that puts
+// nothing in the outbox — a takeover, a close, an ONT link, a thread being
+// read — must not also wake the wa process to drain a queue with nothing new
+// in it.
+func (h *CSHandler) announceEvent(ctx context.Context, event wa.Event) {
+	if err := h.publisher.Publish(ctx, event); err != nil {
+		h.logger.Warn("publish cs event failed", zap.Error(err))
 	}
 }
 

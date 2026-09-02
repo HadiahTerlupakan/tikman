@@ -145,6 +145,14 @@ func (h *CSHandler) Assign(c *gin.Context) {
 		mapCSError(c, err, "ASSIGN_FAILED")
 		return
 	}
+
+	// The other agents have to learn about a takeover from something other
+	// than their next refetch: until they do, two of them are answering one
+	// customer, which is the collision this whole module exists to remove.
+	h.announceEvent(c.Request.Context(), wa.Event{
+		Type:           wa.EventAssignment,
+		ConversationID: convID.String(),
+	})
 	c.JSON(http.StatusOK, gin.H{"data": after})
 }
 
@@ -199,6 +207,11 @@ func (h *CSHandler) SetStatus(c *gin.Context) {
 		mapCSError(c, err, "SET_STATUS_FAILED")
 		return
 	}
+
+	h.announceEvent(c.Request.Context(), wa.Event{
+		Type:           wa.EventStatus,
+		ConversationID: convID.String(),
+	})
 	c.JSON(http.StatusOK, gin.H{"data": conv})
 }
 
@@ -240,5 +253,9 @@ func (h *CSHandler) LinkONT(c *gin.Context) {
 		phoneRecorded = recorded
 	}
 
+	h.announceEvent(c.Request.Context(), wa.Event{
+		Type:           wa.EventStatus,
+		ConversationID: convID.String(),
+	})
 	c.JSON(http.StatusOK, gin.H{"data": conv, "phone_recorded": phoneRecorded})
 }
