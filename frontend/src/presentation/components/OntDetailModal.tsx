@@ -10,6 +10,7 @@ import { ontAddressLabel } from "./ontAddress";
 import { ontStatusColor, ontStatusLabel } from "./ontStatus";
 import { OntOpticalTab } from "./ont-detail/OntOpticalTab";
 import { OntTrafficTab } from "./ont-detail/OntTrafficTab";
+import { OntOdpPanel } from "./onts/OntOdpPanel";
 
 interface OntWithMetrics extends Ont {
   metrics?: {
@@ -57,6 +58,11 @@ export function OntDetailModal({ ont, visible, onClose }: OntDetailModalProps) {
   );
 
   const tabItems = [
+    {
+      key: "odp",
+      label: "ODP",
+      children: <OntOdpPanel ont={ont} />,
+    },
     {
       key: "basic",
       label: "Basic Info",

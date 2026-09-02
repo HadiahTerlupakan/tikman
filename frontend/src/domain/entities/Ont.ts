@@ -22,6 +22,9 @@ export interface Ont {
   softwareVersion?: string;
   ipAddress?: string;
   macAddress?: string;
+  /** Where this subscriber's drop lands. Operator knowledge; the OLT has none. */
+  odpId?: string;
+  odpPort?: number;
   lastSeenAt: string | null;
   createdAt: string;
   updatedAt: string;
