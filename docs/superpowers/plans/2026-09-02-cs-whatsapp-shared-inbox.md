@@ -3261,6 +3261,31 @@ func TestOnlyAdminMayChangeQuickReplies(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+// The service answers gorm.ErrRecordNotFound for a template that is not there,
+// and the handler must turn that into a 404. A 500 would send an admin hunting
+// a fault that does not exist.
+func TestUpdatingAQuickReplyThatIsNotThereAnswers404(t *testing.T) {
+	env := setupCSHandler(t)
+
+	body := strings.NewReader(`{"title":"Cek LOS","body":"Mohon cek lampu LOS."}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/cs/quick-replies/"+uuid.New().String(), body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	env.asUser(uuid.New(), models.UserRoleAdmin).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestDeletingAQuickReplyThatIsNotThereAnswers404(t *testing.T) {
+	env := setupCSHandler(t)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/cs/quick-replies/"+uuid.New().String(), nil)
+	rec := httptest.NewRecorder()
+	env.asUser(uuid.New(), models.UserRoleAdmin).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 // Reading them is not an admin matter: a CS who cannot read the templates
 // cannot use them.
 func TestAnyoneInTheInboxMayReadQuickReplies(t *testing.T) {
