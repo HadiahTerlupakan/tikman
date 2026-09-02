@@ -17,3 +17,4 @@ export * from "./useDistribution";
 export * from "./useCsInbox";
 export * from "./useCsStream";
 export * from "./useCsQuickReplies";
+export * from "./useWaAccounts";

@@ -1,11 +1,12 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
-import type { ICsRepository } from "@/domain/repositories";
+import type { ICsRepository, LinkOntResult } from "@/domain/repositories";
 import type {
   CsConversation,
   CsConversationFilter,
   CsMessage,
   CsQuickReply,
+  WaAccount,
 } from "@/domain/entities";
 
 /**
@@ -77,16 +78,34 @@ export class CsRepository implements ICsRepository {
   async linkOnt(
     conversationId: string,
     ontId: string | null,
-  ): Promise<CsConversation> {
+  ): Promise<LinkOntResult> {
     const response = await apiClient.put(
       API_ENDPOINTS.CS_LINK_ONT(conversationId),
       { ontId },
     );
-    return response.data.data;
+    return {
+      conversation: response.data.data,
+      phoneRecorded: response.data.phoneRecorded,
+    };
   }
 
   async getQuickReplies(): Promise<CsQuickReply[]> {
     const response = await apiClient.get(API_ENDPOINTS.CS_QUICK_REPLIES);
     return response.data.data ?? [];
+  }
+
+  async listWaAccounts(): Promise<WaAccount[]> {
+    const response = await apiClient.get(API_ENDPOINTS.CS_WA_ACCOUNTS);
+    return response.data.data ?? [];
+  }
+
+  async connectWaAccount(
+    id: string,
+    phone: string,
+  ): Promise<{ status: string }> {
+    const response = await apiClient.post(API_ENDPOINTS.CS_WA_CONNECT(id), {
+      phone,
+    });
+    return response.data.data;
   }
 }

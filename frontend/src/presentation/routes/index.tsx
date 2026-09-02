@@ -14,6 +14,7 @@ import OntsPage from "../pages/OntListPage";
 import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
 import TroubledOntsPage from "../pages/TroubledOntsPage";
 import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
+import CsInboxPage from "../pages/CsInboxPage";
 import VpnPage from "../pages/VpnPage";
 import SettingsPage from "../pages/SettingsPage";
 import NotFoundPage from "../pages/NotFound";
@@ -75,6 +76,10 @@ export const router = createBrowserRouter([
           {
             path: "config-templates",
             element: <ConfigTemplatesPage />,
+          },
+          {
+            path: "cs",
+            element: <CsInboxPage />,
           },
           {
             path: "vpn",

@@ -14,10 +14,16 @@ export function useOnts(params?: {
   endTime?: string;
   limit?: number;
   offset?: number;
+  // Lets an on-demand search (e.g. linking an ONT from the CS inbox) skip the
+  // fetch until there is something worth searching for, instead of always
+  // pulling the whole list the way the ONT monitoring page needs to.
+  enabled?: boolean;
 }) {
+  const { enabled = true, ...queryParams } = params ?? {};
   return useQuery({
-    queryKey: ["onts", params],
-    queryFn: () => ontRepository.getAll(params),
+    queryKey: ["onts", queryParams],
+    queryFn: () => ontRepository.getAll(queryParams),
+    enabled,
     refetchInterval: 15000, // Refresh every 15 seconds for real-time status
     refetchIntervalInBackground: true, // Always refetch even when tab is not focused
     refetchOnWindowFocus: true, // Refetch when window regains focus

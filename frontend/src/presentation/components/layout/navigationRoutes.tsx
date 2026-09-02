@@ -11,6 +11,7 @@ import {
   CloudServerOutlined,
   SettingOutlined,
   GlobalOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { UserRole } from "@/domain/entities";
@@ -48,6 +49,7 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     },
     { path: "/graphs", name: "Graphs", icon: <BarChartOutlined /> },
     { path: "/vpn", name: "VPN", icon: <CloudServerOutlined /> },
+    { path: "/cs", name: "CS Inbox", icon: <MessageOutlined /> },
     ...(role === UserRole.ADMIN
       ? [
           { path: "/users", name: "Users", icon: <UserOutlined /> },

@@ -63,7 +63,11 @@ export function useSetConversationStatus() {
   });
 }
 
-/** Ties a thread to a subscriber's ONT, or unties it when ontId is null. */
+/**
+ * Ties a thread to a subscriber's ONT, or unties it when ontId is null.
+ * The result also says whether the customer's number reached the ONT row —
+ * it does not when that phone is already recorded on a different ONT.
+ */
 export function useLinkConversationOnt() {
   const queryClient = useQueryClient();
   return useMutation({
