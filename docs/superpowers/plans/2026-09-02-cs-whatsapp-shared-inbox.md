@@ -167,11 +167,13 @@ func TestManyMessagesMayWaitWithoutAWhatsAppID(t *testing.T) {
 
 	account := WAAccount{Label: "CS Utama", Status: WAAccountDisconnected}
 	require.NoError(t, db.Create(&account).Error)
+	holder := uuid.New()
 	conv := CSConversation{
-		WAAccountID:   account.ID,
-		CustomerJID:   "628111@s.whatsapp.net",
-		CustomerPhone: "628111",
-		Status:        ConversationOpen,
+		WAAccountID:    account.ID,
+		CustomerJID:    "628111@s.whatsapp.net",
+		CustomerPhone:  "628111",
+		Status:         ConversationOpen,
+		AssignedUserID: &holder,
 	}
 	require.NoError(t, db.Create(&conv).Error)
 
@@ -224,7 +226,9 @@ const (
 type WAAccount struct {
 	ID              uuid.UUID       `gorm:"type:uuid;primaryKey" json:"id"`
 	Label           string          `gorm:"type:varchar(100);not null" json:"label"`
-	JID             string          `gorm:"type:varchar(64)" json:"jid"`
+	// The column tag is load-bearing: GORM's naming strategy renders JID as
+	// "j_id", which is not the column the spec and every query name.
+	JID             string          `gorm:"column:jid;type:varchar(64)" json:"jid"`
 	Status          WAAccountStatus `gorm:"type:varchar(20);not null" json:"status"`
 	LastConnectedAt *time.Time      `json:"last_connected_at,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
@@ -254,7 +258,9 @@ const (
 type CSConversation struct {
 	ID             uuid.UUID          `gorm:"type:uuid;primaryKey" json:"id"`
 	WAAccountID    uuid.UUID          `gorm:"type:uuid;not null;uniqueIndex:uq_cs_conversations_peer,priority:1" json:"wa_account_id"`
-	CustomerJID    string             `gorm:"type:varchar(64);not null;uniqueIndex:uq_cs_conversations_peer,priority:2" json:"customer_jid"`
+	// Same reason as WAAccount.JID: without the column tag GORM names this
+	// "customer_j_id", and FindOrCreate's lookup finds no such column.
+	CustomerJID    string             `gorm:"column:customer_jid;type:varchar(64);not null;uniqueIndex:uq_cs_conversations_peer,priority:2" json:"customer_jid"`
 	CustomerPhone  string             `gorm:"type:varchar(20);not null;index" json:"customer_phone"`
 	CustomerName   string             `gorm:"type:varchar(255)" json:"customer_name"`
 	AssignedUserID *uuid.UUID         `gorm:"type:uuid;index" json:"assigned_user_id,omitempty"`
@@ -431,8 +437,11 @@ ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_status_valid
 -- Without this an assignment could be cleared while the row still called itself
 -- open, and the conversation would sit in no inbox while looking answered.
 ALTER TABLE cs_conversations DROP CONSTRAINT IF EXISTS cs_conversations_holder_matches_status;
-ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_holder_matches_status
-    CHECK (status <> 'unassigned' OR assigned_user_id IS NULL);
+ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_holder_matches_status CHECK (
+    (status = 'unassigned' AND assigned_user_id IS NULL)
+    OR (status = 'open' AND assigned_user_id IS NOT NULL)
+    OR status = 'closed'
+);
 
 -- RESTRICT on the account: deleting a number that still holds conversations is
 -- a mistake worth refusing. SET NULL on the others: a CS can leave the company
@@ -636,6 +645,7 @@ package services
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/google/uuid"
@@ -658,9 +668,15 @@ func TestFakePresenceAdvancesItsTurn(t *testing.T) {
 
 	assert.Equal(t, first+1, second)
 
+	// Order, not just membership: the rotation walks this slice by index, so a
+	// list that came back in a different order each call would hand work out at
+	// random while still containing exactly the right people.
+	want := []uuid.UUID{a, b}
+	sort.Slice(want, func(i, j int) bool { return want[i].String() < want[j].String() })
+
 	online, err := p.Online(ctx)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []uuid.UUID{a, b}, online)
+	assert.Equal(t, want, online)
 }
 
 func TestFakePresenceForgetsWhoWentOffline(t *testing.T) {
