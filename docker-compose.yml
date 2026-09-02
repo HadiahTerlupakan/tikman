@@ -72,8 +72,9 @@ services:
       - LOG_LEVEL=info
       - API_PORT=8080
     volumes:
-      # Read-only: wa owns the writes, api only serves the files via ServeMedia.
-      - cs_media:/data/cs-media:ro
+      # Both processes write here: wa stores what customers send, api stores
+      # what a CS uploads (CSHandler.storeUpload) before serving either back.
+      - cs_media:/data/cs-media
     depends_on:
       postgres:
         condition: service_healthy
