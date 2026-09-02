@@ -3435,7 +3435,35 @@ Expected: FAIL — rute belum ada.
 
 - [ ] **Step 3: Tulis handler dan rute**
 
-`Connect` menandai akun `pairing` lalu menerbitkan permintaan pairing ke proses `wa` lewat Redis channel `cs:control`; QR-nya kembali ke browser sebagai `Event{Type: EventAccountStatus}` di stream SSE yang sama. API tidak pernah memegang koneksi WhatsApp sendiri — itulah alasan proses `wa` dipisahkan sejak awal.
+**Bagian ini menyentuh berkas Task 10, dan itu disengaja.** Endpoint pairing
+belum punya lawan bicara: proses `wa` hanya berlangganan `cs:outbox`, dan
+pemasangannya terjadi saat startup dengan kode yang cuma masuk log. Menyerahkan
+endpoint yang menerbitkan ke ruang hampa sama dengan tidak menyerahkan apa pun,
+jadi task ini melengkapi sisi `wa`-nya.
+
+Yang ditambahkan di `internal/wa`:
+
+- `ControlChannel = "cs:control"`, dan satu field baru pada `Event`:
+  `PairingCode string` dengan tag json `pairing_code,omitempty`.
+- Di `cmd/wa/main.go`, satu langganan lagi ke `ControlChannel`. Pesannya JSON:
+  `{"action":"connect","account_id":"...","phone":"628..."}` atau
+  `{"action":"disconnect","account_id":"..."}`.
+- Pada `connect`: kalau sesi sudah tertaut, cukup terbitkan status `connected`.
+  Kalau belum, panggil `PairPhone` dan terbitkan `Event` bertipe
+  `EventAccountStatus` dengan `AccountStatus: "pairing"` dan `PairingCode` diisi
+  kode yang dikembalikan.
+- Pada `disconnect`: `Logout`, lalu terbitkan status `disconnected`.
+- Alur QR saat startup (`QRChannel`, `relayPairing`) **dihapus**. Ia memasang
+  lewat kode yang tidak pernah sampai ke siapa pun kecuali log, dan sekarang ada
+  satu jalan memasang yang benar-benar terlihat operator. Dua jalan menuju satu
+  keadaan adalah satu jalan terlalu banyak.
+
+`Connect` di API menandai akun `pairing`, lalu menerbitkan pesan kontrol itu.
+Kodenya kembali ke browser admin lewat stream SSE yang sudah ada. API tidak
+pernah memegang koneksi WhatsApp sendiri - itulah alasan proses `wa` dipisahkan
+sejak awal. Nomor pada permintaan `connect` dinormalkan dengan
+`utils.NormalizePhone`; `PairPhone` menolak nomor berawalan `0`, jadi bentuk
+`628...` bukan kemewahan.
 
 Rute:
 

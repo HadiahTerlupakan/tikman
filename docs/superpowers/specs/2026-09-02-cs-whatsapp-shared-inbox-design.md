@@ -230,9 +230,16 @@ Lencana status koneksi WhatsApp tampil di halaman ini, bukan tersembunyi di
 pengaturan.
 
 ### 9.2 Pengaturan → WhatsApp
-Status koneksi, tombol Sambungkan (menampilkan QR untuk dipindai dari HP pemegang
-nomor), dan Putuskan. Server masuk sebagai perangkat tertaut seperti WhatsApp
-Web, jadi HP utama tetap memegang nomornya.
+Status koneksi, isian nomor CS dengan tombol Sambungkan, dan tombol Putuskan.
+Menekan Sambungkan menampilkan **kode delapan karakter**, yang diketikkan admin
+di HP pemegang nomor lewat WhatsApp -> Perangkat Tertaut -> "Tautkan dengan nomor
+telepon". Server masuk sebagai perangkat tertaut seperti WhatsApp Web, jadi HP
+utama tetap memegang nomornya.
+
+Pemasangan lewat kode, bukan lewat QR: WhatsApp mendukung keduanya, tetapi kode
+tidak perlu digambar. Menampilkan QR menuntut pustaka perender di browser,
+sementara delapan karakter cukup dicetak apa adanya - satu dependensi lebih
+sedikit untuk hasil yang sama.
 
 ### 9.3 Form ONT
 Bertambah satu isian Nomor HP pelanggan.
