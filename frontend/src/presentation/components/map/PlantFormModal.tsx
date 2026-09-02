@@ -10,6 +10,7 @@ import {
 import {
   buildOdpDto,
   odpFormProblem,
+  SPLITTER_RATIOS,
   type Coordinates,
   type OdpFormValues,
 } from "./plantForm";
@@ -152,11 +153,16 @@ export function PlantFormModal({
           <>
             <Form.Item
               name="portCount"
-              label="Jumlah port splitter"
-              extra="1:8 berarti 8, 1:16 berarti 16."
-              rules={[{ required: true, message: "Jumlah port wajib diisi" }]}
+              label="Rasio splitter"
+              rules={[{ required: true, message: "Pilih rasio splitternya" }]}
             >
-              <InputNumber min={1} max={128} style={{ width: "100%" }} />
+              <Select
+                placeholder="Pilih rasio"
+                options={SPLITTER_RATIOS.map((outputs) => ({
+                  value: outputs,
+                  label: `1:${outputs}`,
+                }))}
+              />
             </Form.Item>
 
             <Form.Item name="parentKind" label="Menggantung pada">

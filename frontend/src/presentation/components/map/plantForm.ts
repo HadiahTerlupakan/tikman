@@ -1,5 +1,14 @@
 import type { CreateOdpDto } from "@/domain/entities";
 
+/**
+ * The splitter ratios a distribution box is built with.
+ *
+ * A dropdown rather than a free number: these are the ratios that exist, and a
+ * box typed as 1:9 or 1:100 describes hardware nobody makes. An operator says
+ * "satu banding delapan", so that is what the form offers.
+ */
+export const SPLITTER_RATIOS = [2, 4, 8, 16, 32, 64] as const;
+
 /** Where a distribution box hangs from, as the form asks it. */
 export type ParentKind = "odc" | "pon";
 
