@@ -71,6 +71,9 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - LOG_LEVEL=info
       - API_PORT=8080
+    volumes:
+      # Read-only: wa owns the writes, api only serves the files via ServeMedia.
+      - cs_media:/data/cs-media:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,6 +84,47 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - tikman-network
+    restart: unless-stopped
+
+  wa:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.wa
+    container_name: tikman-wa
+    # Deliberately not network_mode: service:api. That namespace carries wg0,
+    # and restarting api would take the WhatsApp session down with it — repeated
+    # reconnects are exactly the pattern that gets an unofficial number flagged.
+    #
+    # Deliberately not scalable either: two processes on one WhatsApp session is
+    # the fastest way to lose the number.
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=tikman
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=tikman
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=info
+      - WA_MEDIA_DIR=/data/cs-media
+      - WA_SEND_INTERVAL_MS=${WA_SEND_INTERVAL_MS:-1200}
+      - WA_MEDIA_RETENTION_DAYS=${WA_MEDIA_RETENTION_DAYS:-90}
+    volumes:
+      - cs_media:/data/cs-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # The API owns the migrations; wa runs none. Starting wa first on a fresh
+      # database means migration 41 has not run yet, so the unique index that
+      # makes account seeding idempotent is not there to enforce it.
+      api:
+        condition: service_healthy
     networks:
       - tikman-network
     restart: unless-stopped
@@ -167,3 +211,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  cs_media:

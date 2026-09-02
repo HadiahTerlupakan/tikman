@@ -150,6 +150,7 @@ jobs:
         run: |
           go build -v -o api ./cmd/api
           go build -v -o worker ./cmd/worker
+          go build -v -o wa ./cmd/wa
 
   # Frontend Jobs
   frontend-test:
@@ -267,7 +268,13 @@ jobs:
 
     strategy:
       matrix:
-        component: [backend, worker]
+        include:
+          - component: backend
+            dockerfile: Dockerfile
+          - component: worker
+            dockerfile: Dockerfile.worker
+          - component: wa
+            dockerfile: Dockerfile.wa
 
     steps:
       - name: Checkout code
@@ -297,7 +304,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./backend
-          file: ./backend/Dockerfile${{ matrix.component == 'worker' && '.worker' || '' }}
+          file: ./backend/${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
