@@ -2922,7 +2922,16 @@ Rujuk README whatsmeow untuk nama tipe yang tepat pada versi yang dipatok; nama 
 
 Perangkaian linear, dikecualikan dari batas 50 baris. Urutannya: muat config → logger → hubungkan database → `models.AutoMigrate` **tidak** dipanggil di sini (API yang memilikinya) → siapkan `sqlstore` whatsmeow di Postgres → buat client → daftarkan handler inbound dan receipt → `Connect` → jalankan tiga gelung berkala dengan `time.Ticker`:
 
-1. **Penguras antrean** setiap `WADrainIntervalSeconds`, sekaligus berlangganan `cs:outbox` di Redis agar balasan terkirim dalam hitungan detik. Gelung berkalanya adalah jaring pengaman: kalau pengumuman Redis hilang, pesan tetap terkirim, hanya terlambat.
+1. **Penguras antrean** setiap `WADrainIntervalSeconds`, sekaligus berlangganan
+   `cs:outbox` di Redis agar balasan terkirim dalam hitungan detik. Gelung
+   berkalanya adalah jaring pengaman: kalau pengumuman Redis hilang, pesan tetap
+   terkirim, hanya terlambat.
+
+   **Buat `Drainer` satu kali dan bagikan ke keduanya.** Kunci yang mencegah dua
+   pengurasan berbarengan hidup di dalam instance itu, jadi dua `NewDrainer`
+   terpisah — satu untuk ticker, satu untuk pelanggan Redis — akan memegang dua
+   kunci berbeda dan tidak menahan siapa pun. Pelanggan yang menerima balasan
+   dua kali adalah akibatnya.
 2. **Pembagi yang tertinggal** (`assignment.AssignWaiting`) setiap satu menit, yang mengambil chat semalam begitu ada CS membuka inbox.
 3. **Penyapu media** sekali sehari.
 
