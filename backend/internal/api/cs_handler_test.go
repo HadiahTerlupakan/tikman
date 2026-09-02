@@ -31,6 +31,7 @@ type csHandlerEnv struct {
 	conversations *services.CSConversationService
 	messages      *services.CSMessageService
 	presence      *services.FakePresence
+	onts          *services.ONTService
 	cs            uuid.UUID
 	otherCS       uuid.UUID
 	handler       *CSHandler
@@ -52,6 +53,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	assignment := services.NewCSAssignmentService(db, conversations, presence)
 	logger := zap.NewNop()
 	audit := services.NewAuditService(db, logger)
+	onts := services.NewONTService(db)
 
 	// Nothing here needs Redis to actually answer: Publish failures are logged
 	// and swallowed by design (see cs_handler_messages.go), so an unreachable
@@ -61,7 +63,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 
 	handler := NewCSHandler(
 		conversations, messages, quickReplies, accounts, assignment, presence,
-		audit, publisher, redisClient, logger, t.TempDir(),
+		audit, onts, publisher, redisClient, logger, t.TempDir(),
 	)
 
 	return &csHandlerEnv{
@@ -70,6 +72,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 		conversations: conversations,
 		messages:      messages,
 		presence:      presence,
+		onts:          onts,
 		cs:            uuid.New(),
 		otherCS:       uuid.New(),
 		handler:       handler,
@@ -126,6 +129,25 @@ func (e *csHandlerEnv) conversation(t *testing.T, jid, phone string) *models.CSC
 	})
 	require.NoError(t, err)
 	return conv
+}
+
+// ont creates one OLT and one ONT under it — its own OLT each time, so the
+// port/ONT-number position never collides across calls in the same test —
+// for tests that link a conversation to a real ONT row. phone may be empty.
+func (e *csHandlerEnv) ont(t *testing.T, phone string) *models.ONT {
+	t.Helper()
+	olt := &models.OLT{ID: uuid.New(), SiteID: uuid.New(), Name: "Test OLT", IPAddress: "10.0.0.1"}
+	require.NoError(t, e.db.Create(olt).Error)
+
+	ont := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        1,
+		SerialNumber: "SN-" + uuid.NewString(),
+		Phone:        phone,
+	}
+	require.NoError(t, e.onts.Create(ont))
+	return ont
 }
 
 // A CS may read the whole inbox — the team seeing each other is what stops two

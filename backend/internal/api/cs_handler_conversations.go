@@ -26,6 +26,7 @@ type CSHandler struct {
 	assignment    *services.CSAssignmentService
 	presence      services.Presence
 	audit         *services.AuditService
+	onts          *services.ONTService
 	publisher     *wa.Publisher
 	redis         *redis.Client
 	logger        *zap.Logger
@@ -41,6 +42,7 @@ func NewCSHandler(
 	assignment *services.CSAssignmentService,
 	presence services.Presence,
 	audit *services.AuditService,
+	onts *services.ONTService,
 	publisher *wa.Publisher,
 	redis *redis.Client,
 	logger *zap.Logger,
@@ -54,6 +56,7 @@ func NewCSHandler(
 		assignment:    assignment,
 		presence:      presence,
 		audit:         audit,
+		onts:          onts,
 		publisher:     publisher,
 		redis:         redis,
 		logger:        logger,
@@ -221,5 +224,21 @@ func (h *CSHandler) LinkONT(c *gin.Context) {
 		mapCSError(c, err, "LINK_ONT_FAILED")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": conv})
+
+	// Section 9.1 of the spec: linking a thread to an ONT by hand is the
+	// moment the subscriber's number gets captured, instead of a separate
+	// data-entry project. A phone that cannot be recorded (already claimed
+	// elsewhere, or an unexpected failure) must not undo the link the CS
+	// deliberately made — it is reported, not fatal.
+	var phoneRecorded bool
+	if req.ONTID != nil {
+		recorded, err := h.onts.RecordPhoneIfUnclaimed(*req.ONTID, conv.CustomerPhone)
+		if err != nil {
+			h.logger.Warn("failed to record ONT phone on link",
+				zap.String("ont_id", req.ONTID.String()), zap.Error(err))
+		}
+		phoneRecorded = recorded
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": conv, "phone_recorded": phoneRecorded})
 }

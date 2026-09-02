@@ -87,7 +87,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
 		csConversationService, csMessageService, csQuickReplyService, csAccountService, csAssignmentService,
-		csPresence, auditService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
+		csPresence, auditService, ontService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
 	)
 
 	// Provisioning pipeline: the factory above creates per-OLT commanders since

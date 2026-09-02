@@ -161,3 +161,85 @@ func TestONTPhoneUpdateCanBeCleared(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "", updated.Phone)
 }
+
+// RecordPhoneIfUnclaimed is what LinkONT calls (cs_handler_conversations.go)
+// so a CS linking a conversation by hand is what fills this column in
+// practice — almost every ONT is born from discovery, never typed by hand.
+
+func TestRecordPhoneIfUnclaimedWritesTheNumberOntoABareONT(t *testing.T) {
+	svc, olt := setupONTPhoneTest(t)
+
+	ont := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        1,
+		SerialNumber: "SN-RECORD-1",
+	}
+	require.NoError(t, svc.Create(ont))
+
+	recorded, err := svc.RecordPhoneIfUnclaimed(ont.ID, "0812-3456-7890")
+	require.NoError(t, err)
+	assert.True(t, recorded)
+
+	stored, err := svc.GetByID(ont.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "6281234567890", stored.Phone)
+}
+
+// An ONT with a number already on it was given one deliberately — the
+// record-as-you-go path must never overwrite it with whatever a conversation
+// happens to be linked from.
+func TestRecordPhoneIfUnclaimedLeavesAnExistingNumberAlone(t *testing.T) {
+	svc, olt := setupONTPhoneTest(t)
+
+	ont := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        1,
+		SerialNumber: "SN-RECORD-2",
+		Phone:        "081234567890",
+	}
+	require.NoError(t, svc.Create(ont))
+
+	recorded, err := svc.RecordPhoneIfUnclaimed(ont.ID, "089900011122")
+	require.NoError(t, err)
+	assert.False(t, recorded)
+
+	stored, err := svc.GetByID(ont.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "6281234567890", stored.Phone, "the number the ONT already had")
+}
+
+// A number already claimed by a different ONT must not move to this one —
+// that is exactly the collision the uniqueness rule exists to prevent — but
+// the caller (LinkONT) still needs to know the write did not happen, hence a
+// plain false rather than an error a "link succeeded anyway" flow would have
+// to unwrap.
+func TestRecordPhoneIfUnclaimedDoesNotStealAnotherONTsNumber(t *testing.T) {
+	svc, olt := setupONTPhoneTest(t)
+
+	holder := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        1,
+		SerialNumber: "SN-RECORD-3",
+		Phone:        "081234567890",
+	}
+	require.NoError(t, svc.Create(holder))
+
+	bare := &models.ONT{
+		OLTID:        olt.ID,
+		PortID:       1,
+		ONTID:        2,
+		SerialNumber: "SN-RECORD-4",
+	}
+	require.NoError(t, svc.Create(bare))
+
+	recorded, err := svc.RecordPhoneIfUnclaimed(bare.ID, "+6281234567890")
+	require.NoError(t, err, "a collision is reported, not returned as an error")
+	assert.False(t, recorded)
+
+	stillBare, err := svc.GetByID(bare.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "", stillBare.Phone)
+}
