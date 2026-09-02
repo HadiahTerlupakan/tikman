@@ -11,6 +11,9 @@ require (
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.0
+	// Pinned to a pseudo-version on purpose: the tagged release after this
+	// commit requires Go 1.26, and this module is on 1.25. Do not let a
+	// `go get -u` move it until the toolchain moves first.
 	go.mau.fi/whatsmeow v0.0.0-20260816113502-fb386f152837
 	go.uber.org/zap v1.21.0
 	golang.org/x/crypto v0.55.0

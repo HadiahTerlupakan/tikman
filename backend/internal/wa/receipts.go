@@ -2,6 +2,7 @@ package wa
 
 import (
 	"context"
+	"errors"
 
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -24,15 +25,22 @@ func (h *receiptHandler) handle(ctx context.Context, evt *events.Receipt) error 
 		return nil
 	}
 
+	// One id that will not apply must not abandon the rest of the batch:
+	// WhatsApp does not send a receipt twice, so a message skipped here keeps
+	// the tick it had until the customer happens to act on it again.
+	var failures []error
 	for _, id := range evt.MessageIDs {
 		if err := h.messages.ApplyReceipt(id, status); err != nil {
-			return err
+			failures = append(failures, err)
 		}
 	}
 
 	// The ticks a CS watches are the whole point of a receipt, so the browsers
 	// are told to look again rather than waiting for their next poll.
-	return h.publisher.Publish(ctx, Event{Type: EventStatus})
+	if err := h.publisher.Publish(ctx, Event{Type: EventStatus}); err != nil {
+		failures = append(failures, err)
+	}
+	return errors.Join(failures...)
 }
 
 // receiptStatus maps the receipts that move a message forward. Everything else

@@ -255,8 +255,7 @@ func assignWaiting(ctx context.Context, assignment *services.CSAssignmentService
 func sweepMedia(retention *services.CSMediaRetention, logger *zap.Logger) {
 	cleared, err := retention.Sweep()
 	if err != nil {
-		logger.Error("Failed to sweep expired CS media", zap.Error(err))
-		return
+		logger.Error("Some expired CS media could not be swept", zap.Error(err))
 	}
 	if cleared > 0 {
 		logger.Info("Removed expired CS media", zap.Int("count", cleared))

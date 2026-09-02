@@ -49,13 +49,43 @@ func (h *CSHandler) Connect(c *gin.Context) {
 		return
 	}
 
+	before, err := h.accounts.Get(id)
+	if err != nil {
+		mapCSError(c, err, "CONNECT_FAILED")
+		return
+	}
 	if err := h.accounts.MarkPairing(id); err != nil {
 		mapCSError(c, err, "CONNECT_FAILED")
 		return
 	}
 
-	h.publishControl(c, msg)
+	if err := h.publishControl(c, msg); err != nil {
+		h.rollbackStatus(id, before.Status)
+		refuseControl(c, "CONNECT_FAILED")
+		return
+	}
 	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"status": string(models.WAAccountPairing)}})
+}
+
+// rollbackStatus puts an account back where it was after a control message
+// that never left. Nothing else clears "pairing" — the wa process is what
+// does that, and it is precisely the thing that did not hear the request — so
+// without this the badge sits amber with no way back but another Connect.
+func (h *CSHandler) rollbackStatus(id uuid.UUID, status models.WAAccountStatus) {
+	if err := h.accounts.SetStatus(id, status); err != nil {
+		h.logger.Error("Could not put the WhatsApp account status back",
+			zap.String("account_id", id.String()), zap.Error(err))
+	}
+}
+
+// refuseControl answers the one failure this pair of endpoints cannot paper
+// over: the wa process holds the WhatsApp session, and a request it never
+// received has not been accepted by anyone.
+func refuseControl(c *gin.Context, code string) {
+	c.JSON(http.StatusBadGateway, ErrorResponse{
+		Error: "proses WhatsApp tidak bisa dihubungi, coba lagi",
+		Code:  code,
+	})
 }
 
 // connectControlMessage builds the control message Connect publishes, after
@@ -83,20 +113,26 @@ func (h *CSHandler) Disconnect(c *gin.Context) {
 		return
 	}
 
-	h.publishControl(c, wa.ControlMessage{Action: wa.ControlDisconnect, AccountID: id.String()})
+	if err := h.publishControl(c, wa.ControlMessage{Action: wa.ControlDisconnect, AccountID: id.String()}); err != nil {
+		refuseControl(c, "DISCONNECT_FAILED")
+		return
+	}
 	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"status": string(models.WAAccountDisconnected)}})
 }
 
-// publishControl sends one action to the wa process. Redis here is a nudge,
-// not the truth — a failed publish is logged and never fails the request,
-// same as every other announcement in this module.
-func (h *CSHandler) publishControl(c *gin.Context, msg wa.ControlMessage) {
+// publishControl sends one action to the wa process. Unlike the announcements
+// on cs:events, this channel is the only way the request reaches the process
+// that holds the session: there is no sweep behind it, so a failure here is
+// the caller's to hear about.
+func (h *CSHandler) publishControl(c *gin.Context, msg wa.ControlMessage) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
-		h.logger.Warn("Could not encode a WhatsApp control message", zap.Error(err))
-		return
+		h.logger.Error("Could not encode a WhatsApp control message", zap.Error(err))
+		return err
 	}
 	if err := h.redis.Publish(c.Request.Context(), wa.ControlChannel, payload).Err(); err != nil {
-		h.logger.Warn("Could not publish a WhatsApp control message", zap.Error(err))
+		h.logger.Error("Could not publish a WhatsApp control message", zap.Error(err))
+		return err
 	}
+	return nil
 }

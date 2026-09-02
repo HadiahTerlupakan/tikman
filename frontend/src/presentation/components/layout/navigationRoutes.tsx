@@ -49,7 +49,11 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     },
     { path: "/graphs", name: "Graphs", icon: <BarChartOutlined /> },
     { path: "/vpn", name: "VPN", icon: <CloudServerOutlined /> },
-    { path: "/cs", name: "CS Inbox", icon: <MessageOutlined /> },
+    // Every route under /api/v1/cs turns a viewer away, so showing them the
+    // inbox only offers a page that answers 403 on every request it makes.
+    ...(role === UserRole.VIEWER
+      ? []
+      : [{ path: "/cs", name: "CS Inbox", icon: <MessageOutlined /> }]),
     ...(role === UserRole.ADMIN
       ? [
           { path: "/users", name: "Users", icon: <UserOutlined /> },

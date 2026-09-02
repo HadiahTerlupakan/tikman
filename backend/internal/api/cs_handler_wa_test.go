@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,10 +63,14 @@ func TestCSAndTechnicianMayListAccountsButViewerMayNot(t *testing.T) {
 	}
 }
 
-// The account is marked pairing, and the response says so, before the wa
-// process has answered at all — a browser polling the list must not have to
-// wait on a process it cannot see.
-func TestConnectMarksTheAccountPairingAndAccepts(t *testing.T) {
+// The control channel is the only way this request reaches the process that
+// holds the WhatsApp session — there is no sweep behind it. When the publish
+// fails, saying "pairing" would leave the badge amber with nothing able to
+// clear it, because the thing that clears it is the process that never heard.
+//
+// The test environment's Redis is deliberately unreachable, so this is the
+// path it exercises; the accepted path needs a live Redis and has no test.
+func TestConnectPutsTheStatusBackWhenTheControlMessageCannotBePublished(t *testing.T) {
 	env := setupCSHandler(t)
 
 	body := strings.NewReader(`{"phone":"628111222333"}`)
@@ -77,19 +80,24 @@ func TestConnectMarksTheAccountPairingAndAccepts(t *testing.T) {
 	rec := httptest.NewRecorder()
 	env.asUser(uuid.New(), models.UserRoleAdmin).ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusAccepted, rec.Code)
-
-	var payload struct {
-		Data struct {
-			Status string `json:"status"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	assert.Equal(t, string(models.WAAccountPairing), payload.Data.Status)
+	require.Equal(t, http.StatusBadGateway, rec.Code)
 
 	var row models.WAAccount
 	require.NoError(t, env.db.First(&row, "id = ?", env.account.ID).Error)
-	assert.Equal(t, models.WAAccountPairing, row.Status)
+	assert.Equal(t, env.account.Status, row.Status, "the account is left where it was")
+}
+
+// Disconnect asks the same unreachable process, and answering 202 would tell
+// an admin the number had been given up when nothing had happened at all.
+func TestDisconnectRefusesWhenTheControlMessageCannotBePublished(t *testing.T) {
+	env := setupCSHandler(t)
+
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/v1/cs/wa-accounts/"+env.account.ID.String()+"/disconnect", nil)
+	rec := httptest.NewRecorder()
+	env.asUser(uuid.New(), models.UserRoleAdmin).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadGateway, rec.Code)
 }
 
 // PairPhone on the wa side rejects a number written with a leading zero, so

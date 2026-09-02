@@ -32,6 +32,13 @@ describe("buildNavigationRoutes", () => {
     expect(paths(undefined)).not.toContain("/settings");
   });
 
+  it("keeps the CS inbox away from a viewer, who is 403'd inside it", () => {
+    expect(paths(UserRole.CS)).toContain("/cs");
+    expect(paths(UserRole.TECHNICIAN)).toContain("/cs");
+    expect(paths(UserRole.ADMIN)).toContain("/cs");
+    expect(paths(UserRole.VIEWER)).not.toContain("/cs");
+  });
+
   it("gives every entry a path and a name", () => {
     for (const route of buildNavigationRoutes(UserRole.ADMIN)) {
       expect(route.path).toMatch(/^\//);

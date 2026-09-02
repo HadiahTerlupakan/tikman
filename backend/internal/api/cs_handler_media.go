@@ -26,9 +26,11 @@ import (
 const maxUploadBytes = 16 << 20
 
 // storeUpload writes an outgoing attachment to <mediaRoot>/<year>/<month>/<uuid><ext>.
-// mime and ext are the caller's already-allowlisted values (see SendMedia) —
-// this never derives either from the uploader's declared Content-Type or
-// filename, which is what let a mislabelled upload come back as HTML before.
+// mime and ext are both the caller's already-allowlisted values (see
+// SendMedia). The mime is the uploader's declared Content-Type, but only once
+// wa.AllowedExtension has accepted it; the extension comes from that
+// allowlist entry rather than from the uploader's filename, which is what let
+// a mislabelled upload come back as HTML before.
 // The display filename goes through wa.ClampFilename, the same guard the
 // inbound path uses: media_filename is varchar(255), and an over-long name
 // here would otherwise fail the insert on Postgres — a 500 the SQLite tests
@@ -73,10 +75,9 @@ func (h *CSHandler) removeOrphanedUpload(rel string) {
 }
 
 // kindForMime buckets an uploaded file's declared type into what WhatsApp
-// distinguishes; anything unrecognised goes as a document, the one form that
-// carries any file. Called only after wa.AllowedExtension has already
-// accepted the mime, so default here is unreachable in practice — it exists
-// because the switch has to be exhaustive over more than three kinds.
+// distinguishes. The default is not a fallback for something unexpected:
+// application/pdf is on the allowlist and lands there by design, because
+// "document" is the form that carries a file WhatsApp renders no other way.
 func kindForMime(mime string) models.MessageKind {
 	switch {
 	case strings.HasPrefix(mime, "image/"):

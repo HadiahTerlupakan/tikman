@@ -168,12 +168,6 @@ func (s *CSConversationService) LinkONT(conversationID uuid.UUID, ontID *uuid.UU
 	return s.update(conversationID, map[string]any{"ont_id": ontID})
 }
 
-// Touch records that a conversation just saw traffic, which is what orders the
-// inbox.
-func (s *CSConversationService) Touch(conversationID uuid.UUID, at time.Time) error {
-	return s.update(conversationID, map[string]any{"last_message_at": at})
-}
-
 // MarkRead clears a thread's unread badge, answering whether there was one to
 // clear. That answer is what keeps the caller from announcing a read that
 // changed nothing — see markThreadRead in cs_handler_messages.go.

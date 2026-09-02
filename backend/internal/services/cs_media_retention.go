@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,9 +26,8 @@ func NewCSMediaRetention(db *gorm.DB, root string, keepDays int) *CSMediaRetenti
 }
 
 // Sweep drops attachments past the retention window and forgets their paths,
-// answering how many rows it cleared. That is rows, not bytes: a file someone
-// had already removed by hand still counts, because the row was still pointing
-// at it and now is not.
+// answering how many rows it cleared and what went wrong on the ones it could
+// not. That is rows, not bytes.
 //
 // The message rows stay: a CS reading old history should still see that the
 // customer sent a photo, even when the photo itself is gone. MediaMime and
@@ -42,16 +42,30 @@ func (r *CSMediaRetention) Sweep() (int, error) {
 	}
 
 	cleared := 0
+	var failures []error
 	for _, row := range rows {
-		if err := os.Remove(filepath.Join(r.root, row.MediaPath)); err != nil && !os.IsNotExist(err) {
-			return cleared, fmt.Errorf("remove %s: %w", row.MediaPath, err)
-		}
-		err := r.db.Model(&models.CSMessage{}).Where("id = ?", row.ID).
-			Updates(map[string]any{"media_path": "", "media_size": 0}).Error
-		if err != nil {
-			return cleared, fmt.Errorf("forget media path: %w", err)
+		// One path that will not come off the disk used to end the whole
+		// sweep, leaving every attachment behind it there until tomorrow.
+		if err := r.clear(row); err != nil {
+			failures = append(failures, err)
+			continue
 		}
 		cleared++
 	}
-	return cleared, nil
+	return cleared, errors.Join(failures...)
+}
+
+// clear removes one attachment and forgets where it was. A file somebody
+// already deleted by hand still counts as cleared: the row was pointing at it
+// and now is not.
+func (r *CSMediaRetention) clear(row models.CSMessage) error {
+	if err := os.Remove(filepath.Join(r.root, row.MediaPath)); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove %s: %w", row.MediaPath, err)
+	}
+	err := r.db.Model(&models.CSMessage{}).Where("id = ?", row.ID).
+		Updates(map[string]any{"media_path": "", "media_size": 0}).Error
+	if err != nil {
+		return fmt.Errorf("forget media path %s: %w", row.MediaPath, err)
+	}
+	return nil
 }

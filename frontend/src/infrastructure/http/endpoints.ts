@@ -89,7 +89,6 @@ export const API_ENDPOINTS = {
   CS_STATUS: (id: string) => `/api/v1/cs/conversations/${id}/status`,
   CS_LINK_ONT: (id: string) => `/api/v1/cs/conversations/${id}/ont`,
   CS_MEDIA: (messageId: string) => `/api/v1/cs/media/${messageId}`,
-  CS_MESSAGE_SEARCH: "/api/v1/cs/messages/search",
   CS_QUICK_REPLIES: "/api/v1/cs/quick-replies",
   CS_QUICK_REPLY_BY_ID: (id: string) => `/api/v1/cs/quick-replies/${id}`,
   CS_WA_ACCOUNTS: "/api/v1/cs/wa-accounts",

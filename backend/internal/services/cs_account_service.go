@@ -43,10 +43,17 @@ func (s *CSAccountService) Get(id uuid.UUID) (*models.WAAccount, error) {
 // the wa process actually doing it: a browser polling the account list sees
 // the change immediately instead of waiting on a process it cannot see.
 func (s *CSAccountService) MarkPairing(id uuid.UUID) error {
-	res := s.db.Model(&models.WAAccount{}).Where("id = ?", id).
-		Update("status", models.WAAccountPairing)
+	return s.SetStatus(id, models.WAAccountPairing)
+}
+
+// SetStatus records where an account stands. The API only ever writes
+// "pairing" forward; the other states are the wa process's to report, and
+// the handler's to put back when a request it optimistically recorded turns
+// out not to have reached that process at all.
+func (s *CSAccountService) SetStatus(id uuid.UUID, status models.WAAccountStatus) error {
+	res := s.db.Model(&models.WAAccount{}).Where("id = ?", id).Update("status", status)
 	if res.Error != nil {
-		return fmt.Errorf("mark wa account pairing: %w", res.Error)
+		return fmt.Errorf("set wa account status: %w", res.Error)
 	}
 	if res.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
