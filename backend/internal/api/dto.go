@@ -12,13 +12,13 @@ type CreateUserRequest struct {
 	Username string          `json:"username" binding:"required,min=3,max=50,alphanum"`
 	Email    string          `json:"email" binding:"required,email,max=255"`
 	Password string          `json:"password" binding:"required,min=12,max=100"`
-	Role     models.UserRole `json:"role" binding:"required,oneof=admin technician viewer"`
+	Role     models.UserRole `json:"role" binding:"required,oneof=admin technician viewer cs"`
 }
 
 type UpdateUserRequest struct {
 	Email    *string          `json:"email" binding:"omitempty,email,max=255"`
 	Password *string          `json:"password" binding:"omitempty,min=12,max=100"`
-	Role     *models.UserRole `json:"role" binding:"omitempty,oneof=admin technician viewer"`
+	Role     *models.UserRole `json:"role" binding:"omitempty,oneof=admin technician viewer cs"`
 }
 
 type UserResponse struct {

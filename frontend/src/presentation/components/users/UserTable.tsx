@@ -3,6 +3,15 @@ import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { type User, UserRole } from "@/domain/entities";
 import type { ColumnsType } from "antd/es/table";
 
+// Keyed by the whole enum on purpose: a role added without a colour here
+// stops the build, instead of quietly rendering as some other role's tag.
+const ROLE_TAG_COLOR: Record<UserRole, string> = {
+  [UserRole.ADMIN]: "red",
+  [UserRole.TECHNICIAN]: "blue",
+  [UserRole.CS]: "purple",
+  [UserRole.VIEWER]: "green",
+};
+
 interface UserTableProps {
   users: User[];
   loading: boolean;
@@ -36,15 +45,9 @@ export function UserTable({
       dataIndex: "role",
       key: "role",
       width: 120,
-      render: (role: UserRole) => {
-        const color =
-          role === UserRole.ADMIN
-            ? "red"
-            : role === UserRole.TECHNICIAN
-              ? "blue"
-              : "green";
-        return <Tag color={color}>{role.toUpperCase()}</Tag>;
-      },
+      render: (role: UserRole) => (
+        <Tag color={ROLE_TAG_COLOR[role]}>{role.toUpperCase()}</Tag>
+      ),
     },
     {
       title: "Created At",

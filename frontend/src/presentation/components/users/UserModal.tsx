@@ -146,6 +146,7 @@ export function UserModal({
             <Select.Option value={UserRole.TECHNICIAN}>
               Technician
             </Select.Option>
+            <Select.Option value={UserRole.CS}>CS</Select.Option>
             <Select.Option value={UserRole.VIEWER}>Viewer</Select.Option>
           </Select>
         </Form.Item>
