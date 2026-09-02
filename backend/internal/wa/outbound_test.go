@@ -61,6 +61,16 @@ func drainSetup(t *testing.T) (*gorm.DB, *services.CSMessageService, *services.C
 	// GORM logs every one of them as an error, burying real failures in noise.
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
+
+	// One connection, and this is load-bearing for the concurrency test. Every
+	// new connection to an unshared :memory: database gets its own empty copy,
+	// so goroutines that force the pool to grow end up querying tables that do
+	// not exist there. Those failures are swallowed, and the race the test
+	// exists to catch hides behind them instead of failing the test.
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+
 	require.NoError(t, models.AutoMigrate(db))
 
 	account := models.WAAccount{Label: "CS Utama", Status: models.WAAccountConnected}
