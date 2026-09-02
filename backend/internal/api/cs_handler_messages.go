@@ -99,9 +99,15 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
+	// The bound is applied to the body itself, not to what the multipart
+	// header claims: everything downstream — storeUpload's copy to disk, and
+	// wa.Client.SendMedia reading the file whole to hand it to whatsmeow —
+	// works on however many bytes actually arrive.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadBytes)
+
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "a file is required", Code: "MEDIA_REQUIRED"})
+		refuseUpload(c, err)
 		return
 	}
 
@@ -135,6 +141,22 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 
 	h.announce(c.Request.Context(), convID, msg.ID)
 	c.JSON(http.StatusCreated, gin.H{"data": msg})
+}
+
+// refuseUpload answers the two ways a multipart body yields no file: one that
+// ran past maxUploadBytes, and one that never carried a file at all. The first
+// needs its own sentence — "a file is required" for a photo the CS can plainly
+// see they attached reads as a broken page.
+func refuseUpload(c *gin.Context, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: fmt.Sprintf("lampiran melebihi batas %d MB", maxUploadBytes>>20),
+			Code:  "MEDIA_TOO_LARGE",
+		})
+		return
+	}
+	c.JSON(http.StatusBadRequest, ErrorResponse{Error: "a file is required", Code: "MEDIA_REQUIRED"})
 }
 
 // refuseNotHolder answers 409 for anyone but the CS holding this thread,

@@ -18,6 +18,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// maxUploadBytes is what one outbound attachment may weigh. The whole file is
+// held in memory twice on its way out — storeUpload copies it to disk, and
+// wa.Client.SendMedia reads it back whole to hand to whatsmeow — so this is
+// the only thing standing between a CS's upload and the wa container's RAM.
+// 16 MiB is also roughly where WhatsApp itself stops accepting a photo.
+const maxUploadBytes = 16 << 20
+
 // storeUpload writes an outgoing attachment to <mediaRoot>/<year>/<month>/<uuid><ext>.
 // mime and ext are the caller's already-allowlisted values (see SendMedia) —
 // this never derives either from the uploader's declared Content-Type or

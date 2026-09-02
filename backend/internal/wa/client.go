@@ -301,8 +301,9 @@ func (c *Client) SendText(ctx context.Context, jid, body string) (string, error)
 	return resp.ID, nil
 }
 
-// SendMedia uploads an attachment and sends it. The file is read whole because
-// it is one the CS just uploaded through the API, which bounds its size.
+// SendMedia uploads an attachment and sends it. The file is read whole, which
+// is only safe because the upload boundary caps it: SendMedia in the API
+// wraps the request body in a MaxBytesReader before a byte is stored.
 func (c *Client) SendMedia(
 	ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string,
 ) (string, error) {
