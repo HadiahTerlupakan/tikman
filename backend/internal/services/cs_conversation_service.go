@@ -174,6 +174,19 @@ func (s *CSConversationService) Touch(conversationID uuid.UUID, at time.Time) er
 	return s.update(conversationID, map[string]any{"last_message_at": at})
 }
 
+// MarkRead clears a thread's unread badge, answering whether there was one to
+// clear. That answer is what keeps the caller from announcing a read that
+// changed nothing — see markThreadRead in cs_handler_messages.go.
+func (s *CSConversationService) MarkRead(conversationID uuid.UUID) (bool, error) {
+	res := s.db.Model(&models.CSConversation{}).
+		Where("id = ? AND unread_count > 0", conversationID).
+		Update("unread_count", 0)
+	if res.Error != nil {
+		return false, fmt.Errorf("mark conversation read: %w", res.Error)
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // EnsureHolder reports whether this user may answer this conversation.
 func (s *CSConversationService) EnsureHolder(conversationID, userID uuid.UUID) error {
 	conv, err := s.Get(conversationID)
