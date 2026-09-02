@@ -86,6 +86,9 @@ export function OntCreateModal({
         <Form.Item name="description" label="Description">
           <Input.TextArea rows={3} placeholder="Optional description" />
         </Form.Item>
+        <Form.Item name="phone" label="Nomor HP Pelanggan">
+          <Input placeholder="08xxxxxxxxxx" />
+        </Form.Item>
       </Form>
     </Modal>
   );

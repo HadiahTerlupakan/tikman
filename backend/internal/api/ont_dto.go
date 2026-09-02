@@ -16,11 +16,17 @@ type CreateONTRequest struct {
 	SerialNumber string           `json:"serial_number" binding:"required,min=1,max=20"`
 	Description  string           `json:"description" binding:"omitempty,max=255"`
 	Status       models.ONTStatus `json:"status" binding:"omitempty,oneof=online offline los dying_gasp unknown"`
+	// Phone is validated and normalized by ONTService.Create, not here: the
+	// binding tag can check length but not that it's a real Indonesian number.
+	Phone string `json:"phone" binding:"omitempty,max=20"`
 }
 
 type UpdateONTRequest struct {
 	Description *string           `json:"description" binding:"omitempty,max=255"`
 	Status      *models.ONTStatus `json:"status" binding:"omitempty,oneof=online offline los dying_gasp unknown"`
+	// A pointer, like Description: nil leaves the stored number untouched,
+	// while an empty string is a deliberate clear.
+	Phone *string `json:"phone" binding:"omitempty,max=20"`
 }
 
 type ONTResponse struct {
@@ -36,6 +42,7 @@ type ONTResponse struct {
 	SerialNumber         string           `json:"serial_number"`
 	Name                 string           `json:"name"`
 	Description          string           `json:"description"`
+	Phone                string           `json:"phone,omitempty"`
 	DeviceType           string           `json:"device_type,omitempty"`
 	HardwareVersion      string           `json:"hardware_version,omitempty"`
 	SoftwareVersion      string           `json:"software_version,omitempty"`
@@ -80,6 +87,7 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 		SerialNumber:         ont.SerialNumber,
 		Name:                 ont.Name,
 		Description:          ont.Description,
+		Phone:                ont.Phone,
 		DeviceType:           ont.DeviceType,
 		HardwareVersion:      ont.HardwareVersion,
 		SoftwareVersion:      ont.SoftwareVersion,

@@ -239,6 +239,12 @@ func (s *ONTService) Create(ont *models.ONT) error {
 		return err
 	}
 
+	phone, err := s.resolvePhone(ont.Phone, uuid.Nil)
+	if err != nil {
+		return err
+	}
+	ont.Phone = phone
+
 	// Set default status if not provided
 	if ont.Status == "" {
 		ont.Status = models.ONTStatusUnknown
@@ -267,6 +273,16 @@ func (s *ONTService) Update(id uuid.UUID, updates map[string]interface{}) (*mode
 		if count > 0 {
 			return nil, fmt.Errorf("ONT with serial number %s already exists", newSerial)
 		}
+	}
+
+	// A missing key leaves the stored number untouched; a present one — even ""
+	// — is normalized (or, for "", cleared) the same way Create validates it.
+	if rawPhone, ok := updates["phone"].(string); ok {
+		phone, err := s.resolvePhone(rawPhone, id)
+		if err != nil {
+			return nil, err
+		}
+		updates["phone"] = phone
 	}
 
 	updates["updated_at"] = time.Now()

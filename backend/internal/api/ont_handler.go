@@ -223,6 +223,7 @@ func (h *ONTHandler) Create(c *gin.Context) {
 		SerialNumber: req.SerialNumber,
 		Description:  req.Description,
 		Status:       req.Status,
+		Phone:        req.Phone,
 	}
 
 	if err := h.ontService.Create(ont); err != nil {
@@ -283,6 +284,9 @@ func (h *ONTHandler) Update(c *gin.Context) {
 	}
 	if req.Status != nil {
 		updates["status"] = *req.Status
+	}
+	if req.Phone != nil {
+		updates["phone"] = *req.Phone
 	}
 
 	ont, err := h.ontService.Update(id, updates)

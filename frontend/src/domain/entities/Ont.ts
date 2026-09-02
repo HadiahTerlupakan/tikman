@@ -16,6 +16,8 @@ export interface Ont {
   serialNumber: string;
   name: string; // ← Add name field
   description: string;
+  /** The subscriber's WhatsApp number in 628xxx form; ties an incoming chat to this ONT. */
+  phone?: string;
   status: OntStatus;
   deviceType?: string;
   hardwareVersion?: string;
@@ -40,11 +42,13 @@ export interface CreateOntDto {
   serialNumber: string;
   description?: string;
   status?: OntStatus;
+  phone?: string;
 }
 
 export interface UpdateOntDto {
   description?: string;
   status?: OntStatus;
+  phone?: string;
 }
 
 export interface OntMetrics {
