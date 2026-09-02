@@ -13,12 +13,18 @@ ALTER TABLE cs_conversations DROP CONSTRAINT IF EXISTS cs_conversations_status_v
 ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_status_valid
     CHECK (status IN ('unassigned', 'open', 'closed'));
 
--- A thread with nobody holding it is exactly a thread that is unassigned.
--- Without this an assignment could be cleared while the row still called itself
--- open, and the conversation would sit in no inbox while looking answered.
+-- The holder and the status move together in both directions: unassigned means
+-- no holder, open means a holder, and closed tolerates either — a thread can be
+-- closed with nobody holding it, and a closed thread keeps its last holder for
+-- the history. Without this an assignment could be cleared while the row still
+-- called itself open, and the conversation would sit in no inbox while looking
+-- answered; or a thread could claim a holder while still sitting unassigned.
 ALTER TABLE cs_conversations DROP CONSTRAINT IF EXISTS cs_conversations_holder_matches_status;
-ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_holder_matches_status
-    CHECK (status <> 'unassigned' OR assigned_user_id IS NULL);
+ALTER TABLE cs_conversations ADD CONSTRAINT cs_conversations_holder_matches_status CHECK (
+    (status = 'unassigned' AND assigned_user_id IS NULL)
+    OR (status = 'open' AND assigned_user_id IS NOT NULL)
+    OR status = 'closed'
+);
 
 -- RESTRICT on the account: deleting a number that still holds conversations is
 -- a mistake worth refusing. SET NULL on the others: a CS can leave the company

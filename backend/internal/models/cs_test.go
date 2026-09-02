@@ -66,11 +66,13 @@ func TestManyMessagesMayWaitWithoutAWhatsAppID(t *testing.T) {
 
 	account := WAAccount{Label: "CS Utama", Status: WAAccountDisconnected}
 	require.NoError(t, db.Create(&account).Error)
+	holder := uuid.New()
 	conv := CSConversation{
-		WAAccountID:   account.ID,
-		CustomerJID:   "628111@s.whatsapp.net",
-		CustomerPhone: "628111",
-		Status:        ConversationOpen,
+		WAAccountID:    account.ID,
+		CustomerJID:    "628111@s.whatsapp.net",
+		CustomerPhone:  "628111",
+		Status:         ConversationOpen,
+		AssignedUserID: &holder,
 	}
 	require.NoError(t, db.Create(&conv).Error)
 
