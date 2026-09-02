@@ -16,6 +16,14 @@ services:
     ports: !override
       - "${WIREGUARD_PORT:-51820}:${WIREGUARD_PORT:-51820}/udp"
 
+  worker:
+    # Three, declared rather than remembered. The pipeline deploys with a plain
+    # `up -d`, so a count that lives only in someone's last `--scale` flag comes
+    # back as one worker after the next deploy — a third of the polling capacity,
+    # silently, with nothing in the logs to say why the OLTs went stale.
+    deploy:
+      replicas: 3
+
   frontend:
     # Reached only by cloudflared, over the compose network.
     ports: !override []

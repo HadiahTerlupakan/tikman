@@ -75,7 +75,25 @@ pipeline {
                         exit 1
                     }
 
-                    echo "API healthy and the VPN routes are registered."
+                    # The CS inbox carries the same risk the VPN module once did:
+                    # a menu that renders while every call behind it 404s. Same
+                    # guard, same reason.
+                    $COMPOSE exec -T api wget -O /dev/null \
+                        http://localhost:8080/api/v1/cs/conversations 2>&1 | grep -q '401' || {
+                        echo "The CS route did not answer 401. This build looks like it"
+                        echo "predates the shared WhatsApp inbox."
+                        exit 1
+                    }
+
+                    # wa holds the WhatsApp session and is the one service whose
+                    # absence is invisible from the UI until a CS hits send.
+                    $COMPOSE ps --status running --services | grep -qx wa || {
+                        echo "The wa service is not running. Replies would queue and"
+                        echo "never leave."
+                        exit 1
+                    }
+
+                    echo "API healthy; VPN and CS routes are registered; wa is running."
                 '''
             }
         }

@@ -522,19 +522,32 @@ See `.env.example` for required variables. Key ones:
 **Code Quality** (`.github/workflows/code-quality.yml`)
 - Deprecated redirect workflow; security scanning now runs in `ci.yml`
 
-**Deploy** (`.github/workflows/deploy.yml`)
-- Runs for published releases or manual production/staging dispatch
-- Pulls GHCR images, deploys via SSH, and checks the configured health endpoint
+### Deployment
 
+Deployment is Jenkins, not GitHub Actions. `Jenkinsfile` runs on the VPS the
+stack itself runs on, so it builds in place and no registry sits in the path:
 
-### Deployment Secrets Required
+```
+docker compose --env-file /opt/tikman/.env \
+  -f docker-compose.yml -f docker-compose.vps.yml up -d --remove-orphans
+```
 
-Configure these in GitHub repository settings → Secrets:
-- `DEPLOY_HOST` - Server hostname/IP
-- `DEPLOY_USER` - SSH username
-- `DEPLOY_SSH_KEY` - Private SSH key
-- `DEPLOY_PORT` - SSH port (default: 22)
-- `DEPLOY_URL` - Application URL for health check
+Its stages are Preflight (the env file exists, the `wireguard` kernel module is
+loaded, the composition resolves), Build, Deploy, and Verify — where Verify
+asserts `/health` answers and that the VPN, CS and `wa` surfaces are really
+there, because a build that predates a module leaves its menu rendering while
+every call behind it 404s.
+
+Secrets live in `/opt/tikman/.env` on the host, owned by `jenkins` and mode
+`600`. They are deliberately unreadable by the deploy SSH user and never enter
+the repository or Jenkins itself.
+
+The GHCR images CI pushes are not used by this deployment. There was once a
+`.github/workflows/deploy.yml` that pulled them; it was removed because it had
+never run, had no secrets configured, and described a host layout that does not
+exist — the wrong directory, Compose v1, no VPS override and no env file, so
+triggering it would have published ports to the internet and started the stack
+with an empty environment.
 
 ## graphify
 
