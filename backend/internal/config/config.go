@@ -22,6 +22,16 @@ type Config struct {
 	AllowedOrigins string
 	// SNMPMaxRepetitions is how many values one GETBULK asks an OLT for.
 	SNMPMaxRepetitions int
+	// WAMediaDir is where attachments from WhatsApp are written.
+	WAMediaDir string
+	// WASendIntervalMS is the gap left between two outgoing messages. Emptying
+	// the queue at full speed is what gets an unofficial number flagged.
+	WASendIntervalMS int
+	// WADrainIntervalSeconds is how often the outbox is swept even when no Redis
+	// announcement arrived, so a lost announcement costs latency, not a reply.
+	WADrainIntervalSeconds int
+	// WAMediaRetentionDays is how long an attachment is kept on disk.
+	WAMediaRetentionDays int
 }
 
 func Load() (*Config, error) {
@@ -36,6 +46,10 @@ func Load() (*Config, error) {
 	viper.SetDefault("ENVIRONMENT", "development")
 	viper.SetDefault("ALLOWED_ORIGINS", "http://localhost:3000")
 	viper.SetDefault("SNMP_MAX_REPETITIONS", 10)
+	viper.SetDefault("WA_MEDIA_DIR", "/data/cs-media")
+	viper.SetDefault("WA_SEND_INTERVAL_MS", 1200)
+	viper.SetDefault("WA_DRAIN_INTERVAL_SECONDS", 30)
+	viper.SetDefault("WA_MEDIA_RETENTION_DAYS", 90)
 
 	viper.AutomaticEnv()
 
@@ -56,6 +70,11 @@ func Load() (*Config, error) {
 		AllowedOrigins: viper.GetString("ALLOWED_ORIGINS"),
 
 		SNMPMaxRepetitions: viper.GetInt("SNMP_MAX_REPETITIONS"),
+
+		WAMediaDir:             viper.GetString("WA_MEDIA_DIR"),
+		WASendIntervalMS:       viper.GetInt("WA_SEND_INTERVAL_MS"),
+		WADrainIntervalSeconds: viper.GetInt("WA_DRAIN_INTERVAL_SECONDS"),
+		WAMediaRetentionDays:   viper.GetInt("WA_MEDIA_RETENTION_DAYS"),
 	}
 
 	if err := validateConfig(cfg); err != nil {
