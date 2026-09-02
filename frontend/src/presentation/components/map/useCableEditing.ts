@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useSetCableRoute } from "@/application/hooks";
 import type { RoutePoint } from "@/domain/entities";
-import { anchoredRoute, type CableSegment } from "./cableSegments";
+import {
+  anchoredRoute,
+  metersBetween,
+  type CableSegment,
+} from "./cableSegments";
 
 /**
  * Selecting a cable and tracing its path.
@@ -49,6 +53,9 @@ export function useCableEditing() {
       setDrawn([]);
     },
     addPoint: (point: RoutePoint) => setDrawn((points) => [...points, point]),
+    // A misplaced click on a twelve-point trace should cost one click to fix,
+    // not the whole route.
+    undoPoint: () => setDrawn((points) => points.slice(0, -1)),
     close,
     /** Saves what was traced, anchored to the cable's real ends. */
     saveDraft: () => selected && store(anchoredRoute(selected, drawn)),
@@ -59,11 +66,13 @@ export function useCableEditing() {
       if (!drafting || !selected) {
         return undefined;
       }
-      return {
-        ...selected,
-        path: anchoredRoute(selected, drawn),
-        traced: true,
-      };
+      const path = anchoredRoute(selected, drawn);
+      // Measured as it is traced, so the length on screen is the path being
+      // drawn rather than the straight line it is replacing.
+      const meters = path
+        .slice(1)
+        .reduce((total, point, i) => total + metersBetween(path[i], point), 0);
+      return { ...selected, path, meters, traced: true };
     },
   };
 }

@@ -132,3 +132,21 @@ export function anchoredRoute(
   const end = segment.path[segment.path.length - 1];
   return [start, ...drawn, end];
 }
+
+/**
+ * The cables to draw while one of them is being traced.
+ *
+ * The draft replaces the cable it will become rather than joining it: drawn
+ * side by side they close into a triangle — the traced path down, the old
+ * straight line back — and they share an id, so React sees two lines with one
+ * key.
+ */
+export function withDraft(
+  segments: CableSegment[],
+  draft: CableSegment | undefined,
+): CableSegment[] {
+  if (!draft) {
+    return segments;
+  }
+  return segments.map((segment) => (segment.id === draft.id ? draft : segment));
+}

@@ -66,9 +66,11 @@ export default function MapPage() {
                   segment={cable.selected}
                   drafting={cable.drafting}
                   draftCount={cable.drawn.length}
+                  draftSegment={cable.draftSegment()}
                   saving={cable.saving}
                   onStartDraw={cable.startDraw}
                   onSave={cable.saveDraft}
+                  onUndo={cable.undoPoint}
                   onCancel={cable.close}
                   onStraighten={cable.straighten}
                 />

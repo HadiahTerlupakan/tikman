@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Odc, OdcFeed, Odp } from "@/domain/entities";
-import { anchoredRoute, cableSegments, metersBetween } from "./cableSegments";
+import {
+  anchoredRoute,
+  cableSegments,
+  metersBetween,
+  withDraft,
+} from "./cableSegments";
 
 const olt = { id: "olt-1", latitude: -6.4, longitude: 107.0 };
 
@@ -146,5 +151,26 @@ describe("anchoredRoute", () => {
   it("still yields a usable route when nothing was traced in between", () => {
     // Two points is the straight line, which is exactly what it should mean.
     expect(anchoredRoute(feeder, [])).toHaveLength(2);
+  });
+});
+
+describe("withDraft", () => {
+  const drawn = cableSegments([olt], [cabinet], [box()], [feed()]);
+
+  it("replaces the cable being traced rather than drawing beside it", () => {
+    const draft = { ...drawn[0], path: [...drawn[0].path], traced: true };
+
+    const shown = withDraft(drawn, draft);
+
+    // Drawn side by side they close into a triangle — the traced path down and
+    // the old straight line back — and they share an id, so React sees two
+    // lines with one key.
+    expect(shown).toHaveLength(drawn.length);
+    expect(shown[0]).toBe(draft);
+    expect(shown.filter((s) => s.id === draft.id)).toHaveLength(1);
+  });
+
+  it("leaves the cables alone when nothing is being traced", () => {
+    expect(withDraft(drawn, undefined)).toBe(drawn);
   });
 });

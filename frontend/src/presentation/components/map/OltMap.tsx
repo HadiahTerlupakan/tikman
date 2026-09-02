@@ -13,7 +13,7 @@ import { OltStatus, type Odc, type Odp, type Olt } from "@/domain/entities";
 import { mappedOlts, type MappedOlt } from "./oltMapFilters";
 import { PlantLayer } from "./PlantLayer";
 import { CableLayer } from "./CableLayer";
-import type { CableSegment } from "./cableSegments";
+import { withDraft, type CableSegment } from "./cableSegments";
 
 interface OltMapProps {
   apiKey: string;
@@ -109,7 +109,7 @@ export function OltMap({
         ))}
 
         <CableLayer
-          segments={draft ? [...cables, draft] : cables}
+          segments={withDraft(cables, draft)}
           selectedId={draft ? draft.id : selectedCableId}
           onSelectCable={onSelectCable}
         />

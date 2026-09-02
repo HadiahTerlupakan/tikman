@@ -6,9 +6,12 @@ interface CableEditorProps {
   segment: CableSegment;
   drafting: boolean;
   draftCount: number;
+  /** The path as traced so far, so its length can be read while drawing. */
+  draftSegment?: CableSegment;
   saving: boolean;
   onStartDraw: () => void;
   onSave: () => void;
+  onUndo: () => void;
   onCancel: () => void;
   onStraighten: () => void;
 }
@@ -23,9 +26,11 @@ export function CableEditor({
   segment,
   drafting,
   draftCount,
+  draftSegment,
   saving,
   onStartDraw,
   onSave,
+  onUndo,
   onCancel,
   onStraighten,
 }: CableEditorProps) {
@@ -35,8 +40,12 @@ export function CableEditor({
         <Tag color="green">
           Klik di peta mengikuti tiang · {draftCount} titik
         </Tag>
+        {draftSegment && <Tag>{cableLengthLabel(draftSegment)}</Tag>}
         <Button type="primary" loading={saving} onClick={onSave}>
           Simpan jalur
+        </Button>
+        <Button disabled={draftCount === 0} onClick={onUndo}>
+          Hapus titik terakhir
         </Button>
         <Button onClick={onCancel}>Batal</Button>
       </Space>
