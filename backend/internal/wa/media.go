@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -14,6 +15,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // mediaExtensions is the whole of what a stored attachment may be called. The
@@ -38,12 +40,19 @@ const (
 	// would lose it; giving it the sender's own suffix would put their text on
 	// our filesystem.
 	unknownExtension = ".bin"
-	// defaultMime is what a document arriving without one is recorded as.
+	// defaultMime is what an attachment gets when the declared type is missing
+	// or too long to keep.
 	defaultMime = "application/octet-stream"
 	// maxFilenameLength matches the media_filename column. A longer name would
 	// fail the insert, and losing the message over a long filename is worse than
 	// showing a shortened one.
 	maxFilenameLength = 255
+	// maxMimeLength matches the media_mime column, for the same reason.
+	maxMimeLength = 100
+	// shapeFieldLimit is how many populated fields are named when logging a
+	// message we cannot store. One is the answer almost always; the cap is there
+	// so a crafted message cannot write a long log line.
+	shapeFieldLimit = 3
 )
 
 // attachment is an inbound message reduced to what storing it needs. download
@@ -83,6 +92,21 @@ func describe(msg *waE2E.Message) (attachment, bool) {
 	return attachment{}, false
 }
 
+// messageShape names the fields a WhatsApp message actually carries, so one we
+// cannot store — a sticker, a location, a contact card, a poll — is logged as
+// itself instead of vanishing.
+func messageShape(msg *waE2E.Message) string {
+	var names []string
+	msg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, _ protoreflect.Value) bool {
+		names = append(names, string(fd.Name()))
+		return len(names) < shapeFieldLimit
+	})
+	if len(names) == 0 {
+		return "empty"
+	}
+	return strings.Join(names, ",")
+}
+
 // textBody returns the words of a plain message. WhatsApp uses the extended
 // form whenever a message quotes another or carries a link preview.
 func textBody(msg *waE2E.Message) string {
@@ -104,13 +128,7 @@ type mediaStore struct {
 // never becomes a path — a document called "../../etc/passwd" is a label here
 // and nothing else.
 func (s mediaStore) save(ctx context.Context, cli *whatsmeow.Client, att attachment) (*services.MediaFile, error) {
-	mime := att.mime
-	if mime == "" {
-		mime = defaultMime
-	}
-
-	now := time.Now()
-	rel := filepath.Join(now.Format("2006"), now.Format("01"), uuid.NewString()+extensionFor(mime))
+	rel := relPath(time.Now(), att)
 	full := filepath.Join(s.root, rel)
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		return nil, fmt.Errorf("create media directory: %w", err)
@@ -131,10 +149,42 @@ func (s mediaStore) save(ctx context.Context, cli *whatsmeow.Client, att attachm
 
 	return &services.MediaFile{
 		Path:     rel,
-		Mime:     mime,
+		Mime:     normalizeMime(att.mime),
 		Filename: clampFilename(att.filename),
 		Size:     size,
 	}, nil
+}
+
+// remove drops a stored attachment that ended up belonging to no message row.
+func (s mediaStore) remove(rel string) error {
+	return os.Remove(filepath.Join(s.root, rel))
+}
+
+// relPath builds the path one attachment is stored at, relative to the media
+// root: <year>/<month>/<uuid><ext>. It reads only the declared mime type. The
+// customer's filename is deliberately not an input — it is display text, and a
+// document called "../../etc/passwd" must not be able to become a path.
+func relPath(now time.Time, att attachment) string {
+	name := uuid.NewString() + extensionFor(normalizeMime(att.mime))
+	return filepath.Join(now.Format("2006"), now.Format("01"), name)
+}
+
+// normalizeMime reduces what WhatsApp declares to something the column holds
+// and the extension table can match. Voice notes arrive as
+// "audio/ogg; codecs=opus", so the parameters have to go before the lookup; and
+// the value is written by the sender, so an over-long one would fail the insert
+// and cost the whole message rather than just the picture.
+func normalizeMime(declared string) string {
+	mime := declared
+	if cut := strings.IndexByte(mime, ';'); cut >= 0 {
+		mime = mime[:cut]
+	}
+	mime = strings.TrimSpace(mime)
+
+	if mime == "" || len(mime) > maxMimeLength {
+		return defaultMime
+	}
+	return mime
 }
 
 func downloadInto(ctx context.Context, cli *whatsmeow.Client, msg whatsmeow.DownloadableMessage, file *os.File) (int64, error) {

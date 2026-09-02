@@ -37,7 +37,13 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 	}
 	att, readable := describe(evt.Message)
 	if !readable {
-		return nil // a reaction or a protocol message: nothing a CS would read
+		// Stickers, locations, contact cards and polls land here alongside the
+		// reactions and protocol messages. A CS who is never told cannot ask
+		// the customer to send it in a form the inbox can hold.
+		h.logger.Info("Ignoring a WhatsApp message this inbox cannot store",
+			zap.String("wa_message_id", evt.Info.ID),
+			zap.String("shape", messageShape(evt.Message)))
+		return nil
 	}
 
 	conv, err := h.conversations.FindOrCreate(services.IncomingPeer{
@@ -61,21 +67,47 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		At:             evt.Info.Timestamp,
 	})
 	if err != nil {
+		h.discard(evt, media)
 		return err
 	}
 	if !created {
-		return nil // WhatsApp re-delivered one it had already given us
+		// WhatsApp re-delivered one it had already given us, and it does that on
+		// every reconnect. The row it belongs to already names its own copy, so
+		// this second file is referenced by nothing — and CSMediaRetention
+		// sweeps from rows, so nothing would ever collect it.
+		h.discard(evt, media)
+		return nil
 	}
 
+	// Neither of the last two steps decides whether the message was stored, and
+	// both have a safety net: AssignWaiting sweeps every minute, and a browser
+	// that misses the announcement still sees the message on its next poll.
 	if _, err := h.assignment.AssignOne(ctx, conv.ID); err != nil {
-		return err
+		h.logger.Error("Could not assign an incoming conversation",
+			zap.String("conversation_id", conv.ID.String()), zap.Error(err))
 	}
-
-	return h.publisher.Publish(ctx, Event{
+	err = h.publisher.Publish(ctx, Event{
 		Type:           EventMessage,
 		ConversationID: conv.ID.String(),
 		MessageID:      msg.ID.String(),
 	})
+	if err != nil {
+		h.logger.Warn("Could not announce an incoming WhatsApp message",
+			zap.String("conversation_id", conv.ID.String()), zap.Error(err))
+	}
+	return nil
+}
+
+// discard removes an attachment that ended up belonging to no message row.
+func (h *inboundHandler) discard(evt *events.Message, media *services.MediaFile) {
+	if media == nil {
+		return
+	}
+	if err := h.media.remove(media.Path); err != nil {
+		h.logger.Warn("Could not remove an unreferenced attachment",
+			zap.String("wa_message_id", evt.Info.ID),
+			zap.String("path", media.Path), zap.Error(err))
+	}
 }
 
 // fetch returns the body and the stored attachment for one message. A download

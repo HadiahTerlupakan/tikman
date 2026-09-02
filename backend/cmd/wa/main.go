@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -121,7 +120,12 @@ func main() {
 		drainOutbox(ctx, drainer, logger)
 	})
 	go every(ctx, assignSweep, func() { assignWaiting(ctx, assignment, logger) })
-	go every(ctx, mediaSweep, func() { sweepMedia(retention, logger) })
+	go func() {
+		// Once at startup as well as on the ticker: a process that is restarted
+		// more often than once a day would otherwise never sweep at all.
+		sweepMedia(retention, logger)
+		every(ctx, mediaSweep, func() { sweepMedia(retention, logger) })
+	}()
 
 	logger.Info("Starting WhatsApp service",
 		zap.String("account", account.Label),
@@ -133,18 +137,16 @@ func main() {
 
 // firstAccount returns the number this process answers from, creating the row
 // on first start so a fresh install has something to pair against.
+//
+// The lookup is by label rather than "the oldest row": two processes starting
+// together would otherwise each insert their own account and then run two
+// sessions against different ids.
 func firstAccount(db *gorm.DB) (models.WAAccount, error) {
 	var account models.WAAccount
-	err := db.Order("created_at").First(&account).Error
-	if err == nil {
-		return account, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return account, err
-	}
-
-	account = models.WAAccount{Label: defaultAccountLabel, Status: models.WAAccountDisconnected}
-	return account, db.Create(&account).Error
+	err := db.Where(models.WAAccount{Label: defaultAccountLabel}).
+		Attrs(models.WAAccount{Status: models.WAAccountDisconnected}).
+		FirstOrCreate(&account).Error
+	return account, err
 }
 
 // showPairingCodes writes each pairing code to the log. Drawing a scannable

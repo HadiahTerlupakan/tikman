@@ -149,7 +149,22 @@ func (c *Client) Connect(ctx context.Context) error {
 	c.wa.BackgroundEventCtx = ctx
 	c.wa.AddEventHandler(c.route)
 	go c.supervise(ctx)
-	return c.wa.Connect()
+
+	if err := c.wa.Connect(); err != nil {
+		if c.NeedsPairing() {
+			// There is no session for the supervisor to put back, and it exits
+			// as soon as it sees that. Refusing to start is the honest answer.
+			return err
+		}
+		// A network hiccup at boot must not become a restart loop: exiting here
+		// would let the container manager retry faster, and harder, than the
+		// backoff this process was given to protect the number.
+		c.logger.Warn("Could not open the WhatsApp session at startup; retrying in the background",
+			zap.Error(err))
+		c.setStatus(ctx, models.WAAccountDisconnected)
+		c.signalDropped()
+	}
+	return nil
 }
 
 // Disconnect closes the session without giving up the pairing.
@@ -175,11 +190,19 @@ func (c *Client) route(rawEvt any) {
 		}
 	case *events.Connected:
 		c.setStatus(c.ctx, models.WAAccountConnected)
-	case *events.Disconnected, *events.StreamReplaced:
+	case *events.Disconnected:
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 		c.signalDropped()
+	case *events.StreamReplaced:
+		// The one disconnect that must not be answered. Something else is now
+		// holding this session; taking it back would have the two of us pulling
+		// it from each other, which is the reconnect storm this whole backoff
+		// exists to avoid. whatsmeow does not reconnect here either.
+		c.logger.Error("Another client took over this WhatsApp session; staying disconnected")
+		c.setStatus(c.ctx, models.WAAccountDisconnected)
 	case *events.LoggedOut:
-		c.logger.Warn("WhatsApp logged this number out; a new pairing is needed")
+		c.logger.Warn("WhatsApp logged this number out. The process stays up but " +
+			"will send and receive nothing until it is paired again")
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 		c.signalDropped()
 	case *events.KeepAliveTimeout:
