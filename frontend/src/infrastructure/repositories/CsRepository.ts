@@ -117,6 +117,30 @@ export class CsRepository implements ICsRepository {
     return response.data.data ?? [];
   }
 
+  async createQuickReply(title: string, body: string): Promise<CsQuickReply> {
+    const response = await apiClient.post(API_ENDPOINTS.CS_QUICK_REPLIES, {
+      title,
+      body,
+    });
+    return response.data.data;
+  }
+
+  async updateQuickReply(
+    id: string,
+    title: string,
+    body: string,
+  ): Promise<CsQuickReply> {
+    const response = await apiClient.put(
+      API_ENDPOINTS.CS_QUICK_REPLY_BY_ID(id),
+      { title, body },
+    );
+    return response.data.data;
+  }
+
+  async deleteQuickReply(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.CS_QUICK_REPLY_BY_ID(id));
+  }
+
   async listWaAccounts(): Promise<WaAccount[]> {
     const response = await apiClient.get(API_ENDPOINTS.CS_WA_ACCOUNTS);
     return response.data.data ?? [];

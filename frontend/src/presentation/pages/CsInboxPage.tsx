@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Empty, Spin } from "antd";
+import { Button, Empty, Space, Spin } from "antd";
+import { ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/application/stores";
 import {
   useAssignConversation,
@@ -22,6 +23,7 @@ import { MessageComposer } from "@/presentation/components/cs/MessageComposer";
 import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
+import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 
 function holderNameMap(users: User[]): Record<string, string> {
   return Object.fromEntries(users.map((u) => [u.id, u.username]));
@@ -39,6 +41,7 @@ export function CsInboxPage() {
 
   const [selectedId, setSelectedId] = useState<string>();
   const [pairingOpen, setPairingOpen] = useState(false);
+  const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
 
   const { waStatus, pairingCode } = useCsStream();
   const conversationsQuery = useCsConversations();
@@ -114,10 +117,20 @@ export function CsInboxPage() {
         title="CS Inbox"
         description="Satu nomor WhatsApp, dijawab bersama satu tim"
         extra={
-          <WaConnectionBadge
-            status={connectionStatus}
-            onOpenPairing={isAdmin ? () => setPairingOpen(true) : undefined}
-          />
+          <Space>
+            {isAdmin && (
+              <Button
+                icon={<ThunderboltOutlined />}
+                onClick={() => setQuickRepliesOpen(true)}
+              >
+                Balasan Cepat
+              </Button>
+            )}
+            <WaConnectionBadge
+              status={connectionStatus}
+              onOpenPairing={isAdmin ? () => setPairingOpen(true) : undefined}
+            />
+          </Space>
         }
       />
 
@@ -192,6 +205,14 @@ export function CsInboxPage() {
           {selected && <CustomerPanel conversation={selected} />}
         </div>
       </div>
+
+      {isAdmin && (
+        <QuickReplyManagerModal
+          open={quickRepliesOpen}
+          onClose={() => setQuickRepliesOpen(false)}
+          quickReplies={quickRepliesQuery.data ?? []}
+        />
+      )}
 
       {isAdmin && (
         <WaPairingModal

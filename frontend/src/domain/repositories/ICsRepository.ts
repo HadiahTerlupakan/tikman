@@ -31,6 +31,13 @@ export interface ICsRepository {
   setStatus(conversationId: string, status: "closed"): Promise<CsConversation>;
   linkOnt(conversationId: string, ontId: string | null): Promise<LinkOntResult>;
   getQuickReplies(): Promise<CsQuickReply[]>;
+  createQuickReply(title: string, body: string): Promise<CsQuickReply>;
+  updateQuickReply(
+    id: string,
+    title: string,
+    body: string,
+  ): Promise<CsQuickReply>;
+  deleteQuickReply(id: string): Promise<void>;
   listWaAccounts(): Promise<WaAccount[]>;
   connectWaAccount(id: string, phone: string): Promise<{ status: string }>;
 }
