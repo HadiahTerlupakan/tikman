@@ -3984,6 +3984,11 @@ Di `docker-compose.yml`:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # The API owns the migrations; wa runs none. Starting wa first on a fresh
+      # database means migration 41 has not run yet, so the unique index that
+      # makes account seeding idempotent is not there to enforce it.
+      api:
+        condition: service_healthy
     networks:
       - tikman-network
     restart: unless-stopped
