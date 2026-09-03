@@ -19,6 +19,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/database"
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/push"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 )
@@ -114,7 +115,18 @@ func main() {
 		log.Fatal("Failed to set trusted proxies", zap.Error(err))
 	}
 
-	router := api.Setup(engine, cfg, db, sessionStore, log, wgService)
+	router, pushNotifier, pushListener := api.Setup(engine, cfg, db, sessionStore, log, wgService)
+
+	pushClient, err := push.NewClient(context.Background(), cfg.FirebaseServiceAccountJSONB64)
+	if err != nil {
+		log.Warn("Push notifications are not available", zap.Error(err))
+	} else if pushClient != nil {
+		pushNotifier.SetSender(pushClient)
+		go pushListener.Run(context.Background())
+		log.Info("Push notification listener started")
+	} else {
+		log.Info("FIREBASE_SERVICE_ACCOUNT_JSON_B64 not set — push notifications disabled")
+	}
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))

@@ -36,7 +36,8 @@ func newWireguardRouter(t *testing.T) (*gin.Engine, *auth.Store) {
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 	wgService := services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{})
 
-	return Setup(gin.New(), cfg, db, sessionStore, logger, wgService), sessionStore
+	router, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger, wgService)
+	return router, sessionStore
 }
 
 func wireguardSessionCookie(t *testing.T, store *auth.Store, role models.UserRole) *http.Cookie {

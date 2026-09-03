@@ -171,7 +171,7 @@ func TestSettingsAreClosedToNonAdminsButBrowserValuesAreNot(t *testing.T) {
 	token, err := sessionStore.Create(uuid.New(), models.UserRoleViewer)
 	require.NoError(t, err)
 
-	router := Setup(gin.New(), cfg, db, sessionStore, logger,
+	router, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger,
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
 
 	call := func(path string) int {

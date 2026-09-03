@@ -31,7 +31,7 @@ const (
 	loginRequestsPerMinute = 10
 )
 
-func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService) *gin.Engine {
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService) (*gin.Engine, *services.PushNotifierService, *PushEventListener) {
 	router := ginEngine
 
 	router.Use(corsMiddleware(cfg.AllowedOrigins))
@@ -91,10 +91,13 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		csPresence, auditService, ontService, userService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
 	)
 
-	// Task 7 wires the real PushService used by the notifier — this handler
-	// can share that same instance once it lands; for now, construct its own.
 	pushService := services.NewPushService(db)
 	pushHandler := NewPushHandler(pushService)
+	// nil Sender for now: cmd/api is the one place that knows whether a real
+	// Firebase client exists, and sets it via SetSender once Setup returns —
+	// Setup only wires the notifier's other dependencies.
+	pushNotifier := services.NewPushNotifierService(nil, pushService, csConversationService, csMessageService)
+	pushListener := NewPushEventListener(csRedisClient, pushNotifier, logger)
 
 	// Provisioning pipeline: the factory above creates per-OLT commanders since
 	// each OLT has its own address and credentials.
@@ -325,5 +328,5 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		}
 	}
 
-	return router
+	return router, pushNotifier, pushListener
 }

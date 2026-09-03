@@ -48,6 +48,13 @@ func NewPushNotifierService(sender PushSender, subscriptions *PushService, conve
 	}
 }
 
+// SetSender replaces the Sender after construction — used by cmd/api, which
+// only knows whether a real Firebase client exists after Setup has already
+// built the notifier alongside everything else it depends on.
+func (s *PushNotifierService) SetSender(sender PushSender) {
+	s.sender = sender
+}
+
 // NotifyIncomingMessage looks up the conversation and message an EventMessage
 // named, then pushes a notification to everyone who can answer the inbox. A
 // send failure here is logged by the caller (see PushEventListener) and never
