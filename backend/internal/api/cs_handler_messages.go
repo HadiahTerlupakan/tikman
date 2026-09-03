@@ -88,11 +88,17 @@ func (h *CSHandler) Send(c *gin.Context) {
 		return
 	}
 
-	msg, err := h.messages.Queue(convID, userID, models.MessageKindText, h.sign(userID, req.Body), nil)
+	quoted, ok := h.quoteTarget(c, convID, req.ReplyToID, "SEND_FAILED")
+	if !ok {
+		return
+	}
+
+	msg, err := h.messages.Queue(convID, userID, models.MessageKindText, h.sign(userID, req.Body), nil, quotedID(quoted))
 	if err != nil {
 		mapCSError(c, err, "SEND_FAILED")
 		return
 	}
+	attachQuote(msg, quoted)
 
 	h.announce(c.Request.Context(), convID, msg.ID)
 	c.JSON(http.StatusCreated, gin.H{"data": msg})
@@ -110,6 +116,11 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if err := h.conversations.EnsureHolder(convID, userID); err != nil {
 		h.refuseNotHolder(c, convID, err, "SEND_MEDIA_FAILED")
+		return
+	}
+
+	quoted, ok := h.quoteTarget(c, convID, c.Query("reply_to_id"), "SEND_MEDIA_FAILED")
+	if !ok {
 		return
 	}
 
@@ -153,12 +164,13 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 		caption = h.sign(userID, caption)
 	}
 
-	msg, err := h.messages.Queue(convID, userID, kindForMime(mime), caption, media)
+	msg, err := h.messages.Queue(convID, userID, kindForMime(mime), caption, media, quotedID(quoted))
 	if err != nil {
 		h.removeOrphanedUpload(media.Path)
 		mapCSError(c, err, "SEND_MEDIA_FAILED")
 		return
 	}
+	attachQuote(msg, quoted)
 
 	h.announce(c.Request.Context(), convID, msg.ID)
 	c.JSON(http.StatusCreated, gin.H{"data": msg})

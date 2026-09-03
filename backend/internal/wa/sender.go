@@ -12,6 +12,6 @@ import (
 // refuses — can be tested without a WhatsApp connection, while the connection
 // itself stays in client.go where the network-code exemption applies.
 type Sender interface {
-	SendText(ctx context.Context, jid, body string) (waMessageID string, err error)
-	SendMedia(ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string) (waMessageID string, err error)
+	SendText(ctx context.Context, jid, body string, quote *Quote) (waMessageID string, err error)
+	SendMedia(ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string, quote *Quote) (waMessageID string, err error)
 }

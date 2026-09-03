@@ -11,13 +11,11 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 )
 
@@ -288,13 +286,13 @@ func (c *Client) setStatus(ctx context.Context, status models.WAAccountStatus) {
 }
 
 // SendText sends one reply and answers with the id WhatsApp gave it.
-func (c *Client) SendText(ctx context.Context, jid, body string) (string, error) {
+func (c *Client) SendText(ctx context.Context, jid, body string, quote *Quote) (string, error) {
 	to, err := types.ParseJID(jid)
 	if err != nil {
 		return "", fmt.Errorf("tujuan tidak valid %q: %w", jid, err)
 	}
 
-	resp, err := c.wa.SendMessage(ctx, to, &waE2E.Message{Conversation: proto.String(body)})
+	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, buildContextInfo(quote, to, c.selfJID())))
 	if err != nil {
 		return "", err
 	}
@@ -305,7 +303,7 @@ func (c *Client) SendText(ctx context.Context, jid, body string) (string, error)
 // is only safe because the upload boundary caps it: SendMedia in the API
 // wraps the request body in a MaxBytesReader before a byte is stored.
 func (c *Client) SendMedia(
-	ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string,
+	ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string, quote *Quote,
 ) (string, error) {
 	to, err := types.ParseJID(jid)
 	if err != nil {
@@ -321,9 +319,20 @@ func (c *Client) SendMedia(
 		return "", fmt.Errorf("unggah lampiran: %w", err)
 	}
 
-	resp, err := c.wa.SendMessage(ctx, to, buildMediaMessage(kind, uploaded, mime, filename, caption))
+	quoted := buildContextInfo(quote, to, c.selfJID())
+	resp, err := c.wa.SendMessage(ctx, to, buildMediaMessage(kind, uploaded, mime, filename, caption, quoted))
 	if err != nil {
 		return "", err
 	}
 	return resp.ID, nil
+}
+
+// selfJID is this inbox's own number, needed to quote its own replies. It is
+// the zero JID before pairing finishes, which buildContextInfo treats as
+// "no participant" rather than naming an empty address.
+func (c *Client) selfJID() types.JID {
+	if c.wa.Store.ID == nil {
+		return types.JID{}
+	}
+	return c.wa.Store.ID.ToNonAD()
 }

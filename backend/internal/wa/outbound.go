@@ -95,12 +95,36 @@ func (d *Drainer) send(ctx context.Context, msg models.CSMessage) (string, error
 		return "", fmt.Errorf("percakapan tidak ditemukan: %w", err)
 	}
 
+	quote := d.quote(msg)
 	if msg.Kind == models.MessageKindText {
-		return d.sender.SendText(ctx, conv.CustomerJID, msg.Body)
+		return d.sender.SendText(ctx, conv.CustomerJID, msg.Body, quote)
 	}
 	return d.sender.SendMedia(
 		ctx, conv.CustomerJID, msg.Kind,
 		filepath.Join(d.mediaRoot, msg.MediaPath),
-		msg.MediaMime, msg.MediaFilename, msg.Body,
+		msg.MediaMime, msg.MediaFilename, msg.Body, quote,
 	)
+}
+
+// quote loads the message a reply answers, answering nil when there is nothing
+// to quote any more.
+//
+// A quote that no longer resolves costs the grey block, not the reply. The row
+// was checked when the CS wrote it; by the time it drains, retention may have
+// swept the message it answered — and holding the reply back over that would
+// keep an answer from a customer who is waiting for it.
+func (d *Drainer) quote(msg models.CSMessage) *Quote {
+	if msg.ReplyToID == nil {
+		return nil
+	}
+	target, err := d.messages.Get(*msg.ReplyToID)
+	if err != nil || target.WAMessageID == nil {
+		return nil
+	}
+	return &Quote{
+		StanzaID: *target.WAMessageID,
+		FromMe:   target.Direction == models.MessageOut,
+		Body:     target.Body,
+		Kind:     target.Kind,
+	}
 }

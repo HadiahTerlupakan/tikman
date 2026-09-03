@@ -270,7 +270,7 @@ func TestServeMediaRefusesAPathThatEscapesTheMediaRoot(t *testing.T) {
 		Mime:     "text/plain",
 		Filename: "passwd",
 		Size:     0,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/media/"+msg.ID.String(), nil)
@@ -306,7 +306,7 @@ func TestServeMediaSetsTheStoredContentType(t *testing.T) {
 		Mime:     "image/jpeg",
 		Filename: "photo.jpg",
 		Size:     22,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/media/"+msg.ID.String(), nil)
@@ -340,7 +340,7 @@ func TestServeMediaFallsBackToOctetStreamForAnUnallowlistedStoredMime(t *testing
 		Mime:     "text/html",
 		Filename: "notes.html",
 		Size:     26,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/cs/media/"+msg.ID.String(), nil)

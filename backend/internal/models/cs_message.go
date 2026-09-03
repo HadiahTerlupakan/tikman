@@ -62,8 +62,37 @@ type CSMessage struct {
 	MediaFilename  string           `gorm:"type:varchar(255)" json:"media_filename,omitempty"`
 	Status         MessageStatus    `gorm:"type:varchar(20);not null;index" json:"status"`
 	FailReason     string           `gorm:"type:text" json:"fail_reason,omitempty"`
+	ReplyToID      *uuid.UUID       `gorm:"type:uuid" json:"reply_to_id,omitempty"`
 	WATimestamp    time.Time        `gorm:"index" json:"wa_timestamp"`
 	CreatedAt      time.Time        `json:"created_at"`
+
+	// ReplyTo is the message this one quotes, filled in on the way out of the
+	// service. It is not a column — the quote is stored as ReplyToID alone —
+	// because a copy of the quoted text would be a second version of words that
+	// already exist one row away.
+	ReplyTo *QuotedMessage `gorm:"-" json:"reply_to,omitempty"`
+}
+
+// QuotedMessage is as much of a quoted message as a thread needs to draw the
+// little block above a reply. It is deliberately not the whole message: a
+// quote is a pointer back, not a second copy of the conversation.
+type QuotedMessage struct {
+	ID            uuid.UUID        `json:"id"`
+	Direction     MessageDirection `json:"direction"`
+	Kind          MessageKind      `json:"kind"`
+	Body          string           `json:"body"`
+	MediaFilename string           `json:"media_filename,omitempty"`
+}
+
+// AsQuote reduces a message to the block a reply draws above itself.
+func (m *CSMessage) AsQuote() *QuotedMessage {
+	return &QuotedMessage{
+		ID:            m.ID,
+		Direction:     m.Direction,
+		Kind:          m.Kind,
+		Body:          m.Body,
+		MediaFilename: m.MediaFilename,
+	}
 }
 
 func (m *CSMessage) BeforeCreate(tx *gorm.DB) error {

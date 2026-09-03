@@ -38,6 +38,11 @@ type InboundMessage struct {
 	Body           string
 	Media          *MediaFile
 	At             time.Time
+
+	// ReplyToWAID is the WhatsApp id of the message this one quotes, empty when
+	// it quotes nothing. It is a WhatsApp id rather than one of ours because
+	// that is all the customer's phone sends; SaveInbound turns it into a row.
+	ReplyToWAID string
 }
 
 // CSMessageService stores the traffic in a thread, in both directions.
@@ -87,6 +92,7 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 			Kind:           in.Kind,
 			Body:           in.Body,
 			Status:         models.MessageDelivered,
+			ReplyToID:      quotedRow(tx, in.ConversationID, in.ReplyToWAID),
 			WATimestamp:    in.At,
 		}
 		applyMedia(&stored, in.Media)
@@ -112,7 +118,7 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 // still here when it comes back.
 func (s *CSMessageService) Queue(
 	conversationID, senderUserID uuid.UUID,
-	kind models.MessageKind, body string, media *MediaFile,
+	kind models.MessageKind, body string, media *MediaFile, replyTo *uuid.UUID,
 ) (*models.CSMessage, error) {
 	sender := senderUserID
 	msg := models.CSMessage{
@@ -122,6 +128,7 @@ func (s *CSMessageService) Queue(
 		Kind:           kind,
 		Body:           body,
 		Status:         models.MessageQueued,
+		ReplyToID:      replyTo,
 		WATimestamp:    time.Now(),
 	}
 	applyMedia(&msg, media)
@@ -210,6 +217,9 @@ func (s *CSMessageService) History(conversationID uuid.UUID, limit, offset int) 
 		Order("wa_timestamp DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("load history: %w", err)
+	}
+	if err := s.attachQuotes(rows); err != nil {
+		return nil, err
 	}
 	return rows, nil
 }

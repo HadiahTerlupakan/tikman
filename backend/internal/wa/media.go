@@ -253,7 +253,10 @@ func uploadTypeFor(kind models.MessageKind) whatsmeow.MediaType {
 // buildMediaMessage wraps an uploaded attachment in the protobuf WhatsApp
 // expects for its kind. A kind we have no shape for is sent as a document,
 // which is the one form that carries any file.
-func buildMediaMessage(kind models.MessageKind, up whatsmeow.UploadResponse, mime, filename, caption string) *waE2E.Message {
+func buildMediaMessage(
+	kind models.MessageKind, up whatsmeow.UploadResponse, mime, filename, caption string,
+	quoted *waE2E.ContextInfo,
+) *waE2E.Message {
 	switch kind {
 	case models.MessageKindImage:
 		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
@@ -261,6 +264,7 @@ func buildMediaMessage(kind models.MessageKind, up whatsmeow.UploadResponse, mim
 			MediaKey: up.MediaKey, FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256,
 			FileLength: proto.Uint64(up.FileLength),
 			Mimetype:   proto.String(mime), Caption: proto.String(caption),
+			ContextInfo: quoted,
 		}}
 	case models.MessageKindVideo:
 		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{
@@ -268,13 +272,15 @@ func buildMediaMessage(kind models.MessageKind, up whatsmeow.UploadResponse, mim
 			MediaKey: up.MediaKey, FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256,
 			FileLength: proto.Uint64(up.FileLength),
 			Mimetype:   proto.String(mime), Caption: proto.String(caption),
+			ContextInfo: quoted,
 		}}
 	case models.MessageKindAudio:
 		return &waE2E.Message{AudioMessage: &waE2E.AudioMessage{
 			URL: proto.String(up.URL), DirectPath: proto.String(up.DirectPath),
 			MediaKey: up.MediaKey, FileEncSHA256: up.FileEncSHA256, FileSHA256: up.FileSHA256,
-			FileLength: proto.Uint64(up.FileLength),
-			Mimetype:   proto.String(mime),
+			FileLength:  proto.Uint64(up.FileLength),
+			Mimetype:    proto.String(mime),
+			ContextInfo: quoted,
 		}}
 	default:
 		return &waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{

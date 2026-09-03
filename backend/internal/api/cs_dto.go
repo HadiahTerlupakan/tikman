@@ -8,6 +8,9 @@ import (
 // SendMessageRequest is a CS reply on a thread they hold.
 type SendMessageRequest struct {
 	Body string `json:"body" binding:"required"`
+	// ReplyToID names the message this reply quotes, empty when it quotes
+	// nothing.
+	ReplyToID string `json:"reply_to_id"`
 }
 
 // AssignRequest hands a thread to one CS. Sending your own id is taking it over.

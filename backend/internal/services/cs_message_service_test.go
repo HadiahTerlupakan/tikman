@@ -71,7 +71,7 @@ func TestQueuedMessageWaitsWithoutAWhatsAppID(t *testing.T) {
 	messages, _, conv := messageSetup(t)
 	sender := uuid.New()
 
-	msg, err := messages.Queue(conv.ID, sender, models.MessageKindText, "sudah kami cek", nil)
+	msg, err := messages.Queue(conv.ID, sender, models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, models.MessageQueued, msg.Status)
@@ -87,9 +87,9 @@ func TestClaimQueuedReturnsOnlyWhatIsStillWaiting(t *testing.T) {
 	messages, _, conv := messageSetup(t)
 	sender := uuid.New()
 
-	waiting, err := messages.Queue(conv.ID, sender, models.MessageKindText, "menunggu", nil)
+	waiting, err := messages.Queue(conv.ID, sender, models.MessageKindText, "menunggu", nil, nil)
 	require.NoError(t, err)
-	gone, err := messages.Queue(conv.ID, sender, models.MessageKindText, "terkirim", nil)
+	gone, err := messages.Queue(conv.ID, sender, models.MessageKindText, "terkirim", nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, messages.MarkSent(gone.ID, "3EB0SENT"))
 
@@ -102,7 +102,7 @@ func TestClaimQueuedReturnsOnlyWhatIsStillWaiting(t *testing.T) {
 func TestMarkFailedKeepsTheReasonWhereTheCSCanReadIt(t *testing.T) {
 	messages, _, conv := messageSetup(t)
 
-	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
+	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, messages.MarkFailed(msg.ID, "nomor tidak terdaftar di WhatsApp"))
 
@@ -116,7 +116,7 @@ func TestMarkFailedKeepsTheReasonWhereTheCSCanReadIt(t *testing.T) {
 func TestApplyReceiptWalksAMessageForwardOnly(t *testing.T) {
 	messages, _, conv := messageSetup(t)
 
-	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
+	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, messages.MarkSent(msg.ID, "3EB0AAA"))
 

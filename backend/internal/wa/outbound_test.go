@@ -28,11 +28,13 @@ type fakeSender struct {
 	// test finish before they can overlap, and the test passes whether the
 	// drain lock is there or not — proving nothing.
 	delay time.Duration
+	// quotes records what each send was told to quote, in the order sent.
+	quotes []*Quote
 }
 
 // The sleep sits outside the lock on purpose: taking it first would serialise
 // the fake itself and hide the very overlap the test is trying to create.
-func (f *fakeSender) send(record string, fail bool) (string, error) {
+func (f *fakeSender) send(record string, fail bool, quote *Quote) (string, error) {
 	if f.delay > 0 {
 		time.Sleep(f.delay)
 	}
@@ -45,15 +47,18 @@ func (f *fakeSender) send(record string, fail bool) (string, error) {
 		return "", errors.New("nomor tidak terdaftar di WhatsApp")
 	}
 	f.sent = append(f.sent, record)
+	f.quotes = append(f.quotes, quote)
 	return "3EB0" + record, nil
 }
 
-func (f *fakeSender) SendText(_ context.Context, _, body string) (string, error) {
-	return f.send(body, f.failOn != "" && body == f.failOn)
+func (f *fakeSender) SendText(_ context.Context, _, body string, quote *Quote) (string, error) {
+	return f.send(body, f.failOn != "" && body == f.failOn, quote)
 }
 
-func (f *fakeSender) SendMedia(_ context.Context, _ string, _ models.MessageKind, path, _, _, _ string) (string, error) {
-	return f.send(path, false)
+func (f *fakeSender) SendMedia(
+	_ context.Context, _ string, _ models.MessageKind, path, _, _, _ string, quote *Quote,
+) (string, error) {
+	return f.send(path, false, quote)
 }
 
 func drainSetup(t *testing.T) (*gorm.DB, *services.CSMessageService, *services.CSConversationService, *models.CSConversation) {
@@ -89,7 +94,7 @@ func TestDrainSendsWhatIsWaitingAndMarksItSent(t *testing.T) {
 	_, messages, conversations, conv := drainSetup(t)
 	sender := &fakeSender{}
 
-	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil)
+	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
 
 	n, err := NewDrainer(messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
@@ -110,7 +115,7 @@ func TestDrainRecordsWhyAMessageCouldNotBeSent(t *testing.T) {
 	_, messages, conversations, conv := drainSetup(t)
 	sender := &fakeSender{err: errors.New("nomor tidak terdaftar di WhatsApp")}
 
-	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
+	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 
 	n, err := NewDrainer(messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
@@ -129,7 +134,7 @@ func TestDrainKeepsGoingPastAMessageWhatsAppRefuses(t *testing.T) {
 	sender := &fakeSender{failOn: "kedua"}
 
 	for _, body := range []string{"pertama", "kedua", "ketiga"} {
-		_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, body, nil)
+		_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, body, nil, nil)
 		require.NoError(t, err)
 	}
 
@@ -158,7 +163,7 @@ func TestDrainDoesNotSendTheSameMessageTwice(t *testing.T) {
 	sender := &fakeSender{}
 	drainer := NewDrainer(messages, conversations, sender, t.TempDir(), 0)
 
-	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
+	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 
 	_, err = drainer.Drain(context.Background(), 10)
@@ -179,7 +184,7 @@ func TestConcurrentDrainsSendAReplyOnce(t *testing.T) {
 	sender := &fakeSender{delay: 20 * time.Millisecond}
 	drainer := NewDrainer(messages, conversations, sender, t.TempDir(), 0)
 
-	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil)
+	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup

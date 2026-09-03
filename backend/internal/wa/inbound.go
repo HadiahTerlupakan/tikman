@@ -62,6 +62,7 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 	msg, created, err := h.messages.SaveInbound(services.InboundMessage{
 		ConversationID: conv.ID,
 		WAMessageID:    evt.Info.ID,
+		ReplyToWAID:    quotedStanzaID(evt.Message),
 		Kind:           att.kind,
 		Body:           body,
 		Media:          media,
