@@ -32,6 +32,11 @@ type Config struct {
 	WADrainIntervalSeconds int
 	// WAMediaRetentionDays is how long an attachment is kept on disk.
 	WAMediaRetentionDays int
+	// FirebaseServiceAccountJSONB64 is the base64-encoded Firebase service
+	// account key used to send push notifications. Empty means the feature is
+	// not configured yet — cmd/api must still start normally (see
+	// internal/push.NewClient).
+	FirebaseServiceAccountJSONB64 string
 }
 
 func Load() (*Config, error) {
@@ -75,6 +80,8 @@ func Load() (*Config, error) {
 		WASendIntervalMS:       viper.GetInt("WA_SEND_INTERVAL_MS"),
 		WADrainIntervalSeconds: viper.GetInt("WA_DRAIN_INTERVAL_SECONDS"),
 		WAMediaRetentionDays:   viper.GetInt("WA_MEDIA_RETENTION_DAYS"),
+
+		FirebaseServiceAccountJSONB64: viper.GetString("FIREBASE_SERVICE_ACCOUNT_JSON_B64"),
 	}
 
 	if err := validateConfig(cfg); err != nil {

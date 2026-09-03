@@ -69,6 +69,7 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - FIREBASE_SERVICE_ACCOUNT_JSON_B64=${FIREBASE_SERVICE_ACCOUNT_JSON_B64:-}
       - LOG_LEVEL=info
       - API_PORT=8080
     volumes:

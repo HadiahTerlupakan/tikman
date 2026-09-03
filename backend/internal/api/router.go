@@ -91,6 +91,11 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		csPresence, auditService, ontService, userService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
 	)
 
+	// Task 7 wires the real PushService used by the notifier — this handler
+	// can share that same instance once it lands; for now, construct its own.
+	pushService := services.NewPushService(db)
+	pushHandler := NewPushHandler(pushService)
+
 	// Provisioning pipeline: the factory above creates per-OLT commanders since
 	// each OLT has its own address and credentials.
 	provisionJobService := services.NewJobService(db, auditService)
@@ -254,6 +259,13 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Disconnect)
 			cs.DELETE("/wa-accounts/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.DeleteAccount)
 			cs.DELETE("/wa-accounts/:id/messages", middleware.RequireRole(models.UserRoleAdmin), csHandler.ClearAccountMessages)
+		}
+
+		push := api.Group("/push")
+		push.Use(middleware.AuthMiddleware(authStore, logger))
+		{
+			push.POST("/subscribe", pushHandler.Subscribe)
+			push.DELETE("/subscribe", pushHandler.Unsubscribe)
 		}
 
 		odcFeeds := api.Group("/odc-feeds")
