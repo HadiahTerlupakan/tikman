@@ -119,7 +119,13 @@ function MessageBubble({
               borderRadius: 6,
               display: "block",
             }}
-            wrapperStyle={{ marginBottom: message.body ? 6 : 2 }}
+            // Block, not antd's default inline-block: a caption is a sibling
+            // span, and inline-block puts it beside the photo instead of
+            // beneath it, running off the edge of the bubble.
+            wrapperStyle={{
+              display: "block",
+              marginBottom: message.body ? 6 : 2,
+            }}
           />
         )}
 

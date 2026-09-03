@@ -110,4 +110,27 @@ describe("MessageThread", () => {
 
     expect(screen.queryByLabelText("Sampai di HP pelanggan")).toBeNull();
   });
+
+  // antd wraps the image in an inline-block element, so a caption — a sibling
+  // span — sat beside the photo and ran off the edge of the bubble instead of
+  // sitting under it.
+  it("puts a caption beneath the photo, not beside it", () => {
+    const { container } = render(
+      <MessageThread
+        messages={[
+          message({
+            kind: "image",
+            body: "struk pembayaran",
+            mediaFilename: "struk.jpg",
+          }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("struk pembayaran")).toBeInTheDocument();
+    expect(container.querySelector(".ant-image")).toHaveStyle({
+      display: "block",
+    });
+  });
 });
