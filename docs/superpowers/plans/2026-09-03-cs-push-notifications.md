@@ -16,6 +16,7 @@
 - Push notifications go to Admin, CS, and Technician roles only — the same three roles `/api/v1/cs/*` already admits. No per-assignment filtering (every eligible user is notified for every incoming message).
 - The message preview truncates to 120 runes with a trailing "…".
 - `push_subscriptions.user_id` gets its foreign key from a numbered SQL migration (`ON DELETE CASCADE`), never a GORM tag — this codebase always splits it that way (see migration 41), because the constraint is only exercised under real Postgres, not the SQLite test database.
+- **`internal/services` must never import `internal/push`.** The `PushSender` interface lives in `internal/services` (the consumer) and `push.Client` satisfies it structurally. `cmd/wa`, `cmd/worker`, `cmd/trapd`, and `cmd/seed-events` all import `internal/services`; an import edge the other way would drag the Firebase SDK, gRPC, and protobuf into all four of their builds for code they never run. `cmd/api` is the only place that imports both packages.
 - No file this plan creates should exceed ~300 lines; none needs to, since the design already splits by responsibility.
 
 ---
@@ -283,6 +284,22 @@ func (s *PushService) RemoveTokens(tokens []string) error {
 Run: `cd backend && go test ./internal/services/... -run TestPushService -v`
 Expected: PASS (5 tests).
 
+These five tests are also what proves the two GORM constructs above actually
+work on the SQLite the test suite uses, rather than only in theory:
+`clause.OnConflict` needs the unique index AutoMigrate builds from the
+`uniqueIndex` tag, and `Distinct().Pluck(...)` with a table-qualified column
+is the fussier of the two. If `TokensForRoles` comes back with a SQL error
+rather than a wrong answer, swap that one statement for the explicit form and
+re-run — the behaviour under test does not change:
+
+```go
+	err := s.db.Model(&models.PushSubscription{}).
+		Select("DISTINCT push_subscriptions.fcm_token").
+		Joins("JOIN users ON users.id = push_subscriptions.user_id").
+		Where("users.role IN ?", roles).
+		Find(&tokens).Error
+```
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -299,15 +316,24 @@ git commit -m "feat(push): add PushService for managing device subscriptions"
 - Modify: `backend/go.mod`, `backend/go.sum` (via `go get`)
 
 **Interfaces:**
-- Produces: `push.Sender` interface (`SendEach(ctx, tokens []string, title, body string, data map[string]string) (invalidTokens []string, err error)`), `push.NewClient(ctx, serviceAccountJSONB64 string) (*push.Client, error)` — returns `(nil, nil)` when `serviceAccountJSONB64` is empty, `(*push.Client).SendEach(...)` implementing `Sender`.
+- Produces: `push.NewClient(ctx, serviceAccountJSONB64 string) (*push.Client, error)` — returns `(nil, nil)` when `serviceAccountJSONB64` is empty — and `(*push.Client).SendEach(ctx, tokens []string, title, body string, data map[string]string) (invalidTokens []string, err error)`.
+
+**This package deliberately declares no interface.** The interface it
+satisfies (`services.PushSender`) is declared by its consumer in Task 4, the
+Go way round. That is not a style preference here — it is load-bearing:
+`cmd/wa`, `cmd/worker`, `cmd/trapd`, and `cmd/seed-events` all import
+`internal/services`, so if `internal/services` imported `internal/push`,
+every one of those four binaries would pull the entire Firebase SDK (gRPC,
+protobuf, the Google API client libraries) into its build for code it never
+runs. With the interface on the consumer's side, only `cmd/api` ever imports
+`internal/push`.
 
 This file wraps an external device/service client the way `internal/wa` wraps
 whatsmeow — network-bound glue, not business logic. It is exempt from unit
 testing under this project's existing exemption for code that constructs a
 real external client and cannot be exercised without live credentials (see
 CLAUDE.md's `internal/connectivity` exemption; the same reasoning applies
-here). `PushNotifierService` (Task 4) is what gets tested, against a fake
-`Sender`.
+here). `PushNotifierService` (Task 4) is what gets tested, against a fake.
 
 **Note on package choice:** `option.WithCredentialsJSON` exists but is
 deprecated in the currently published SDK in favor of
@@ -340,15 +366,10 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Sender delivers a push notification to a set of device tokens and reports
-// which of them Firebase considers dead, so the caller can stop holding onto
-// them. Exists so PushNotifierService can be tested against a fake instead
-// of a real Firebase project.
-type Sender interface {
-	SendEach(ctx context.Context, tokens []string, title, body string, data map[string]string) (invalidTokens []string, err error)
-}
-
-// Client sends push notifications through Firebase Cloud Messaging.
+// Client sends push notifications through Firebase Cloud Messaging. It
+// satisfies services.PushSender, which is declared there rather than here on
+// purpose — see the note in this task, and keep this package free of any
+// interface so internal/services never has to import it.
 type Client struct {
 	fcm *messaging.Client
 }
@@ -431,8 +452,13 @@ git commit -m "feat(push): add a Firebase Cloud Messaging client"
 - Test: `backend/internal/services/push_notifier_service_test.go`
 
 **Interfaces:**
-- Consumes: `push.Sender` (Task 3), `*PushService` (Task 2), `*CSConversationService.Get(id) (*models.CSConversation, error)`, `*CSMessageService.Get(id) (*models.CSMessage, error)` (both already exist).
-- Produces: `NewPushNotifierService(sender push.Sender, subscriptions *PushService, conversations *CSConversationService, messages *CSMessageService) *PushNotifierService`, `(*PushNotifierService).NotifyIncomingMessage(ctx, conversationID, messageID uuid.UUID) error`. Also produces the test-only `FakePushSender` type, reused by Task 5's tests (same package, same directory).
+- Consumes: `*PushService` (Task 2), `*CSConversationService.Get(id) (*models.CSConversation, error)`, `*CSMessageService.Get(id) (*models.CSMessage, error)` (both already exist). Note it does **not** consume `internal/push` — see below.
+- Produces: `services.PushSender` interface (`SendEach(ctx, tokens []string, title, body string, data map[string]string) (invalidTokens []string, err error)`), `NewPushNotifierService(sender PushSender, subscriptions *PushService, conversations *CSConversationService, messages *CSMessageService) *PushNotifierService`, `(*PushNotifierService).NotifyIncomingMessage(ctx, conversationID, messageID uuid.UUID) error`. Also produces the test-only `FakePushSender` type, reused by Task 5's tests (same package, same directory).
+
+`PushSender` is declared here, in the consumer, and `push.Client` (Task 3)
+satisfies it structurally without either package importing the other. This
+keeps the Firebase SDK out of the `wa`, `worker`, `trapd`, and `seed-events`
+builds, all four of which import `internal/services`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -623,8 +649,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
-	"github.com/tikman/olt-provisioning/internal/push"
 )
+
+// PushSender delivers a push notification to a set of device tokens and
+// reports which of them the push service considers dead, so the caller can
+// stop holding onto them.
+//
+// Declared here rather than in internal/push so that this package — imported
+// by the wa, worker, trapd and seed-events binaries — never pulls the
+// Firebase SDK into their builds. push.Client satisfies it structurally.
+type PushSender interface {
+	SendEach(ctx context.Context, tokens []string, title, body string, data map[string]string) (invalidTokens []string, err error)
+}
 
 // pushPreviewRunes is how much of a message body reaches an OS notification —
 // enough to judge urgency, short enough to stay well under FCM's per-message
@@ -640,13 +676,13 @@ var pushEligibleRoles = []models.UserRole{
 // PushNotifierService turns one incoming customer message into a push
 // notification for every eligible device registered.
 type PushNotifierService struct {
-	sender        push.Sender
+	sender        PushSender
 	subscriptions *PushService
 	conversations *CSConversationService
 	messages      *CSMessageService
 }
 
-func NewPushNotifierService(sender push.Sender, subscriptions *PushService, conversations *CSConversationService, messages *CSMessageService) *PushNotifierService {
+func NewPushNotifierService(sender PushSender, subscriptions *PushService, conversations *CSConversationService, messages *CSMessageService) *PushNotifierService {
 	return &PushNotifierService{
 		sender:        sender,
 		subscriptions: subscriptions,
@@ -1062,12 +1098,12 @@ func TestPushUnsubscribeRemovesTheCallersOwnToken(t *testing.T) {
 Add `"gorm.io/gorm"` to this file's import block (needed for the `*gorm.DB`
 now threaded through `setupPushHandler` and `tokensStored`).
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `cd backend && go test ./internal/api/... -run TestPushSubscribe -v && go test ./internal/api/... -run TestPushUnsubscribe -v`
 Expected: FAIL — `NewPushHandler` undefined.
 
-- [ ] **Step 3: Write the handler**
+- [ ] **Step 4: Write the handler**
 
 ```go
 // backend/internal/api/push_handler.go
@@ -1138,7 +1174,7 @@ func (h *PushHandler) Unsubscribe(c *gin.Context) {
 }
 ```
 
-- [ ] **Step 4: Wire the route**
+- [ ] **Step 5: Wire the route**
 
 In `backend/internal/api/router.go`, construct the service and handler near
 where `csConversationService` and friends are built (Task 7 wires the real
@@ -1161,7 +1197,7 @@ Then, alongside the other `api.Group(...)` blocks, add:
 		}
 ```
 
-- [ ] **Step 5: Document the new env var and pass it into the container**
+- [ ] **Step 6: Document the new env var and pass it into the container**
 
 Append to `backend/.env.example` (after the `CS WhatsApp module` block):
 
@@ -1183,12 +1219,12 @@ The `:-` default matters here — unlike `ENCRYPTION_KEY` (required, no
 default), this one must not make `docker compose config` warn about an unset
 variable on every deploy before the user's Firebase project exists.
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [ ] **Step 7: Run the tests to verify they pass**
 
 Run: `cd backend && go build ./... && go test ./internal/api/... -run "TestPushSubscribe|TestPushUnsubscribe" -v`
 Expected: PASS (4 tests).
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add backend/internal/api/push_handler.go backend/internal/api/push_handler_test.go backend/internal/config/config.go backend/internal/api/router.go backend/.env.example docker-compose.yml
@@ -1240,7 +1276,7 @@ setter to fill it in after the fact. Add this to
 // SetSender replaces the Sender after construction — used by cmd/api, which
 // only knows whether a real Firebase client exists after Setup has already
 // built the notifier alongside everything else it depends on.
-func (s *PushNotifierService) SetSender(sender push.Sender) {
+func (s *PushNotifierService) SetSender(sender PushSender) {
 	s.sender = sender
 }
 ```
@@ -1314,46 +1350,75 @@ have their browser silently retry a 403'd `/api/v1/cs/conversations` request
 or reconnect forever to a 403'd `/api/v1/cs/stream` `EventSource` on every
 page load.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
+
+Two files. First, the stream — this is the one that matters most, since an
+`EventSource` pointed at a route the viewer gets 403 from reconnects on its
+own, forever. Add to the **existing** `useCsStream.test.ts`, inside its
+existing `describe("useCsStream", ...)` block, reusing the `FakeEventSource`
+and `wrapper` helpers already defined at the top of that file:
 
 ```ts
-// frontend/src/application/__tests__/useCsInbox.test.ts (new file, or add
-// to an existing test file for this hook if one already exists — check
-// first: `ls frontend/src/application/__tests__/ | grep -i csinbox`)
-import { describe, expect, it, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
-import { useCsConversations } from "../useCsInbox";
-import { createWrapper } from "./setupMocks";
-import { CsRepository } from "@/infrastructure/repositories";
+  // AppLayout runs this hook on every page for every role, so a Viewer — who
+  // gets 403 from /api/v1/cs/stream — must never open the connection at all.
+  // EventSource reconnects on its own after an error, so "it fails harmlessly"
+  // is not true: it fails in a loop.
+  it("opens no connection when disabled", () => {
+    const client = new QueryClient();
 
-vi.mock("@/infrastructure/repositories", () => ({
-  CsRepository: vi.fn().mockImplementation(() => ({
-    getConversations: vi.fn().mockResolvedValue([]),
-  })),
-}));
+    renderHook(() => useCsStream(false), { wrapper: wrapper(client) });
 
-describe("useCsConversations enabled option", () => {
-  it("does not fetch when enabled is false", async () => {
+    expect(FakeEventSource.instances).toHaveLength(0);
+  });
+```
+
+Second, a new file for the query hook. Note it deliberately does **not**
+import `./setupMocks`: that helper mocks `@/infrastructure/repositories`
+with a fixed set of repos that does not include `CsRepository`, so importing
+it would make `new CsRepository()` (at module scope in `useCsInbox.ts`) throw
+"not a constructor". No repository mock is needed here anyway — a disabled
+query never calls its `queryFn`, so nothing reaches the real repository.
+This mirrors how `useCsStream.test.ts` already stands on its own.
+
+```ts
+// frontend/src/application/__tests__/useCsInbox.test.ts
+import { describe, expect, it } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import { useCsConversations } from "../hooks/useCsInbox";
+
+function wrapper(client: QueryClient) {
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client }, children);
+}
+
+describe("useCsConversations", () => {
+  // AppLayout asks for the awaiting-reply count on every page, including for
+  // a Viewer, who gets 403 from the endpoint. A disabled query must not send
+  // that request at all.
+  it("does not fetch when disabled", () => {
+    const client = new QueryClient();
+
     const { result } = renderHook(
       () => useCsConversations({ awaitingReply: true }, { enabled: false }),
-      { wrapper: createWrapper() },
+      { wrapper: wrapper(client) },
     );
-    // React Query never transitions out of "pending" for a disabled query.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // In TanStack Query v5 a disabled query sits at status "pending" with
+    // fetchStatus "idle" — it is the fetchStatus that says no request went out.
     expect(result.current.fetchStatus).toBe("idle");
   });
 });
 ```
 
-Check whether `CsRepository` is already mocked this way elsewhere in the
-test suite (`grep -rn "vi.mock(\"@/infrastructure/repositories\"" frontend/src`)
-and match that exact mock shape instead of introducing a second one if it
-differs.
+- [ ] **Step 2: Run the tests to verify they fail**
 
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `cd frontend && npx vitest run src/application/__tests__/useCsInbox.test.ts`
-Expected: FAIL — `useCsConversations` does not accept a second argument yet (TypeScript error) or the query fires anyway.
+Run: `cd frontend && npx vitest run src/application/__tests__/useCsInbox.test.ts src/application/__tests__/useCsStream.test.ts`
+Expected: both new tests FAIL — neither hook accepts the new argument yet, so
+`useCsStream(false)` still opens a connection and `useCsConversations(...,
+{enabled: false})` is a TypeScript error. The two pre-existing
+`useCsStream` tests must still pass.
 
 - [ ] **Step 3: Update the hooks**
 
@@ -1399,13 +1464,18 @@ export function useCsStream(enabled = true): WaStreamStatus {
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd frontend && npx vitest run src/application/__tests__/useCsInbox.test.ts && npx vitest run` (the second command is the full suite — confirms nothing that already calls `useCsConversations`/`useCsStream` without the new argument broke).
-Expected: PASS, full suite green.
+Run: `cd frontend && npx vitest run src/application/__tests__/useCsInbox.test.ts src/application/__tests__/useCsStream.test.ts`
+Expected: PASS — including the two tests that already existed in
+`useCsStream.test.ts`, which call `useCsStream()` with no argument and must
+keep working on the new default.
+
+Then the full suite: `npx vitest run`
+Expected: green — confirms no existing caller of either hook broke.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/application/hooks/useCsInbox.ts frontend/src/application/hooks/useCsStream.ts frontend/src/application/__tests__/useCsInbox.test.ts
+git add frontend/src/application/hooks/useCsInbox.ts frontend/src/application/hooks/useCsStream.ts frontend/src/application/__tests__/useCsInbox.test.ts frontend/src/application/__tests__/useCsStream.test.ts
 git commit -m "feat(push): let useCsConversations and useCsStream be turned off"
 ```
 
@@ -1416,6 +1486,7 @@ git commit -m "feat(push): let useCsConversations and useCsStream be turned off"
 **Files:**
 - Create: `frontend/src/shared/config/firebase.ts`
 - Create: `frontend/src/infrastructure/firebase/messaging.ts`
+- Modify: `frontend/src/vite-env.d.ts` (declare the new env vars — required, see Step 2)
 - Modify: `frontend/.env.example`
 - Modify: `frontend/package.json` (via `npm install`)
 
@@ -1432,7 +1503,40 @@ project. Manual verification happens once Task 15 supplies real credentials
 
 Run: `cd frontend && npm install firebase`
 
-- [ ] **Step 2: Add the env vars**
+- [ ] **Step 2: Declare the new env vars to TypeScript**
+
+`frontend/src/vite-env.d.ts` declares `ImportMetaEnv` explicitly, with only
+`VITE_API_URL` and `VITE_APP_NAME`, and its local `interface ImportMeta`
+replaces the permissive one from `vite/client`. Reading any other
+`import.meta.env.VITE_*` is therefore a compile error, not a silent
+`undefined` — Step 4's `firebase.ts` will not compile without this. Add the
+seven new entries:
+
+```ts
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_URL: string;
+  readonly VITE_APP_NAME: string;
+  readonly VITE_FIREBASE_API_KEY: string;
+  readonly VITE_FIREBASE_AUTH_DOMAIN: string;
+  readonly VITE_FIREBASE_PROJECT_ID: string;
+  readonly VITE_FIREBASE_STORAGE_BUCKET: string;
+  readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string;
+  readonly VITE_FIREBASE_APP_ID: string;
+  readonly VITE_FIREBASE_VAPID_KEY: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+```
+
+They are typed `string` rather than `string | undefined` to match the two
+that already exist; `firebase.ts` still applies `|| ""` to each, because at
+runtime an unset variable really is `undefined` whatever the type says.
+
+- [ ] **Step 3: Add the env vars**
 
 Append to `frontend/.env.example`:
 
@@ -1449,7 +1553,7 @@ VITE_FIREBASE_APP_ID=
 VITE_FIREBASE_VAPID_KEY=
 ```
 
-- [ ] **Step 3: Write the config module**
+- [ ] **Step 4: Write the config module**
 
 ```ts
 // frontend/src/shared/config/firebase.ts
@@ -1470,7 +1574,7 @@ export const firebaseVapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || "";
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey);
 ```
 
-- [ ] **Step 4: Write the messaging wrapper**
+- [ ] **Step 5: Write the messaging wrapper**
 
 ```ts
 // frontend/src/infrastructure/firebase/messaging.ts
@@ -1567,7 +1671,7 @@ export async function listenForForegroundMessages(
 }
 ```
 
-- [ ] **Step 5: Verify it builds**
+- [ ] **Step 6: Verify it builds**
 
 Run: `cd frontend && npm run build`
 Expected: exit 0. (If the `firebase/messaging` exports have moved since this
@@ -1575,10 +1679,10 @@ plan was written, run `npx tsc --noEmit` and read the exact error — adjust
 import names to match what the installed version actually exports rather
 than guessing.)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add frontend/src/shared/config/firebase.ts frontend/src/infrastructure/firebase/messaging.ts frontend/.env.example frontend/package.json frontend/package-lock.json
+git add frontend/src/shared/config/firebase.ts frontend/src/infrastructure/firebase/messaging.ts frontend/src/vite-env.d.ts frontend/.env.example frontend/package.json frontend/package-lock.json
 git commit -m "feat(push): add the Firebase messaging wrapper"
 ```
 
@@ -2267,35 +2371,17 @@ layout instead of a second connection.
 - [ ] **Step 4: Verify the build and full test suite**
 
 Run: `cd frontend && npm run build && npx vitest run`
-Expected: build succeeds; every test passes. Pay particular attention to any
-existing test that renders `CsInboxPage` directly without going through a
-router `Outlet` — `useOutletContext` returns `undefined` outside a matching
-route, which would make `const { csStream } = useOutletContext(...)` throw.
-Check:
+Expected: build succeeds; every test passes.
 
-```bash
-grep -rln "render(<CsInboxPage" frontend/src --include="*.test.tsx"
-```
-
-If any test renders `CsInboxPage` in isolation, wrap it in a minimal router
-so the outlet context resolves, e.g.:
-
-```tsx
-import { createMemoryRouter, RouterProvider } from "react-router-dom";
-
-const router = createMemoryRouter([
-  {
-    path: "/",
-    element: <Outlet context={{ csStream: {} } satisfies AppLayoutContext} />,
-    children: [{ index: true, element: <CsInboxPage /> }],
-  },
-]);
-render(<RouterProvider router={router} />);
-```
-
-adjusting to match whatever that specific test already sets up around it
-(query client wrapper, etc.) — do not replace an existing working test setup
-wholesale, only add the router wrapper the outlet context now requires.
+No existing test renders `CsInboxPage` or `AppLayout` — verified while this
+plan was written (`grep -rln "CsInboxPage\|RouterProvider\|createMemoryRouter"
+frontend/src --include="*.test.tsx" --include="*.test.ts"` returns nothing),
+so neither the new `useOutletContext` call nor `AppLayout`'s new hooks can
+break a test that already exists. If that ever stops being true, the failure
+mode to expect is `useOutletContext` returning `undefined` outside a matching
+route, which would make `const { csStream } = useOutletContext(...)` throw —
+the fix then is to render the component under a `createMemoryRouter` whose
+parent route supplies `<Outlet context={{ csStream: {} }} />`.
 
 - [ ] **Step 5: Manual verification**
 
@@ -2341,6 +2427,48 @@ making every Firebase-touching piece read from configuration that can be
 empty.
 
 ---
+
+## Verification Notes
+
+Everything below was checked against the real codebase or the real installed
+package while writing this plan, rather than assumed. Five things were wrong
+on the first pass and are already fixed above; they are listed because each
+one would have stopped an executor mid-task:
+
+1. **`option.WithCredentialsJSON` is deprecated** in the currently published
+   `google.golang.org/api` in favour of
+   `option.WithAuthCredentialsJSON(option.ServiceAccount, json)` — found by
+   running `go doc` against the actually-installed module, not from memory.
+2. **`internal/services` importing `internal/push` would have put the whole
+   Firebase SDK into the `wa`, `worker`, `trapd`, and `seed-events` builds**
+   — all four import `internal/services`. The interface moved to the
+   consumer side (Global Constraints, Tasks 3/4/7).
+3. **Task 6's handler tests originally asserted through
+   `PushService.TokensForRoles`**, which inner-joins to `users` — but those
+   tests authenticate as a bare `uuid.New()` with no user row, so the join
+   would have matched nothing and every assertion would have failed for a
+   reason unrelated to what was being tested. They now read
+   `push_subscriptions` directly.
+4. **`frontend/src/vite-env.d.ts` declares `ImportMetaEnv` explicitly** with
+   only two variables, and its local `interface ImportMeta` replaces
+   `vite/client`'s permissive one — so every new `VITE_FIREBASE_*` read would
+   have been a `tsc` error. Task 9 now updates that file first.
+5. **Task 8's new hook test originally imported `./setupMocks`**, which
+   mocks `@/infrastructure/repositories` with a fixed set of repositories
+   that does not include `CsRepository` — `new CsRepository()` at module
+   scope would have thrown "not a constructor". It now stands alone, the way
+   `useCsStream.test.ts` already does.
+
+Also confirmed, and relied on above: `setupTestDB`/`TestDB` both run
+`models.AutoMigrate`; `InboundMessage`'s fields are
+`ConversationID/WAMessageID/Kind/Body/Media/At/ReplyToWAID`;
+`models.MessageKindText` is the right constant; `router.Setup` aliases its
+`ginEngine` parameter to a local `router` and ends with `return router`;
+`csRedisClient`, `csConversationService`, and `csMessageService` are already
+in scope where Tasks 6/7 insert code; no test renders `AppLayout` or
+`CsInboxPage`; `useCsStream.test.ts` exists and calls `useCsStream()` with no
+argument, so the new `enabled = true` default keeps it green; TanStack Query
+is v5, where a disabled query reports `fetchStatus: "idle"`.
 
 ## Self-Review Notes
 
