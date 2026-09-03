@@ -1,3 +1,5 @@
+import backdropUrl from "@/assets/chat-backdrop.svg";
+
 /**
  * The doodle wallpaper behind a thread.
  *
@@ -16,8 +18,14 @@
  * the area at the same file size.
  */
 
-/** The wallpaper, ready for CSS `background-image`. */
-export const chatBackdropImage = 'url("/chat-backdrop.svg")';
+/** The wallpaper, ready for CSS `background-image`.
+ *
+ * Imported rather than referenced by a fixed path so the build puts a content
+ * hash in its name. It first shipped as /chat-backdrop.svg, and when the file
+ * changed under that unchanged URL browsers kept serving the copy they already
+ * had — the old sheet, drawn at its natural size, which looked exactly like
+ * the change had never deployed. A hashed name cannot go stale. */
+export const chatBackdropImage = `url("${backdropUrl}")`;
 
 /**
  * Half the artwork's natural size. At 1:1 the doodles crowd the bubbles and
