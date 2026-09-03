@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -6,36 +6,28 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/tikman/olt-provisioning/internal/services"
+	"github.com/tikman/olt-provisioning/internal/wa"
 	"go.uber.org/zap"
-)
-
-const (
-	// eventMessage is the event type announced when a customer sends an
-	// incoming message. Defined here instead of importing wa to avoid a
-	// circular dependency (wa imports services via client.go and avatar.go).
-	eventMessage = "message"
-	// EventsChannel is the Redis channel cs:events carries inbox announcements
-	// to subscribers. Defined here to match wa.EventsChannel without importing it.
-	EventsChannel = "cs:events"
 )
 
 // PushEventListener relays incoming-message events from the same cs:events
 // channel the SSE stream reads, turning each into a push notification.
 type PushEventListener struct {
 	redis    *redis.Client
-	notifier *PushNotifierService
+	notifier *services.PushNotifierService
 	logger   *zap.Logger
 }
 
-func NewPushEventListener(redisClient *redis.Client, notifier *PushNotifierService, logger *zap.Logger) *PushEventListener {
+func NewPushEventListener(redisClient *redis.Client, notifier *services.PushNotifierService, logger *zap.Logger) *PushEventListener {
 	return &PushEventListener{redis: redisClient, notifier: notifier, logger: logger}
 }
 
-// Run subscribes to EventsChannel and pushes a notification for every
+// Run subscribes to wa.EventsChannel and pushes a notification for every
 // incoming customer message, until ctx is done or the connection drops — the
 // same run-until-stopped shape as cs_handler_stream.go's Stream handler.
 func (l *PushEventListener) Run(ctx context.Context) {
-	sub := l.redis.Subscribe(ctx, EventsChannel)
+	sub := l.redis.Subscribe(ctx, wa.EventsChannel)
 	defer func() { _ = sub.Close() }()
 	incoming := sub.Channel()
 
@@ -56,16 +48,12 @@ func (l *PushEventListener) Run(ctx context.Context) {
 // incoming customer message, triggers a push notification. Kept separate
 // from Run so it is testable without a real Redis connection.
 func (l *PushEventListener) HandlePayload(ctx context.Context, payload string) {
-	var event struct {
-		Type           string `json:"type"`
-		ConversationID string `json:"conversation_id,omitempty"`
-		MessageID      string `json:"message_id,omitempty"`
-	}
+	var event wa.Event
 	if err := json.Unmarshal([]byte(payload), &event); err != nil {
 		l.logger.Warn("Could not decode a cs:events payload", zap.Error(err))
 		return
 	}
-	if event.Type != eventMessage {
+	if event.Type != wa.EventMessage {
 		return
 	}
 
