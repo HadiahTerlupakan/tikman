@@ -3,16 +3,68 @@ import { ProLayout } from "@ant-design/pro-components";
 import { UserOutlined, LogoutOutlined, BellOutlined } from "@ant-design/icons";
 import { Dropdown, Avatar, Badge, App, Grid } from "antd";
 import type { MenuProps } from "antd";
+import { useEffect } from "react";
 import { useAuthStore } from "@/application/stores";
-import { useLogout } from "@/application/hooks";
+import { useLogout, useCsConversations } from "@/application/hooks";
+import {
+  useCsStream,
+  type WaStreamStatus,
+} from "@/application/hooks/useCsStream";
+import { UserRole } from "@/domain/entities";
+import {
+  listenForForegroundMessages,
+  refreshTokenIfGranted,
+} from "@/infrastructure/firebase/messaging";
+import { PushRepository } from "@/infrastructure/repositories";
 import { buildNavigationRoutes } from "./navigationRoutes";
 import { layoutPadding } from "./layoutPadding";
+
+const pushRepository = new PushRepository();
+
+// The three roles that can open /api/v1/cs/* at all — everything push- and
+// badge-related is inert for anyone else, the same gate the backend enforces.
+const CS_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.CS, UserRole.TECHNICIAN];
+
+/** What CsInboxPage reads back via useOutletContext, since the stream that
+ * feeds the navbar badge has to run here, not on that page. */
+export interface AppLayoutContext {
+  csStream: WaStreamStatus;
+}
 
 export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const logoutMutation = useLogout();
+  const canUseCs = !!user && CS_ROLES.includes(user.role);
+
+  const stream = useCsStream(canUseCs);
+  const awaitingQuery = useCsConversations(
+    { awaitingReply: true },
+    { enabled: canUseCs },
+  );
+  const awaitingCount = awaitingQuery.data?.length ?? 0;
+
+  // Runs once per app-shell mount, not per click: a CS who already granted
+  // permission on a previous visit gets their token silently refreshed, and
+  // the foreground listener has to be live on every page — a push can arrive
+  // while looking at the OLT map, not only while CS Inbox is open.
+  useEffect(() => {
+    if (!canUseCs) return;
+    let unsubscribe: (() => void) | undefined;
+
+    refreshTokenIfGranted().then((token) => {
+      if (token) void pushRepository.subscribe(token);
+    });
+
+    listenForForegroundMessages((title, body) => {
+      new Notification(title, { body });
+    }).then((unsub) => {
+      unsubscribe = unsub;
+    });
+
+    return () => unsubscribe?.();
+  }, [canUseCs]);
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -126,11 +178,13 @@ export function AppLayout() {
                       cursor: "pointer",
                     }}
                   >
-                    <Badge count={0}>
-                      <BellOutlined
-                        style={{ fontSize: 18, color: "#a1a1aa" }}
-                      />
-                    </Badge>
+                    {canUseCs && (
+                      <Badge count={awaitingCount}>
+                        <BellOutlined
+                          style={{ fontSize: 18, color: "#a1a1aa" }}
+                        />
+                      </Badge>
+                    )}
                     <Avatar style={{ backgroundColor: "#3ecf8e" }}>
                       {user?.initials ||
                         user?.username?.charAt(0).toUpperCase()}
@@ -161,7 +215,7 @@ export function AppLayout() {
               background: "transparent",
             }}
           >
-            <Outlet />
+            <Outlet context={{ csStream: stream } satisfies AppLayoutContext} />
           </div>
         </ProLayout>
       </App>

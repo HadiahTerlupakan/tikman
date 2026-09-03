@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Button, Empty, Space } from "antd";
 import { ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/application/stores";
@@ -10,7 +11,6 @@ import {
   useCsHistory,
   useCreateWaAccount,
   useCsQuickReplies,
-  useCsStream,
   useClearCsConversation,
   useClearCsInbox,
   useClearWaAccountMessages,
@@ -39,6 +39,7 @@ import {
 } from "@/presentation/components/cs/InboxFilterBar";
 import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
+import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";
 
 // One shape for all three columns: without it they read as content floating on
 // the page rather than as panes of one screen.
@@ -55,9 +56,9 @@ function holderNameMap(users: User[]): Record<string, string> {
 
 /**
  * Three columns share one WhatsApp number across a CS team: who to talk to,
- * what was said, and who they are. useCsStream is called once here — it also
- * carries the WhatsApp connection state, so the badge and the pairing modal
- * both read it from this page instead of opening a second connection.
+ * what was said, and who they are. The event stream (also driving the navbar
+ * badge) runs once in AppLayout and reaches this page via useOutletContext,
+ * so the pairing modal reads the same connection state instead of a second one.
  */
 export function CsInboxPage() {
   const currentUser = useAuthStore((state) => state.user);
@@ -75,7 +76,7 @@ export function CsInboxPage() {
   const [search, setSearch] = useState("");
   const [replyTo, setReplyTo] = useState<CsMessage>();
 
-  const stream = useCsStream();
+  const { csStream: stream } = useOutletContext<AppLayoutContext>();
   const push = usePushNotifications();
   const conversationsQuery = useCsConversations(filterFor(view, search));
   const historyQuery = useCsHistory(selectedId);
