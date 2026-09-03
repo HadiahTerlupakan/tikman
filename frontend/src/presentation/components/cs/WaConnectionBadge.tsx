@@ -20,14 +20,16 @@ interface WaConnectionBadgeProps {
  * complains.
  *
  * With several numbers it counts rather than names: one down out of six is
- * still a problem, and the panel behind it says which.
+ * still a problem, and the panel behind it says which. It stays clickable for
+ * an admin with no numbers at all: that panel is the only way to add one, so
+ * an inert badge there is a dead end after the last number is deleted.
  */
 export function WaConnectionBadge({
   accounts,
   stream,
   onOpenNumbers,
 }: WaConnectionBadgeProps) {
-  if (!accounts || accounts.length === 0) {
+  if (!accounts) {
     return (
       <Tag style={{ fontSize: 13, padding: "4px 10px" }}>
         Memeriksa koneksi WhatsApp…
@@ -38,7 +40,16 @@ export function WaConnectionBadge({
   const connected = accounts.filter(
     (account) => liveStatus(account, stream) === "connected",
   ).length;
-  const allUp = connected === accounts.length;
+  // No numbers is not "nothing wrong": it is where deleting the last one
+  // lands, and nothing can be answered until another is paired. Counting it
+  // as up would also read as "Terhubung (0)".
+  const allUp = accounts.length > 0 && connected === accounts.length;
+  const label =
+    accounts.length === 0
+      ? "Belum ada nomor WhatsApp"
+      : allUp
+        ? `WhatsApp Terhubung (${connected})`
+        : `${accounts.length - connected} dari ${accounts.length} nomor terputus`;
 
   return (
     <Tag
@@ -51,9 +62,7 @@ export function WaConnectionBadge({
         padding: "4px 10px",
       }}
     >
-      {allUp
-        ? `WhatsApp Terhubung (${connected})`
-        : `${accounts.length - connected} dari ${accounts.length} nomor terputus`}
+      {label}
     </Tag>
   );
 }

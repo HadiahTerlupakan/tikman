@@ -83,4 +83,29 @@ describe("WaConnectionBadge", () => {
     fireEvent.click(nonAdminTag as Element);
     expect(onOpenNumbers).toHaveBeenCalledTimes(1);
   });
+  // Deleting the last number leaves a loaded, empty list. The badge is the
+  // only door to the numbers panel, so a dead tag here locks an admin out of
+  // pairing a replacement with no way back.
+  it("stays a door into the numbers panel when no numbers are left", () => {
+    const onOpenNumbers = vi.fn();
+    render(
+      <WaConnectionBadge
+        accounts={[]}
+        stream={{}}
+        onOpenNumbers={onOpenNumbers}
+      />,
+    );
+    const tag = screen.getByText(/belum ada nomor/i).closest(".ant-tag");
+    expect(tag).toHaveStyle({ cursor: "pointer" });
+    fireEvent.click(tag as Element);
+    expect(onOpenNumbers).toHaveBeenCalledTimes(1);
+  });
+
+  // A list that has not arrived is not a list with nothing in it: claiming
+  // "no numbers" while the fetch is in flight would tell an admin to pair a
+  // number they already have.
+  it("says it is still checking only until the list arrives", () => {
+    render(<WaConnectionBadge stream={{}} />);
+    expect(screen.getByText("Memeriksa koneksi WhatsApp…")).toBeInTheDocument();
+  });
 });
