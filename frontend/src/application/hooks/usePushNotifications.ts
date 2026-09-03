@@ -4,8 +4,19 @@ import {
   type PushPermission,
 } from "@/infrastructure/firebase/messaging";
 import { PushRepository } from "@/infrastructure/repositories";
+import { isFirebaseConfigured } from "@/shared/config/firebase";
 
 const pushRepository = new PushRepository();
+
+/** What the browser can do about push, given how this build is configured.
+ * With no Firebase project, requestPushPermission spends the browser's one
+ * permission prompt and returns no token — so the control must not be offered
+ * at all, which is what "unsupported" makes PushOptInButton do. */
+function initialPermission(): PushPermission {
+  if (!isFirebaseConfigured) return "unsupported";
+  if (typeof Notification === "undefined") return "unsupported";
+  return Notification.permission;
+}
 
 interface UsePushNotificationsResult {
   permission: PushPermission;
@@ -17,11 +28,8 @@ interface UsePushNotificationsResult {
  * on the backend happens here — infrastructure/firebase/messaging.ts only
  * knows about the browser and Firebase side of push. */
 export function usePushNotifications(): UsePushNotificationsResult {
-  const [permission, setPermission] = useState<PushPermission>(
-    typeof Notification === "undefined"
-      ? "unsupported"
-      : Notification.permission,
-  );
+  const [permission, setPermission] =
+    useState<PushPermission>(initialPermission);
   const [requesting, setRequesting] = useState(false);
 
   const enable = async () => {

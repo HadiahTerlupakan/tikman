@@ -1,9 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AuthRepository } from "@/infrastructure/repositories";
+import { AuthRepository, PushRepository } from "@/infrastructure/repositories";
+import { refreshTokenIfGranted } from "@/infrastructure/firebase/messaging";
 import { useAuthStore } from "../stores";
 import type { LoginCredentials } from "@/domain/repositories";
 
 const authRepository = new AuthRepository();
+const pushRepository = new PushRepository();
+
+/** Drops this device's push registration on the way out. A notification body
+ * carries the customer's name and their words, so a logged-out phone that keeps
+ * receiving them is showing another team's inbox to whoever holds it. Best
+ * effort by design: a device that cannot reach the API must still log out. */
+async function forgetPushDevice(): Promise<void> {
+  try {
+    const token = await refreshTokenIfGranted();
+    if (token) await pushRepository.unsubscribe(token);
+  } catch (error) {
+    console.warn("Could not unsubscribe this device from push", error);
+  }
+}
 
 export function useLogin() {
   const queryClient = useQueryClient();
@@ -24,7 +39,12 @@ export function useLogout() {
   const logout = useAuthStore((state) => state.logout);
 
   return useMutation({
-    mutationFn: () => authRepository.logout(),
+    // Before the logout call, not after: DELETE /push/subscribe is scoped to
+    // the authenticated caller, so it needs the session still standing.
+    mutationFn: async () => {
+      await forgetPushDevice();
+      return authRepository.logout();
+    },
     onSuccess: () => {
       logout();
       queryClient.clear();

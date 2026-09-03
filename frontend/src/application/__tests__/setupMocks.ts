@@ -37,7 +37,16 @@ vi.mock("@/infrastructure/repositories", () => {
     getStats: vi.fn(),
   };
 
+  const mockPushRepo = {
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
+  };
+
   return {
+    PushRepository: class {
+      subscribe = mockPushRepo.subscribe;
+      unsubscribe = mockPushRepo.unsubscribe;
+    },
     AuthRepository: class {
       login = mockAuthRepo.login;
       logout = mockAuthRepo.logout;
@@ -71,6 +80,7 @@ vi.mock("@/infrastructure/repositories", () => {
       mockUserRepo,
       mockSiteRepo,
       mockOltRepo,
+      mockPushRepo,
     },
   };
 });
