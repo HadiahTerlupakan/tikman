@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { Alert, Button, Image, Modal, Typography } from "antd";
-import {
-  CheckOutlined,
-  ClockCircleOutlined,
-  FileOutlined,
-  PlayCircleFilled,
-  RedoOutlined,
-} from "@ant-design/icons";
+import { Alert, Button, Image, Typography } from "antd";
+import { EnterOutlined, RedoOutlined } from "@ant-design/icons";
 import type { CsMessage } from "@/domain/entities";
+import { DeliveryMark } from "./DeliveryMark";
+import { MediaAttachment } from "./MessageAttachment";
+import { QuotedBlock } from "./QuotedBlock";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
 import { colors } from "@/shared/theme/colors";
@@ -17,6 +14,23 @@ const { Text } = Typography;
 interface MessageThreadProps {
   messages: CsMessage[];
   onRetry: (body: string) => void;
+  /** Starts a reply quoting this message. Absent for anyone who cannot send
+   * on this thread — offering the gesture and then refusing the send would be
+   * the worse of the two. */
+  onReply?: (message: CsMessage) => void;
+}
+
+/** The name a quote puts above what it quotes. The customer's own name is not
+ * on a message row, so their side is named by their side of the conversation
+ * rather than guessed at. */
+function quoteAuthor(direction: CsMessage["direction"]): string {
+  return direction === "out" ? "Anda" : "Pelanggan";
+}
+
+/** Where a quoted message lives in the page, so clicking a quote can jump to
+ * it. Ids come from the API, so they are unique across the thread. */
+function bubbleAnchor(messageId: string): string {
+  return `cs-message-${messageId}`;
 }
 
 function clock(iso: string): string {
@@ -26,204 +40,45 @@ function clock(iso: string): string {
   });
 }
 
-/**
- * How far a reply got, in the shorthand a CS already reads on their phone: one
- * tick left the app, two arrived, two in colour were read. A queued reply shows
- * a clock, because "sent" would be a lie while it is still waiting.
- */
-function DeliveryMark({ status }: { status: CsMessage["status"] }) {
-  const marks: Partial<
-    Record<CsMessage["status"], { icon: JSX.Element; label: string }>
-  > = {
-    queued: {
-      icon: <ClockCircleOutlined style={{ fontSize: 11 }} />,
-      label: "Menunggu dikirim",
-    },
-    sent: {
-      icon: <CheckOutlined style={{ fontSize: 11 }} />,
-      label: "Terkirim",
-    },
-    delivered: {
-      icon: (
-        <span style={{ letterSpacing: -4 }}>
-          <CheckOutlined style={{ fontSize: 11 }} />
-          <CheckOutlined style={{ fontSize: 11 }} />
-        </span>
-      ),
-      label: "Sampai di HP pelanggan",
-    },
-    read: {
-      icon: (
-        <span style={{ letterSpacing: -4, color: colors.success }}>
-          <CheckOutlined style={{ fontSize: 11 }} />
-          <CheckOutlined style={{ fontSize: 11 }} />
-        </span>
-      ),
-      label: "Dibaca",
-    },
-  };
-
-  const mark = marks[status];
-  if (!mark) return null;
-  return (
-    <span aria-label={mark.label} title={mark.label}>
-      {mark.icon}
-    </span>
-  );
-}
-
-/**
- * A video shows as a still with a play button, the way it does in any chat —
- * and opens on click. Played inline at its own size a portrait clip filled the
- * thread the way an uncapped photo once did, and a bare player gives no hint
- * that there is anything to watch.
- *
- * The still is the video's own first frame: preload="metadata" is enough for a
- * browser to draw it, so no poster has to be generated or stored anywhere.
- */
-function VideoAttachment({
-  src,
-  spacing,
-}: {
-  src: string;
-  spacing: React.CSSProperties;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label="Putar video"
-        onClick={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setOpen(true);
-          }
-        }}
-        style={{
-          ...spacing,
-          position: "relative",
-          width: 220,
-          height: 160,
-          borderRadius: 6,
-          overflow: "hidden",
-          cursor: "pointer",
-          background: "#000",
-        }}
-      >
-        <video
-          src={src}
-          preload="metadata"
-          muted
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 34,
-            textShadow: "0 1px 6px rgba(0,0,0,0.6)",
-          }}
-        >
-          <PlayCircleFilled />
-        </span>
-      </div>
-
-      <Modal
-        open={open}
-        onCancel={() => setOpen(false)}
-        footer={null}
-        width={720}
-        centered
-        destroyOnClose
-      >
-        {/* autoPlay: the click that opened this was the request to watch it. */}
-        <video
-          src={src}
-          controls
-          autoPlay
-          style={{ width: "100%", maxHeight: "70vh" }}
-        />
-      </Modal>
-    </>
-  );
-}
-
-/**
- * Everything that is not a photo or plain text. A customer sends a video of a
- * blinking modem far more often than they describe it, and this used to render
- * as the word "Lampiran" — no player, no link, nothing to open. The file was
- * already downloaded and already served; only the way to see it was missing.
- */
-function MediaAttachment({ message }: { message: CsMessage }) {
-  const src = `${env.apiUrl}${API_ENDPOINTS.CS_MEDIA(message.id)}`;
-  const spacing = { display: "block", marginBottom: message.body ? 6 : 2 };
-
-  if (message.kind === "video") {
-    return <VideoAttachment src={src} spacing={spacing} />;
-  }
-
-  if (message.kind === "audio") {
-    return (
-      <audio
-        controls
-        preload="metadata"
-        src={src}
-        style={{ ...spacing, width: 260, maxWidth: "100%" }}
-      />
-    );
-  }
-
-  // A document has nothing to render in place, so it gets the one thing that
-  // is useful: its name, and a way to open it.
-  return (
-    <a
-      href={src}
-      target="_blank"
-      rel="noreferrer"
-      style={{
-        ...spacing,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "8px 10px",
-        borderRadius: 6,
-        background: "rgba(255, 255, 255, 0.04)",
-        color: colors.textBody,
-        fontSize: 13,
-        wordBreak: "break-all",
-      }}
-    >
-      <FileOutlined />
-      {message.mediaFilename || "Buka lampiran"}
-    </a>
-  );
-}
-
 function MessageBubble({
   message,
   onRetry,
+  onReply,
 }: {
   message: CsMessage;
   onRetry: (body: string) => void;
+  onReply?: (message: CsMessage) => void;
 }) {
   const outgoing = message.direction === "out";
+  const [hovered, setHovered] = useState(false);
+
+  // A quoted message that is on the page can be jumped to. One swept by
+  // retention, or simply older than what is loaded, still draws its block —
+  // it just does not offer a jump that would go nowhere.
+  const jumpToQuoted = message.replyTo
+    ? () => {
+        document
+          .getElementById(bubbleAnchor(message.replyTo!.id))
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    : undefined;
 
   return (
     <div
+      id={bubbleAnchor(message.id)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: "flex",
+        alignItems: "center",
+        gap: 4,
         justifyContent: outgoing ? "flex-end" : "flex-start",
         marginBottom: 6,
       }}
     >
+      {outgoing && onReply && (
+        <ReplyButton visible={hovered} onClick={() => onReply(message)} />
+      )}
       <div
         style={{
           maxWidth: "68%",
@@ -237,6 +92,14 @@ function MessageBubble({
           borderBottomLeftRadius: outgoing ? 10 : 2,
         }}
       >
+        {message.replyTo && (
+          <QuotedBlock
+            quoted={message.replyTo}
+            authorLabel={quoteAuthor(message.replyTo.direction)}
+            onJump={jumpToQuoted}
+          />
+        )}
+
         {message.kind === "image" && (
           // A thumbnail, not the photo. Customers send screenshots of whole
           // phone screens, and drawn at their natural height one of those
@@ -317,13 +180,56 @@ function MessageBubble({
           />
         )}
       </div>
+      {!outgoing && onReply && (
+        <ReplyButton visible={hovered} onClick={() => onReply(message)} />
+      )}
     </div>
+  );
+}
+
+/** The way into a reply. WhatsApp swipes; this is an inbox worked with a
+ * mouse, so it is a button that appears on the message being pointed at. It
+ * keeps its space when hidden, or every bubble would shift as the pointer
+ * crosses the thread.
+ *
+ * Hidden by opacity rather than visibility, and revealed by focus as well as
+ * hover: visibility takes the button out of the accessibility tree entirely,
+ * which left replying reachable by mouse alone. */
+function ReplyButton({
+  visible,
+  onClick,
+}: {
+  visible: boolean;
+  onClick: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <Button
+      type="text"
+      size="small"
+      icon={<EnterOutlined style={{ transform: "scaleX(-1)" }} />}
+      onClick={onClick}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      aria-label="Balas pesan ini"
+      title="Balas"
+      style={{
+        opacity: visible || focused ? 1 : 0,
+        transition: "opacity 120ms",
+        flexShrink: 0,
+      }}
+    />
   );
 }
 
 /** Draws a thread top-to-bottom, newest last, the way a chat reads. History
  * itself arrives newest first, so this is the one place that reverses it. */
-export function MessageThread({ messages, onRetry }: MessageThreadProps) {
+export function MessageThread({
+  messages,
+  onRetry,
+  onReply,
+}: MessageThreadProps) {
   if (messages.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "48px 24px" }}>
@@ -339,7 +245,12 @@ export function MessageThread({ messages, onRetry }: MessageThreadProps) {
   return (
     <div style={{ width: "100%" }}>
       {ordered.map((message) => (
-        <MessageBubble key={message.id} message={message} onRetry={onRetry} />
+        <MessageBubble
+          key={message.id}
+          message={message}
+          onRetry={onRetry}
+          onReply={onReply}
+        />
       ))}
     </div>
   );

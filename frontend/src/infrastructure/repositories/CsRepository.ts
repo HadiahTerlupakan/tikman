@@ -45,10 +45,14 @@ export class CsRepository implements ICsRepository {
     return response.data.data ?? [];
   }
 
-  async sendMessage(conversationId: string, body: string): Promise<CsMessage> {
+  async sendMessage(
+    conversationId: string,
+    body: string,
+    replyToId?: string,
+  ): Promise<CsMessage> {
     const response = await apiClient.post(
       API_ENDPOINTS.CS_MESSAGES(conversationId),
-      { body },
+      { body, replyToId },
     );
     return response.data.data;
   }
@@ -57,6 +61,7 @@ export class CsRepository implements ICsRepository {
     conversationId: string,
     file: File,
     caption?: string,
+    replyToId?: string,
   ): Promise<CsMessage> {
     const form = new FormData();
     form.append("file", file);
@@ -64,8 +69,15 @@ export class CsRepository implements ICsRepository {
       form.append("caption", caption);
     }
 
+    // The quoted message travels in the query string, not the form: the API
+    // wraps the request body in a size guard before anything reads it, and a
+    // form field would have to be parsed ahead of that guard.
+    const url = replyToId
+      ? `${API_ENDPOINTS.CS_MEDIA_UPLOAD(conversationId)}?reply_to_id=${replyToId}`
+      : API_ENDPOINTS.CS_MEDIA_UPLOAD(conversationId);
+
     const response = await apiClient.post(
-      API_ENDPOINTS.CS_MEDIA_UPLOAD(conversationId),
+      url,
       form,
       // Dropping the header hands the boundary to the browser, which is the
       // only thing that knows it. Leaving the client's default

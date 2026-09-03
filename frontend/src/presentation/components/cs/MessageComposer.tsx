@@ -1,10 +1,19 @@
 import { useState } from "react";
 import { Alert, Button, Input, Space, Upload, message } from "antd";
-import { PaperClipOutlined, SendOutlined } from "@ant-design/icons";
+import {
+  CloseOutlined,
+  PaperClipOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
 import { colors } from "@/shared/theme/colors";
-import type { CsConversation, CsQuickReply } from "@/domain/entities";
+import type {
+  CsConversation,
+  CsMessage,
+  CsQuickReply,
+} from "@/domain/entities";
 import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
 import { QuickReplyPicker } from "./QuickReplyPicker";
+import { QuotedBlock } from "./QuotedBlock";
 
 const { TextArea } = Input;
 
@@ -21,6 +30,10 @@ interface MessageComposerProps {
   quickReplies?: CsQuickReply[];
   sending?: boolean;
   attaching?: boolean;
+  /** The message being answered, shown above the box so a CS sees what the
+   * customer will see before it is sent. */
+  replyTo?: CsMessage;
+  onCancelReply?: () => void;
 }
 
 /**
@@ -39,6 +52,8 @@ export function MessageComposer({
   quickReplies = [],
   sending = false,
   attaching = false,
+  replyTo,
+  onCancelReply,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const isHolder = conversation.assignedUserId === currentUserId;
@@ -94,52 +109,83 @@ export function MessageComposer({
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "flex-end",
-        gap: 6,
         padding: "10px 12px",
         borderTop: `1px solid ${colors.border}`,
         background: colors.surface,
       }}
     >
-      <QuickReplyPicker quickReplies={quickReplies} onPick={setText} />
-      <Upload
-        accept={CS_MEDIA_ACCEPT}
-        showUploadList={false}
-        beforeUpload={handleAttach}
-      >
-        <Button
-          type="text"
-          icon={<PaperClipOutlined />}
-          loading={attaching}
-          title="Lampirkan berkas"
-          aria-label="Lampirkan berkas"
+      {replyTo && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 6,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <QuotedBlock
+              quoted={{
+                id: replyTo.id,
+                direction: replyTo.direction,
+                kind: replyTo.kind,
+                body: replyTo.body,
+                mediaFilename: replyTo.mediaFilename,
+              }}
+              authorLabel={replyTo.direction === "out" ? "Anda" : "Pelanggan"}
+            />
+          </div>
+          <Button
+            type="text"
+            size="small"
+            icon={<CloseOutlined />}
+            onClick={onCancelReply}
+            aria-label="Batalkan balasan"
+            title="Batalkan balasan"
+          />
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+        <QuickReplyPicker quickReplies={quickReplies} onPick={setText} />
+        <Upload
+          accept={CS_MEDIA_ACCEPT}
+          showUploadList={false}
+          beforeUpload={handleAttach}
+        >
+          <Button
+            type="text"
+            icon={<PaperClipOutlined />}
+            loading={attaching}
+            title="Lampirkan berkas"
+            aria-label="Lampirkan berkas"
+          />
+        </Upload>
+        <TextArea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onPressEnter={(e) => {
+            if (!e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          autoSize={{ minRows: 1, maxRows: 5 }}
+          placeholder="Tulis balasan"
+          variant="filled"
+          style={{ borderRadius: 18, padding: "6px 12px", resize: "none" }}
         />
-      </Upload>
-      <TextArea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onPressEnter={(e) => {
-          if (!e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-          }
-        }}
-        autoSize={{ minRows: 1, maxRows: 5 }}
-        placeholder="Tulis balasan"
-        variant="filled"
-        style={{ borderRadius: 18, padding: "6px 12px", resize: "none" }}
-      />
-      <Button
-        type="primary"
-        shape="circle"
-        icon={<SendOutlined />}
-        onClick={handleSend}
-        loading={sending}
-        disabled={!text.trim()}
-        aria-label="Kirim"
-        title="Kirim"
-      />
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<SendOutlined />}
+          onClick={handleSend}
+          loading={sending}
+          disabled={!text.trim()}
+          aria-label="Kirim"
+          title="Kirim"
+        />
+      </div>
     </div>
   );
 }

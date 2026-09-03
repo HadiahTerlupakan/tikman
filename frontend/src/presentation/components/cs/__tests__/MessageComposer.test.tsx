@@ -91,4 +91,79 @@ describe("MessageComposer", () => {
 
     await waitFor(() => expect(box).toHaveValue(""));
   });
+  // What a CS sees before sending has to be what the customer sees after, or
+  // the quote is a guess right up until it is irreversible.
+  it("shows the message being answered above the box", () => {
+    render(
+      <MessageComposer
+        conversation={{ ...conversation, assignedUserId: "me" }}
+        currentUserId="me"
+        holderName="Saya"
+        onSend={vi.fn()}
+        onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
+        replyTo={{
+          id: "m1",
+          conversationId: "c1",
+          direction: "in",
+          kind: "text",
+          body: "internet saya mati",
+          status: "delivered",
+          waTimestamp: "2026-09-03T07:05:00Z",
+        }}
+        onCancelReply={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("internet saya mati")).toBeInTheDocument();
+    expect(screen.getByText("Pelanggan")).toBeInTheDocument();
+  });
+
+  // A quote nobody can back out of turns one misclick into a message the
+  // customer receives pointing at the wrong thing.
+  it("lets a quote be taken back before the reply is sent", async () => {
+    const onCancelReply = vi.fn();
+    render(
+      <MessageComposer
+        conversation={{ ...conversation, assignedUserId: "me" }}
+        currentUserId="me"
+        holderName="Saya"
+        onSend={vi.fn()}
+        onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
+        replyTo={{
+          id: "m1",
+          conversationId: "c1",
+          direction: "in",
+          kind: "text",
+          body: "internet saya mati",
+          status: "delivered",
+          waTimestamp: "2026-09-03T07:05:00Z",
+        }}
+        onCancelReply={onCancelReply}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /batalkan balasan/i }),
+    );
+    expect(onCancelReply).toHaveBeenCalled();
+  });
+
+  it("shows no quoted block when the reply answers nothing in particular", () => {
+    render(
+      <MessageComposer
+        conversation={{ ...conversation, assignedUserId: "me" }}
+        currentUserId="me"
+        holderName="Saya"
+        onSend={vi.fn()}
+        onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /batalkan balasan/i }),
+    ).toBeNull();
+  });
 });

@@ -25,8 +25,12 @@ export function useCsHistory(conversationId?: string) {
 export function useSendCsMessage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { conversationId: string; body: string }) =>
-      csRepository.sendMessage(vars.conversationId, vars.body),
+    mutationFn: (vars: {
+      conversationId: string;
+      body: string;
+      replyToId?: string;
+    }) =>
+      csRepository.sendMessage(vars.conversationId, vars.body, vars.replyToId),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
       queryClient.invalidateQueries({
@@ -46,7 +50,14 @@ export function useSendCsMedia() {
       conversationId: string;
       file: File;
       caption?: string;
-    }) => csRepository.sendMedia(vars.conversationId, vars.file, vars.caption),
+      replyToId?: string;
+    }) =>
+      csRepository.sendMedia(
+        vars.conversationId,
+        vars.file,
+        vars.caption,
+        vars.replyToId,
+      ),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
       queryClient.invalidateQueries({

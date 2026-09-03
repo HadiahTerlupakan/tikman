@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Empty, Space, Spin } from "antd";
+import { Button, Empty, Space } from "antd";
 import { ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/application/stores";
 import {
@@ -16,15 +16,13 @@ import {
   useWaAccounts,
 } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
-import type { User } from "@/domain/entities";
+import type { CsMessage, User } from "@/domain/entities";
 import { PageHeader } from "@/presentation/components/common";
 import { ConversationList } from "@/presentation/components/cs/ConversationList";
-import { MessageThread } from "@/presentation/components/cs/MessageThread";
-import { MessageComposer } from "@/presentation/components/cs/MessageComposer";
+import { ThreadPane } from "@/presentation/components/cs/ThreadPane";
 import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
-import { ThreadHeader } from "@/presentation/components/cs/ThreadHeader";
 import {
   InboxFilterBar,
   filterFor,
@@ -32,7 +30,6 @@ import {
 } from "@/presentation/components/cs/InboxFilterBar";
 import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
-import { TransferPicker } from "@/presentation/components/cs/TransferPicker";
 
 // One shape for all three columns: without it they read as content floating on
 // the page rather than as panes of one screen.
@@ -64,6 +61,7 @@ export function CsInboxPage() {
   // what nobody has picked up, not only what is already theirs.
   const [view, setView] = useState<InboxView>("semua");
   const [search, setSearch] = useState("");
+  const [replyTo, setReplyTo] = useState<CsMessage>();
 
   const { waStatus, pairingCode } = useCsStream();
   const conversationsQuery = useCsConversations(filterFor(view, search));
@@ -93,10 +91,23 @@ export function CsInboxPage() {
   // left before it throws away what the CS typed. The rejection is caught and
   // turned into a false: useSendCsMessage has already shown the reason, and an
   // uncaught rejection here would only add a console error on top of it.
+  // Leaving a thread drops a quote started in it. The quote belongs to that
+  // conversation — the API refuses it anywhere else — so carrying it across
+  // would fail the send with a message a CS could do nothing about.
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    setReplyTo(undefined);
+  };
+
   const handleSend = async (body: string): Promise<boolean> => {
     if (!selected) return false;
     try {
-      await sendMessage.mutateAsync({ conversationId: selected.id, body });
+      await sendMessage.mutateAsync({
+        conversationId: selected.id,
+        body,
+        replyToId: replyTo?.id,
+      });
+      setReplyTo(undefined);
       return true;
     } catch {
       return false;
@@ -113,7 +124,9 @@ export function CsInboxPage() {
         conversationId: selected.id,
         file,
         caption,
+        replyToId: replyTo?.id,
       });
+      setReplyTo(undefined);
       return true;
     } catch {
       return false;
@@ -177,7 +190,7 @@ export function CsInboxPage() {
               selectedId={selectedId}
               holderNames={holderNames}
               currentUserId={currentUser?.id ?? ""}
-              onSelect={setSelectedId}
+              onSelect={handleSelect}
             />
           </div>
         </div>
@@ -191,88 +204,31 @@ export function CsInboxPage() {
             minWidth: 0,
           }}
         >
-          {selected ? (
-            <>
-              <ThreadHeader
-                conversation={selected}
-                holderName={
-                  selected.assignedUserId
-                    ? holderNames[selected.assignedUserId]
-                    : undefined
-                }
-                isHolder={selected.assignedUserId === currentUser?.id}
-              />
-
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: "auto",
-                  padding: "12px 14px",
-                  // A shade under the panel, so the thread reads as the
-                  // surface the bubbles sit on rather than more chrome.
-                  background: "#141416",
-                }}
-              >
-                {historyQuery.isLoading ? (
-                  <Spin />
-                ) : (
-                  <MessageThread
-                    messages={historyQuery.data ?? []}
-                    onRetry={handleSend}
-                  />
-                )}
-              </div>
-
-              {selected.assignedUserId === currentUser?.id && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    padding: "6px 12px 0",
-                  }}
-                >
-                  <TransferPicker
-                    users={usersQuery.data ?? []}
-                    holderId={selected.assignedUserId}
-                    transferring={assignConversation.isPending}
-                    onTransfer={(userId) =>
-                      assignConversation.mutate({
-                        conversationId: selected.id,
-                        userId,
-                      })
-                    }
-                  />
-                </div>
-              )}
-
-              <MessageComposer
-                conversation={selected}
-                currentUserId={currentUser?.id ?? ""}
-                holderName={
-                  selected.assignedUserId
-                    ? holderNames[selected.assignedUserId] ?? "pengguna lain"
-                    : ""
-                }
-                onSend={handleSend}
-                onTakeOver={handleTakeOver}
-                onAttach={handleAttach}
-                quickReplies={quickRepliesQuery.data ?? []}
-                sending={sendMessage.isPending}
-                attaching={sendMedia.isPending}
-              />
-            </>
-          ) : (
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Empty description="Pilih percakapan untuk mulai membalas" />
-            </div>
-          )}
+          <ThreadPane
+            conversation={selected}
+            messages={historyQuery.data ?? []}
+            loading={historyQuery.isLoading}
+            currentUserId={currentUser?.id ?? ""}
+            holderNames={holderNames}
+            users={usersQuery.data ?? []}
+            quickReplies={quickRepliesQuery.data ?? []}
+            replyTo={replyTo}
+            sending={sendMessage.isPending}
+            attaching={sendMedia.isPending}
+            transferring={assignConversation.isPending}
+            onSend={handleSend}
+            onAttach={handleAttach}
+            onTakeOver={handleTakeOver}
+            onTransfer={(userId) =>
+              selected &&
+              assignConversation.mutate({
+                conversationId: selected.id,
+                userId,
+              })
+            }
+            onReply={setReplyTo}
+            onCancelReply={() => setReplyTo(undefined)}
+          />
         </div>
 
         <div
