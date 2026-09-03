@@ -2,6 +2,7 @@ import { Alert, Button, Image, Typography } from "antd";
 import {
   CheckOutlined,
   ClockCircleOutlined,
+  FileOutlined,
   RedoOutlined,
 } from "@ant-design/icons";
 import type { CsMessage } from "@/domain/entities";
@@ -69,6 +70,64 @@ function DeliveryMark({ status }: { status: CsMessage["status"] }) {
   );
 }
 
+/**
+ * Everything that is not a photo or plain text. A customer sends a video of a
+ * blinking modem far more often than they describe it, and this used to render
+ * as the word "Lampiran" — no player, no link, nothing to open. The file was
+ * already downloaded and already served; only the way to see it was missing.
+ */
+function MediaAttachment({ message }: { message: CsMessage }) {
+  const src = `${env.apiUrl}${API_ENDPOINTS.CS_MEDIA(message.id)}`;
+  const spacing = { display: "block", marginBottom: message.body ? 6 : 2 };
+
+  if (message.kind === "video") {
+    return (
+      <video
+        controls
+        preload="metadata"
+        src={src}
+        style={{ ...spacing, width: 260, maxWidth: "100%", borderRadius: 6 }}
+      />
+    );
+  }
+
+  if (message.kind === "audio") {
+    return (
+      <audio
+        controls
+        preload="metadata"
+        src={src}
+        style={{ ...spacing, width: 260, maxWidth: "100%" }}
+      />
+    );
+  }
+
+  // A document has nothing to render in place, so it gets the one thing that
+  // is useful: its name, and a way to open it.
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        ...spacing,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 10px",
+        borderRadius: 6,
+        background: "rgba(255, 255, 255, 0.04)",
+        color: colors.textBody,
+        fontSize: 13,
+        wordBreak: "break-all",
+      }}
+    >
+      <FileOutlined />
+      {message.mediaFilename || "Buka lampiran"}
+    </a>
+  );
+}
+
 function MessageBubble({
   message,
   onRetry,
@@ -130,9 +189,7 @@ function MessageBubble({
         )}
 
         {message.kind !== "image" && message.kind !== "text" && (
-          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
-            {message.mediaFilename || "Lampiran"}
-          </Text>
+          <MediaAttachment message={message} />
         )}
 
         {message.body && (

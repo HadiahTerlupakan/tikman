@@ -133,4 +133,72 @@ describe("MessageThread", () => {
       display: "block",
     });
   });
+
+  // A customer sends a video of a blinking modem far more often than they
+  // describe one. This used to render as the word "Lampiran" — no player, no
+  // link, nothing to open — while the file sat downloaded and served.
+  it("plays a video in place", () => {
+    const { container } = render(
+      <MessageThread
+        messages={[
+          message({ kind: "video", body: "", mediaFilename: "modem.mp4" }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("controls");
+    expect(video?.getAttribute("src")).toContain("/cs/media/m1");
+  });
+
+  it("plays a voice note in place", () => {
+    const { container } = render(
+      <MessageThread
+        messages={[message({ kind: "audio", body: "" })]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    const audio = container.querySelector("audio");
+    expect(audio).not.toBeNull();
+    expect(audio).toHaveAttribute("controls");
+  });
+
+  // A document cannot be shown in place, so it gets the one useful thing: its
+  // name, and a way to open it.
+  it("offers a document by name", () => {
+    render(
+      <MessageThread
+        messages={[
+          message({ kind: "document", body: "", mediaFilename: "invoice.pdf" }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: /invoice\.pdf/ });
+    expect(link).toHaveAttribute("href", expect.stringContaining("/cs/media/"));
+  });
+
+  // Same defect the photo caption had: an inline attachment ran into the
+  // caption beside it instead of sitting above it.
+  it("keeps a video's caption on its own line", () => {
+    const { container } = render(
+      <MessageThread
+        messages={[
+          message({
+            kind: "video",
+            body: "ini videonya pak",
+            mediaFilename: "modem.mp4",
+          }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("ini videonya pak")).toBeInTheDocument();
+    expect(container.querySelector("video")).toHaveStyle({ display: "block" });
+  });
 });
