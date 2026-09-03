@@ -230,6 +230,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.PUT("/conversations/:id/status", csHandler.SetStatus)
 			cs.PUT("/conversations/:id/ont", csHandler.LinkONT)
 			cs.GET("/media/:message_id", csHandler.ServeMedia)
+			cs.GET("/conversations/:id/avatar", csHandler.ServeAvatar)
 			cs.GET("/messages/search", csHandler.SearchMessages)
 			cs.GET("/stream", csHandler.Stream)
 

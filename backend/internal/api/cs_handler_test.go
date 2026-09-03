@@ -120,6 +120,7 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.PUT("/conversations/:id/status", e.handler.SetStatus)
 		cs.PUT("/conversations/:id/ont", e.handler.LinkONT)
 		cs.GET("/media/:message_id", e.handler.ServeMedia)
+		cs.GET("/conversations/:id/avatar", e.handler.ServeAvatar)
 		cs.GET("/messages/search", e.handler.SearchMessages)
 		cs.GET("/stream", e.handler.Stream)
 

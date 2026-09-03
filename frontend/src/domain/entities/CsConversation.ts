@@ -18,6 +18,11 @@ export interface CsConversation {
   ontId?: string;
   lastMessageAt: string;
   unreadCount: number;
+  /** Whether this customer has a profile photo stored. Most do not — a photo
+   * is usually hidden from anyone outside the owner's contacts — so this is
+   * what keeps the list from pointing every avatar at an endpoint that would
+   * 404 on most rows, on every refresh. */
+  hasAvatar: boolean;
   /** Absent on a thread nothing has been said in yet. */
   lastMessage?: CsLastMessage;
 }

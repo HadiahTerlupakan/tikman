@@ -1,5 +1,5 @@
-import { Avatar, Badge, Typography } from "antd";
-import { UserOutlined } from "@ant-design/icons";
+import { Badge, Typography } from "antd";
+import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation, CsLastMessage } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
 
@@ -108,7 +108,7 @@ export function ConversationList({
                 : "2px solid transparent",
             }}
           >
-            <Avatar size={42} icon={<UserOutlined />} />
+            <CustomerAvatar conversation={conversation} size={42} />
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div

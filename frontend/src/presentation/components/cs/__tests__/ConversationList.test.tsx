@@ -10,6 +10,7 @@ const rows = [
     status: "unassigned" as const,
     lastMessageAt: new Date().toISOString(),
     unreadCount: 2,
+    hasAvatar: false,
     lastMessage: {
       body: "internet saya mati sejak pagi",
       kind: "text" as const,
@@ -25,6 +26,7 @@ const rows = [
     status: "open" as const,
     lastMessageAt: new Date().toISOString(),
     unreadCount: 0,
+    hasAvatar: false,
     lastMessage: {
       body: "",
       kind: "image" as const,
@@ -40,6 +42,7 @@ const rows = [
     status: "open" as const,
     lastMessageAt: new Date().toISOString(),
     unreadCount: 0,
+    hasAvatar: false,
     lastMessage: {
       body: "sudah kami cek ya",
       kind: "text" as const,

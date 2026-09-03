@@ -1,5 +1,5 @@
-import { Avatar, Tag, Typography } from "antd";
-import { UserOutlined } from "@ant-design/icons";
+import { Tag, Typography } from "antd";
+import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
 
@@ -36,7 +36,7 @@ export function ThreadHeader({
         background: colors.surface,
       }}
     >
-      <Avatar size={38} icon={<UserOutlined />} />
+      <CustomerAvatar conversation={conversation} size={38} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <Text

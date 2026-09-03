@@ -10,6 +10,7 @@ const conversation = {
   status: "open" as const,
   lastMessageAt: new Date().toISOString(),
   unreadCount: 0,
+  hasAvatar: false,
 };
 
 describe("MessageComposer", () => {

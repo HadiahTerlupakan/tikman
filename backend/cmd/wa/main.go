@@ -32,6 +32,18 @@ const (
 	assignSweep = 1 * time.Minute
 	// mediaSweep is how often expired attachments are removed from disk.
 	mediaSweep = 24 * time.Hour
+	// avatarSweep is how often profile photos are looked at. Faces change
+	// rarely and the queries go to WhatsApp, so this is deliberately unhurried.
+	avatarSweep = 15 * time.Minute
+	// avatarBatch is how many customers one sweep asks about, and avatarPace
+	// the gap left between them. A burst of queries about a list of strangers
+	// is the shape of traffic that gets an unofficial number flagged.
+	avatarBatch = 10
+	avatarPace  = 3 * time.Second
+	// avatarRefresh is how long a photo already looked at is left alone. Most
+	// customers hide theirs, so most of this work is asking again about people
+	// who will still say no.
+	avatarRefresh = 7 * 24 * time.Hour
 	// defaultAccountLabel names the row a fresh install pairs against.
 	defaultAccountLabel = "CS Utama"
 )
@@ -113,6 +125,9 @@ func main() {
 		drainOutbox(ctx, drainer, logger)
 	})
 	go every(ctx, assignSweep, func() { assignWaiting(ctx, assignment, logger) })
+
+	avatars := wa.NewAvatarSweeper(conversations, client, cfg.WAMediaDir, avatarPace, avatarRefresh)
+	go every(ctx, avatarSweep, func() { sweepAvatars(ctx, avatars, logger) })
 	go func() {
 		// Once at startup as well as on the ticker: a process that is restarted
 		// more often than once a day would otherwise never sweep at all.
@@ -259,6 +274,19 @@ func sweepMedia(retention *services.CSMediaRetention, logger *zap.Logger) {
 	}
 	if cleared > 0 {
 		logger.Info("Removed expired CS media", zap.Int("count", cleared))
+	}
+}
+
+// sweepAvatars refreshes a few customers' profile photos. A failure costs
+// faces and nothing else, so it is logged rather than acted on.
+func sweepAvatars(ctx context.Context, avatars *wa.AvatarSweeper, logger *zap.Logger) {
+	stored, err := avatars.Sweep(ctx, avatarBatch)
+	if err != nil {
+		logger.Warn("Could not refresh customer profile photos", zap.Error(err))
+		return
+	}
+	if stored > 0 {
+		logger.Info("Stored customer profile photos", zap.Int("count", stored))
 	}
 }
 

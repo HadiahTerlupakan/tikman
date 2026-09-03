@@ -65,8 +65,33 @@ type CSConversation struct {
 	ONTID          *uuid.UUID         `gorm:"type:uuid;index" json:"ont_id,omitempty"`
 	LastMessageAt  time.Time          `gorm:"index" json:"last_message_at"`
 	UnreadCount    int                `gorm:"not null;default:0" json:"unread_count"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+
+	// AvatarPath is the customer's profile photo on disk, relative to the media
+	// root, and empty when there is none to show. AvatarID is WhatsApp's id for
+	// that photo, which lets a refresh ask "still this one?" instead of
+	// downloading it again. AvatarCheckedAt is when the question was last put
+	// at all: most customers hide their photo from anyone not in their
+	// contacts, and without this the sweep would ask about every one of them
+	// forever.
+	AvatarPath      string     `gorm:"type:text" json:"-"`
+	AvatarID        string     `gorm:"type:varchar(64)" json:"-"`
+	AvatarCheckedAt *time.Time `json:"-"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// HasAvatar is filled in on the way out of the database rather than stored.
+	// A browser that cannot tell would have to point every avatar at the photo
+	// endpoint and let most of them 404 — one wasted request per row, on every
+	// refresh of the inbox.
+	HasAvatar bool `gorm:"-" json:"has_avatar"`
+}
+
+// AfterFind derives the fields that are answered but not stored. It hangs off
+// the query rather than the handlers so no route can forget it.
+func (c *CSConversation) AfterFind(tx *gorm.DB) error {
+	c.HasAvatar = c.AvatarPath != ""
+	return nil
 }
 
 func (c *CSConversation) BeforeCreate(tx *gorm.DB) error {
