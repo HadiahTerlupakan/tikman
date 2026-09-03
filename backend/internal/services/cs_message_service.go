@@ -147,15 +147,26 @@ func (s *CSMessageService) Queue(
 	return &msg, nil
 }
 
-// ClaimQueued returns the messages still waiting to reach WhatsApp, oldest
-// first so a thread's replies arrive in the order the CS wrote them.
-func (s *CSMessageService) ClaimQueued(limit int) ([]models.CSMessage, error) {
+// ClaimQueued returns the messages still waiting to reach WhatsApp on one
+// number, oldest first so a thread's replies arrive in the order the CS wrote
+// them.
+//
+// Scoping to the account is what makes a reply leave from the number the
+// customer wrote to. The session holding that number claims only its own
+// threads, so the guarantee is the shape of the query rather than a rule
+// somebody has to remember at the point of sending — where a second sender,
+// added later, would quietly not know about it. Unscoped, a reply written on
+// one number went out from whichever session drained first.
+func (s *CSMessageService) ClaimQueued(accountID uuid.UUID, limit int) ([]models.CSMessage, error) {
 	if limit <= 0 {
 		limit = defaultHistoryLimit
 	}
 	var rows []models.CSMessage
-	err := s.db.Where("status = ?", models.MessageQueued).
-		Order("created_at ASC").Limit(limit).Find(&rows).Error
+	err := s.db.
+		Joins("JOIN cs_conversations ON cs_conversations.id = cs_messages.conversation_id").
+		Where("cs_messages.status = ? AND cs_conversations.wa_account_id = ?",
+			models.MessageQueued, accountID).
+		Order("cs_messages.created_at ASC").Limit(limit).Find(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("claim queued messages: %w", err)
 	}

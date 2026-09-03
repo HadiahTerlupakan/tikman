@@ -243,6 +243,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			// disconnecting it is: the whole team answering that number needs to know
 			// whether their replies are actually going out.
 			cs.GET("/wa-accounts", csHandler.ListAccounts)
+			cs.POST("/wa-accounts", middleware.RequireRole(models.UserRoleAdmin), csHandler.CreateAccount)
 			cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Connect)
 			cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Disconnect)
 		}

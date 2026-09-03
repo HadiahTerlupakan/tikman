@@ -97,7 +97,7 @@ func TestDrainSendsWhatIsWaitingAndMarksItSent(t *testing.T) {
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
 
-	n, err := NewDrainer(messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	n, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 	assert.Equal(t, []string{"sudah kami cek"}, sender.sent)
@@ -118,7 +118,7 @@ func TestDrainRecordsWhyAMessageCouldNotBeSent(t *testing.T) {
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 
-	n, err := NewDrainer(messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	n, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err, "one bad message must not stop the drain")
 	assert.Equal(t, 0, n)
 
@@ -138,7 +138,7 @@ func TestDrainKeepsGoingPastAMessageWhatsAppRefuses(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	n, err := NewDrainer(messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	n, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, n)
@@ -161,7 +161,7 @@ func TestDrainKeepsGoingPastAMessageWhatsAppRefuses(t *testing.T) {
 func TestDrainDoesNotSendTheSameMessageTwice(t *testing.T) {
 	_, messages, conversations, conv := drainSetup(t)
 	sender := &fakeSender{}
-	drainer := NewDrainer(messages, conversations, sender, t.TempDir(), 0)
+	drainer := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0)
 
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestConcurrentDrainsSendAReplyOnce(t *testing.T) {
 	// The delay is what gives the goroutines room to overlap. Without it they
 	// finish one after another and the test passes even with the lock removed.
 	sender := &fakeSender{delay: 20 * time.Millisecond}
-	drainer := NewDrainer(messages, conversations, sender, t.TempDir(), 0)
+	drainer := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0)
 
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)

@@ -93,7 +93,7 @@ func TestClaimQueuedReturnsOnlyWhatIsStillWaiting(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, messages.MarkSent(gone.ID, "3EB0SENT"))
 
-	claimed, err := messages.ClaimQueued(10)
+	claimed, err := messages.ClaimQueued(conv.WAAccountID, 10)
 	require.NoError(t, err)
 	require.Len(t, claimed, 1)
 	assert.Equal(t, waiting.ID, claimed[0].ID)

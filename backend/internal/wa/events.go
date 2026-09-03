@@ -40,7 +40,11 @@ type Event struct {
 	Type           string `json:"type"`
 	ConversationID string `json:"conversation_id,omitempty"`
 	MessageID      string `json:"message_id,omitempty"`
-	AccountStatus  string `json:"account_status,omitempty"`
+	// WAAccountID names the number an account_status event is about. Without
+	// it a browser watching several numbers applies whichever arrived last to
+	// all of them.
+	WAAccountID   string `json:"wa_account_id,omitempty"`
+	AccountStatus string `json:"account_status,omitempty"`
 	// PairingCode is the eight-character code an admin types into WhatsApp
 	// under Linked Devices, set only while AccountStatus is "pairing".
 	PairingCode string `json:"pairing_code,omitempty"`

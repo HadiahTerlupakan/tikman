@@ -79,6 +79,7 @@ type AvatarSource interface {
 // reason the outbox is — a burst of queries about a list of strangers is the
 // shape of traffic that gets an unofficial number flagged.
 type AvatarSweeper struct {
+	accountID     uuid.UUID
 	conversations *services.CSConversationService
 	source        AvatarSource
 	root          string
@@ -89,12 +90,14 @@ type AvatarSweeper struct {
 // NewAvatarSweeper constructs an AvatarSweeper. refreshAfter is how long a
 // photo already looked at is left alone before the question is put again.
 func NewAvatarSweeper(
+	accountID uuid.UUID,
 	conversations *services.CSConversationService,
 	source AvatarSource,
 	root string,
 	pace, refreshAfter time.Duration,
 ) *AvatarSweeper {
 	return &AvatarSweeper{
+		accountID:     accountID,
 		conversations: conversations,
 		source:        source,
 		root:          root,
@@ -112,7 +115,7 @@ func NewAvatarSweeper(
 // the connection being down, and marking everyone checked would leave the
 // whole inbox faceless for a week over a blip.
 func (a *AvatarSweeper) Sweep(ctx context.Context, limit int) (int, error) {
-	due, err := a.conversations.StaleAvatars(limit, time.Now().Add(-a.refreshAfter))
+	due, err := a.conversations.StaleAvatars(a.accountID, limit, time.Now().Add(-a.refreshAfter))
 	if err != nil {
 		return 0, err
 	}

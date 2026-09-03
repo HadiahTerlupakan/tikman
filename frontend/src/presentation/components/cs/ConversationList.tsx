@@ -1,4 +1,4 @@
-import { Badge, Typography } from "antd";
+import { Badge, Tag, Typography } from "antd";
 import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation, CsLastMessage } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
@@ -170,17 +170,42 @@ export function ConversationList({
                 />
               </div>
 
-              <Text
+              <div
                 style={{
-                  fontSize: 11,
-                  color:
-                    conversation.status === "unassigned"
-                      ? colors.warning
-                      : colors.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  minWidth: 0,
                 }}
               >
-                {holderLabel(conversation, holderNames, currentUserId)}
-              </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color:
+                      conversation.status === "unassigned"
+                        ? colors.warning
+                        : colors.textMuted,
+                  }}
+                >
+                  {holderLabel(conversation, holderNames, currentUserId)}
+                </Text>
+                {/* Which of our numbers the customer wrote to. Rendered only
+                    when the API names one, so an inbox on a single number is
+                    not given a label that says nothing. */}
+                {conversation.waAccountLabel && (
+                  <Tag
+                    bordered={false}
+                    style={{
+                      fontSize: 10,
+                      lineHeight: "16px",
+                      margin: 0,
+                      padding: "0 5px",
+                    }}
+                  >
+                    {conversation.waAccountLabel}
+                  </Tag>
+                )}
+              </div>
             </div>
           </div>
         );

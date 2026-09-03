@@ -158,6 +158,13 @@ export class CsRepository implements ICsRepository {
     return response.data.data ?? [];
   }
 
+  async createWaAccount(label: string): Promise<WaAccount> {
+    const response = await apiClient.post(API_ENDPOINTS.CS_WA_ACCOUNTS, {
+      label,
+    });
+    return response.data.data;
+  }
+
   async connectWaAccount(
     id: string,
     phone: string,

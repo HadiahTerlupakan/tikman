@@ -14,12 +14,16 @@ import (
 // Never-checked first because that is the customer who has just written in and
 // whose face a CS is about to want. before is the age at which a photo already
 // held is asked about again.
-func (s *CSConversationService) StaleAvatars(limit int, before time.Time) ([]models.CSConversation, error) {
+// Scoped to one number: a session can only ask WhatsApp about customers who
+// have written to the number it holds, so asking on behalf of another number's
+// threads would query a stranger over the wrong connection.
+func (s *CSConversationService) StaleAvatars(accountID uuid.UUID, limit int, before time.Time) ([]models.CSConversation, error) {
 	if limit <= 0 {
 		limit = 1
 	}
 	var rows []models.CSConversation
 	err := s.db.
+		Where("wa_account_id = ?", accountID).
 		Where("avatar_checked_at IS NULL OR avatar_checked_at < ?", before).
 		Order("avatar_checked_at ASC NULLS FIRST").
 		Limit(limit).Find(&rows).Error

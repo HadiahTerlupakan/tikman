@@ -29,3 +29,8 @@ type SetStatusRequest struct {
 type LinkONTRequest struct {
 	ONTID *uuid.UUID `json:"ont_id"`
 }
+
+// CreateAccountRequest adds a WhatsApp number for the team to answer from.
+type CreateAccountRequest struct {
+	Label string `json:"label" binding:"required"`
+}

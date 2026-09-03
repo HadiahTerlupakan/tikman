@@ -7,17 +7,23 @@ import type { WaAccountStatus } from "@/domain/entities";
 type CsEvent = {
   type: string;
   conversation_id?: string;
+  wa_account_id?: string;
   account_status?: WaAccountStatus;
   pairing_code?: string;
 };
 
-/** The WhatsApp connection state this stream has observed live. Undefined
- * until the first account_status event arrives on this connection — the
- * caller falls back to an admin-only fetch for the state at page load. */
-export interface WaStreamStatus {
+/** What this stream has observed live about one number. Undefined until an
+ * account_status event for that number arrives on this connection — the caller
+ * falls back to the account list for the state at page load. */
+export interface WaLiveStatus {
   waStatus?: WaAccountStatus;
   pairingCode?: string;
 }
+
+/** Live state per number, keyed by account id. It is a map rather than one
+ * value because the team answers from several numbers: a single value would
+ * show whichever number changed last as the state of all of them. */
+export type WaStreamStatus = Record<string, WaLiveStatus>;
 
 /**
  * Keeps the inbox current while the page is open, and marks this agent online
@@ -53,11 +59,14 @@ export function useCsStream(): WaStreamStatus {
           queryKey: ["cs", "messages", payload.conversation_id],
         });
       }
-      if (payload.type === "account_status") {
-        setWaStatus({
-          waStatus: payload.account_status,
-          pairingCode: payload.pairing_code,
-        });
+      if (payload.type === "account_status" && payload.wa_account_id) {
+        setWaStatus((current) => ({
+          ...current,
+          [payload.wa_account_id as string]: {
+            waStatus: payload.account_status,
+            pairingCode: payload.pairing_code,
+          },
+        }));
       }
     };
 

@@ -37,7 +37,7 @@ func TestStaleAvatarsPutsTheNeverCheckedFirst(t *testing.T) {
 	require.NoError(t, conversations.SetAvatarChecked(checked.ID, time.Now().Add(-30*24*time.Hour)))
 	require.NoError(t, conversations.SetAvatarChecked(fresh.ID, time.Now()))
 
-	due, err := conversations.StaleAvatars(10, time.Now().Add(-7*24*time.Hour))
+	due, err := conversations.StaleAvatars(acc.ID, 10, time.Now().Add(-7*24*time.Hour))
 	require.NoError(t, err)
 
 	ids := []string{}
@@ -54,7 +54,7 @@ func TestStaleAvatarsHonoursItsLimit(t *testing.T) {
 		avatarPeer(t, conversations, acc, phone)
 	}
 
-	due, err := conversations.StaleAvatars(2, time.Now())
+	due, err := conversations.StaleAvatars(acc.ID, 2, time.Now())
 	require.NoError(t, err)
 	assert.Len(t, due, 2)
 }
@@ -73,7 +73,7 @@ func TestSetAvatarStoresThePhotoAndStopsItBeingDueAgain(t *testing.T) {
 	assert.Equal(t, "PIC1", stored.AvatarID)
 	assert.True(t, stored.HasAvatar)
 
-	due, err := conversations.StaleAvatars(10, time.Now().Add(-time.Hour))
+	due, err := conversations.StaleAvatars(acc.ID, 10, time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 	assert.Empty(t, due)
 }
@@ -121,7 +121,7 @@ func TestSetAvatarCheckedStopsAskingAgainWithoutStoringAPhoto(t *testing.T) {
 
 	require.NoError(t, conversations.SetAvatarChecked(conv.ID, time.Now()))
 
-	due, err := conversations.StaleAvatars(10, time.Now().Add(-time.Hour))
+	due, err := conversations.StaleAvatars(acc.ID, 10, time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 	assert.Empty(t, due)
 

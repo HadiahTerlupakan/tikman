@@ -1,42 +1,86 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { WaConnectionBadge } from "../WaConnectionBadge";
+import type { WaAccount, WaAccountStatus } from "@/domain/entities";
+
+function account(id: string, status: WaAccountStatus): WaAccount {
+  return {
+    id,
+    label: `CS ${id}`,
+    status,
+    createdAt: "",
+    updatedAt: "",
+  };
+}
 
 describe("WaConnectionBadge", () => {
-  // The badge is the only place a disconnected CS finds out their replies
-  // are not going out — it must render for every role, not just an admin.
-  it("is visible whether or not a pairing handler is given", () => {
-    render(<WaConnectionBadge status="connected" />);
-    expect(screen.getByText(/whatsapp terhubung/i)).toBeInTheDocument();
+  // The badge is the only place a CS finds out their replies are not going
+  // out — it must render for every role, not just an admin.
+  it("says every number is up when they are", () => {
+    render(
+      <WaConnectionBadge
+        accounts={[account("1", "connected"), account("2", "connected")]}
+        stream={{}}
+      />,
+    );
+    expect(screen.getByText("WhatsApp Terhubung (2)")).toBeInTheDocument();
   });
 
-  it("shows the disconnected state prominently when the status says so", () => {
-    render(<WaConnectionBadge status="disconnected" />);
-    expect(screen.getByText(/whatsapp terputus/i)).toBeInTheDocument();
+  // One number down out of six is still a problem, and hiding it behind a
+  // green tag is how replies pile up unsent on that number's threads.
+  it("counts the numbers that are down rather than hiding them behind the rest", () => {
+    render(
+      <WaConnectionBadge
+        accounts={[
+          account("1", "connected"),
+          account("2", "disconnected"),
+          account("3", "connected"),
+        ]}
+        stream={{}}
+      />,
+    );
+    expect(screen.getByText("1 dari 3 nomor terputus")).toBeInTheDocument();
   });
 
-  // onOpenPairing is how the page tells the badge "this viewer is an admin".
-  // Passing it wires the click; omitting it — every other role — must leave
-  // the badge inert rather than a button the server will 403 on.
-  it("opens pairing on click only when a handler is given", () => {
-    const onOpenPairing = vi.fn();
+  // The account list is fetched once at page load; a number that dropped
+  // since then is only known from the stream.
+  it("prefers what the stream has seen over the list it loaded with", () => {
+    render(
+      <WaConnectionBadge
+        accounts={[account("1", "connected")]}
+        stream={{ "1": { waStatus: "disconnected" } }}
+      />,
+    );
+    expect(screen.getByText("1 dari 1 nomor terputus")).toBeInTheDocument();
+  });
+
+  // onOpenNumbers is how the page says "this viewer is an admin". Omitting it
+  // must leave the badge inert rather than a button the server will refuse.
+  it("opens the numbers panel on click only when a handler is given", () => {
+    const onOpenNumbers = vi.fn();
     const { rerender } = render(
-      <WaConnectionBadge status="disconnected" onOpenPairing={onOpenPairing} />,
+      <WaConnectionBadge
+        accounts={[account("1", "disconnected")]}
+        stream={{}}
+        onOpenNumbers={onOpenNumbers}
+      />,
     );
     // .ant-tag is the element the style/onClick props actually land on —
     // the text itself renders inside a child span.
-    const adminTag = screen.getByText(/whatsapp terputus/i).closest(".ant-tag");
+    const adminTag = screen.getByText(/terputus/i).closest(".ant-tag");
     expect(adminTag).toHaveStyle({ cursor: "pointer" });
     fireEvent.click(adminTag as Element);
-    expect(onOpenPairing).toHaveBeenCalledTimes(1);
+    expect(onOpenNumbers).toHaveBeenCalledTimes(1);
 
-    rerender(<WaConnectionBadge status="disconnected" />);
-    const nonAdminTag = screen
-      .getByText(/whatsapp terputus/i)
-      .closest(".ant-tag");
+    rerender(
+      <WaConnectionBadge
+        accounts={[account("1", "disconnected")]}
+        stream={{}}
+      />,
+    );
+    const nonAdminTag = screen.getByText(/terputus/i).closest(".ant-tag");
     expect(nonAdminTag).toHaveStyle({ cursor: "default" });
     fireEvent.click(nonAdminTag as Element);
-    // No handler was passed this time, so the earlier one must not fire again.
-    expect(onOpenPairing).toHaveBeenCalledTimes(1);
+    expect(onOpenNumbers).toHaveBeenCalledTimes(1);
   });
 });

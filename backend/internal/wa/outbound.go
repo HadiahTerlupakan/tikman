@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
@@ -25,6 +26,7 @@ import (
 // trading a duplicate the customer can see for a loss nobody can.
 type Drainer struct {
 	mu            sync.Mutex
+	accountID     uuid.UUID
 	messages      *services.CSMessageService
 	conversations *services.CSConversationService
 	sender        Sender
@@ -37,6 +39,7 @@ type Drainer struct {
 // an unofficial number flagged fastest, so the queue is drained deliberately
 // slowly.
 func NewDrainer(
+	accountID uuid.UUID,
 	messages *services.CSMessageService,
 	conversations *services.CSConversationService,
 	sender Sender,
@@ -44,6 +47,7 @@ func NewDrainer(
 	pace time.Duration,
 ) *Drainer {
 	return &Drainer{
+		accountID:     accountID,
 		messages:      messages,
 		conversations: conversations,
 		sender:        sender,
@@ -59,7 +63,7 @@ func (d *Drainer) Drain(ctx context.Context, limit int) (int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	waiting, err := d.messages.ClaimQueued(limit)
+	waiting, err := d.messages.ClaimQueued(d.accountID, limit)
 	if err != nil {
 		return 0, err
 	}

@@ -48,7 +48,7 @@ func TestSweepStoresADownloadedPhotoAndPointsTheThreadAtIt(t *testing.T) {
 		conv.CustomerJID: {State: PictureNew, ID: "PIC1", Mime: "image/jpeg", Bytes: []byte("jpegbytes")},
 	}}
 
-	stored, err := NewAvatarSweeper(conversations, source, root, 0, time.Hour).
+	stored, err := NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, time.Hour).
 		Sweep(context.Background(), 10)
 	require.NoError(t, err)
 	assert.Equal(t, 1, stored)
@@ -74,7 +74,7 @@ func TestSweepRecordsTheAttemptWhenThereIsNoPhoto(t *testing.T) {
 	source := &fakePictures{answers: map[string]Picture{
 		conv.CustomerJID: {State: PictureNone},
 	}}
-	sweeper := NewAvatarSweeper(conversations, source, root, 0, time.Hour)
+	sweeper := NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, time.Hour)
 
 	stored, err := sweeper.Sweep(context.Background(), 10)
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestSweepOffersTheStoredIDAndKeepsThePhotoWhenNothingChanged(t *testing.T) 
 	source := &fakePictures{answers: map[string]Picture{
 		conv.CustomerJID: {State: PictureUnchanged},
 	}}
-	_, err = NewAvatarSweeper(conversations, source, root, 0, 0).Sweep(context.Background(), 10)
+	_, err = NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, 0).Sweep(context.Background(), 10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "PIC1", source.knownID[conv.CustomerJID])
@@ -114,7 +114,7 @@ func TestSweepForgetsAPhotoTheCustomerHasTakenDown(t *testing.T) {
 	source := &fakePictures{answers: map[string]Picture{
 		conv.CustomerJID: {State: PictureNew, ID: "PIC1", Mime: "image/jpeg", Bytes: []byte("face")},
 	}}
-	sweeper := NewAvatarSweeper(conversations, source, root, 0, 0)
+	sweeper := NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, 0)
 	_, err := sweeper.Sweep(context.Background(), 10)
 	require.NoError(t, err)
 
@@ -141,7 +141,7 @@ func TestSweepRemovesThePhotoItReplaced(t *testing.T) {
 	source := &fakePictures{answers: map[string]Picture{
 		conv.CustomerJID: {State: PictureNew, ID: "PIC1", Mime: "image/jpeg", Bytes: []byte("old")},
 	}}
-	sweeper := NewAvatarSweeper(conversations, source, root, 0, 0)
+	sweeper := NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, 0)
 	_, err := sweeper.Sweep(context.Background(), 10)
 	require.NoError(t, err)
 
@@ -172,7 +172,7 @@ func TestSweepRefusesAPhotoThatIsNotAPlainImage(t *testing.T) {
 			Bytes: []byte("<svg onload='alert(1)'/>"),
 		},
 	}}
-	stored, err := NewAvatarSweeper(conversations, source, root, 0, 0).Sweep(context.Background(), 10)
+	stored, err := NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, 0).Sweep(context.Background(), 10)
 	require.NoError(t, err)
 	assert.Equal(t, 0, stored)
 
@@ -196,7 +196,7 @@ func TestSweepCarriesOnPastACustomerItCouldNotAskAbout(t *testing.T) {
 			second.CustomerJID: {State: PictureNew, ID: "PIC2", Mime: "image/jpeg", Bytes: []byte("face")},
 		},
 	}
-	stored, err := NewAvatarSweeper(conversations, source, root, 0, 0).Sweep(context.Background(), 10)
+	stored, err := NewAvatarSweeper(first.WAAccountID, conversations, source, root, 0, 0).Sweep(context.Background(), 10)
 	require.NoError(t, err)
 	assert.Equal(t, 1, stored)
 
@@ -211,7 +211,7 @@ func TestSweepLeavesAFailedCustomerDueAgain(t *testing.T) {
 	conversations, conv, root := avatarSweepSetup(t)
 
 	source := &fakePictures{err: map[string]error{conv.CustomerJID: errors.New("koneksi putus")}}
-	sweeper := NewAvatarSweeper(conversations, source, root, 0, time.Hour)
+	sweeper := NewAvatarSweeper(conv.WAAccountID, conversations, source, root, 0, time.Hour)
 
 	_, err := sweeper.Sweep(context.Background(), 10)
 	require.NoError(t, err)

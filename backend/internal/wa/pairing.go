@@ -79,7 +79,12 @@ func (c *Client) Pair(ctx context.Context, phone string) error {
 		return fmt.Errorf("pair by phone: %w", err)
 	}
 
-	event := Event{Type: EventAccountStatus, AccountStatus: string(models.WAAccountPairing), PairingCode: code}
+	event := Event{
+		Type:          EventAccountStatus,
+		WAAccountID:   c.accountID.String(),
+		AccountStatus: string(models.WAAccountPairing),
+		PairingCode:   code,
+	}
 	if err := c.publisher.Publish(ctx, event); err != nil {
 		c.logger.Warn("Could not announce the WhatsApp pairing code", zap.Error(err))
 	}
@@ -116,5 +121,16 @@ func (c *Client) Unpair(ctx context.Context) error {
 		return fmt.Errorf("logout: %w", err)
 	}
 	c.setStatus(ctx, models.WAAccountDisconnected)
+
+	// The stored number goes with the device. Logout deletes the device, so a
+	// row still naming it would have this account point at a session that no
+	// longer exists — and the inbox would go on showing a number nobody is
+	// connected to.
+	err := c.db.Model(&models.WAAccount{}).Where("id = ?", c.accountID).
+		Update("jid", "").Error
+	if err != nil {
+		c.logger.Warn("Could not clear the number of a logged-out account",
+			zap.String("account_id", c.accountID.String()), zap.Error(err))
+	}
 	return nil
 }

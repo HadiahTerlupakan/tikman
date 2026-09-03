@@ -23,6 +23,9 @@ export interface CsConversation {
    * what keeps the list from pointing every avatar at an endpoint that would
    * 404 on most rows, on every refresh. */
   hasAvatar: boolean;
+  /** The name of the CS number this thread came in on. With several numbers
+   * it is what stops a CS guessing which one a customer is talking to. */
+  waAccountLabel?: string;
   /** Which side spoke last. "in" is a thread still waiting on a CS. */
   lastMessageDirection?: "in" | "out";
   /** Absent on a thread nothing has been said in yet. */

@@ -2,10 +2,7 @@ package wa
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"time"
 
@@ -31,8 +28,12 @@ const (
 
 // Options are what a Client needs to do its work.
 type Options struct {
-	Container     *sqlstore.Container
-	AccountID     uuid.UUID
+	Container *sqlstore.Container
+	AccountID uuid.UUID
+	// DeviceJID is the number this account is already paired to, empty when it
+	// has never been paired. It is what picks this session's device out of a
+	// store now shared by every CS number.
+	DeviceJID     string
 	DB            *gorm.DB
 	Publisher     *Publisher
 	Logger        *zap.Logger
@@ -73,7 +74,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 	if err := opt.Container.Upgrade(ctx); err != nil {
 		return nil, fmt.Errorf("prepare whatsapp session store: %w", err)
 	}
-	device, err := opt.Container.GetFirstDevice(ctx)
+	device, err := deviceFor(ctx, opt.Container, opt.DeviceJID)
 	if err != nil {
 		return nil, fmt.Errorf("load whatsapp session: %w", err)
 	}
@@ -152,6 +153,18 @@ func (c *Client) Logout(ctx context.Context) error {
 }
 
 func (c *Client) route(rawEvt any) {
+	// One number's bad event must not silence the others. This process holds
+	// every CS number now, and whatsmeow calls this handler on its own
+	// goroutine — an unrecovered panic here would take the whole process, and
+	// with it every other session, down over one malformed message.
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error("Panic while handling a WhatsApp event",
+				zap.String("account_id", c.accountID.String()),
+				zap.Any("panic", r), zap.Stack("stack"))
+		}
+	}()
+
 	switch evt := rawEvt.(type) {
 	case *events.Message:
 		if err := c.inbound.handle(c.ctx, evt); err != nil {
@@ -203,69 +216,6 @@ func (c *Client) route(rawEvt any) {
 	}
 }
 
-func (c *Client) signalDropped() {
-	select {
-	case c.dropped <- struct{}{}:
-	default:
-	}
-}
-
-func (c *Client) signalPaired() {
-	select {
-	case c.paired <- struct{}{}:
-	default:
-	}
-}
-
-// supervise puts the session back after every drop until ctx ends. A drop
-// while the store is unpaired is not something reconnecting can fix — there
-// is no device to reconnect — so supervise waits for a pairing to succeed
-// instead of returning. Returning here was the bug: it left nothing running
-// to recover the very next drop once the account did get paired.
-func (c *Client) supervise(ctx context.Context) {
-	delay := minReconnectDelay
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-c.dropped:
-		}
-
-		delay = c.reconnect(ctx, delay)
-		if delay != 0 {
-			continue
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-c.paired:
-			delay = minReconnectDelay
-		}
-	}
-}
-
-// reconnect retries until the socket is back, answering the delay the next drop
-// should start from, or zero when reconnecting can no longer help.
-func (c *Client) reconnect(ctx context.Context, delay time.Duration) time.Duration {
-	for !c.NeedsPairing() {
-		select {
-		case <-ctx.Done():
-			return 0
-		case <-time.After(delay):
-		}
-
-		err := c.wa.Connect()
-		if err == nil || errors.Is(err, whatsmeow.ErrAlreadyConnected) {
-			return minReconnectDelay
-		}
-		c.logger.Warn("Could not reopen the WhatsApp session",
-			zap.Duration("waited", delay), zap.Error(err))
-		delay = min(delay*2, maxReconnectDelay)
-	}
-	return 0 // logged out: only a new pairing can bring this session back
-}
-
 // setStatus records where the number stands and tells the browsers. Neither
 // failure is worth stopping over: the connection itself is unaffected, and the
 // status is read again on the next change.
@@ -282,7 +232,12 @@ func (c *Client) setStatus(ctx context.Context, status models.WAAccountStatus) {
 	if err != nil {
 		c.logger.Error("Could not record WhatsApp account status", zap.Error(err))
 	}
-	if err := c.publisher.Publish(ctx, Event{Type: EventAccountStatus, AccountStatus: string(status)}); err != nil {
+	event := Event{
+		Type:          EventAccountStatus,
+		WAAccountID:   c.accountID.String(),
+		AccountStatus: string(status),
+	}
+	if err := c.publisher.Publish(ctx, event); err != nil {
 		c.logger.Warn("Could not announce WhatsApp account status", zap.Error(err))
 	}
 }
@@ -327,78 +282,6 @@ func (c *Client) SendMedia(
 		return "", err
 	}
 	return resp.ID, nil
-}
-
-// avatarMaxBytes caps what is read from WhatsApp's photo host. The URL is
-// theirs, but the response is data from a server we do not run, and a profile
-// photo that does not fit in a megabyte is not a profile photo.
-const avatarMaxBytes = 1 << 20
-
-// ProfilePicture answers a customer's current profile photo, downloaded, or
-// says why there is nothing to store.
-//
-// knownID is the id of the photo already held. WhatsApp answers "still that
-// one" to it without sending the image, which is what keeps a weekly refresh
-// from re-downloading every face in the inbox.
-//
-// A hidden photo and a missing one are ordinary answers, not failures: most
-// people show their photo to their contacts only, and a CS number is nobody's
-// contact.
-func (c *Client) ProfilePicture(ctx context.Context, jid, knownID string) (Picture, error) {
-	to, err := types.ParseJID(jid)
-	if err != nil {
-		return Picture{}, fmt.Errorf("nomor tidak valid %q: %w", jid, err)
-	}
-
-	// Preview, not the full image: this is drawn at forty pixels in a list.
-	info, err := c.wa.GetProfilePictureInfo(ctx, to, &whatsmeow.GetProfilePictureParams{
-		Preview:    true,
-		ExistingID: knownID,
-	})
-	switch {
-	case errors.Is(err, whatsmeow.ErrProfilePictureUnauthorized),
-		errors.Is(err, whatsmeow.ErrProfilePictureNotSet):
-		return Picture{State: PictureNone}, nil
-	case err != nil:
-		return Picture{}, err
-	}
-	if info == nil {
-		// whatsmeow answers nil only against an id it was given, and it means
-		// that id is current. With no id offered there is nothing to confirm.
-		if knownID != "" {
-			return Picture{State: PictureUnchanged}, nil
-		}
-		return Picture{State: PictureNone}, nil
-	}
-
-	body, mime, err := fetchAvatar(ctx, info.URL)
-	if err != nil {
-		return Picture{}, err
-	}
-	return Picture{State: PictureNew, ID: info.ID, Mime: mime, Bytes: body}, nil
-}
-
-// fetchAvatar downloads one profile photo, refusing to read more than
-// avatarMaxBytes however much the server offers.
-func fetchAvatar(ctx context.Context, url string) ([]byte, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("build avatar request: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("fetch avatar: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("fetch avatar: %s", resp.Status)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, avatarMaxBytes))
-	if err != nil {
-		return nil, "", fmt.Errorf("read avatar: %w", err)
-	}
-	return body, resp.Header.Get("Content-Type"), nil
 }
 
 // selfJID is this inbox's own number, needed to quote its own replies. It is

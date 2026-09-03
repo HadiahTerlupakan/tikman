@@ -1,4 +1,4 @@
-import { Tag, Typography } from "antd";
+import { Space, Tag, Typography } from "antd";
 import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
@@ -52,9 +52,18 @@ export function ThreadHeader({
         >
           {conversation.customerName || conversation.customerPhone}
         </Text>
-        <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-          {conversation.customerPhone}
-        </Text>
+        <Space size={6}>
+          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+            {conversation.customerPhone}
+          </Text>
+          {/* A CS about to type needs to know which of our numbers this
+              customer is talking to — the reply leaves from that one. */}
+          {conversation.waAccountLabel && (
+            <Tag bordered={false} style={{ fontSize: 10, margin: 0 }}>
+              {conversation.waAccountLabel}
+            </Tag>
+          )}
+        </Space>
       </div>
 
       {conversation.status === "closed" ? (

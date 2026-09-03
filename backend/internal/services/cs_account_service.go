@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -16,6 +17,10 @@ type CSAccountService struct {
 	db *gorm.DB
 }
 
+// maxAccountLabel matches the column, so an over-long name is refused with a
+// sentence rather than a database error.
+const maxAccountLabel = 100
+
 // NewCSAccountService constructs a CSAccountService.
 func NewCSAccountService(db *gorm.DB) *CSAccountService {
 	return &CSAccountService{db: db}
@@ -28,6 +33,29 @@ func (s *CSAccountService) List() ([]models.WAAccount, error) {
 		return nil, fmt.Errorf("list wa accounts: %w", err)
 	}
 	return rows, nil
+}
+
+// Create adds a number for the team to answer from. The label is all an admin
+// supplies: the number itself arrives only when the session is paired, and
+// asking for it up front would let the two disagree.
+//
+// The label has to be unique, and migration 41 enforces it — it is the only
+// thing distinguishing one number from another in the inbox before either is
+// paired, and two called "CS 2" would be unusable.
+func (s *CSAccountService) Create(label string) (*models.WAAccount, error) {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return nil, fmt.Errorf("%w: nama nomor tidak boleh kosong", ErrValidation)
+	}
+	if len(label) > maxAccountLabel {
+		return nil, fmt.Errorf("%w: nama nomor terlalu panjang", ErrValidation)
+	}
+
+	account := models.WAAccount{Label: label, Status: models.WAAccountDisconnected}
+	if err := s.db.Create(&account).Error; err != nil {
+		return nil, fmt.Errorf("create wa account: %w", err)
+	}
+	return &account, nil
 }
 
 // Get answers one account, or gorm.ErrRecordNotFound.

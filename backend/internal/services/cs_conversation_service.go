@@ -57,6 +57,10 @@ type LastMessage struct {
 type ConversationSummary struct {
 	models.CSConversation
 	LastMessage *LastMessage `json:"last_message,omitempty"`
+	// WAAccountLabel names the number this thread came in on. With one number
+	// it is noise; with several it is the difference between a CS knowing
+	// which of your numbers a customer is talking to and guessing.
+	WAAccountLabel string `json:"wa_account_label,omitempty"`
 }
 
 // ConversationFilter narrows the inbox to one of the views a CS switches
@@ -188,12 +192,32 @@ func (s *CSConversationService) List(f ConversationFilter) ([]ConversationSummar
 	if err != nil {
 		return nil, err
 	}
+	labels, err := s.accountLabels()
+	if err != nil {
+		return nil, err
+	}
 	for i := range summaries {
 		if m, ok := latest[summaries[i].ID]; ok {
 			summaries[i].LastMessage = m
 		}
+		summaries[i].WAAccountLabel = labels[summaries[i].WAAccountID]
 	}
 	return summaries, nil
+}
+
+// accountLabels reads every number's name in one query. The table holds one
+// row per CS number — a handful — so there is nothing to gain from narrowing
+// it to the page, and a join would repeat the label on every row instead.
+func (s *CSConversationService) accountLabels() (map[uuid.UUID]string, error) {
+	var rows []models.WAAccount
+	if err := s.db.Select("id", "label").Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("read wa account labels: %w", err)
+	}
+	labels := make(map[uuid.UUID]string, len(rows))
+	for _, row := range rows {
+		labels[row.ID] = row.Label
+	}
+	return labels, nil
 }
 
 // lastMessages fetches the newest message of each thread in one query. One

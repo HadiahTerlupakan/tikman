@@ -8,6 +8,7 @@ import {
   useDisconnectWaAccount,
   useCsConversations,
   useCsHistory,
+  useCreateWaAccount,
   useCsQuickReplies,
   useCsStream,
   useSendCsMedia,
@@ -16,13 +17,14 @@ import {
   useWaAccounts,
 } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
-import type { CsMessage, User } from "@/domain/entities";
+import type { CsMessage, User, WaAccount } from "@/domain/entities";
 import { PageHeader } from "@/presentation/components/common";
 import { ConversationList } from "@/presentation/components/cs/ConversationList";
 import { ThreadPane } from "@/presentation/components/cs/ThreadPane";
 import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
+import { WaNumbersModal } from "@/presentation/components/cs/WaNumbersModal";
 import {
   InboxFilterBar,
   filterFor,
@@ -55,7 +57,10 @@ export function CsInboxPage() {
   const isAdmin = currentUser?.role === UserRole.ADMIN;
 
   const [selectedId, setSelectedId] = useState<string>();
-  const [pairingOpen, setPairingOpen] = useState(false);
+  const [numbersOpen, setNumbersOpen] = useState(false);
+  // The number whose pairing panel is open, if any. Pairing is per number now,
+  // so the panel has to be told which one rather than assuming the only one.
+  const [pairing, setPairing] = useState<WaAccount>();
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   // "Semua" by default, not "Milik saya": a CS opening the inbox needs to see
   // what nobody has picked up, not only what is already theirs.
@@ -63,7 +68,7 @@ export function CsInboxPage() {
   const [search, setSearch] = useState("");
   const [replyTo, setReplyTo] = useState<CsMessage>();
 
-  const { waStatus, pairingCode } = useCsStream();
+  const stream = useCsStream();
   const conversationsQuery = useCsConversations(filterFor(view, search));
   const historyQuery = useCsHistory(selectedId);
   const usersQuery = useUsers();
@@ -77,15 +82,16 @@ export function CsInboxPage() {
   const sendMedia = useSendCsMedia();
   const assignConversation = useAssignConversation();
   const connectAccount = useConnectWaAccount();
+  const createAccount = useCreateWaAccount();
   const disconnectAccount = useDisconnectWaAccount();
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
   const holderNames = holderNameMap(usersQuery.data ?? []);
-  const account = accountsQuery.data?.[0];
+  const accounts = accountsQuery.data ?? [];
   // A live status from this session's own stream is more current than the
-  // admin-only fetch it started from — once one arrives, it wins.
-  const connectionStatus = waStatus ?? account?.status;
+  // fetch it started from — once one arrives for a number, it wins.
+  const pairingLive = pairing ? stream[pairing.id] : undefined;
 
   // mutateAsync rather than mutate, so the composer learns whether the reply
   // left before it throws away what the CS typed. The rejection is caught and
@@ -163,8 +169,9 @@ export function CsInboxPage() {
               </Button>
             )}
             <WaConnectionBadge
-              status={connectionStatus}
-              onOpenPairing={isAdmin ? () => setPairingOpen(true) : undefined}
+              accounts={accountsQuery.data}
+              stream={stream}
+              onOpenNumbers={isAdmin ? () => setNumbersOpen(true) : undefined}
             />
           </Space>
         }
@@ -259,19 +266,31 @@ export function CsInboxPage() {
       )}
 
       {isAdmin && (
+        <WaNumbersModal
+          open={numbersOpen}
+          onClose={() => setNumbersOpen(false)}
+          accounts={accounts}
+          stream={stream}
+          adding={createAccount.isPending}
+          onAdd={(label) => createAccount.mutate(label)}
+          onPair={setPairing}
+        />
+      )}
+
+      {isAdmin && pairing && (
         <WaPairingModal
-          open={pairingOpen}
-          onClose={() => setPairingOpen(false)}
-          status={connectionStatus}
-          pairingCode={pairingCode}
-          accountId={account?.id}
-          connectedNumber={account?.jid?.split("@")[0]}
+          open
+          onClose={() => setPairing(undefined)}
+          status={pairingLive?.waStatus ?? pairing.status}
+          pairingCode={pairingLive?.pairingCode}
+          accountId={pairing.id}
+          connectedNumber={pairing.jid?.split("@")[0]}
           connecting={connectAccount.isPending}
           onConnect={(phone) =>
-            account && connectAccount.mutate({ id: account.id, phone })
+            connectAccount.mutate({ id: pairing.id, phone })
           }
           disconnecting={disconnectAccount.isPending}
-          onDisconnect={() => account && disconnectAccount.mutate(account.id)}
+          onDisconnect={() => disconnectAccount.mutate(pairing.id)}
         />
       )}
     </div>

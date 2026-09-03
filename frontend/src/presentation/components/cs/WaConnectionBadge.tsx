@@ -1,47 +1,59 @@
 import { Tag } from "antd";
 import { CheckCircleOutlined, WarningOutlined } from "@ant-design/icons";
-import type { WaAccountStatus } from "@/domain/entities";
+import type { WaAccount } from "@/domain/entities";
+import type { WaStreamStatus } from "@/application/hooks/useCsStream";
+import { liveStatus } from "./WaNumbersModal";
 
 interface WaConnectionBadgeProps {
-  status?: WaAccountStatus;
-  /** Present only for an admin — clicking opens the pairing panel. Omitted
+  accounts?: WaAccount[];
+  stream: WaStreamStatus;
+  /** Present only for an admin — clicking opens the numbers panel. Omitted
    * for every other role: they need to see the state, not a button the
    * server will refuse. */
-  onOpenPairing?: () => void;
+  onOpenNumbers?: () => void;
 }
-
-const STATUS_LABEL: Record<WaAccountStatus, string> = {
-  connected: "WhatsApp Terhubung",
-  disconnected: "WhatsApp Terputus",
-  pairing: "Menyambungkan WhatsApp...",
-  banned: "Nomor WhatsApp Diblokir",
-};
 
 /**
  * Sits at the top of the inbox because a disconnected number means every
- * reply a CS types is stored and never delivered — that has to be obvious
- * before anyone starts typing, not discovered after a customer complains.
+ * reply a CS types on its threads is stored and never delivered — that has to
+ * be obvious before anyone starts typing, not discovered after a customer
+ * complains.
+ *
+ * With several numbers it counts rather than names: one down out of six is
+ * still a problem, and the panel behind it says which.
  */
 export function WaConnectionBadge({
-  status,
-  onOpenPairing,
+  accounts,
+  stream,
+  onOpenNumbers,
 }: WaConnectionBadgeProps) {
-  const connected = status === "connected";
-  const label = status ? STATUS_LABEL[status] : "Memeriksa koneksi WhatsApp...";
-  const color = connected ? "success" : status ? "error" : "default";
+  if (!accounts || accounts.length === 0) {
+    return (
+      <Tag style={{ fontSize: 13, padding: "4px 10px" }}>
+        Memeriksa koneksi WhatsApp…
+      </Tag>
+    );
+  }
+
+  const connected = accounts.filter(
+    (account) => liveStatus(account, stream) === "connected",
+  ).length;
+  const allUp = connected === accounts.length;
 
   return (
     <Tag
-      icon={connected ? <CheckCircleOutlined /> : <WarningOutlined />}
-      color={color}
-      onClick={onOpenPairing}
+      icon={allUp ? <CheckCircleOutlined /> : <WarningOutlined />}
+      color={allUp ? "success" : "error"}
+      onClick={onOpenNumbers}
       style={{
-        cursor: onOpenPairing ? "pointer" : "default",
+        cursor: onOpenNumbers ? "pointer" : "default",
         fontSize: 13,
         padding: "4px 10px",
       }}
     >
-      {label}
+      {allUp
+        ? `WhatsApp Terhubung (${connected})`
+        : `${accounts.length - connected} dari ${accounts.length} nomor terputus`}
     </Tag>
   );
 }

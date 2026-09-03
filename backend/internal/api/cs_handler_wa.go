@@ -28,6 +28,23 @@ func (h *CSHandler) ListAccounts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": rows})
 }
 
+// CreateAccount adds a number for the team to answer from. It is only the row:
+// pairing it is a separate, deliberate step, so an admin can prepare a number
+// before the phone is in front of them.
+func (h *CSHandler) CreateAccount(c *gin.Context) {
+	var req CreateAccountRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+
+	account, err := h.accounts.Create(req.Label)
+	if err != nil {
+		mapCSError(c, err, "ACCOUNT_CREATE_FAILED")
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": account})
+}
+
 // Connect starts pairing a number by phone. The account is marked "pairing"
 // immediately, before the wa process even sees the request, so a browser
 // polling the list shows the change without delay; the eight-character

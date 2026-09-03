@@ -68,6 +68,19 @@ export function useSendCsMedia() {
   });
 }
 
+/** Adds a WhatsApp number for the team to answer from. It is only the row —
+ * pairing it is a separate, deliberate step. */
+export function useCreateWaAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (label: string) => csRepository.createWaAccount(label),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cs", "wa-accounts"] });
+    },
+    onError: reportCsMutationError,
+  });
+}
+
 /** Hands a thread to one CS, including taking over one someone else holds. */
 export function useAssignConversation() {
   const queryClient = useQueryClient();
