@@ -80,6 +80,9 @@ export const API_ENDPOINTS = {
   ODC_FEED_ROUTE: (id: string) => `/api/v1/odc-feeds/${id}/route`,
   ODP_ROUTE: (id: string) => `/api/v1/odps/${id}/route`,
 
+  // Push notifications
+  PUSH_SUBSCRIBE: "/api/v1/push/subscribe",
+
   // CS inbox
   CS_STREAM: "/api/v1/cs/stream",
   CS_CONVERSATIONS: "/api/v1/cs/conversations",
