@@ -51,6 +51,11 @@ export function AppLayout() {
   // while looking at the OLT map, not only while CS Inbox is open.
   useEffect(() => {
     if (!canUseCs) return;
+    // A cleanup can outrun the promise that produces the unsubscribe (e.g.
+    // StrictMode's synchronous mount→cleanup→re-mount in dev, or canUseCs
+    // flipping faster than Firebase resolves) — without this flag, the
+    // listener that arrives after cleanup would never be torn down.
+    let cancelled = false;
     let unsubscribe: (() => void) | undefined;
 
     refreshTokenIfGranted().then((token) => {
@@ -60,10 +65,17 @@ export function AppLayout() {
     listenForForegroundMessages((title, body) => {
       new Notification(title, { body });
     }).then((unsub) => {
+      if (cancelled) {
+        unsub();
+        return;
+      }
       unsubscribe = unsub;
     });
 
-    return () => unsubscribe?.();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, [canUseCs]);
 
   const handleLogout = () => {
