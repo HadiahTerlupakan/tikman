@@ -127,7 +127,13 @@ func main() {
 	go every(ctx, assignSweep, func() { assignWaiting(ctx, assignment, logger) })
 
 	avatars := wa.NewAvatarSweeper(conversations, client, cfg.WAMediaDir, avatarPace, avatarRefresh)
-	go every(ctx, avatarSweep, func() { sweepAvatars(ctx, avatars, logger) })
+	go func() {
+		// Once at startup as well as on the ticker, for the same reason the
+		// media sweep does it: a process restarted more often than the interval
+		// would otherwise never sweep at all, and a deploy restarts this one.
+		sweepAvatars(ctx, avatars, logger)
+		every(ctx, avatarSweep, func() { sweepAvatars(ctx, avatars, logger) })
+	}()
 	go func() {
 		// Once at startup as well as on the ticker: a process that is restarted
 		// more often than once a day would otherwise never sweep at all.
