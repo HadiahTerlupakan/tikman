@@ -20,6 +20,7 @@ import {
   useSendCsMessage,
   useUsers,
   useWaAccounts,
+  usePushNotifications,
 } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
 import type { CsMessage, User, WaAccount } from "@/domain/entities";
@@ -30,6 +31,7 @@ import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
 import { WaNumbersModal } from "@/presentation/components/cs/WaNumbersModal";
+import { PushOptInButton } from "@/presentation/components/cs/PushOptInButton";
 import {
   InboxFilterBar,
   filterFor,
@@ -74,6 +76,7 @@ export function CsInboxPage() {
   const [replyTo, setReplyTo] = useState<CsMessage>();
 
   const stream = useCsStream();
+  const push = usePushNotifications();
   const conversationsQuery = useCsConversations(filterFor(view, search));
   const historyQuery = useCsHistory(selectedId);
   const usersQuery = useUsers();
@@ -184,6 +187,11 @@ export function CsInboxPage() {
                 Balasan Cepat
               </Button>
             )}
+            <PushOptInButton
+              permission={push.permission}
+              requesting={push.requesting}
+              onEnable={push.enable}
+            />
             <WaConnectionBadge
               accounts={accountsQuery.data}
               stream={stream}
