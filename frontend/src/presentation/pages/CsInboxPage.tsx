@@ -11,6 +11,11 @@ import {
   useCreateWaAccount,
   useCsQuickReplies,
   useCsStream,
+  useClearCsConversation,
+  useClearCsInbox,
+  useClearWaAccountMessages,
+  useDeleteCsMessage,
+  useDeleteWaAccount,
   useSendCsMedia,
   useSendCsMessage,
   useUsers,
@@ -84,6 +89,11 @@ export function CsInboxPage() {
   const connectAccount = useConnectWaAccount();
   const createAccount = useCreateWaAccount();
   const disconnectAccount = useDisconnectWaAccount();
+  const deleteAccount = useDeleteWaAccount();
+  const deleteMessage = useDeleteCsMessage();
+  const clearConversation = useClearCsConversation();
+  const clearAccountMessages = useClearWaAccountMessages();
+  const clearInbox = useClearCsInbox();
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
@@ -92,6 +102,12 @@ export function CsInboxPage() {
   // A live status from this session's own stream is more current than the
   // fetch it started from — once one arrives for a number, it wins.
   const pairingLive = pairing ? stream[pairing.id] : undefined;
+
+  // Compared against currentUser explicitly: an unassigned thread and a
+  // missing user would otherwise both be undefined and read as a match,
+  // handing the delete button to a logged-out session.
+  const canPurge =
+    isAdmin || (!!currentUser && selected?.assignedUserId === currentUser.id);
 
   // mutateAsync rather than mutate, so the composer learns whether the reply
   // left before it throws away what the CS typed. The rejection is caught and
@@ -223,6 +239,8 @@ export function CsInboxPage() {
             sending={sendMessage.isPending}
             attaching={sendMedia.isPending}
             transferring={assignConversation.isPending}
+            clearing={clearConversation.isPending}
+            canPurge={canPurge}
             onSend={handleSend}
             onAttach={handleAttach}
             onTakeOver={handleTakeOver}
@@ -235,6 +253,16 @@ export function CsInboxPage() {
             }
             onReply={setReplyTo}
             onCancelReply={() => setReplyTo(undefined)}
+            onDeleteMessage={(message) =>
+              selected &&
+              deleteMessage.mutate({
+                messageId: message.id,
+                conversationId: selected.id,
+              })
+            }
+            onClearThread={() =>
+              selected && clearConversation.mutate(selected.id)
+            }
           />
         </div>
 
@@ -272,8 +300,16 @@ export function CsInboxPage() {
           accounts={accounts}
           stream={stream}
           adding={createAccount.isPending}
+          busy={
+            deleteAccount.isPending ||
+            clearInbox.isPending ||
+            clearAccountMessages.isPending
+          }
           onAdd={(label) => createAccount.mutate(label)}
           onPair={setPairing}
+          onClearMessages={(account) => clearAccountMessages.mutate(account.id)}
+          onDelete={(account) => deleteAccount.mutate(account.id)}
+          onClearInbox={() => clearInbox.mutate()}
         />
       )}
 

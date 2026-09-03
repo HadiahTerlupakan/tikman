@@ -95,4 +95,9 @@ export const API_ENDPOINTS = {
   CS_WA_ACCOUNTS: "/api/v1/cs/wa-accounts",
   CS_WA_CONNECT: (id: string) => `/api/v1/cs/wa-accounts/${id}/connect`,
   CS_WA_DISCONNECT: (id: string) => `/api/v1/cs/wa-accounts/${id}/disconnect`,
+  CS_WA_ACCOUNT_BY_ID: (id: string) => `/api/v1/cs/wa-accounts/${id}`,
+  CS_WA_ACCOUNT_MESSAGES: (id: string) =>
+    `/api/v1/cs/wa-accounts/${id}/messages`,
+  CS_MESSAGE_BY_ID: (id: string) => `/api/v1/cs/messages/${id}`,
+  CS_ALL_MESSAGES: "/api/v1/cs/messages",
 } as const;

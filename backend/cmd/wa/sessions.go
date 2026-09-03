@@ -67,6 +67,46 @@ func (s *sessions) sync(ctx context.Context) {
 	for _, account := range accounts {
 		s.ensure(ctx, account)
 	}
+	s.closeOrphans(accounts)
+}
+
+// closeOrphans shuts down the sessions whose account row has been deleted.
+//
+// This is the safety net under deleting a number. The control message asking
+// this process to give the pairing up is fire-and-forget, so a process that
+// was down when an admin deleted a number would otherwise come back up still
+// holding its session — writing inbound messages against threads that no
+// longer exist, from a number the inbox has stopped showing.
+func (s *sessions) closeOrphans(accounts []models.WAAccount) {
+	s.mu.Lock()
+	running := make([]uuid.UUID, 0, len(s.running))
+	for id := range s.running {
+		running = append(running, id)
+	}
+	s.mu.Unlock()
+
+	// The lock is released first: restart takes it too.
+	for _, id := range orphaned(running, accounts) {
+		s.deps.logger.Info("Closing the session of a WhatsApp number that was deleted",
+			zap.String("account_id", id.String()))
+		s.restart(id)
+	}
+}
+
+// orphaned answers which running sessions no longer have an account row.
+func orphaned(running []uuid.UUID, accounts []models.WAAccount) []uuid.UUID {
+	known := make(map[uuid.UUID]struct{}, len(accounts))
+	for _, account := range accounts {
+		known[account.ID] = struct{}{}
+	}
+
+	var gone []uuid.UUID
+	for _, id := range running {
+		if _, ok := known[id]; !ok {
+			gone = append(gone, id)
+		}
+	}
+	return gone
 }
 
 // ensure starts one account's session unless it is already running.
@@ -147,12 +187,14 @@ func (s *sessions) client(accountID uuid.UUID) *wa.Client {
 	return nil
 }
 
-// restart drops one number's session so the next sync opens it fresh.
+// restart drops one number's session. What happens next is decided by whether
+// the account row is still there: sync opens a session for every row that has
+// none, so a number that still exists comes back and a deleted one does not.
 //
-// whatsmeow's Logout deletes the device, and every later Connect on a deleted
-// device fails with store.ErrDeviceDeleted — there is no way back to a pairable
-// state in place. Dropping the session and letting sync build a new one gives
-// it a new device, which is what pairing needs.
+// After a logout the drop is what makes the number pairable again. whatsmeow's
+// Logout deletes the device, and every later Connect on a deleted device fails
+// with store.ErrDeviceDeleted — there is no way back to a pairable state in
+// place, so the session has to be rebuilt around a new device.
 func (s *sessions) restart(accountID uuid.UUID) {
 	s.mu.Lock()
 	live, ok := s.running[accountID]

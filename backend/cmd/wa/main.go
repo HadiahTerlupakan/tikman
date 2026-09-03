@@ -206,6 +206,20 @@ func applyControl(ctx context.Context, payload string, live *sessions, logger *z
 		logger.Info("WhatsApp session logged out; restarting it so the number can be paired again",
 			zap.String("account_id", accountID.String()))
 		live.restart(accountID)
+	case wa.ControlDelete:
+		// The row is already gone; this is only the pairing. A number that was
+		// never paired has none to give up, and Logout on it would fail for a
+		// reason nobody needs to read about.
+		if !client.NeedsPairing() {
+			if err := client.Logout(ctx); err != nil {
+				logger.Error("Could not give up the pairing of a deleted WhatsApp number",
+					zap.String("account_id", accountID.String()), zap.Error(err))
+			}
+		}
+		// Nothing restarts it: sync opens sessions for account rows, and this
+		// number no longer has one. The rescan would have closed this session
+		// within the minute anyway — this only spares the inbox that wait.
+		live.restart(accountID)
 	default:
 		logger.Warn("Unknown WhatsApp control action", zap.String("action", msg.Action))
 	}

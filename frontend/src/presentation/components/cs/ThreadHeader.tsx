@@ -1,4 +1,5 @@
-import { Space, Tag, Typography } from "antd";
+import { Button, Popconfirm, Space, Tag, Typography } from "antd";
+import { ClearOutlined } from "@ant-design/icons";
 import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
@@ -9,6 +10,11 @@ interface ThreadHeaderProps {
   conversation: CsConversation;
   holderName?: string;
   isHolder: boolean;
+  /** Empties this thread's history. Absent for anyone who may not — the same
+   * gate as replying, because the CS working a thread is the one who can tell
+   * a mistake from the customer's own words. */
+  onClear?: () => void;
+  clearing?: boolean;
 }
 
 /**
@@ -21,6 +27,8 @@ export function ThreadHeader({
   conversation,
   holderName,
   isHolder,
+  onClear,
+  clearing,
 }: ThreadHeaderProps) {
   const unheld =
     conversation.status === "unassigned" || !conversation.assignedUserId;
@@ -74,6 +82,27 @@ export function ThreadHeader({
         <Tag color="success">Anda yang pegang</Tag>
       ) : (
         <Tag>Dipegang {holderName ?? "CS lain"}</Tag>
+      )}
+
+      {onClear && (
+        <Popconfirm
+          title="Bersihkan semua pesan?"
+          description="Seluruh riwayat percakapan ini dihapus di TikMan. Pesan di HP pelanggan tetap ada."
+          okText="Bersihkan"
+          okButtonProps={{ danger: true }}
+          cancelText="Batal"
+          onConfirm={onClear}
+        >
+          <Button
+            type="text"
+            size="small"
+            danger
+            loading={clearing}
+            icon={<ClearOutlined />}
+            aria-label="Bersihkan pesan percakapan ini"
+            title="Bersihkan pesan"
+          />
+        </Popconfirm>
       )}
     </div>
   );

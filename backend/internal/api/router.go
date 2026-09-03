@@ -82,11 +82,12 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csMessageService := services.NewCSMessageService(db, csConversationService)
 	csQuickReplyService := services.NewCSQuickReplyService(db)
 	csAccountService := services.NewCSAccountService(db)
+	csPurgeService := services.NewCSPurgeService(db, cfg.WAMediaDir)
 	csPresence := services.NewRedisPresence(csRedisClient)
 	csAssignmentService := services.NewCSAssignmentService(db, csConversationService, csPresence)
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
-		csConversationService, csMessageService, csQuickReplyService, csAccountService, csAssignmentService,
+		csConversationService, csMessageService, csQuickReplyService, csAccountService, csPurgeService, csAssignmentService,
 		csPresence, auditService, ontService, userService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
 	)
 
@@ -232,6 +233,11 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.GET("/media/:message_id", csHandler.ServeMedia)
 			cs.GET("/conversations/:id/avatar", csHandler.ServeAvatar)
 			cs.GET("/messages/search", csHandler.SearchMessages)
+			cs.DELETE("/messages/:id", csHandler.DeleteMessage)
+			cs.DELETE("/conversations/:id/messages", csHandler.ClearConversation)
+			// Emptying every thread on every number is the one purge with no
+			// natural owner to gate it, so it is the admin's alone.
+			cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), csHandler.ClearInbox)
 			cs.GET("/stream", csHandler.Stream)
 
 			cs.GET("/quick-replies", csHandler.ListQuickReplies)
@@ -246,6 +252,8 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.POST("/wa-accounts", middleware.RequireRole(models.UserRoleAdmin), csHandler.CreateAccount)
 			cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Connect)
 			cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Disconnect)
+			cs.DELETE("/wa-accounts/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.DeleteAccount)
+			cs.DELETE("/wa-accounts/:id/messages", middleware.RequireRole(models.UserRoleAdmin), csHandler.ClearAccountMessages)
 		}
 
 		odcFeeds := api.Group("/odc-feeds")

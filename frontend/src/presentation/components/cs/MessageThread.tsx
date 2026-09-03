@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Alert, Button, Image, Typography } from "antd";
-import { EnterOutlined, RedoOutlined } from "@ant-design/icons";
+import { RedoOutlined } from "@ant-design/icons";
 import type { CsMessage } from "@/domain/entities";
+import { BubbleActions } from "./BubbleActions";
 import { DeliveryMark } from "./DeliveryMark";
 import { MediaAttachment } from "./MessageAttachment";
 import { QuotedBlock } from "./QuotedBlock";
@@ -18,6 +19,10 @@ interface MessageThreadProps {
    * on this thread — offering the gesture and then refusing the send would be
    * the worse of the two. */
   onReply?: (message: CsMessage) => void;
+  /** Removes this message from the inbox. Absent for the same reason as
+   * onReply, and on the same terms: it removes the copy held here, never the
+   * one on the customer's phone. */
+  onDelete?: (message: CsMessage) => void;
 }
 
 /** The name a quote puts above what it quotes. The customer's own name is not
@@ -44,10 +49,12 @@ function MessageBubble({
   message,
   onRetry,
   onReply,
+  onDelete,
 }: {
   message: CsMessage;
   onRetry: (body: string) => void;
   onReply?: (message: CsMessage) => void;
+  onDelete?: (message: CsMessage) => void;
 }) {
   const outgoing = message.direction === "out";
   const [hovered, setHovered] = useState(false);
@@ -76,8 +83,13 @@ function MessageBubble({
         marginBottom: 6,
       }}
     >
-      {outgoing && onReply && (
-        <ReplyButton visible={hovered} onClick={() => onReply(message)} />
+      {outgoing && (
+        <BubbleActions
+          message={message}
+          visible={hovered}
+          onReply={onReply}
+          onDelete={onDelete}
+        />
       )}
       <div
         style={{
@@ -180,46 +192,15 @@ function MessageBubble({
           />
         )}
       </div>
-      {!outgoing && onReply && (
-        <ReplyButton visible={hovered} onClick={() => onReply(message)} />
+      {!outgoing && (
+        <BubbleActions
+          message={message}
+          visible={hovered}
+          onReply={onReply}
+          onDelete={onDelete}
+        />
       )}
     </div>
-  );
-}
-
-/** The way into a reply. WhatsApp swipes; this is an inbox worked with a
- * mouse, so it is a button that appears on the message being pointed at. It
- * keeps its space when hidden, or every bubble would shift as the pointer
- * crosses the thread.
- *
- * Hidden by opacity rather than visibility, and revealed by focus as well as
- * hover: visibility takes the button out of the accessibility tree entirely,
- * which left replying reachable by mouse alone. */
-function ReplyButton({
-  visible,
-  onClick,
-}: {
-  visible: boolean;
-  onClick: () => void;
-}) {
-  const [focused, setFocused] = useState(false);
-
-  return (
-    <Button
-      type="text"
-      size="small"
-      icon={<EnterOutlined style={{ transform: "scaleX(-1)" }} />}
-      onClick={onClick}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      aria-label="Balas pesan ini"
-      title="Balas"
-      style={{
-        opacity: visible || focused ? 1 : 0,
-        transition: "opacity 120ms",
-        flexShrink: 0,
-      }}
-    />
   );
 }
 
@@ -229,6 +210,7 @@ export function MessageThread({
   messages,
   onRetry,
   onReply,
+  onDelete,
 }: MessageThreadProps) {
   if (messages.length === 0) {
     return (
@@ -250,6 +232,7 @@ export function MessageThread({
           message={message}
           onRetry={onRetry}
           onReply={onReply}
+          onDelete={onDelete}
         />
       ))}
     </div>

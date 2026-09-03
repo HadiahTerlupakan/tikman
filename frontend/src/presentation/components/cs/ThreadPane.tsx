@@ -28,12 +28,18 @@ interface ThreadPaneProps {
   sending: boolean;
   attaching: boolean;
   transferring: boolean;
+  clearing: boolean;
+  /** True when the viewer may remove messages from this thread: its holder,
+   * or an admin. */
+  canPurge: boolean;
   onSend: (body: string) => Promise<boolean>;
   onAttach: (file: File, caption: string) => Promise<boolean>;
   onTakeOver: () => void;
   onTransfer: (userId: string) => void;
   onReply: (message: CsMessage) => void;
   onCancelReply: () => void;
+  onDeleteMessage: (message: CsMessage) => void;
+  onClearThread: () => void;
 }
 
 /**
@@ -54,12 +60,16 @@ export function ThreadPane({
   sending,
   attaching,
   transferring,
+  clearing,
+  canPurge,
   onSend,
   onAttach,
   onTakeOver,
   onTransfer,
   onReply,
   onCancelReply,
+  onDeleteMessage,
+  onClearThread,
 }: ThreadPaneProps) {
   if (!conversation) {
     return (
@@ -88,6 +98,8 @@ export function ThreadPane({
             : undefined
         }
         isHolder={isHolder}
+        onClear={canPurge ? onClearThread : undefined}
+        clearing={clearing}
       />
 
       <div
@@ -107,6 +119,7 @@ export function ThreadPane({
             messages={messages}
             onRetry={onSend}
             onReply={isHolder ? onReply : undefined}
+            onDelete={canPurge ? onDeleteMessage : undefined}
           />
         )}
       </div>

@@ -24,6 +24,10 @@ const ControlChannel = "cs:control"
 const (
 	ControlConnect    = "connect"
 	ControlDisconnect = "disconnect"
+	// ControlDelete is sent after the API has already removed the number and
+	// everything on it. All it asks of this process is to let the pairing go,
+	// so the phone stops listing a device for an inbox that no longer exists.
+	ControlDelete = "delete"
 )
 
 // ControlMessage is one admin action on ControlChannel. The API is the only

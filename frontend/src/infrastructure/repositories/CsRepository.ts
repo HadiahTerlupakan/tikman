@@ -179,4 +179,33 @@ export class CsRepository implements ICsRepository {
     const response = await apiClient.post(API_ENDPOINTS.CS_WA_DISCONNECT(id));
     return response.data.data;
   }
+
+  /** Removes a number along with every thread, message and file on it. */
+  async deleteWaAccount(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.CS_WA_ACCOUNT_BY_ID(id));
+  }
+
+  async deleteMessage(id: string): Promise<number> {
+    const response = await apiClient.delete(API_ENDPOINTS.CS_MESSAGE_BY_ID(id));
+    return response.data.data?.removed ?? 0;
+  }
+
+  async clearConversation(conversationId: string): Promise<number> {
+    const response = await apiClient.delete(
+      API_ENDPOINTS.CS_MESSAGES(conversationId),
+    );
+    return response.data.data?.removed ?? 0;
+  }
+
+  async clearWaAccountMessages(id: string): Promise<number> {
+    const response = await apiClient.delete(
+      API_ENDPOINTS.CS_WA_ACCOUNT_MESSAGES(id),
+    );
+    return response.data.data?.removed ?? 0;
+  }
+
+  async clearInbox(): Promise<number> {
+    const response = await apiClient.delete(API_ENDPOINTS.CS_ALL_MESSAGES);
+    return response.data.data?.removed ?? 0;
+  }
 }

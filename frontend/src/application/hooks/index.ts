@@ -15,6 +15,7 @@ export * from "./useWireguard";
 export * from "./useSettings";
 export * from "./useDistribution";
 export * from "./useCsInbox";
+export * from "./useCsPurge";
 export * from "./useCsStream";
 export * from "./useCsQuickReplies";
 export * from "./useWaAccounts";

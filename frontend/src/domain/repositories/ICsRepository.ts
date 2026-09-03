@@ -41,4 +41,10 @@ export interface ICsRepository {
   listWaAccounts(): Promise<WaAccount[]>;
   connectWaAccount(id: string, phone: string): Promise<{ status: string }>;
   disconnectWaAccount(id: string): Promise<{ status: string }>;
+  deleteWaAccount(id: string): Promise<void>;
+  /** Every purge answers how many messages it removed. */
+  deleteMessage(id: string): Promise<number>;
+  clearConversation(conversationId: string): Promise<number>;
+  clearWaAccountMessages(id: string): Promise<number>;
+  clearInbox(): Promise<number>;
 }

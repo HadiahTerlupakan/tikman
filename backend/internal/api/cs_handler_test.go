@@ -32,9 +32,12 @@ type csHandlerEnv struct {
 	messages      *services.CSMessageService
 	presence      *services.FakePresence
 	onts          *services.ONTService
-	cs            uuid.UUID
-	otherCS       uuid.UUID
-	handler       *CSHandler
+	// mediaRoot is where attachments land, so a test can look on the disk
+	// rather than trust the handler's word for what it removed.
+	mediaRoot string
+	cs        uuid.UUID
+	otherCS   uuid.UUID
+	handler   *CSHandler
 }
 
 // csTestUser stores a CS the handler can actually resolve by id.
@@ -74,10 +77,12 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	redisClient := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"})
 	publisher := wa.NewPublisher(redisClient)
 
+	mediaRoot := t.TempDir()
 	handler := NewCSHandler(
-		conversations, messages, quickReplies, accounts, assignment, presence,
+		conversations, messages, quickReplies, accounts,
+		services.NewCSPurgeService(db, mediaRoot), assignment, presence,
 		audit, onts, services.NewUserService(db), publisher, redisClient, logger,
-		t.TempDir(),
+		mediaRoot,
 	)
 
 	return &csHandlerEnv{
@@ -87,6 +92,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 		messages:      messages,
 		presence:      presence,
 		onts:          onts,
+		mediaRoot:     mediaRoot,
 		// Real rows, not bare ids: replies are signed with the sender's name, and
 		// a user the handler cannot look up would silently go unsigned — which
 		// is how the wiring could break without a test noticing.
@@ -122,6 +128,9 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.GET("/media/:message_id", e.handler.ServeMedia)
 		cs.GET("/conversations/:id/avatar", e.handler.ServeAvatar)
 		cs.GET("/messages/search", e.handler.SearchMessages)
+		cs.DELETE("/messages/:id", e.handler.DeleteMessage)
+		cs.DELETE("/conversations/:id/messages", e.handler.ClearConversation)
+		cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), e.handler.ClearInbox)
 		cs.GET("/stream", e.handler.Stream)
 
 		cs.GET("/quick-replies", e.handler.ListQuickReplies)
@@ -132,6 +141,8 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.GET("/wa-accounts", e.handler.ListAccounts)
 		cs.POST("/wa-accounts/:id/connect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Connect)
 		cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Disconnect)
+		cs.DELETE("/wa-accounts/:id", middleware.RequireRole(models.UserRoleAdmin), e.handler.DeleteAccount)
+		cs.DELETE("/wa-accounts/:id/messages", middleware.RequireRole(models.UserRoleAdmin), e.handler.ClearAccountMessages)
 	}
 	return router
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Button,
+  Dropdown,
   Empty,
   Input,
   List,
@@ -9,12 +10,21 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import {
+  ClearOutlined,
+  DeleteOutlined,
+  MoreOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import type { WaAccount, WaAccountStatus } from "@/domain/entities";
 import type { WaStreamStatus } from "@/application/hooks/useCsStream";
 import { colors } from "@/shared/theme/colors";
+import { ConfirmByTypingModal } from "./ConfirmByTypingModal";
 
 const { Text } = Typography;
+
+/** What an admin types to empty every thread on every number. */
+const CLEAR_INBOX_PHRASE = "HAPUS SEMUA";
 
 const STATUS_LABEL: Record<WaAccountStatus, string> = {
   connected: "Terhubung",
@@ -45,9 +55,15 @@ interface WaNumbersModalProps {
   accounts: WaAccount[];
   stream: WaStreamStatus;
   adding: boolean;
+  busy: boolean;
   onAdd: (label: string) => void;
   /** Opens pairing for one number. */
   onPair: (account: WaAccount) => void;
+  /** Empties one number's threads without removing the number. */
+  onClearMessages: (account: WaAccount) => void;
+  /** Removes a number along with every thread, message and file on it. */
+  onDelete: (account: WaAccount) => void;
+  onClearInbox: () => void;
 }
 
 /**
@@ -63,10 +79,17 @@ export function WaNumbersModal({
   accounts,
   stream,
   adding,
+  busy,
   onAdd,
   onPair,
+  onClearMessages,
+  onDelete,
+  onClearInbox,
 }: WaNumbersModalProps) {
   const [label, setLabel] = useState("");
+  const [doomed, setDoomed] = useState<WaAccount>();
+  const [clearingAccount, setClearingAccount] = useState<WaAccount>();
+  const [clearingInbox, setClearingInbox] = useState(false);
 
   const handleAdd = () => {
     const name = label.trim();
@@ -107,6 +130,34 @@ export function WaNumbersModal({
                     >
                       {status === "connected" ? "Kelola" : "Sambungkan"}
                     </Button>,
+                    <Dropdown
+                      key="more"
+                      trigger={["click"]}
+                      menu={{
+                        items: [
+                          {
+                            key: "clear",
+                            icon: <ClearOutlined />,
+                            label: "Bersihkan pesan",
+                            onClick: () => setClearingAccount(account),
+                          },
+                          {
+                            key: "delete",
+                            icon: <DeleteOutlined />,
+                            danger: true,
+                            label: "Hapus nomor",
+                            onClick: () => setDoomed(account),
+                          },
+                        ],
+                      }}
+                    >
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<MoreOutlined />}
+                        aria-label={`Kelola ${account.label}`}
+                      />
+                    </Dropdown>,
                   ]}
                 >
                   <List.Item.Meta
@@ -152,7 +203,70 @@ export function WaNumbersModal({
         >
           Nomor baru siap dipasang dalam waktu kurang dari satu menit.
         </Text>
+
+        <div
+          style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 12 }}
+        >
+          <Button
+            danger
+            size="small"
+            icon={<ClearOutlined />}
+            onClick={() => setClearingInbox(true)}
+          >
+            Bersihkan seluruh inbox
+          </Button>
+        </div>
       </Space>
+
+      {/* Its own modal rather than a Popconfirm on the menu item: a Dropdown
+          closes on click and takes the popconfirm down with it, so the
+          confirmation flashed and vanished before it could be answered. */}
+      <Modal
+        open={!!clearingAccount}
+        title={`Bersihkan pesan ${clearingAccount?.label ?? ""}?`}
+        okText="Bersihkan"
+        okButtonProps={{ danger: true, loading: busy }}
+        cancelText="Batal"
+        onOk={() => {
+          if (clearingAccount) onClearMessages(clearingAccount);
+          setClearingAccount(undefined);
+        }}
+        onCancel={() => setClearingAccount(undefined)}
+        width={460}
+      >
+        <Text type="secondary">
+          Semua riwayat percakapan di nomor ini dihapus di TikMan. Nomornya
+          tetap tersambung dan percakapannya tetap ada.
+        </Text>
+      </Modal>
+
+      <ConfirmByTypingModal
+        open={!!doomed}
+        title={`Hapus nomor ${doomed?.label ?? ""}?`}
+        warning="Semua percakapan, pesan dan lampiran di nomor ini ikut terhapus, dan tidak bisa dikembalikan. Pairing di HP juga dilepas."
+        phrase={doomed?.label ?? ""}
+        confirmText="Hapus nomor"
+        loading={busy}
+        onConfirm={() => {
+          if (doomed) onDelete(doomed);
+          setDoomed(undefined);
+        }}
+        onClose={() => setDoomed(undefined)}
+      />
+
+      <ConfirmByTypingModal
+        open={clearingInbox}
+        title="Bersihkan seluruh inbox?"
+        warning="Semua pesan di semua nomor dihapus, dan tidak bisa dikembalikan. Nomor dan daftar percakapannya tetap ada."
+        phrase={CLEAR_INBOX_PHRASE}
+        confirmText="Bersihkan semua"
+        loading={busy}
+        onConfirm={() => {
+          onClearInbox();
+          setClearingInbox(false);
+        }}
+        onClose={() => setClearingInbox(false)}
+      />
     </Modal>
   );
 }
