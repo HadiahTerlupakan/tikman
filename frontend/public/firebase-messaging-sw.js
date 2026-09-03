@@ -1,19 +1,25 @@
-// Keep the six config values below identical to the firebaseConfig in
-// src/shared/config/firebase.ts — a service worker cannot import that module,
-// so this is a deliberate duplicate, not a second source of truth. Change one,
-// change the other in the same commit. Filled in for real in the task that runs
-// once the Firebase project exists (see
-// docs/superpowers/specs/2026-09-03-cs-push-notifications-design.md §7).
+// This file carries no Firebase configuration. A service worker cannot import
+// src/shared/config/firebase.ts, and duplicating the six values here would put
+// the project identity in the repository and give it a second copy that can
+// drift. Instead messaging.ts appends them to the registration URL, and this
+// script reads them back off its own location — so there is still exactly one
+// source, the build-time environment.
+//
+// A service worker whose URL changes is treated as a new registration, so
+// rotating the Firebase project re-registers rather than leaving a worker
+// bound to the old one.
+const params = new URL(self.location).searchParams;
+
 importScripts("https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging-compat.js");
 
 firebase.initializeApp({
-  apiKey: "REPLACE_WITH_FIREBASE_API_KEY",
-  authDomain: "REPLACE_WITH_FIREBASE_AUTH_DOMAIN",
-  projectId: "REPLACE_WITH_FIREBASE_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "REPLACE_WITH_FIREBASE_MESSAGING_SENDER_ID",
-  appId: "REPLACE_WITH_FIREBASE_APP_ID",
+  apiKey: params.get("apiKey") || "",
+  authDomain: params.get("authDomain") || "",
+  projectId: params.get("projectId") || "",
+  storageBucket: params.get("storageBucket") || "",
+  messagingSenderId: params.get("messagingSenderId") || "",
+  appId: params.get("appId") || "",
 });
 
 const messaging = firebase.messaging();

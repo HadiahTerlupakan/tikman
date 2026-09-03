@@ -35,12 +35,20 @@ function currentPermission(): PushPermission {
   return Notification.permission;
 }
 
+/** The service worker carries no config of its own — it reads these off its
+ * own registration URL. Keeping the values here rather than in that file is
+ * what stops the project identity reaching the repository, and what stops the
+ * two copies drifting. */
+function serviceWorkerURL(): string {
+  const params = new URLSearchParams(firebaseConfig);
+  return `/firebase-messaging-sw.js?${params.toString()}`;
+}
+
 async function registerAndGetToken(): Promise<string | undefined> {
   const instance = await messaging();
   if (!instance) return undefined;
-  const registration = await navigator.serviceWorker.register(
-    "/firebase-messaging-sw.js",
-  );
+  const registration =
+    await navigator.serviceWorker.register(serviceWorkerURL());
   return getToken(instance, {
     vapidKey: firebaseVapidKey,
     serviceWorkerRegistration: registration,
