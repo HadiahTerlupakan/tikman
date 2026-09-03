@@ -23,6 +23,7 @@ interface UserFormValues {
   username: string;
   email: string;
   role: UserRole;
+  initials?: string;
   password?: string;
   passwordConfirm?: string;
 }
@@ -42,6 +43,7 @@ export function UserModal({
         username: user.username,
         email: user.email,
         role: user.role,
+        initials: user.initials,
       });
     } else {
       form.resetFields();
@@ -52,15 +54,19 @@ export function UserModal({
     form
       .validateFields()
       .then((values) => {
-        const { username, email, role, password } = values;
+        const { username, email, role, password, initials } = values;
+        // Blank is a real, meaningful value here — unlike password, it is not
+        // "leave alone" but "recompute from the username" — so it is always
+        // sent, never dropped the way an empty password is.
+        const trimmedInitials = (initials ?? "").trim();
 
         // The confirmation never leaves the form, and an empty password means
         // "leave it alone" — sending "" would fail the API's minimum length and
         // read to the operator as a rejected edit.
         onSubmit(
           password
-            ? { username, email, role, password }
-            : { username, email, role },
+            ? { username, email, role, initials: trimmedInitials, password }
+            : { username, email, role, initials: trimmedInitials },
         );
       })
       // validateFields rejects on a failed rule. antd has already rendered each
@@ -134,6 +140,20 @@ export function UserModal({
           ]}
         >
           <Input.Password autoComplete="new-password" />
+        </Form.Item>
+
+        <Form.Item
+          name="initials"
+          label="Initials"
+          extra="Shown on WhatsApp replies and the header avatar. Leave blank to derive it from the username."
+          rules={[
+            {
+              pattern: /^[A-Za-z0-9]{0,4}$/,
+              message: "Up to 4 letters or digits",
+            },
+          ]}
+        >
+          <Input style={{ textTransform: "uppercase" }} maxLength={4} />
         </Form.Item>
 
         <Form.Item

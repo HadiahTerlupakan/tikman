@@ -22,7 +22,7 @@ func CreateDefaultAdmin(db *gorm.DB, logger *zap.Logger) error {
 	}
 
 	service := NewUserService(db)
-	_, err := service.Create("admin", "admin@tikman.local", "admin123", models.UserRoleAdmin)
+	_, err := service.Create("admin", "admin@tikman.local", "admin123", "", models.UserRoleAdmin)
 	if err != nil {
 		return fmt.Errorf("failed to create default admin: %w", err)
 	}

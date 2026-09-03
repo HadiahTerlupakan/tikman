@@ -87,6 +87,7 @@ export const createMockUser = (): User => ({
   id: "1",
   username: "admin",
   email: "admin@example.com",
+  initials: "AD",
   role: UserRole.ADMIN,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

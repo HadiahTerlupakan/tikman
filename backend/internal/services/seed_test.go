@@ -46,7 +46,7 @@ func TestCreateDefaultAdmin_UsersExist(t *testing.T) {
 
 	// Create a user first
 	service := NewUserService(db)
-	_, err := service.Create("existing", "existing@example.com", "password123", models.UserRoleViewer)
+	_, err := service.Create("existing", "existing@example.com", "password123", "", models.UserRoleViewer)
 	assert.NoError(t, err)
 
 	// Try to create default admin

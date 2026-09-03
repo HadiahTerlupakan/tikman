@@ -22,6 +22,7 @@ type User struct {
 	Email        string    `gorm:"type:varchar(255);uniqueIndex;not null"`
 	PasswordHash string    `gorm:"type:varchar(255);not null"`
 	Role         UserRole  `gorm:"type:varchar(20);not null"`
+	Initials     string    `gorm:"type:varchar(4);not null;default:''"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

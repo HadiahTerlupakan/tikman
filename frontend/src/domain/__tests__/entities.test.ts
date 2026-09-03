@@ -13,6 +13,7 @@ describe("User Entity", () => {
       id: "123",
       username: "admin",
       email: "admin@test.com",
+      initials: "AD",
       role: UserRole.ADMIN,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",

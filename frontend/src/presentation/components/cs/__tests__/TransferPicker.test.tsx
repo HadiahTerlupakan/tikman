@@ -10,6 +10,7 @@ function user(id: string, username: string, role: UserRole): User {
     id,
     username,
     email: `${username}@example.com`,
+    initials: username.slice(0, 2).toUpperCase(),
     role,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

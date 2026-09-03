@@ -36,7 +36,7 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	_, userService, _, handler := setupAuthTest(t)
 
 	// Create test user
-	_, err := userService.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	_, err := userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	assert.NoError(t, err)
 
 	// Create login request
@@ -76,7 +76,7 @@ func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
 	_, userService, _, handler := setupAuthTest(t)
 
 	// Create test user
-	_, err := userService.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	_, err := userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	assert.NoError(t, err)
 
 	// Create login request with wrong password
@@ -140,7 +140,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 	_, userService, sessionStore, handler := setupAuthTest(t)
 
 	// Create test user and session
-	user, err := userService.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	user, err := userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	assert.NoError(t, err)
 
 	token, err := sessionStore.Create(user.ID, user.Role)
@@ -178,7 +178,7 @@ func TestAuthHandler_Me_Success(t *testing.T) {
 	_, userService, _, handler := setupAuthTest(t)
 
 	// Create test user
-	user, err := userService.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	user, err := userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	assert.NoError(t, err)
 
 	// Create request with user context
@@ -268,7 +268,7 @@ func TestAuthHandler_Login_SecureCookieFollowsEnvironment(t *testing.T) {
 			assert.NoError(t, db.AutoMigrate(&models.User{}))
 
 			userService := services.NewUserService(db)
-			_, err = userService.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+			_, err = userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 			assert.NoError(t, err)
 
 			handler := NewAuthHandler(userService, auth.NewMemoryStore(24*time.Hour), tt.secureCookie)

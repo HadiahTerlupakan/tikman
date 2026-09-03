@@ -8,6 +8,7 @@ const admin: User = {
   id: "user-1",
   username: "admin",
   email: "admin@tikman.local",
+  initials: "AD",
   role: UserRole.ADMIN,
 } as User;
 
@@ -52,6 +53,21 @@ describe("UserModal", () => {
       username: "admin",
       role: UserRole.ADMIN,
     });
+  });
+
+  it("prefills initials when editing, so an existing mark is not silently reset", async () => {
+    renderModal(admin);
+    expect(screen.getByLabelText("Initials")).toHaveValue("AD");
+  });
+
+  it("sends an empty initials on submit when the field is cleared, so the API recomputes it", async () => {
+    const onSubmit = renderModal(admin);
+
+    await userEvent.clear(screen.getByLabelText("Initials"));
+    await userEvent.click(screen.getByRole("button", { name: /ok/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ initials: "" });
   });
 
   it("rejects a password shorter than the API accepts", async () => {

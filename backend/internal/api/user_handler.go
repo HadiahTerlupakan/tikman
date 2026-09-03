@@ -41,7 +41,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	user, err := h.service.Create(req.Username, req.Email, req.Password, req.Role)
+	user, err := h.service.Create(req.Username, req.Email, req.Password, req.Initials, req.Role)
 	if err != nil {
 		// Check for duplicate username/email
 		if isDuplicateError(err, "username") {
@@ -161,6 +161,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 	if req.Password != nil {
 		updates["password"] = *req.Password
+	}
+	if req.Initials != nil {
+		updates["initials"] = *req.Initials
 	}
 	if req.Role != nil {
 		updates["role"] = *req.Role

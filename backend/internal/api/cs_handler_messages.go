@@ -68,7 +68,7 @@ func (h *CSHandler) sign(userID uuid.UUID, body string) string {
 			zap.String("user_id", userID.String()), zap.Error(err))
 		return body
 	}
-	return signReply(body, user.Username)
+	return signReply(body, user.Initials)
 }
 
 // Send queues a text reply on a thread the caller holds.

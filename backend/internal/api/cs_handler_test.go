@@ -40,14 +40,17 @@ type csHandlerEnv struct {
 	handler   *CSHandler
 }
 
-// csTestUser stores a CS the handler can actually resolve by id.
-func csTestUser(t *testing.T, db *gorm.DB, username string) uuid.UUID {
+// csTestUser stores a CS the handler can actually resolve by id. initials is
+// what UserService.Create would have derived, kept explicit here since this
+// helper writes the row directly rather than going through that service.
+func csTestUser(t *testing.T, db *gorm.DB, username, initials string) uuid.UUID {
 	t.Helper()
 	user := models.User{
 		ID:       uuid.New(),
 		Username: username,
 		Email:    username + "@example.test",
 		Role:     models.UserRoleCS,
+		Initials: initials,
 	}
 	require.NoError(t, db.Create(&user).Error)
 	return user.ID
@@ -96,8 +99,8 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 		// Real rows, not bare ids: replies are signed with the sender's name, and
 		// a user the handler cannot look up would silently go unsigned — which
 		// is how the wiring could break without a test noticing.
-		cs:      csTestUser(t, db, "Budi Santoso"),
-		otherCS: csTestUser(t, db, "Rina Astuti"),
+		cs:      csTestUser(t, db, "Budi Santoso", "BS"),
+		otherCS: csTestUser(t, db, "Rina Astuti", "RA"),
 		handler: handler,
 	}
 }

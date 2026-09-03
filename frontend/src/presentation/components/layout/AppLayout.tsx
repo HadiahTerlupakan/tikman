@@ -132,7 +132,8 @@ export function AppLayout() {
                       />
                     </Badge>
                     <Avatar style={{ backgroundColor: "#3ecf8e" }}>
-                      {user?.username?.charAt(0).toUpperCase()}
+                      {user?.initials ||
+                        user?.username?.charAt(0).toUpperCase()}
                     </Avatar>
                   </div>
                 </Dropdown>

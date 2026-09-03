@@ -25,18 +25,49 @@ func TestUserService_Create(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	user, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	user, err := service.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, user.ID)
 	assert.Equal(t, "testuser", user.Username)
 	assert.NotEqual(t, "password123", user.PasswordHash)
+	assert.Equal(t, "TE", user.Initials)
+}
+
+// An admin who does set initials on the create form gets exactly that, not
+// what deriveInitials would have guessed from the username.
+func TestUserService_CreateRespectsExplicitInitials(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewUserService(db)
+
+	user, err := service.Create("testuser", "test@example.com", "password123", "zz", models.UserRoleAdmin)
+	require.NoError(t, err)
+	assert.Equal(t, "ZZ", user.Initials)
+}
+
+// Clearing the field in an update is a request to recompute, not to store
+// blank — the column is not nullable and a bare "~" in a reply would read as
+// a typo.
+func TestUserService_UpdateClearingInitialsFallsBackToDerived(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewUserService(db)
+
+	user, err := service.Create("testuser", "test@example.com", "password123", "zz", models.UserRoleAdmin)
+	require.NoError(t, err)
+	require.Equal(t, "ZZ", user.Initials)
+
+	err = service.Update(user.ID, map[string]interface{}{"initials": ""})
+	require.NoError(t, err)
+
+	updated, err := service.GetByID(user.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "TE", updated.Initials)
 }
 
 func TestUserService_GetByUsername(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	created, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	created, err := service.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
 
 	found, err := service.GetByUsername("testuser")
@@ -48,8 +79,8 @@ func TestUserService_List(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	_, _ = service.Create("user1", "user1@example.com", "pass", models.UserRoleAdmin)
-	_, _ = service.Create("user2", "user2@example.com", "pass", models.UserRoleTechnician)
+	_, _ = service.Create("user1", "user1@example.com", "pass", "", models.UserRoleAdmin)
+	_, _ = service.Create("user2", "user2@example.com", "pass", "", models.UserRoleTechnician)
 
 	users, err := service.List()
 	require.NoError(t, err)
@@ -60,7 +91,7 @@ func TestUserService_Delete(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	user, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	user, err := service.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
 
 	err = service.Delete(user.ID)
@@ -74,7 +105,7 @@ func TestUserService_Update(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	user, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	user, err := service.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
 
 	// Test updating email
@@ -115,7 +146,7 @@ func TestUserService_VerifyPassword(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewUserService(db)
 
-	user, err := service.Create("testuser", "test@example.com", "password123", models.UserRoleAdmin)
+	user, err := service.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
 
 	// Test correct password
