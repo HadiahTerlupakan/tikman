@@ -137,7 +137,10 @@ describe("MessageThread", () => {
   // A customer sends a video of a blinking modem far more often than they
   // describe one. This used to render as the word "Lampiran" — no player, no
   // link, nothing to open — while the file sat downloaded and served.
-  it("plays a video in place", () => {
+  // A bare player gives no hint there is anything to watch, and played inline
+  // at its own size a portrait clip filled the thread the way an uncapped photo
+  // once did. It is a still with a play button, opened on click.
+  it("shows a video as a thumbnail with a play button", () => {
     const { container } = render(
       <MessageThread
         messages={[
@@ -147,10 +150,29 @@ describe("MessageThread", () => {
       />,
     );
 
-    const video = container.querySelector("video");
-    expect(video).not.toBeNull();
-    expect(video).toHaveAttribute("controls");
-    expect(video?.getAttribute("src")).toContain("/cs/media/m1");
+    const opener = screen.getByRole("button", { name: "Putar video" });
+    expect(opener).toHaveStyle({ width: "220px", height: "160px" });
+
+    const still = container.querySelector("video");
+    expect(still?.getAttribute("src")).toContain("/cs/media/m1");
+    expect(still).not.toHaveAttribute("controls");
+  });
+
+  it("opens the video when the thumbnail is clicked", async () => {
+    render(
+      <MessageThread
+        messages={[
+          message({ kind: "video", body: "", mediaFilename: "modem.mp4" }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Putar video" }));
+
+    const playing = document.querySelector(".ant-modal video");
+    expect(playing).not.toBeNull();
+    expect(playing).toHaveAttribute("controls");
   });
 
   it("plays a voice note in place", () => {
@@ -180,25 +202,5 @@ describe("MessageThread", () => {
 
     const link = screen.getByRole("link", { name: /invoice\.pdf/ });
     expect(link).toHaveAttribute("href", expect.stringContaining("/cs/media/"));
-  });
-
-  // Same defect the photo caption had: an inline attachment ran into the
-  // caption beside it instead of sitting above it.
-  it("keeps a video's caption on its own line", () => {
-    const { container } = render(
-      <MessageThread
-        messages={[
-          message({
-            kind: "video",
-            body: "ini videonya pak",
-            mediaFilename: "modem.mp4",
-          }),
-        ]}
-        onRetry={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("ini videonya pak")).toBeInTheDocument();
-    expect(container.querySelector("video")).toHaveStyle({ display: "block" });
   });
 });
