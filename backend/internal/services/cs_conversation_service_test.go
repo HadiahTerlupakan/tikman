@@ -142,11 +142,6 @@ func TestListSeparatesMineFromUnheld(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, held, 1)
 	assert.Equal(t, mine.ID, held[0].ID)
-
-	waiting, err := svc.List(ConversationFilter{Unassigned: true})
-	require.NoError(t, err)
-	require.Len(t, waiting, 1)
-	assert.Equal(t, "628222333444", waiting[0].CustomerPhone)
 }
 
 // A customer whose number this cannot read must still reach the inbox. WhatsApp

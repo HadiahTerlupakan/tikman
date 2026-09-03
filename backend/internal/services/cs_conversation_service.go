@@ -62,12 +62,15 @@ type ConversationSummary struct {
 // ConversationFilter narrows the inbox to one of the views a CS switches
 // between: their own threads, the ones nobody holds, or the finished ones.
 type ConversationFilter struct {
-	Mine       *uuid.UUID
-	Unassigned bool
-	Closed     bool
-	Search     string
-	Limit      int
-	Offset     int
+	Mine *uuid.UUID
+	// AwaitingReply is every thread whose last message came from the customer,
+	// whoever holds it. One rule covers both the chat nobody has answered yet
+	// and the customer who wrote again after theirs was closed.
+	AwaitingReply bool
+	Closed        bool
+	Search        string
+	Limit         int
+	Offset        int
 }
 
 // FindOrCreate returns the thread for one customer on one number, creating it
@@ -153,8 +156,8 @@ func (s *CSConversationService) List(f ConversationFilter) ([]ConversationSummar
 	switch {
 	case f.Mine != nil:
 		q = q.Where("assigned_user_id = ? AND status <> ?", *f.Mine, models.ConversationClosed)
-	case f.Unassigned:
-		q = q.Where("status = ?", models.ConversationUnassigned)
+	case f.AwaitingReply:
+		q = q.Where("last_message_direction = ?", models.MessageIn)
 	case f.Closed:
 		q = q.Where("status = ?", models.ConversationClosed)
 	}
@@ -282,7 +285,14 @@ func (s *CSConversationService) EnsureHolder(conversationID, userID uuid.UUID) e
 // touchTx is Touch inside a caller's transaction, so that a message and the
 // inbox ordering that surfaces it commit together or not at all.
 func (s *CSConversationService) touchTx(tx *gorm.DB, conversationID uuid.UUID, at time.Time) error {
-	return updateConversation(tx, conversationID, map[string]any{"last_message_at": at})
+	// The direction is recorded when the reply is queued, not when it reaches
+	// WhatsApp. A CS who has answered has answered; leaving the thread in the
+	// waiting queue until the outbox drains would put it back in front of the
+	// next agent, who would answer it again.
+	return updateConversation(tx, conversationID, map[string]any{
+		"last_message_at":        at,
+		"last_message_direction": models.MessageOut,
+	})
 }
 
 func (s *CSConversationService) update(conversationID uuid.UUID, fields map[string]any) error {

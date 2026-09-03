@@ -244,8 +244,9 @@ func (s *CSMessageService) Search(term string, limit int) ([]models.CSMessage, e
 func bumpConversation(tx *gorm.DB, conversationID uuid.UUID, at time.Time) error {
 	err := tx.Model(&models.CSConversation{}).Where("id = ?", conversationID).
 		Updates(map[string]any{
-			"last_message_at": at,
-			"unread_count":    gorm.Expr("unread_count + 1"),
+			"last_message_at":        at,
+			"last_message_direction": models.MessageIn,
+			"unread_count":           gorm.Expr("unread_count + 1"),
 		}).Error
 	if err != nil {
 		return fmt.Errorf("bump conversation: %w", err)

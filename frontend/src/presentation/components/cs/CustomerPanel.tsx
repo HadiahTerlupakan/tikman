@@ -1,17 +1,12 @@
 import { useState } from "react";
-import { App, Button, Select, Space, Tag, Typography } from "antd";
-import { LinkOutlined } from "@ant-design/icons";
-import { Link } from "react-router-dom";
+import { App, Button, Select, Space, Typography } from "antd";
 import type { CsConversation } from "@/domain/entities";
 import { useOnt, useOnts } from "@/application/hooks/useOnts";
 import {
   useLinkConversationOnt,
   useSetConversationStatus,
 } from "@/application/hooks/useCsInbox";
-import {
-  ontStatusColor,
-  ontStatusLabel,
-} from "@/presentation/components/ontStatus";
+import { OntLinkPanel } from "./OntLinkPanel";
 
 const { Text, Title } = Typography;
 
@@ -63,7 +58,14 @@ export function CustomerPanel({ conversation }: CustomerPanelProps) {
       </div>
 
       {conversation.ontId ? (
-        <OntLinkSummary ont={ontQuery.data} />
+        <OntLinkPanel
+          ont={ontQuery.data}
+          loading={ontQuery.isLoading}
+          unlinking={linkOnt.isPending}
+          onUnlink={() =>
+            linkOnt.mutate({ conversationId: conversation.id, ontId: null })
+          }
+        />
       ) : (
         <Space direction="vertical" style={{ width: "100%" }}>
           <Text type="secondary">Belum tertaut ke ONT</Text>
@@ -104,21 +106,6 @@ export function CustomerPanel({ conversation }: CustomerPanelProps) {
           Tutup Percakapan
         </Button>
       )}
-    </Space>
-  );
-}
-
-function OntLinkSummary({ ont }: { ont: ReturnType<typeof useOnt>["data"] }) {
-  if (!ont) {
-    return <Text type="secondary">Memuat ONT...</Text>;
-  }
-  return (
-    <Space direction="vertical">
-      <Tag color={ontStatusColor(ont.status)}>{ontStatusLabel(ont.status)}</Tag>
-      <Text>{ont.name || ont.serialNumber}</Text>
-      <Link to="/onts">
-        <LinkOutlined /> Lihat di daftar ONT
-      </Link>
     </Space>
   );
 }

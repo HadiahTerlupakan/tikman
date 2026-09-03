@@ -23,13 +23,15 @@ export interface CsConversation {
    * what keeps the list from pointing every avatar at an endpoint that would
    * 404 on most rows, on every refresh. */
   hasAvatar: boolean;
+  /** Which side spoke last. "in" is a thread still waiting on a CS. */
+  lastMessageDirection?: "in" | "out";
   /** Absent on a thread nothing has been said in yet. */
   lastMessage?: CsLastMessage;
 }
 
 /**
- * The inbox's views — mine, unassigned, closed — are mutually exclusive on
- * the backend: ListConversations checks them in that order and the first
+ * The inbox's views — mine, awaiting a reply, closed — are mutually exclusive
+ * on the backend: ListConversations checks them in that order and the first
  * one set wins. Setting more than one here is meaningless, not additive.
  */
 export interface CsConversationFilter {
@@ -37,6 +39,9 @@ export interface CsConversationFilter {
   limit?: number;
   offset?: number;
   mine?: boolean;
-  unassigned?: boolean;
+  /** Every thread whose last message came from the customer, whoever holds
+   * it — one rule covering both the chat nobody has answered and the customer
+   * who wrote again after theirs was closed. */
+  awaitingReply?: boolean;
   closed?: boolean;
 }

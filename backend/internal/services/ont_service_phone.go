@@ -95,3 +95,37 @@ func (s *ONTService) RecordPhoneIfUnclaimed(ontID uuid.UUID, phone string) (bool
 	}
 	return true, nil
 }
+
+// ReleasePhone clears an ONT's subscriber number, but only when it is the one
+// given, and answers whether it did.
+//
+// It is the undo of RecordPhoneIfUnclaimed. A CS who links a thread to the
+// wrong ONT writes the customer's number onto it, and unlinking without taking
+// that number back would leave the next chat from that customer matching the
+// same wrong ONT — the correction would look done and not be.
+//
+// A number the operator entered for somebody else is left alone. Answering
+// false is an ordinary outcome, not a failure.
+func (s *ONTService) ReleasePhone(ontID uuid.UUID, phone string) (bool, error) {
+	ont, err := s.GetByID(ontID)
+	if err != nil {
+		return false, err
+	}
+	if ont.Phone == "" {
+		return false, nil
+	}
+
+	// Compared in the stored form, not as typed: the number on the ONT was
+	// normalized on the way in, and "0812…" must still match "62812…".
+	wanted, err := utils.NormalizePhone(phone)
+	if err != nil || wanted != ont.Phone {
+		return false, nil
+	}
+
+	err = s.db.Model(&models.ONT{}).Where("id = ?", ontID).
+		Updates(map[string]interface{}{"phone": "", "updated_at": time.Now()}).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to release ONT phone: %w", err)
+	}
+	return true, nil
+}

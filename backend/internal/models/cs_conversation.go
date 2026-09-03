@@ -64,7 +64,11 @@ type CSConversation struct {
 	Status         ConversationStatus `gorm:"type:varchar(20);not null;index" json:"status"`
 	ONTID          *uuid.UUID         `gorm:"type:uuid;index" json:"ont_id,omitempty"`
 	LastMessageAt  time.Time          `gorm:"index" json:"last_message_at"`
-	UnreadCount    int                `gorm:"not null;default:0" json:"unread_count"`
+	// LastMessageDirection is which side spoke last, kept here rather than
+	// worked out from the messages table because the "waiting on us" view is
+	// the one a CS opens most and that query would slow as threads pile up.
+	LastMessageDirection MessageDirection `gorm:"type:varchar(3);index" json:"last_message_direction,omitempty"`
+	UnreadCount          int              `gorm:"not null;default:0" json:"unread_count"`
 
 	// AvatarPath is the customer's profile photo on disk, relative to the media
 	// root, and empty when there is none to show. AvatarID is WhatsApp's id for

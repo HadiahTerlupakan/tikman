@@ -7,12 +7,12 @@ import { colors } from "@/shared/theme/colors";
 /** The four views a CS switches between. They are mutually exclusive on the
  * backend — the first one set wins — which is why this is a segmented control
  * and not a row of checkboxes. */
-export type InboxView = "semua" | "milik-saya" | "belum-dipegang" | "selesai";
+export type InboxView = "semua" | "milik-saya" | "belum-dibalas" | "selesai";
 
 const views: { value: InboxView; label: string }[] = [
   { value: "semua", label: "Semua" },
   { value: "milik-saya", label: "Milik saya" },
-  { value: "belum-dipegang", label: "Belum dipegang" },
+  { value: "belum-dibalas", label: "Belum dibalas" },
   { value: "selesai", label: "Selesai" },
 ];
 
@@ -25,8 +25,8 @@ export function filterFor(
   switch (view) {
     case "milik-saya":
       return { ...base, mine: true };
-    case "belum-dipegang":
-      return { ...base, unassigned: true };
+    case "belum-dibalas":
+      return { ...base, awaitingReply: true };
     case "selesai":
       return { ...base, closed: true };
     default:

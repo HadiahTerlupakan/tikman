@@ -71,9 +71,14 @@ func TestLinkONTLeavesAnExistingPhoneUntouched(t *testing.T) {
 }
 
 // The CS's decision to link stands even when the number is already claimed
-// elsewhere: the conversation gets its ont_id, the response says the number
-// was not recorded, and the ONT that actually holds the number is untouched.
-func TestLinkONTStillLinksWhenThePhoneIsClaimedByAnotherONT(t *testing.T) {
+// elsewhere: the conversation gets its ont_id whatever the number says.
+//
+// Where the claim is the thread's own previous link, the number moves with it.
+// A thread that matched this ONT by number was linked to it automatically, and
+// a CS choosing a different one is correcting that guess — leaving the number
+// behind would auto-link the customer's next chat straight back to the ONT the
+// CS just rejected, and the correction would silently undo itself.
+func TestLinkONTMovesTheNumberOffTheONTTheCSCorrectedAwayFrom(t *testing.T) {
 	env := setupCSHandler(t)
 
 	holder := env.ont(t, "628333444555")
@@ -91,13 +96,13 @@ func TestLinkONTStillLinksWhenThePhoneIsClaimedByAnotherONT(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	assert.Equal(t, target.ID.String(), payload.Data.ONTID, "the CS's choice is honored")
-	assert.False(t, payload.PhoneRecorded)
+	assert.True(t, payload.PhoneRecorded)
 
-	stillEmpty, err := env.onts.GetByID(target.ID)
+	moved, err := env.onts.GetByID(target.ID)
 	require.NoError(t, err)
-	assert.Empty(t, stillEmpty.Phone)
+	assert.Equal(t, "628333444555", moved.Phone, "normalised on the way over, however it was typed")
 
-	untouched, err := env.onts.GetByID(holder.ID)
+	corrected, err := env.onts.GetByID(holder.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "628333444555", untouched.Phone, "the ONT that actually holds the number is unaffected")
+	assert.Empty(t, corrected.Phone, "or the next chat auto-links back to the rejected ONT")
 }

@@ -24,7 +24,7 @@ export class CsRepository implements ICsRepository {
         limit: filter?.limit,
         offset: filter?.offset,
         mine: filter?.mine ? "true" : undefined,
-        unassigned: filter?.unassigned ? "true" : undefined,
+        awaiting_reply: filter?.awaitingReply ? "true" : undefined,
         closed: filter?.closed ? "true" : undefined,
       },
     });

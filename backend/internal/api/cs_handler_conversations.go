@@ -103,8 +103,8 @@ func (h *CSHandler) ListConversations(c *gin.Context) {
 	case c.Query("mine") == "true":
 		userID, _ := middleware.GetUserID(c)
 		filter.Mine = &userID
-	case c.Query("unassigned") == "true":
-		filter.Unassigned = true
+	case c.Query("awaiting_reply") == "true":
+		filter.AwaitingReply = true
 	case c.Query("closed") == "true":
 		filter.Closed = true
 	}
@@ -230,6 +230,14 @@ func (h *CSHandler) LinkONT(c *gin.Context) {
 		return
 	}
 
+	// Read before the change: unlinking has to know which ONT it is unlinking
+	// from, and once the update lands the row no longer says.
+	before, err := h.conversations.Get(convID)
+	if err != nil {
+		mapCSError(c, err, "LINK_ONT_FAILED")
+		return
+	}
+
 	if err := h.conversations.LinkONT(convID, req.ONTID); err != nil {
 		mapCSError(c, err, "LINK_ONT_FAILED")
 		return
@@ -241,24 +249,44 @@ func (h *CSHandler) LinkONT(c *gin.Context) {
 		return
 	}
 
-	// Section 9.1 of the spec: linking a thread to an ONT by hand is the
-	// moment the subscriber's number gets captured, instead of a separate
-	// data-entry project. A phone that cannot be recorded (already claimed
-	// elsewhere, or an unexpected failure) must not undo the link the CS
-	// deliberately made — it is reported, not fatal.
-	var phoneRecorded bool
-	if req.ONTID != nil {
-		recorded, err := h.onts.RecordPhoneIfUnclaimed(*req.ONTID, conv.CustomerPhone)
-		if err != nil {
-			h.logger.Warn("failed to record ONT phone on link",
-				zap.String("ont_id", req.ONTID.String()), zap.Error(err))
-		}
-		phoneRecorded = recorded
-	}
+	phoneRecorded := h.carryPhone(req.ONTID, before, conv)
 
 	h.announceEvent(c.Request.Context(), wa.Event{
 		Type:           wa.EventStatus,
 		ConversationID: convID.String(),
 	})
 	c.JSON(http.StatusOK, gin.H{"data": conv, "phone_recorded": phoneRecorded})
+}
+
+// carryPhone moves the subscriber's number along with the link, and answers
+// whether it was written onto the ONT now being linked.
+//
+// Section 9.1 of the spec: linking a thread by hand is the moment a
+// subscriber's number gets captured, instead of a separate data-entry project.
+// Unlinking takes it back off the ONT it was written to. Without that, a CS
+// correcting a wrong link would leave the number behind and every later chat
+// from that customer would match the same wrong ONT again — the correction
+// would look done and not be. A number the operator entered for somebody else
+// is left alone.
+//
+// Neither half is fatal. A number that cannot be written, or cannot be taken
+// back, must not undo the link the CS deliberately made: it is logged.
+func (h *CSHandler) carryPhone(target *uuid.UUID, before, conv *models.CSConversation) bool {
+	movedAway := before.ONTID != nil && (target == nil || *target != *before.ONTID)
+	if movedAway {
+		if _, err := h.onts.ReleasePhone(*before.ONTID, before.CustomerPhone); err != nil {
+			h.logger.Warn("failed to release ONT phone on unlink",
+				zap.String("ont_id", before.ONTID.String()), zap.Error(err))
+		}
+	}
+	if target == nil {
+		return false
+	}
+
+	recorded, err := h.onts.RecordPhoneIfUnclaimed(*target, conv.CustomerPhone)
+	if err != nil {
+		h.logger.Warn("failed to record ONT phone on link",
+			zap.String("ont_id", target.String()), zap.Error(err))
+	}
+	return recorded
 }
