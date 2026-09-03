@@ -11,9 +11,9 @@ import (
 )
 
 // Client sends push notifications through Firebase Cloud Messaging. It
-// satisfies services.PushSender, which is declared there rather than here on
-// purpose — see the note in this task, and keep this package free of any
-// interface so internal/services never has to import it.
+// satisfies services.PushSender, which is declared there rather than here so
+// that the wa, worker and trapd binaries — which import internal/services but
+// never send a push — do not link the Firebase SDK.
 type Client struct {
 	fcm *messaging.Client
 }
@@ -46,17 +46,27 @@ func NewClient(ctx context.Context, serviceAccountJSONB64 string) (*Client, erro
 	return &Client{fcm: fcm}, nil
 }
 
-// SendEach implements Sender.
+// SendEach implements services.PushSender.
+//
+// The payload is data-only, deliberately: a message carrying a Notification
+// block is displayed by the Firebase SW SDK itself *and* handed to
+// onBackgroundMessage, so the service worker's own showNotification produced a
+// second, differently-behaving copy of every push. Data-only leaves the service
+// worker as the single place a notification is built, which is also the only
+// way it keeps its icon and its /cs click target.
 func (c *Client) SendEach(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]string, error) {
+	payload := make(map[string]string, len(data)+2)
+	for k, v := range data {
+		payload[k] = v
+	}
+	payload["title"] = title
+	payload["body"] = body
+
 	messages := make([]*messaging.Message, len(tokens))
 	for i, token := range tokens {
 		messages[i] = &messaging.Message{
 			Token: token,
-			Notification: &messaging.Notification{
-				Title: title,
-				Body:  body,
-			},
-			Data: data,
+			Data:  payload,
 		}
 	}
 
@@ -67,7 +77,7 @@ func (c *Client) SendEach(ctx context.Context, tokens []string, title, body stri
 
 	var invalid []string
 	for i, r := range resp.Responses {
-		if !r.Success && messaging.IsRegistrationTokenNotRegistered(r.Error) {
+		if !r.Success && messaging.IsUnregistered(r.Error) {
 			invalid = append(invalid, tokens[i])
 		}
 	}

@@ -70,6 +70,13 @@ func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, convers
 		return fmt.Errorf("look up message: %w", err)
 	}
 
+	// cs:events carries an EventMessage for outbound replies too (see
+	// CSHandler.announce), and pushing a CS's own reply to the whole team is
+	// worse than useless — it names the customer and quotes the sender.
+	if msg.Direction != models.MessageIn {
+		return nil
+	}
+
 	tokens, err := s.subscriptions.TokensForRoles(pushEligibleRoles...)
 	if err != nil {
 		return fmt.Errorf("list push tokens: %w", err)
@@ -83,7 +90,7 @@ func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, convers
 		title = conv.CustomerPhone
 	}
 
-	invalid, err := s.sender.SendEach(ctx, tokens, title, previewOf(msg.Body), map[string]string{
+	invalid, err := s.sender.SendEach(ctx, tokens, title, previewFor(msg), map[string]string{
 		"conversation_id": conversationID.String(),
 	})
 	if err != nil {
@@ -97,8 +104,33 @@ func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, convers
 	return nil
 }
 
-// previewOf truncates a message body to what an OS notification should show,
-// marking the cut with an ellipsis rather than slicing a word in half.
+// mediaKindLabels stand in for the body of a photo, document, voice note or
+// video that arrived without a caption — most of them do, and a notification
+// showing only the customer's name over a blank line tells a CS nothing about
+// whether it is worth opening.
+var mediaKindLabels = map[models.MessageKind]string{
+	models.MessageKindImage:    "📷 Foto",
+	models.MessageKindDocument: "📄 Dokumen",
+	models.MessageKindAudio:    "🎤 Pesan suara",
+	models.MessageKindVideo:    "🎬 Video",
+}
+
+// previewFor is what the notification shows under the customer's name: the
+// message body, or a label naming what arrived when a media message carries
+// no caption.
+func previewFor(msg *models.CSMessage) string {
+	if msg.Body == "" {
+		if label, ok := mediaKindLabels[msg.Kind]; ok {
+			return label
+		}
+	}
+	return previewOf(msg.Body)
+}
+
+// previewOf cuts a message body to pushPreviewRunes runes — counting runes,
+// not bytes, so a body of Indonesian text or emoji is never split mid-character
+// — and appends an ellipsis to mark that more was said. The cut lands wherever
+// the limit falls, mid-word included.
 func previewOf(body string) string {
 	runes := []rune(body)
 	if len(runes) <= pushPreviewRunes {
