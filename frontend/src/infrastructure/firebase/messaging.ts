@@ -74,18 +74,30 @@ export async function refreshTokenIfGranted(): Promise<string | undefined> {
 }
 
 /** Shows a notification for a push that arrives while a tab is focused — FCM
- * only runs the service worker's background handler otherwise. Resolves a
- * no-op unsubscribe when Firebase is not configured, so a caller can always
- * treat the return value as safe to call in a cleanup function. */
+ * only runs the service worker's background handler otherwise.
+ *
+ * The `Notification` constructor is not an option here: Chrome for Android
+ * throws `TypeError: Illegal constructor` for it, which is exactly the device a
+ * CS answers from. Only the service worker registration can display one there. */
+export async function showLocalNotification(
+  title: string,
+  body: string,
+): Promise<void> {
+  const registration = await navigator.serviceWorker.ready;
+  await registration.showNotification(title, { body });
+}
+
+/** Listens for pushes that arrive while a tab is focused. The payload is
+ * data-only (see backend internal/push/client.go), so title and body come from
+ * `data`, not from a notification block. Resolves a no-op unsubscribe when
+ * Firebase is not configured, so a caller can always treat the return value as
+ * safe to call in a cleanup function. */
 export async function listenForForegroundMessages(
   onIncoming: (title: string, body: string) => void,
 ): Promise<() => void> {
   const instance = await messaging();
   if (!instance) return () => {};
   return onMessage(instance, (payload) => {
-    onIncoming(
-      payload.notification?.title ?? "",
-      payload.notification?.body ?? "",
-    );
+    onIncoming(payload.data?.title ?? "", payload.data?.body ?? "");
   });
 }

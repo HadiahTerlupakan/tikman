@@ -1,7 +1,8 @@
-// Keep the six config values below identical to src/shared/config/firebase.ts
-// — a service worker cannot import that module, so this is a deliberate
-// duplicate, not a second source of truth. Filled in for real in the task
-// that runs once the Firebase project exists (see
+// Keep the six config values below identical to the firebaseConfig in
+// src/shared/config/firebase.ts — a service worker cannot import that module,
+// so this is a deliberate duplicate, not a second source of truth. Change one,
+// change the other in the same commit. Filled in for real in the task that runs
+// once the Firebase project exists (see
 // docs/superpowers/specs/2026-09-03-cs-push-notifications-design.md §7).
 importScripts("https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging-compat.js");
@@ -17,12 +18,14 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// The backend sends data-only pushes (see internal/push/client.go): a payload
+// carrying a notification block would be displayed by the SDK itself as well as
+// handed here, so every push arrived twice with two different click behaviours.
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || "TikMan";
-  const body = payload.notification?.body || "Pesan baru masuk";
+  const title = payload.data?.title || "TikMan";
+  const body = payload.data?.body || "Pesan baru masuk";
   self.registration.showNotification(title, {
     body,
-    icon: "/favicon.ico",
     data: payload.data,
   });
 });

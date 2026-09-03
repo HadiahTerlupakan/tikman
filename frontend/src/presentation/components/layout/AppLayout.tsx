@@ -14,6 +14,7 @@ import { UserRole } from "@/domain/entities";
 import {
   listenForForegroundMessages,
   refreshTokenIfGranted,
+  showLocalNotification,
 } from "@/infrastructure/firebase/messaging";
 import { PushRepository } from "@/infrastructure/repositories";
 import { buildNavigationRoutes } from "./navigationRoutes";
@@ -58,19 +59,28 @@ export function AppLayout() {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
 
-    refreshTokenIfGranted().then((token) => {
-      if (token) void pushRepository.subscribe(token);
-    });
+    refreshTokenIfGranted()
+      .then((token) => (token ? pushRepository.subscribe(token) : undefined))
+      // Silent re-registration is how most devices ever get a token, so a
+      // failure here is the difference between push working and push quietly
+      // never arriving. Nothing to retry — say so and move on.
+      .catch((error) => console.warn("Push re-registration failed", error));
 
     listenForForegroundMessages((title, body) => {
-      new Notification(title, { body });
-    }).then((unsub) => {
-      if (cancelled) {
-        unsub();
-        return;
-      }
-      unsubscribe = unsub;
-    });
+      void showLocalNotification(title, body).catch((error) =>
+        console.warn("Could not show a foreground notification", error),
+      );
+    })
+      .then((unsub) => {
+        if (cancelled) {
+          unsub();
+          return;
+        }
+        unsubscribe = unsub;
+      })
+      .catch((error) =>
+        console.warn("Could not listen for foreground pushes", error),
+      );
 
     return () => {
       cancelled = true;
