@@ -6,10 +6,14 @@ import type { CsConversationFilter } from "@/domain/entities";
 const csRepository = new CsRepository();
 
 /** The inbox list: everyone's threads, or one of the CS's own views. */
-export function useCsConversations(filter?: CsConversationFilter) {
+export function useCsConversations(
+  filter?: CsConversationFilter,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ["cs", "conversations", filter],
     queryFn: () => csRepository.getConversations(filter),
+    enabled: options?.enabled,
   });
 }
 

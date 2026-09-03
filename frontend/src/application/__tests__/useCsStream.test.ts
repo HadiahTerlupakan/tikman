@@ -78,4 +78,16 @@ describe("useCsStream", () => {
 
     expect(FakeEventSource.instances[0].closed).toBe(true);
   });
+
+  // AppLayout runs this hook on every page for every role, so a Viewer — who
+  // gets 403 from /api/v1/cs/stream — must never open the connection at all.
+  // EventSource reconnects on its own after an error, so "it fails harmlessly"
+  // is not true: it fails in a loop.
+  it("opens no connection when disabled", () => {
+    const client = new QueryClient();
+
+    renderHook(() => useCsStream(false), { wrapper: wrapper(client) });
+
+    expect(FakeEventSource.instances).toHaveLength(0);
+  });
 });

@@ -36,11 +36,12 @@ export type WaStreamStatus = Record<string, WaLiveStatus>;
  * a connection that dropped and came back cannot leave the inbox showing a
  * stale thread — the refetch closes whatever gap the outage opened.
  */
-export function useCsStream(): WaStreamStatus {
+export function useCsStream(enabled = true): WaStreamStatus {
   const queryClient = useQueryClient();
   const [waStatus, setWaStatus] = useState<WaStreamStatus>({});
 
   useEffect(() => {
+    if (!enabled) return;
     const source = new EventSource(`${env.apiUrl}${API_ENDPOINTS.CS_STREAM}`, {
       withCredentials: true,
     });
@@ -74,7 +75,7 @@ export function useCsStream(): WaStreamStatus {
     // Closing drops every listener with the connection itself, so there is
     // nothing left to unregister separately.
     return () => source.close();
-  }, [queryClient]);
+  }, [queryClient, enabled]);
 
   return waStatus;
 }
