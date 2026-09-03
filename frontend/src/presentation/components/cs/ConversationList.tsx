@@ -20,6 +20,9 @@ function holderLabel(
   holderNames: Record<string, string>,
   currentUserId: string,
 ): string {
+  // "Semua" includes finished threads, so one has to say it is finished —
+  // otherwise it sits in the list looking like work nobody has done.
+  if (conversation.status === "closed") return "Selesai";
   if (conversation.status === "unassigned" || !conversation.assignedUserId) {
     return "Belum dipegang";
   }

@@ -25,6 +25,11 @@ import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaConnectionBadge } from "@/presentation/components/cs/WaConnectionBadge";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
 import { ThreadHeader } from "@/presentation/components/cs/ThreadHeader";
+import {
+  InboxFilterBar,
+  filterFor,
+  type InboxView,
+} from "@/presentation/components/cs/InboxFilterBar";
 import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 import { TransferPicker } from "@/presentation/components/cs/TransferPicker";
@@ -55,9 +60,13 @@ export function CsInboxPage() {
   const [selectedId, setSelectedId] = useState<string>();
   const [pairingOpen, setPairingOpen] = useState(false);
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
+  // "Semua" by default, not "Milik saya": a CS opening the inbox needs to see
+  // what nobody has picked up, not only what is already theirs.
+  const [view, setView] = useState<InboxView>("semua");
+  const [search, setSearch] = useState("");
 
   const { waStatus, pairingCode } = useCsStream();
-  const conversationsQuery = useCsConversations();
+  const conversationsQuery = useCsConversations(filterFor(view, search));
   const historyQuery = useCsHistory(selectedId);
   const usersQuery = useUsers();
   const quickRepliesQuery = useCsQuickReplies();
@@ -149,14 +158,28 @@ export function CsInboxPage() {
       />
 
       <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
-        <div style={{ ...panel, width: 340, overflowY: "auto" }}>
-          <ConversationList
-            conversations={conversations}
-            selectedId={selectedId}
-            holderNames={holderNames}
-            currentUserId={currentUser?.id ?? ""}
-            onSelect={setSelectedId}
+        <div
+          style={{
+            ...panel,
+            width: 340,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <InboxFilterBar
+            view={view}
+            onViewChange={setView}
+            onSearchChange={setSearch}
           />
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <ConversationList
+              conversations={conversations}
+              selectedId={selectedId}
+              holderNames={holderNames}
+              currentUserId={currentUser?.id ?? ""}
+              onSelect={setSelectedId}
+            />
+          </div>
         </div>
 
         <div

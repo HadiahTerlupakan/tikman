@@ -27,6 +27,7 @@ type CSHandler struct {
 	presence      services.Presence
 	audit         *services.AuditService
 	onts          *services.ONTService
+	users         *services.UserService
 	publisher     *wa.Publisher
 	redis         *redis.Client
 	logger        *zap.Logger
@@ -43,6 +44,7 @@ func NewCSHandler(
 	presence services.Presence,
 	audit *services.AuditService,
 	onts *services.ONTService,
+	users *services.UserService,
 	publisher *wa.Publisher,
 	redis *redis.Client,
 	logger *zap.Logger,
@@ -57,6 +59,7 @@ func NewCSHandler(
 		presence:      presence,
 		audit:         audit,
 		onts:          onts,
+		users:         users,
 		publisher:     publisher,
 		redis:         redis,
 		logger:        logger,

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -57,6 +58,19 @@ func (h *CSHandler) markThreadRead(c *gin.Context, convID uuid.UUID) {
 	})
 }
 
+// sign puts the sender's initials on a reply. A username this cannot resolve
+// leaves the body untouched: a missing signature is a smaller problem than a
+// refused reply, and the CS would have no way to act on the failure anyway.
+func (h *CSHandler) sign(userID uuid.UUID, body string) string {
+	user, err := h.users.GetByID(userID)
+	if err != nil {
+		h.logger.Warn("Could not read the sender's name to sign a reply",
+			zap.String("user_id", userID.String()), zap.Error(err))
+		return body
+	}
+	return signReply(body, user.Username)
+}
+
 // Send queues a text reply on a thread the caller holds.
 func (h *CSHandler) Send(c *gin.Context) {
 	convID, ok := pathUUID(c, "id", "INVALID_CONVERSATION_ID")
@@ -74,7 +88,7 @@ func (h *CSHandler) Send(c *gin.Context) {
 		return
 	}
 
-	msg, err := h.messages.Queue(convID, userID, models.MessageKindText, req.Body, nil)
+	msg, err := h.messages.Queue(convID, userID, models.MessageKindText, h.sign(userID, req.Body), nil)
 	if err != nil {
 		mapCSError(c, err, "SEND_FAILED")
 		return
@@ -132,7 +146,14 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	msg, err := h.messages.Queue(convID, userID, kindForMime(mime), c.PostForm("caption"), media)
+	// An empty caption stays empty: a photo whose whole caption is "~BS" tells
+	// the customer nothing and reads as a stray character.
+	caption := strings.TrimSpace(c.PostForm("caption"))
+	if caption != "" {
+		caption = h.sign(userID, caption)
+	}
+
+	msg, err := h.messages.Queue(convID, userID, kindForMime(mime), caption, media)
 	if err != nil {
 		h.removeOrphanedUpload(media.Path)
 		mapCSError(c, err, "SEND_MEDIA_FAILED")

@@ -37,6 +37,19 @@ type csHandlerEnv struct {
 	handler       *CSHandler
 }
 
+// csTestUser stores a CS the handler can actually resolve by id.
+func csTestUser(t *testing.T, db *gorm.DB, username string) uuid.UUID {
+	t.Helper()
+	user := models.User{
+		ID:       uuid.New(),
+		Username: username,
+		Email:    username + "@example.test",
+		Role:     models.UserRoleCS,
+	}
+	require.NoError(t, db.Create(&user).Error)
+	return user.ID
+}
+
 func setupCSHandler(t *testing.T) *csHandlerEnv {
 	t.Helper()
 
@@ -63,7 +76,8 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 
 	handler := NewCSHandler(
 		conversations, messages, quickReplies, accounts, assignment, presence,
-		audit, onts, publisher, redisClient, logger, t.TempDir(),
+		audit, onts, services.NewUserService(db), publisher, redisClient, logger,
+		t.TempDir(),
 	)
 
 	return &csHandlerEnv{
@@ -73,9 +87,12 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 		messages:      messages,
 		presence:      presence,
 		onts:          onts,
-		cs:            uuid.New(),
-		otherCS:       uuid.New(),
-		handler:       handler,
+		// Real rows, not bare ids: replies are signed with the sender's name, and
+		// a user the handler cannot look up would silently go unsigned — which
+		// is how the wiring could break without a test noticing.
+		cs:      csTestUser(t, db, "Budi Santoso"),
+		otherCS: csTestUser(t, db, "Rina Astuti"),
+		handler: handler,
 	}
 }
 
@@ -333,4 +350,30 @@ func TestServeMediaFallsBackToOctetStreamForAnUnallowlistedStoredMime(t *testing
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "application/octet-stream", rec.Header().Get("Content-Type"))
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+}
+
+// The signature is added on the way into the outbox, not in the composer, so
+// what the CS sees in the thread is exactly what the customer received. A test
+// on the helper alone would not catch the wiring going missing.
+func TestSendSignsTheReplyWithTheSendersInitials(t *testing.T) {
+	env := setupCSHandler(t)
+
+	conv := env.conversation(t, "628111@s.whatsapp.net", "628111222333")
+	require.NoError(t, env.conversations.Assign(conv.ID, env.cs))
+
+	body := strings.NewReader(`{"body":"sudah kami cek"}`)
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/v1/cs/conversations/"+conv.ID.String()+"/messages", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	history, err := env.messages.History(conv.ID, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.True(t, strings.HasPrefix(history[0].Body, "sudah kami cek"),
+		"the CS's own words come first, unchanged")
+	assert.Contains(t, history[0].Body, "\n\n~",
+		"and the signature sits on its own line beneath them")
 }
