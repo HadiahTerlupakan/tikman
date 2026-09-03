@@ -90,4 +90,22 @@ describe("useCsStream", () => {
 
     expect(FakeEventSource.instances).toHaveLength(0);
   });
+
+  // Presence puts the agent into the CS round-robin, so a connection held from
+  // the OLT map must not claim it — only the inbox route asks.
+  it("claims presence only when asked to", () => {
+    const client = new QueryClient();
+
+    const { rerender } = renderHook(
+      ({ presence }: { presence: boolean }) => useCsStream(true, presence),
+      { wrapper: wrapper(client), initialProps: { presence: false } },
+    );
+    expect(FakeEventSource.instances[0].url).not.toContain("presence");
+
+    // Navigating into the inbox has to reopen the connection: the claim is in
+    // the URL, so keeping the old one would leave the agent out of rotation.
+    rerender({ presence: true });
+    expect(FakeEventSource.instances[0].closed).toBe(true);
+    expect(FakeEventSource.instances[1].url).toContain("presence=1");
+  });
 });

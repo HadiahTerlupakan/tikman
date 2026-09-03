@@ -26,6 +26,10 @@ const pushRepository = new PushRepository();
 // badge-related is inert for anyone else, the same gate the backend enforces.
 const CS_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.CS, UserRole.TECHNICIAN];
 
+// The CS Inbox route (see presentation/routes), the one page where holding the
+// stream open really does mean somebody is reading the inbox.
+const CS_INBOX_PATH = "/cs";
+
 /** What CsInboxPage reads back via useOutletContext, since the stream that
  * feeds the navbar badge has to run here, not on that page. */
 export interface AppLayoutContext {
@@ -39,7 +43,12 @@ export function AppLayout() {
   const logoutMutation = useLogout();
   const canUseCs = !!user && CS_ROLES.includes(user.role);
 
-  const stream = useCsStream(canUseCs);
+  // The stream runs everywhere so the badge stays live, but claiming presence
+  // from every page would put a technician reading the OLT map into the CS
+  // round-robin. Only the inbox route itself says "I am watching this".
+  const watchingInbox = location.pathname === CS_INBOX_PATH;
+
+  const stream = useCsStream(canUseCs, watchingInbox);
   const awaitingQuery = useCsConversations(
     { awaitingReply: true },
     { enabled: canUseCs },
