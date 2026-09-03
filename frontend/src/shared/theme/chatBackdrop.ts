@@ -7,13 +7,25 @@
  * and be parsed on every load, where as a file it is fetched once, cached, and
  * gzipped by nginx down to about 85 KB.
  *
- * The tile does not butt seamlessly — doodles are cut at its edge, so a pane
- * wider than 676px shows a faint join. That is how WhatsApp Web itself renders
- * it, and at this contrast it reads as more doodles rather than as a seam.
+ * The sheet does not tile — its doodles are cut at the edge — so the file
+ * arranges it as a mirrored 2x2 block. Opposite edges of that block are then
+ * the same column of artwork and repeating it shows no join. Mirroring costs a
+ * reflection axis every half tile; against a hard seam every tile width, which
+ * is what the plain sheet gives once it is scaled down, that is the better
+ * trade. The block is drawn from a single copy in <defs>, so it is four times
+ * the area at the same file size.
  */
 
 /** The wallpaper, ready for CSS `background-image`. */
 export const chatBackdropImage = 'url("/chat-backdrop.svg")';
+
+/**
+ * Half the artwork's natural size. At 1:1 the doodles crowd the bubbles and
+ * read as illustrations rather than as texture; halved, they are dense enough
+ * to be a surface. It also puts the block's own edge past the width of any
+ * pane the inbox is likely to get, so the repeat is rarely on screen at all.
+ */
+export const chatBackdropSize = "676px 1200px";
 
 /** The colour under the wallpaper — the sheet's own background, so the edge
  * of a tile and the ground behind it are the same black. */

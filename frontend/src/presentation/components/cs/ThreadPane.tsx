@@ -8,6 +8,7 @@ import type {
 import {
   chatBackdropColor,
   chatBackdropImage,
+  chatBackdropSize,
 } from "@/shared/theme/chatBackdrop";
 import { MessageComposer } from "./MessageComposer";
 import { MessageThread } from "./MessageThread";
@@ -96,6 +97,7 @@ export function ThreadPane({
           padding: "12px 14px",
           background: chatBackdropColor,
           backgroundImage: chatBackdropImage,
+          backgroundSize: chatBackdropSize,
         }}
       >
         {loading ? (
