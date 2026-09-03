@@ -1,0 +1,12 @@
+-- Push registration moved from an FCM token to a Firebase Installation ID:
+-- both SDKs deprecate the token API in favour of the FID one. AutoMigrate has
+-- already added the `fid` column (and its unique index) by the time this runs,
+-- so all that is left is to drop the column it replaces — dropping it takes
+-- its unique index with it.
+--
+-- A plain drop rather than a rename-and-backfill because push_subscriptions
+-- was empty in every environment, production included, when this shipped: no
+-- device had yet completed a registration, so there is nothing to carry
+-- across. An FCM token is not a valid FID anyway — the two name different
+-- things, so a backfill would have written rows FCM could never deliver to.
+ALTER TABLE push_subscriptions DROP COLUMN IF EXISTS fcm_token;

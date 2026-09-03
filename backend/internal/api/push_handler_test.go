@@ -18,7 +18,7 @@ import (
 // asPushUser builds the router as one authenticated request would see it —
 // the same fake-session-then-real-routes shape cs_handler_test.go's asUser
 // uses, minus RequireRole, since any logged-in role may manage its own
-// device token.
+// installation ID.
 func asPushUser(handler *PushHandler, userID uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -37,17 +37,17 @@ func setupPushHandler(t *testing.T) (*PushHandler, *gorm.DB) {
 	return NewPushHandler(services.NewPushService(db)), db
 }
 
-// tokensStored reads push_subscriptions directly, deliberately bypassing
-// PushService.TokensForRoles — that method inner-joins to users, and these
+// fidsStored reads push_subscriptions directly, deliberately bypassing
+// PushService.FIDsForRoles — that method inner-joins to users, and these
 // handler tests authenticate with a bare uuid.New() rather than a real User
 // row, exactly to keep them about the handler's own scoping, not about
-// TokensForRoles's join (already covered by Task 2's tests, which do create
+// FIDsForRoles's join (already covered by Task 2's tests, which do create
 // real users).
-func tokensStored(t *testing.T, db *gorm.DB) []string {
+func fidsStored(t *testing.T, db *gorm.DB) []string {
 	t.Helper()
-	var tokens []string
-	require.NoError(t, db.Model(&models.PushSubscription{}).Pluck("fcm_token", &tokens).Error)
-	return tokens
+	var fids []string
+	require.NoError(t, db.Model(&models.PushSubscription{}).Pluck("fid", &fids).Error)
+	return fids
 }
 
 func pushRequest(method, body string) *http.Request {
@@ -56,18 +56,18 @@ func pushRequest(method, body string) *http.Request {
 	return req
 }
 
-func TestPushSubscribeStoresTheCallersToken(t *testing.T) {
+func TestPushSubscribeStoresTheCallersFID(t *testing.T) {
 	handler, db := setupPushHandler(t)
 	router := asPushUser(handler, uuid.New())
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, pushRequest(http.MethodPost, `{"fcm_token":"token-a"}`))
+	router.ServeHTTP(rec, pushRequest(http.MethodPost, `{"fid":"fid-a"}`))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, []string{"token-a"}, tokensStored(t, db))
+	assert.Equal(t, []string{"fid-a"}, fidsStored(t, db))
 }
 
-func TestPushSubscribeRejectsAMissingToken(t *testing.T) {
+func TestPushSubscribeRejectsAMissingFID(t *testing.T) {
 	handler, _ := setupPushHandler(t)
 	router := asPushUser(handler, uuid.New())
 
@@ -77,28 +77,28 @@ func TestPushSubscribeRejectsAMissingToken(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
-func TestPushUnsubscribeIsANoOpForATokenTheCallerDoesNotOwn(t *testing.T) {
+func TestPushUnsubscribeIsANoOpForAnFIDTheCallerDoesNotOwn(t *testing.T) {
 	handler, db := setupPushHandler(t)
 	owner := uuid.New()
-	require.NoError(t, services.NewPushService(db).Subscribe(owner, "token-a"))
+	require.NoError(t, services.NewPushService(db).Subscribe(owner, "fid-a"))
 	router := asPushUser(handler, uuid.New())
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, pushRequest(http.MethodDelete, `{"fcm_token":"token-a"}`))
+	router.ServeHTTP(rec, pushRequest(http.MethodDelete, `{"fid":"fid-a"}`))
 
-	assert.Equal(t, http.StatusOK, rec.Code, "unsubscribing someone else's token must not error and reveal it exists")
-	assert.Equal(t, []string{"token-a"}, tokensStored(t, db), "the token must still be there")
+	assert.Equal(t, http.StatusOK, rec.Code, "unsubscribing someone else's FID must not error and reveal it exists")
+	assert.Equal(t, []string{"fid-a"}, fidsStored(t, db), "the FID must still be there")
 }
 
-func TestPushUnsubscribeRemovesTheCallersOwnToken(t *testing.T) {
+func TestPushUnsubscribeRemovesTheCallersOwnFID(t *testing.T) {
 	handler, db := setupPushHandler(t)
 	owner := uuid.New()
-	require.NoError(t, services.NewPushService(db).Subscribe(owner, "token-a"))
+	require.NoError(t, services.NewPushService(db).Subscribe(owner, "fid-a"))
 	router := asPushUser(handler, owner)
 
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, pushRequest(http.MethodDelete, `{"fcm_token":"token-a"}`))
+	router.ServeHTTP(rec, pushRequest(http.MethodDelete, `{"fid":"fid-a"}`))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Empty(t, tokensStored(t, db))
+	assert.Empty(t, fidsStored(t, db))
 }

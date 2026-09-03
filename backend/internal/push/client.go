@@ -54,13 +54,13 @@ func NewClient(ctx context.Context, serviceAccountJSONB64 string) (*Client, erro
 // second, differently-behaving copy of every push. Data-only leaves the service
 // worker as the single place a notification is built, which is also the only
 // way it keeps its icon and its /cs click target.
-func (c *Client) SendEach(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]string, error) {
+func (c *Client) SendEach(ctx context.Context, fids []string, title, body string, data map[string]string) ([]string, error) {
 	// The SDK rejects an empty batch outright ("messages must not be nil or
 	// empty"), so without this a caller with nobody to notify would get an
 	// error describing a problem it does not have. PushNotifierService also
 	// returns early in that case; this makes the client correct on its own
 	// rather than only correct through its one current caller.
-	if len(tokens) == 0 {
+	if len(fids) == 0 {
 		return nil, nil
 	}
 
@@ -71,11 +71,11 @@ func (c *Client) SendEach(ctx context.Context, tokens []string, title, body stri
 	payload["title"] = title
 	payload["body"] = body
 
-	messages := make([]*messaging.Message, len(tokens))
-	for i, token := range tokens {
+	messages := make([]*messaging.Message, len(fids))
+	for i, fid := range fids {
 		messages[i] = &messaging.Message{
-			Token: token,
-			Data:  payload,
+			Fid:  fid,
+			Data: payload,
 		}
 	}
 
@@ -87,7 +87,7 @@ func (c *Client) SendEach(ctx context.Context, tokens []string, title, body stri
 	var invalid []string
 	for i, r := range resp.Responses {
 		if !r.Success && messaging.IsUnregistered(r.Error) {
-			invalid = append(invalid, tokens[i])
+			invalid = append(invalid, fids[i])
 		}
 	}
 	return invalid, nil

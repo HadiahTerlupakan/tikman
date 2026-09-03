@@ -9,52 +9,52 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
-func TestPushServiceSubscribeUpsertsByToken(t *testing.T) {
+func TestPushServiceSubscribeUpsertsByFID(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewPushService(db)
 	user := uuid.New()
 
-	require.NoError(t, service.Subscribe(user, "token-a"))
-	require.NoError(t, service.Subscribe(user, "token-a"))
+	require.NoError(t, service.Subscribe(user, "fid-a"))
+	require.NoError(t, service.Subscribe(user, "fid-a"))
 
 	var count int64
-	require.NoError(t, db.Model(&models.PushSubscription{}).Where("fcm_token = ?", "token-a").Count(&count).Error)
-	assert.Equal(t, int64(1), count, "re-registering the same token must not duplicate it")
+	require.NoError(t, db.Model(&models.PushSubscription{}).Where("fid = ?", "fid-a").Count(&count).Error)
+	assert.Equal(t, int64(1), count, "re-registering the same FID must not duplicate it")
 }
 
 // A device that logs in as a different user on a shared machine should be
 // heard by whoever is using it now, not whoever registered it first.
-func TestPushServiceSubscribeReassignsAnExistingTokenToANewUser(t *testing.T) {
+func TestPushServiceSubscribeReassignsAnExistingFIDToANewUser(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewPushService(db)
 	first, second := uuid.New(), uuid.New()
 
-	require.NoError(t, service.Subscribe(first, "shared-token"))
-	require.NoError(t, service.Subscribe(second, "shared-token"))
+	require.NoError(t, service.Subscribe(first, "shared-fid"))
+	require.NoError(t, service.Subscribe(second, "shared-fid"))
 
 	var row models.PushSubscription
-	require.NoError(t, db.Where("fcm_token = ?", "shared-token").First(&row).Error)
+	require.NoError(t, db.Where("fid = ?", "shared-fid").First(&row).Error)
 	assert.Equal(t, second, row.UserID)
 }
 
-func TestPushServiceUnsubscribeOnlyRemovesTheCallersOwnToken(t *testing.T) {
+func TestPushServiceUnsubscribeOnlyRemovesTheCallersOwnFID(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewPushService(db)
 	owner, someoneElse := uuid.New(), uuid.New()
-	require.NoError(t, service.Subscribe(owner, "token-a"))
+	require.NoError(t, service.Subscribe(owner, "fid-a"))
 
-	// someoneElse does not own "token-a" — this must not delete it.
-	require.NoError(t, service.Unsubscribe(someoneElse, "token-a"))
+	// someoneElse does not own "fid-a" — this must not delete it.
+	require.NoError(t, service.Unsubscribe(someoneElse, "fid-a"))
 	var count int64
-	require.NoError(t, db.Model(&models.PushSubscription{}).Where("fcm_token = ?", "token-a").Count(&count).Error)
+	require.NoError(t, db.Model(&models.PushSubscription{}).Where("fid = ?", "fid-a").Count(&count).Error)
 	assert.Equal(t, int64(1), count)
 
-	require.NoError(t, service.Unsubscribe(owner, "token-a"))
-	require.NoError(t, db.Model(&models.PushSubscription{}).Where("fcm_token = ?", "token-a").Count(&count).Error)
+	require.NoError(t, service.Unsubscribe(owner, "fid-a"))
+	require.NoError(t, db.Model(&models.PushSubscription{}).Where("fid = ?", "fid-a").Count(&count).Error)
 	assert.Equal(t, int64(0), count)
 }
 
-func TestPushServiceTokensForRolesFiltersByRole(t *testing.T) {
+func TestPushServiceFIDsForRolesFiltersByRole(t *testing.T) {
 	db := setupTestDB(t)
 	push := NewPushService(db)
 	users := NewUserService(db)
@@ -64,24 +64,24 @@ func TestPushServiceTokensForRolesFiltersByRole(t *testing.T) {
 	viewer, err := users.Create("viewer1", "viewer1@example.com", "password123", "", models.UserRoleViewer)
 	require.NoError(t, err)
 
-	require.NoError(t, push.Subscribe(admin.ID, "admin-token"))
-	require.NoError(t, push.Subscribe(viewer.ID, "viewer-token"))
+	require.NoError(t, push.Subscribe(admin.ID, "admin-fid"))
+	require.NoError(t, push.Subscribe(viewer.ID, "viewer-fid"))
 
-	tokens, err := push.TokensForRoles(models.UserRoleAdmin, models.UserRoleCS, models.UserRoleTechnician)
+	fids, err := push.FIDsForRoles(models.UserRoleAdmin, models.UserRoleCS, models.UserRoleTechnician)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"admin-token"}, tokens)
+	assert.Equal(t, []string{"admin-fid"}, fids)
 }
 
-func TestPushServiceRemoveTokensDeletesEveryRowNamed(t *testing.T) {
+func TestPushServiceRemoveFIDsDeletesEveryRowNamed(t *testing.T) {
 	db := setupTestDB(t)
 	service := NewPushService(db)
 	user := uuid.New()
-	require.NoError(t, service.Subscribe(user, "dead-token"))
-	require.NoError(t, service.Subscribe(user, "live-token"))
+	require.NoError(t, service.Subscribe(user, "dead-fid"))
+	require.NoError(t, service.Subscribe(user, "live-fid"))
 
-	require.NoError(t, service.RemoveTokens([]string{"dead-token"}))
+	require.NoError(t, service.RemoveFIDs([]string{"dead-fid"}))
 
 	var remaining []string
-	require.NoError(t, db.Model(&models.PushSubscription{}).Pluck("fcm_token", &remaining).Error)
-	assert.Equal(t, []string{"live-token"}, remaining)
+	require.NoError(t, db.Model(&models.PushSubscription{}).Pluck("fid", &remaining).Error)
+	assert.Equal(t, []string{"live-fid"}, remaining)
 }

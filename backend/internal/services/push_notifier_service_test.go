@@ -17,15 +17,15 @@ import (
 // FakePushSender records what it was asked to send instead of reaching a
 // real Firebase project, the same role FakePresence plays for Presence.
 type FakePushSender struct {
-	Tokens  []string
+	FIDs    []string
 	Title   string
 	Body    string
 	Data    map[string]string
 	Invalid []string
 }
 
-func (f *FakePushSender) SendEach(_ context.Context, tokens []string, title, body string, data map[string]string) ([]string, error) {
-	f.Tokens = tokens
+func (f *FakePushSender) SendEach(_ context.Context, fids []string, title, body string, data map[string]string) ([]string, error) {
+	f.FIDs = fids
 	f.Title = title
 	f.Body = body
 	f.Data = data
@@ -73,12 +73,12 @@ func TestNotifyIncomingMessageSendsToEveryEligibleRole(t *testing.T) {
 	require.NoError(t, err)
 	viewer, err := users.Create("viewer1", "viewer1@example.com", "password123", "", models.UserRoleViewer)
 	require.NoError(t, err)
-	require.NoError(t, pushService.Subscribe(admin.ID, "admin-token"))
-	require.NoError(t, pushService.Subscribe(viewer.ID, "viewer-token"))
+	require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
+	require.NoError(t, pushService.Subscribe(viewer.ID, "viewer-fid"))
 
 	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
 
-	assert.Equal(t, []string{"admin-token"}, sender.Tokens)
+	assert.Equal(t, []string{"admin-fid"}, sender.FIDs)
 	assert.Equal(t, "Budi", sender.Title)
 	assert.Equal(t, "Internetnya mati sejak semalam", sender.Body)
 	assert.Equal(t, conv.ID.String(), sender.Data["conversation_id"])
@@ -89,7 +89,7 @@ func TestNotifyIncomingMessageFallsBackToPhoneWithNoName(t *testing.T) {
 	users := NewUserService(db)
 	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
-	require.NoError(t, pushService.Subscribe(admin.ID, "admin-token"))
+	require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
 
 	conv, err := conversations.FindOrCreate(IncomingPeer{
 		WAAccountID: accountID,
@@ -112,7 +112,7 @@ func TestNotifyIncomingMessageTruncatesALongBody(t *testing.T) {
 	users := NewUserService(db)
 	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
-	require.NoError(t, pushService.Subscribe(admin.ID, "admin-token"))
+	require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
 
 	conv, err := conversations.FindOrCreate(IncomingPeer{
 		WAAccountID: accountID, JID: "628333@s.whatsapp.net", Phone: "628333444555",
@@ -128,13 +128,13 @@ func TestNotifyIncomingMessageTruncatesALongBody(t *testing.T) {
 	assert.Equal(t, strings.Repeat("a", 120)+"…", sender.Body)
 }
 
-func TestNotifyIncomingMessageRemovesTokensTheSenderReportsInvalid(t *testing.T) {
+func TestNotifyIncomingMessageRemovesFIDsTheSenderReportsInvalid(t *testing.T) {
 	notifier, sender, conversations, messages, pushService, accountID, db := pushTestSetup(t)
 	users := NewUserService(db)
 	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
-	require.NoError(t, pushService.Subscribe(admin.ID, "dead-token"))
-	sender.Invalid = []string{"dead-token"}
+	require.NoError(t, pushService.Subscribe(admin.ID, "dead-fid"))
+	sender.Invalid = []string{"dead-fid"}
 
 	conv, err := conversations.FindOrCreate(IncomingPeer{
 		WAAccountID: accountID, JID: "628444@s.whatsapp.net", Phone: "628444555666",
@@ -147,12 +147,12 @@ func TestNotifyIncomingMessageRemovesTokensTheSenderReportsInvalid(t *testing.T)
 
 	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
 
-	tokens, err := pushService.TokensForRoles(models.UserRoleAdmin)
+	fids, err := pushService.FIDsForRoles(models.UserRoleAdmin)
 	require.NoError(t, err)
-	assert.Empty(t, tokens)
+	assert.Empty(t, fids)
 }
 
-func TestNotifyIncomingMessageSendsNothingWithNoEligibleTokens(t *testing.T) {
+func TestNotifyIncomingMessageSendsNothingWithNoEligibleFIDs(t *testing.T) {
 	notifier, sender, conversations, messages, _, accountID, _ := pushTestSetup(t)
 	conv, err := conversations.FindOrCreate(IncomingPeer{
 		WAAccountID: accountID, JID: "628555@s.whatsapp.net", Phone: "628555666777",
@@ -164,7 +164,7 @@ func TestNotifyIncomingMessageSendsNothingWithNoEligibleTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
-	assert.Nil(t, sender.Tokens)
+	assert.Nil(t, sender.FIDs)
 }
 
 // cs:events announces a CS's own reply with the same EventMessage an inbound
@@ -175,7 +175,7 @@ func TestNotifyIncomingMessageIgnoresAnOutboundReply(t *testing.T) {
 	users := NewUserService(db)
 	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
-	require.NoError(t, pushService.Subscribe(admin.ID, "admin-token"))
+	require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
 
 	conv, err := conversations.FindOrCreate(IncomingPeer{
 		WAAccountID: accountID, JID: "628666@s.whatsapp.net", Phone: "628666777888",
@@ -185,7 +185,7 @@ func TestNotifyIncomingMessageIgnoresAnOutboundReply(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, reply.ID))
-	assert.Nil(t, sender.Tokens)
+	assert.Nil(t, sender.FIDs)
 }
 
 // A photo or a document usually arrives with no caption at all, and a
@@ -209,7 +209,7 @@ func TestNotifyIncomingMessageNamesTheMediaKindWhenThereIsNoCaption(t *testing.T
 		users := NewUserService(db)
 		admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
 		require.NoError(t, err)
-		require.NoError(t, pushService.Subscribe(admin.ID, "admin-token"))
+		require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
 
 		conv, err := conversations.FindOrCreate(IncomingPeer{
 			WAAccountID: accountID, JID: "628777@s.whatsapp.net", Phone: "628777888999",
@@ -235,7 +235,7 @@ func TestNotifyIncomingMessageTruncatesMultiByteBodiesByRune(t *testing.T) {
 	users := NewUserService(db)
 	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
 	require.NoError(t, err)
-	require.NoError(t, pushService.Subscribe(admin.ID, "admin-token"))
+	require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
 
 	conv, err := conversations.FindOrCreate(IncomingPeer{
 		WAAccountID: accountID, JID: "628888@s.whatsapp.net", Phone: "628888999000",

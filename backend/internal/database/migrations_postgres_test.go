@@ -213,6 +213,22 @@ func TestSchemaCarriesTheCableRoutes(t *testing.T) {
 	}
 }
 
+// Migration 47 drops fcm_token after AutoMigrate has added fid. A drop that
+// silently did nothing — a typo in the column name, say — leaves a NOT NULL
+// column nothing writes to, and every push subscribe then fails on the real
+// schema while passing on SQLite, which never had the old column at all.
+func TestPushSubscriptionsCarryOnlyTheInstallationID(t *testing.T) {
+	db := freshPostgres(t)
+
+	var columns []string
+	require.NoError(t, db.Raw(`SELECT column_name FROM information_schema.columns
+		WHERE table_schema = ? AND table_name = 'push_subscriptions'
+		AND column_name IN ('fid', 'fcm_token')`,
+		migrationCheckSchema).Scan(&columns).Error)
+
+	assert.Equal(t, []string{"fid"}, columns)
+}
+
 func TestStoringACableRouteOnTheRealSchema(t *testing.T) {
 	db := freshPostgres(t)
 	site, _ := plantFixture(t, db)
