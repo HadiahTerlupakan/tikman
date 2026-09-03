@@ -55,6 +55,15 @@ func NewClient(ctx context.Context, serviceAccountJSONB64 string) (*Client, erro
 // worker as the single place a notification is built, which is also the only
 // way it keeps its icon and its /cs click target.
 func (c *Client) SendEach(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]string, error) {
+	// The SDK rejects an empty batch outright ("messages must not be nil or
+	// empty"), so without this a caller with nobody to notify would get an
+	// error describing a problem it does not have. PushNotifierService also
+	// returns early in that case; this makes the client correct on its own
+	// rather than only correct through its one current caller.
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+
 	payload := make(map[string]string, len(data)+2)
 	for k, v := range data {
 		payload[k] = v

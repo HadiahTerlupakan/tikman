@@ -253,3 +253,15 @@ func TestNotifyIncomingMessageTruncatesMultiByteBodiesByRune(t *testing.T) {
 	assert.Equal(t, strings.Repeat("😀", 120)+"…", sender.Body)
 	assert.True(t, utf8.ValidString(sender.Body))
 }
+
+// The boundary is the one branch of previewOf a body-length test cannot reach
+// by accident: at exactly the limit nothing is cut and no ellipsis is added,
+// one rune over and both happen.
+func TestPreviewOfCutsOnlyPastTheLimit(t *testing.T) {
+	atLimit := strings.Repeat("a", pushPreviewRunes)
+	assert.Equal(t, atLimit, previewOf(atLimit), "a body exactly at the limit is untouched")
+	assert.Equal(t, strings.Repeat("a", pushPreviewRunes-1), previewOf(strings.Repeat("a", pushPreviewRunes-1)))
+
+	overLimit := strings.Repeat("a", pushPreviewRunes+1)
+	assert.Equal(t, atLimit+"…", previewOf(overLimit), "one rune over is cut to the limit and marked")
+}

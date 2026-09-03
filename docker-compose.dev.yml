@@ -1,4 +1,12 @@
-version: '3.9'
+# Its own Compose project, and that is load-bearing. Compose identifies a
+# container by project + service name, not by container_name, and the default
+# project name comes from the directory — so without this, `up` here treated
+# the running docker-compose.yml stack's `postgres` and `redis` as the same
+# services and replaced them. That happened once on a machine with a live
+# deployment: both were torn down and recreated mid-session. Distinct
+# container_names and ports did not prevent it, because neither is what
+# Compose matches on.
+name: tikman-dev
 
 services:
   postgres:
