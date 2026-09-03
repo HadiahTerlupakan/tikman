@@ -1,4 +1,4 @@
 export interface IPushRepository {
-  subscribe(fcmToken: string): Promise<void>;
-  unsubscribe(fcmToken: string): Promise<void>;
+  subscribe(fid: string): Promise<void>;
+  unsubscribe(fid: string): Promise<void>;
 }

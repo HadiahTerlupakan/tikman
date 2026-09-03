@@ -1,9 +1,12 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getMessaging,
-  getToken,
   isSupported,
   onMessage,
+  onRegistered,
+  onUnregistered,
+  register,
+  unregister,
   type Messaging,
 } from "firebase/messaging";
 import {
@@ -30,11 +33,6 @@ async function messaging(): Promise<Messaging | undefined> {
 
 export type PushPermission = "default" | "granted" | "denied" | "unsupported";
 
-function currentPermission(): PushPermission {
-  if (typeof Notification === "undefined") return "unsupported";
-  return Notification.permission;
-}
-
 /** The service worker carries no config of its own — it reads these off its
  * own registration URL. Keeping the values here rather than in that file is
  * what stops the project identity reaching the repository, and what stops the
@@ -44,41 +42,85 @@ function serviceWorkerURL(): string {
   return `/firebase-messaging-sw.js?${params.toString()}`;
 }
 
-async function registerAndGetToken(): Promise<string | undefined> {
+let lastFID: string | undefined;
+
+/** The most recent Firebase Installation ID `onRegistered` delivered, or
+ * undefined if this device has never registered in this page's lifetime.
+ *
+ * Logout needs it: `unregisterFromPush()` resolving does not guarantee
+ * `onUnregistered` has already run, and the DELETE it would trigger has to
+ * reach the API while the session is still standing. */
+export function currentFID(): string | undefined {
+  return lastFID;
+}
+
+interface PushRegistrationHandlers {
+  onRegistered: (fid: string) => void;
+  onUnregistered: (fid: string) => void;
+}
+
+/** Attaches both FID lifecycle listeners and returns a single unsubscribe that
+ * detaches them together.
+ *
+ * This must be in place before `registerForPush()` runs: the SDK throws
+ * `invalid-on-registered-handler` if `register()` is called with no
+ * `onRegistered` handler set, and the FID is only ever delivered through that
+ * callback — `register()` itself resolves with nothing. Resolves a no-op when
+ * Firebase is unconfigured or push is unsupported, so a caller can always
+ * treat the return value as safe to call in a cleanup function. */
+export async function startPushRegistration(
+  handlers: PushRegistrationHandlers,
+): Promise<() => void> {
   const instance = await messaging();
-  if (!instance) return undefined;
+  if (!instance) return () => {};
+
+  const stopRegistered = onRegistered(instance, (fid) => {
+    lastFID = fid;
+    handlers.onRegistered(fid);
+  });
+  const stopUnregistered = onUnregistered(instance, (fid) => {
+    lastFID = undefined;
+    handlers.onUnregistered(fid);
+  });
+
+  return () => {
+    stopRegistered();
+    stopUnregistered();
+  };
+}
+
+/** Registers this installation with FCM. The FID it produces arrives through
+ * `startPushRegistration`'s `onRegistered` handler, not from here. Calling it
+ * again for an already-registered installation re-delivers the current FID, so
+ * it doubles as the silent re-registration a returning visit needs. No-op when
+ * Firebase is not configured. */
+export async function registerForPush(): Promise<void> {
+  const instance = await messaging();
+  if (!instance) return;
   const registration =
     await navigator.serviceWorker.register(serviceWorkerURL());
-  return getToken(instance, {
+  await register(instance, {
     vapidKey: firebaseVapidKey,
     serviceWorkerRegistration: registration,
   });
 }
 
-/** Asks the browser for permission, registers the service worker, and
- * returns the device token to hand the backend. Only ever called from an
- * explicit user action — never on page load. */
-export async function requestPushPermission(): Promise<{
-  permission: PushPermission;
-  token?: string;
-}> {
-  if (typeof Notification === "undefined") {
-    return { permission: "unsupported" };
-  }
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
-    return { permission };
-  }
-  const token = await registerAndGetToken();
-  return { permission, token };
+/** Deletes this installation's FCM registration, which fires `onUnregistered`
+ * with the FID that went away. No-op when Firebase is not configured. */
+export async function unregisterFromPush(): Promise<void> {
+  const instance = await messaging();
+  if (!instance) return;
+  await unregister(instance);
 }
 
-/** Re-fetches the device token without prompting, for a session where
- * permission was already granted on a previous visit. Resolves undefined
- * whenever permission is not already granted or Firebase is not configured. */
-export async function refreshTokenIfGranted(): Promise<string | undefined> {
-  if (currentPermission() !== "granted") return undefined;
-  return registerAndGetToken();
+/** Asks the browser for permission and nothing more — registering with FCM is
+ * a separate step (see `registerForPush`). Only ever called from an explicit
+ * user action, never on page load. */
+export async function requestPushPermission(): Promise<PushPermission> {
+  if (typeof Notification === "undefined") {
+    return "unsupported";
+  }
+  return Notification.requestPermission();
 }
 
 /** Shows a notification for a push that arrives while a tab is focused — FCM

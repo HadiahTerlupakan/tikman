@@ -13,8 +13,9 @@ import {
 import { UserRole } from "@/domain/entities";
 import {
   listenForForegroundMessages,
-  refreshTokenIfGranted,
+  registerForPush,
   showLocalNotification,
+  startPushRegistration,
 } from "@/infrastructure/firebase/messaging";
 import { PushRepository } from "@/infrastructure/repositories";
 import { buildNavigationRoutes } from "./navigationRoutes";
@@ -29,6 +30,43 @@ const CS_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.CS, UserRole.TECHNICIAN];
 // The CS Inbox route (see presentation/routes), the one page where holding the
 // stream open really does mean somebody is reading the inbox.
 const CS_INBOX_PATH = "/cs";
+
+/** Attaches this device's FID lifecycle handlers and, where permission was
+ * already granted on a previous visit, re-registers silently so the current
+ * FID is re-delivered through them. Returns the detach function.
+ *
+ * The register call has to come after the handlers are attached: the SDK
+ * throws `invalid-on-registered-handler` otherwise, and the FID is only ever
+ * delivered through `onRegistered` — `register()` itself resolves with
+ * nothing. */
+async function trackPushRegistration(): Promise<() => void> {
+  const detach = await startPushRegistration({
+    onRegistered: (fid) => {
+      void pushRepository
+        .subscribe(fid)
+        .catch((error) => console.warn("Push subscribe failed", error));
+    },
+    onUnregistered: (fid) => {
+      void pushRepository
+        .unsubscribe(fid)
+        .catch((error) => console.warn("Push unsubscribe failed", error));
+    },
+  });
+
+  if (
+    typeof Notification !== "undefined" &&
+    Notification.permission === "granted"
+  ) {
+    // Silent re-registration is how most devices ever reach the backend, so a
+    // failure here is the difference between push working and push quietly
+    // never arriving. Nothing to retry — say so and move on.
+    void registerForPush().catch((error) =>
+      console.warn("Push re-registration failed", error),
+    );
+  }
+
+  return detach;
+}
 
 /** What CsInboxPage reads back via useOutletContext, since the stream that
  * feeds the navbar badge has to run here, not on that page. */
@@ -55,10 +93,11 @@ export function AppLayout() {
   );
   const awaitingCount = awaitingQuery.data?.length ?? 0;
 
-  // Runs once per app-shell mount, not per click: a CS who already granted
-  // permission on a previous visit gets their token silently refreshed, and
-  // the foreground listener has to be live on every page — a push can arrive
-  // while looking at the OLT map, not only while CS Inbox is open.
+  // Runs once per app-shell mount, not per click. This is the only place that
+  // tells the backend about this device: the FID arrives asynchronously
+  // through onRegistered, whoever triggered the registration. The foreground
+  // listener has to be live on every page too — a push can arrive while
+  // looking at the OLT map, not only while CS Inbox is open.
   useEffect(() => {
     if (!canUseCs) return;
     // A cleanup can outrun the promise that produces the unsubscribe (e.g.
@@ -66,14 +105,20 @@ export function AppLayout() {
     // flipping faster than Firebase resolves) — without this flag, the
     // listener that arrives after cleanup would never be torn down.
     let cancelled = false;
+    let stopRegistration: (() => void) | undefined;
     let unsubscribe: (() => void) | undefined;
 
-    refreshTokenIfGranted()
-      .then((token) => (token ? pushRepository.subscribe(token) : undefined))
-      // Silent re-registration is how most devices ever get a token, so a
-      // failure here is the difference between push working and push quietly
-      // never arriving. Nothing to retry — say so and move on.
-      .catch((error) => console.warn("Push re-registration failed", error));
+    trackPushRegistration()
+      .then((detach) => {
+        if (cancelled) {
+          detach();
+          return;
+        }
+        stopRegistration = detach;
+      })
+      .catch((error) =>
+        console.warn("Could not listen for push registration", error),
+      );
 
     listenForForegroundMessages((title, body) => {
       void showLocalNotification(title, body).catch((error) =>
@@ -93,6 +138,7 @@ export function AppLayout() {
 
     return () => {
       cancelled = true;
+      stopRegistration?.();
       unsubscribe?.();
     };
   }, [canUseCs]);

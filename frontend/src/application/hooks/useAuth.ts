@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthRepository, PushRepository } from "@/infrastructure/repositories";
-import { refreshTokenIfGranted } from "@/infrastructure/firebase/messaging";
+import {
+  currentFID,
+  unregisterFromPush,
+} from "@/infrastructure/firebase/messaging";
 import { useAuthStore } from "../stores";
 import type { LoginCredentials } from "@/domain/repositories";
 
@@ -13,8 +16,13 @@ const pushRepository = new PushRepository();
  * effort by design: a device that cannot reach the API must still log out. */
 async function forgetPushDevice(): Promise<void> {
   try {
-    const token = await refreshTokenIfGranted();
-    if (token) await pushRepository.unsubscribe(token);
+    // The DELETE is sent from here rather than left to onUnregistered:
+    // unregisterFromPush() resolving does not guarantee that handler has
+    // already run, and the call has to land while the session is still valid.
+    const fid = currentFID();
+    if (!fid) return;
+    await pushRepository.unsubscribe(fid);
+    await unregisterFromPush();
   } catch (error) {
     console.warn("Could not unsubscribe this device from push", error);
   }

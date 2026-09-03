@@ -4,14 +4,19 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { useLogin, useLogout } from "@/application/hooks/useAuth";
 import { useAuthStore } from "@/application/stores/authStore";
 import * as repositories from "@/infrastructure/repositories";
-import { refreshTokenIfGranted } from "@/infrastructure/firebase/messaging";
+import {
+  currentFID,
+  unregisterFromPush,
+} from "@/infrastructure/firebase/messaging";
 import { createWrapper, createMockUser } from "./setupMocks";
 
 vi.mock("@/infrastructure/firebase/messaging", () => ({
-  refreshTokenIfGranted: vi.fn(),
+  currentFID: vi.fn(),
+  unregisterFromPush: vi.fn(),
 }));
 
-const mockRefreshToken = vi.mocked(refreshTokenIfGranted);
+const mockCurrentFID = vi.mocked(currentFID);
+const mockUnregisterFromPush = vi.mocked(unregisterFromPush);
 
 // Get mock objects
 const { mockAuthRepo, mockPushRepo } = (
@@ -102,8 +107,9 @@ describe("Auth Hooks", () => {
     // inbox to whoever is holding the phone.
     it("drops this device's push registration on the way out", async () => {
       mockAuthRepo.logout.mockResolvedValue(undefined);
-      mockRefreshToken.mockResolvedValue("device-token");
+      mockCurrentFID.mockReturnValue("device-fid");
       mockPushRepo.unsubscribe.mockResolvedValue(undefined);
+      mockUnregisterFromPush.mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useLogout(), {
         wrapper: createWrapper(),
@@ -113,12 +119,37 @@ describe("Auth Hooks", () => {
       });
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(mockPushRepo.unsubscribe).toHaveBeenCalledWith("device-token");
+      expect(mockPushRepo.unsubscribe).toHaveBeenCalledWith("device-fid");
+      expect(mockUnregisterFromPush).toHaveBeenCalled();
+    });
+
+    // The DELETE is scoped to the authenticated caller, so it has to go out
+    // before authRepository.logout() destroys the session.
+    it("unsubscribes before it logs the session out", async () => {
+      const order: string[] = [];
+      mockCurrentFID.mockReturnValue("device-fid");
+      mockPushRepo.unsubscribe.mockImplementation(async () => {
+        order.push("unsubscribe");
+      });
+      mockUnregisterFromPush.mockResolvedValue(undefined);
+      mockAuthRepo.logout.mockImplementation(async () => {
+        order.push("logout");
+      });
+
+      const { result } = renderHook(() => useLogout(), {
+        wrapper: createWrapper(),
+      });
+      act(() => {
+        result.current.mutate();
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(order).toEqual(["unsubscribe", "logout"]);
     });
 
     it("still logs out when the unsubscribe call fails", async () => {
       mockAuthRepo.logout.mockResolvedValue(undefined);
-      mockRefreshToken.mockResolvedValue("device-token");
+      mockCurrentFID.mockReturnValue("device-fid");
       mockPushRepo.unsubscribe.mockRejectedValue(new Error("network down"));
 
       const { result: authResult } = renderHook(() => useAuthStore());

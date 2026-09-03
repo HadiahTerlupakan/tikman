@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 
 const configured = vi.hoisted(() => ({ value: false }));
 
@@ -11,14 +11,14 @@ vi.mock("@/shared/config/firebase", () => ({
 
 vi.mock("@/infrastructure/firebase/messaging", () => ({
   requestPushPermission: vi.fn(),
+  registerForPush: vi.fn(),
 }));
 
-vi.mock("@/infrastructure/repositories", () => ({
-  PushRepository: class {
-    subscribe = vi.fn();
-    unsubscribe = vi.fn();
-  },
-}));
+const { requestPushPermission, registerForPush } = await import(
+  "@/infrastructure/firebase/messaging"
+);
+const mockRequestPermission = vi.mocked(requestPushPermission);
+const mockRegisterForPush = vi.mocked(registerForPush);
 
 const { usePushNotifications } = await import(
   "@/application/hooks/usePushNotifications"
@@ -26,6 +26,7 @@ const { usePushNotifications } = await import(
 
 describe("usePushNotifications", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubGlobal("Notification", { permission: "default" });
   });
 
@@ -50,5 +51,30 @@ describe("usePushNotifications", () => {
     const { result } = renderHook(() => usePushNotifications());
 
     expect(result.current.permission).toBe("default");
+  });
+
+  it("registers with FCM once the browser grants permission", async () => {
+    configured.value = true;
+    mockRequestPermission.mockResolvedValue("granted");
+    mockRegisterForPush.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => usePushNotifications());
+    await act(() => result.current.enable());
+
+    expect(result.current.permission).toBe("granted");
+    expect(mockRegisterForPush).toHaveBeenCalled();
+  });
+
+  // Asking again after a block would spend nothing and register nothing; the
+  // browser has already decided.
+  it("does not register when permission is refused", async () => {
+    configured.value = true;
+    mockRequestPermission.mockResolvedValue("denied");
+
+    const { result } = renderHook(() => usePushNotifications());
+    await act(() => result.current.enable());
+
+    expect(result.current.permission).toBe("denied");
+    expect(mockRegisterForPush).not.toHaveBeenCalled();
   });
 });

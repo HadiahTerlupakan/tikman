@@ -1,17 +1,15 @@
 import { useState } from "react";
 import {
+  registerForPush,
   requestPushPermission,
   type PushPermission,
 } from "@/infrastructure/firebase/messaging";
-import { PushRepository } from "@/infrastructure/repositories";
 import { isFirebaseConfigured } from "@/shared/config/firebase";
-
-const pushRepository = new PushRepository();
 
 /** What the browser can do about push, given how this build is configured.
  * With no Firebase project, requestPushPermission spends the browser's one
- * permission prompt and returns no token — so the control must not be offered
- * at all, which is what "unsupported" makes PushOptInButton do. */
+ * permission prompt and nothing can register — so the control must not be
+ * offered at all, which is what "unsupported" makes PushOptInButton do. */
 function initialPermission(): PushPermission {
   if (!isFirebaseConfigured) return "unsupported";
   if (typeof Notification === "undefined") return "unsupported";
@@ -24,9 +22,7 @@ interface UsePushNotificationsResult {
   enable: () => Promise<void>;
 }
 
-/** Drives the CS Inbox "Aktifkan notifikasi" control. Registering the device
- * on the backend happens here — infrastructure/firebase/messaging.ts only
- * knows about the browser and Firebase side of push. */
+/** Drives the CS Inbox "Aktifkan notifikasi" control. */
 export function usePushNotifications(): UsePushNotificationsResult {
   const [permission, setPermission] =
     useState<PushPermission>(initialPermission);
@@ -35,10 +31,14 @@ export function usePushNotifications(): UsePushNotificationsResult {
   const enable = async () => {
     setRequesting(true);
     try {
-      const result = await requestPushPermission();
-      setPermission(result.permission);
-      if (result.token) {
-        await pushRepository.subscribe(result.token);
+      const granted = await requestPushPermission();
+      setPermission(granted);
+      if (granted === "granted") {
+        // Registering does not hand back the FID — it arrives asynchronously
+        // through onRegistered, which AppLayout listens on for the whole app
+        // shell. That listener is the one place that tells the backend about
+        // this device, so nothing is POSTed from here.
+        await registerForPush();
       }
     } finally {
       setRequesting(false);
