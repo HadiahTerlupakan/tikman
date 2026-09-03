@@ -1742,26 +1742,20 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if (client.url.includes("/cs-inbox") && "focus" in client) {
+        if (client.url.includes("/cs") && "focus" in client) {
           return client.focus();
         }
       }
-      return clients.openWindow("/cs-inbox");
+      return clients.openWindow("/cs");
     }),
   );
 });
 ```
 
-Check the actual path CS Inbox is mounted at before using `/cs-inbox`
-literally:
-
-```bash
-grep -n "path.*[Cc]s.*[Ii]nbox\|CsInboxPage" frontend/src/presentation/routes/index.tsx
-```
-
-Use whatever path that grep shows in both places above (`client.url.includes(...)`
-and `clients.openWindow(...)`), not necessarily `/cs-inbox` if the route is
-named differently.
+The path is `/cs`, not `/cs-inbox` — verified in
+`frontend/src/presentation/routes/index.tsx`, where the route is `path: "cs"`
+nested under `/` → `ProtectedRoute` → `AppLayout`. Both places above already
+use it; do not "correct" them to a longer name.
 
 - [ ] **Step 2: Verify it is served**
 
