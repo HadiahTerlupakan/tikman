@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,8 +19,10 @@ const heartbeatInterval = 15 * time.Second
 // event is a nudge to refetch, which is why a dropped connection costs nothing
 // but a moment of staleness.
 //
-// Holding the connection open is also what marks this agent online, so the
-// rotation only ever hands work to somebody with the inbox actually open.
+// The connection is held from the app shell on every page, so holding it is no
+// longer evidence that anybody is looking at the inbox. Only a client that asks
+// for it with ?presence=1 is marked online, and only the CS Inbox route asks —
+// otherwise round-robin would hand threads to a technician reading the OLT map.
 func (h *CSHandler) Stream(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok {
@@ -27,9 +30,15 @@ func (h *CSHandler) Stream(c *gin.Context) {
 		return
 	}
 
+	// Default off: a client that says nothing is a page other than the inbox,
+	// and claiming presence for it is the failure mode this guards against.
+	claimsPresence, _ := strconv.ParseBool(c.Query("presence"))
+
 	ctx := c.Request.Context()
-	if err := h.presence.MarkOnline(ctx, userID); err != nil {
-		h.logger.Warn("mark CS online", zap.Error(err))
+	if claimsPresence {
+		if err := h.presence.MarkOnline(ctx, userID); err != nil {
+			h.logger.Warn("mark CS online", zap.Error(err))
+		}
 	}
 
 	sub := h.redis.Subscribe(ctx, wa.EventsChannel)
@@ -62,8 +71,12 @@ func (h *CSHandler) Stream(c *gin.Context) {
 			c.SSEvent("cs", msg.Payload)
 			c.Writer.Flush()
 		case <-ticker.C:
-			if err := h.presence.MarkOnline(ctx, userID); err != nil {
-				h.logger.Warn("refresh CS presence", zap.Error(err))
+			// The ping itself keeps every connection alive, presence or not;
+			// only the presence refresh is conditional.
+			if claimsPresence {
+				if err := h.presence.MarkOnline(ctx, userID); err != nil {
+					h.logger.Warn("refresh CS presence", zap.Error(err))
+				}
 			}
 			c.SSEvent("ping", "")
 			c.Writer.Flush()
