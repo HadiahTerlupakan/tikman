@@ -20,6 +20,7 @@
     "@vis.gl/react-google-maps": "1.9.0",
     "antd": "^5.15.4",
     "axios": "^1.6.8",
+    "firebase": "^12.18.0",
     "humps": "^2.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
