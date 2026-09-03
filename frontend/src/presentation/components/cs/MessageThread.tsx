@@ -1,4 +1,4 @@
-import { Alert, Button, Typography } from "antd";
+import { Alert, Button, Image, Typography } from "antd";
 import {
   CheckOutlined,
   ClockCircleOutlined,
@@ -100,18 +100,26 @@ function MessageBubble({
         }}
       >
         {message.kind === "image" && (
+          // A thumbnail, not the photo. Customers send screenshots of whole
+          // phone screens, and drawn at their natural height one of those
+          // stretches the thread until the rest of the conversation is off
+          // the page. Clicking opens it full size.
+          //
           // Content-Disposition on this endpoint is "attachment", but that
           // only steers a direct navigation to save the file — it does not
           // stop a subresource fetch like this from rendering inline.
-          <img
+          <Image
             src={`${env.apiUrl}${API_ENDPOINTS.CS_MEDIA(message.id)}`}
             alt={message.mediaFilename || "lampiran"}
+            width={220}
+            height={160}
+            preview={{ mask: "Lihat penuh" }}
             style={{
-              maxWidth: "100%",
+              objectFit: "cover",
               borderRadius: 6,
-              marginBottom: message.body ? 6 : 2,
               display: "block",
             }}
+            wrapperStyle={{ marginBottom: message.body ? 6 : 2 }}
           />
         )}
 
