@@ -126,3 +126,39 @@ func TestDeleteAccountClearsItsBroadcastHistoryOnPostgres(t *testing.T) {
 	_, statErr := os.Stat(filepath.Join(root, rel))
 	assert.True(t, os.IsNotExist(statErr), "the attachment goes with the row it belonged to")
 }
+
+// A status row is the shape the channel feature never had: destination_jid is
+// NULL, and migration 49's check constraint enforces that it stays NULL. The
+// RESTRICT foreign key holds it to the account just the same, so DeleteAccount
+// has to clear it or Postgres refuses the delete outright.
+func TestDeleteAccountClearsAStatusRowOnPostgres(t *testing.T) {
+	db, account, _ := purgePostgres(t)
+
+	root := t.TempDir()
+	rel := filepath.Join("2026", "09", "status.jpg")
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
+
+	posts := NewCSBroadcastPostService(db)
+	status, err := posts.Queue(BroadcastPost{
+		WAAccountID:  account.ID,
+		Destination:  models.DestinationStatus,
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindImage,
+		Body:         "Ada pemeliharaan malam ini",
+		Media:        &MediaFile{Path: rel, Mime: "image/jpeg", Filename: "status.jpg", Size: 1},
+	})
+	require.NoError(t, err)
+	require.Nil(t, status.DestinationJID, "a status names no channel")
+
+	require.NoError(t, NewCSPurgeService(db, root).DeleteAccount(account.ID))
+
+	var accounts, left int64
+	require.NoError(t, db.Model(&models.WAAccount{}).Count(&accounts).Error)
+	require.NoError(t, db.Model(&models.WABroadcastPost{}).Count(&left).Error)
+	assert.Equal(t, int64(0), accounts)
+	assert.Equal(t, int64(0), left)
+
+	_, statErr := os.Stat(filepath.Join(root, rel))
+	assert.True(t, os.IsNotExist(statErr), "the status attachment goes with its row")
+}

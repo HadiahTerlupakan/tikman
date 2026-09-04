@@ -198,3 +198,48 @@ func channelPostWithMedia(accountID uuid.UUID, path string, at time.Time) models
 		CreatedAt:      at,
 	}
 }
+
+// A status attachment lands in the same root through the same upload, so the
+// sweep has to age it out the same way — and it is the shape the sweep has
+// never seen: destination_jid is NULL, which migration 49 requires to stay
+// NULL, so clearing the file must not disturb the row's destination.
+func TestSweepDeletesAnOldStatusAttachment(t *testing.T) {
+	db := setupTestDB(t)
+	account := csAccount(t, db)
+
+	root := t.TempDir()
+	rel := filepath.Join("2026", "01", "status-lama.jpg")
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
+
+	old := statusPostWithMedia(account.ID, rel, time.Now().Add(-100*24*time.Hour))
+	require.NoError(t, db.Create(&old).Error)
+
+	cleared, err := NewCSMediaRetention(db, root, 90).Sweep()
+	require.NoError(t, err)
+	assert.Equal(t, 1, cleared)
+
+	_, statErr := os.Stat(filepath.Join(root, rel))
+	assert.True(t, os.IsNotExist(statErr), "the aged status attachment is gone")
+
+	var stored models.WABroadcastPost
+	require.NoError(t, db.First(&stored, "id = ?", old.ID).Error)
+	assert.Empty(t, stored.MediaPath, "the row stops pointing at a file")
+	assert.Equal(t, models.DestinationStatus, stored.Destination)
+	assert.Nil(t, stored.DestinationJID, "a status still names no channel afterwards")
+}
+
+func statusPostWithMedia(accountID uuid.UUID, path string, at time.Time) models.WABroadcastPost {
+	return models.WABroadcastPost{
+		WAAccountID:   accountID,
+		Destination:   models.DestinationStatus,
+		SenderUserID:  uuid.New(),
+		Kind:          models.MessageKindImage,
+		Status:        models.BroadcastSent,
+		MediaPath:     path,
+		MediaMime:     "image/jpeg",
+		MediaFilename: "status.jpg",
+		MediaSize:     1,
+		CreatedAt:     at,
+	}
+}

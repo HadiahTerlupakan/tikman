@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -211,4 +212,49 @@ func TestAQueuedMediaUpdateKeepsTheFileItNames(t *testing.T) {
 	require.NotEmpty(t, stored[0].MediaPath)
 	assert.FileExists(t, filepath.Join(env.mediaRoot, stored[0].MediaPath),
 		"the row points at the file that was actually written")
+}
+
+// The history is the only place a sender ever learns what became of an
+// announcement, and it is now cross-destination: both rows one action wrote
+// have to come back, each still saying which destination it was for.
+func TestListBroadcastsAnswersTheRecentRowsAcrossDestinations(t *testing.T) {
+	env := setupCSHandler(t)
+	channel := adminChannel(t, env)
+
+	body := `{"body":"Ada pemeliharaan malam ini","destinations":[` +
+		`{"type":"channel","channel_id":"` + channel.ID.String() + `"},` +
+		`{"type":"status","wa_account_id":"` + env.account.ID.String() + `"}]}`
+	post := httptest.NewRequest(http.MethodPost, "/api/v1/cs/broadcasts", strings.NewReader(body))
+	post.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, post)
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	rec = httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/api/v1/cs/broadcasts", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var answer struct {
+		Data []models.WABroadcastPost `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer))
+	require.Len(t, answer.Data, 2)
+
+	byDestination := map[models.BroadcastDestination]models.WABroadcastPost{}
+	for _, row := range answer.Data {
+		byDestination[row.Destination] = row
+	}
+
+	channelRow, ok := byDestination[models.DestinationChannel]
+	require.True(t, ok, "the channel row is missing from the history")
+	require.NotNil(t, channelRow.DestinationJID)
+	assert.Equal(t, channel.JID, *channelRow.DestinationJID)
+	assert.Equal(t, "Ada pemeliharaan malam ini", channelRow.Body)
+	assert.Equal(t, models.BroadcastQueued, channelRow.Status)
+
+	statusRow, ok := byDestination[models.DestinationStatus]
+	require.True(t, ok, "the status row is missing from the history")
+	assert.Nil(t, statusRow.DestinationJID)
+	assert.Equal(t, env.account.ID, statusRow.WAAccountID)
 }
