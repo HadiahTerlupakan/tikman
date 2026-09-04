@@ -6,11 +6,27 @@ import { useCsStream } from "../hooks/useCsStream";
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
+  // The spec's readyState values, which the hook reads to tell "still
+  // retrying" from "given up".
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 2;
+
   listeners: Record<string, ((e: MessageEvent) => void)[]> = {};
   closed = false;
+  readyState = FakeEventSource.OPEN;
+  onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
 
   constructor(public url: string) {
     FakeEventSource.instances.push(this);
+  }
+
+  /** The browser refusing a response it cannot use — a 502 or a 401 — which
+   * closes the connection for good rather than retrying it. */
+  fail() {
+    this.readyState = FakeEventSource.CLOSED;
+    this.onerror?.();
   }
 
   addEventListener(type: string, fn: (e: MessageEvent) => void) {
@@ -142,6 +158,69 @@ describe("useCsStream", () => {
 
       act(() => vi.advanceTimersByTime(11_000));
       expect(result.current.typing.abc).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A reconnect that is answered with a 502 while the API restarts, or a 401
+  // once the session expires, closes EventSource permanently — no error the CS
+  // can see, just an inbox that quietly stops updating. One deploy used to be
+  // enough to do that to every open tab.
+  it("opens a fresh stream when the browser gives up on one", () => {
+    vi.useFakeTimers();
+    try {
+      const client = new QueryClient();
+      renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+      expect(FakeEventSource.instances).toHaveLength(1);
+
+      act(() => FakeEventSource.instances[0].fail());
+      act(() => vi.advanceTimersByTime(3_000));
+
+      expect(FakeEventSource.instances).toHaveLength(2);
+      expect(FakeEventSource.instances[1].url).toBe(
+        FakeEventSource.instances[0].url,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // EventSource retries a dropped connection by itself. Opening a second one
+  // alongside it would leave two streams feeding the same inbox.
+  it("leaves a stream that is still retrying alone", () => {
+    vi.useFakeTimers();
+    try {
+      const client = new QueryClient();
+      renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+
+      act(() => {
+        FakeEventSource.instances[0].readyState = FakeEventSource.CONNECTING;
+        FakeEventSource.instances[0].onerror?.();
+      });
+      act(() => vi.advanceTimersByTime(30_000));
+
+      expect(FakeEventSource.instances).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A page that has navigated away must not be reconnected behind its own
+  // back: the reopen is scheduled on a timer that outlives the failure.
+  it("does not reopen a stream after the page goes away", () => {
+    vi.useFakeTimers();
+    try {
+      const client = new QueryClient();
+      const { unmount } = renderHook(() => useCsStream(), {
+        wrapper: wrapper(client),
+      });
+
+      unmount();
+      act(() => FakeEventSource.instances[0].fail());
+      act(() => vi.advanceTimersByTime(30_000));
+
+      expect(FakeEventSource.instances).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }

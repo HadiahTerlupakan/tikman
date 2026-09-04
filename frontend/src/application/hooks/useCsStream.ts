@@ -23,6 +23,13 @@ const TYPING_TTL_MS = 10_000;
  * actually typing. */
 const TYPING_SWEEP_MS = 1_000;
 
+/** How long to wait before reopening a stream the browser gave up on, and the
+ * ceiling that wait widens to. Widening rather than fixed: a session that has
+ * expired answers 401 to every attempt, and hammering it five seconds apart
+ * for the rest of the day buys nothing. */
+const REOPEN_DELAY_MS = 3_000;
+const MAX_REOPEN_DELAY_MS = 30_000;
+
 /** What this stream has observed live about one number. Undefined until an
  * account_status event for that number arrives on this connection — the caller
  * falls back to the account list for the state at page load. */
@@ -71,9 +78,10 @@ export function useCsStream(enabled = true, presence = false): CsStreamState {
   useEffect(() => {
     if (!enabled) return;
     const url = `${env.apiUrl}${API_ENDPOINTS.CS_STREAM}${presence ? "?presence=1" : ""}`;
-    const source = new EventSource(url, {
-      withCredentials: true,
-    });
+    let source: EventSource | undefined;
+    let reopen: ReturnType<typeof setTimeout> | undefined;
+    let delay = REOPEN_DELAY_MS;
+    let abandoned = false;
 
     const onEvent = (event: MessageEvent) => {
       let payload: CsEvent;
@@ -108,10 +116,37 @@ export function useCsStream(enabled = true, presence = false): CsStreamState {
       }
     };
 
-    source.addEventListener("cs", onEvent);
+    // EventSource reconnects by itself only when the connection drops at the
+    // network level. A reconnect that is *answered* with something it will not
+    // accept — a 502 from the proxy while the API restarts, a 401 once the
+    // session expires — closes it for good, silently: no error the CS can see,
+    // just an inbox that stops updating until somebody reloads the page. One
+    // deploy used to be enough to do that to every open tab.
+    const open = () => {
+      const live = new EventSource(url, { withCredentials: true });
+      source = live;
+      live.addEventListener("cs", onEvent);
+      live.onopen = () => {
+        delay = REOPEN_DELAY_MS;
+      };
+      live.onerror = () => {
+        // Anything short of CLOSED is EventSource retrying on its own, which
+        // is the case this must not interfere with.
+        if (live.readyState !== EventSource.CLOSED || abandoned) return;
+        live.close();
+        reopen = setTimeout(open, delay);
+        delay = Math.min(delay * 2, MAX_REOPEN_DELAY_MS);
+      };
+    };
+    open();
+
     // Closing drops every listener with the connection itself, so there is
     // nothing left to unregister separately.
-    return () => source.close();
+    return () => {
+      abandoned = true;
+      clearTimeout(reopen);
+      source?.close();
+    };
   }, [queryClient, enabled, presence]);
 
   const typingCount = Object.keys(typingUntil).length;
