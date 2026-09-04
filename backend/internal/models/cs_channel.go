@@ -43,7 +43,7 @@ type WAChannel struct {
 	Name            string      `gorm:"type:varchar(255)" json:"name"`
 	Role            ChannelRole `gorm:"type:varchar(20);not null" json:"role"`
 	SubscriberCount int         `json:"subscriber_count"`
-	SyncedAt        time.Time   `json:"synced_at"`
+	SyncedAt        time.Time   `gorm:"not null" json:"synced_at"`
 }
 
 func (c *WAChannel) BeforeCreate(tx *gorm.DB) error {

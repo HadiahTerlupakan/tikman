@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 	"github.com/tikman/olt-provisioning/internal/wa"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // CreateChannelPostRequest is one text update as the composer sends it.
@@ -34,8 +36,10 @@ func (h *CSHandler) ListChannels(c *gin.Context) {
 // RefreshChannels asks the wa process to re-read every number's channel list.
 //
 // One control message per number, because a session is per number and the
-// process routes the action by account id. Like the other control actions this
-// is fire-and-forget: the answer arrives as changed rows, not as a response.
+// process routes the action by account id. A publish that fails is logged and
+// swallowed, unlike the other control actions, which hand theirs back to the
+// caller: the hourly sweep re-reads the list anyway, so the worst a lost
+// request costs is the wait the button was meant to skip.
 func (h *CSHandler) RefreshChannels(c *gin.Context) {
 	accounts, err := h.accounts.List()
 	if err != nil {
@@ -194,10 +198,17 @@ func (h *CSHandler) channelByID(c *gin.Context, raw, code string) (*models.WACha
 	}
 
 	channel, err := h.channels.Get(id)
-	if err != nil {
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "saluran tidak ditemukan", Code: code,
 		})
+		return nil, false
+	case err != nil:
+		// Anything else is the database failing, not the channel being gone.
+		// Answering 404 for it would tell the sender their admin right was
+		// revoked and send them chasing one they still have.
+		mapCSError(c, err, code)
 		return nil, false
 	}
 	return channel, true

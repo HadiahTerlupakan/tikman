@@ -111,3 +111,20 @@ func TestAnUnacceptedAttachmentTypeIsRefused(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
+
+// A database that will not answer is not "that channel is gone". Reporting it
+// as 404 tells a sender their admin right was revoked and sends them chasing
+// one they still have, while the real fault goes unlogged.
+func TestAChannelLookupThatFailsIsNotReportedAsMissing(t *testing.T) {
+	env := setupCSHandler(t)
+	channel := adminChannel(t, env)
+	require.NoError(t, env.db.Migrator().DropTable(&models.WAChannel{}))
+
+	body := `{"channel_id":"` + channel.ID.String() + `","body":"Ada pemeliharaan"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cs/channel-posts", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
