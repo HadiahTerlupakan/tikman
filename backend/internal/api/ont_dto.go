@@ -77,7 +77,7 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 		distance = &ont.Distance
 	}
 
-	return ONTResponse{
+	resp := ONTResponse{
 		ID:                   ont.ID,
 		OLTID:                ont.OLTID,
 		OLTName:              "",
@@ -106,6 +106,26 @@ func ToONTResponse(ont *models.ONT) ONTResponse {
 		Uptime:               ont.Uptime,
 		LastDownTimeDuration: ont.LastDownTimeDuration,
 	}
+	hideOpticsUnlessOnline(&resp, ont.Status)
+	return resp
+}
+
+// hideOpticsUnlessOnline drops the optical figures from a response for an ONT
+// that is not online.
+//
+// The stored reading is whatever the ONT last measured while it was alive, and
+// serving it beside a status saying the ONT is down reads as a measurement of
+// now. The status poll runs every minute and the metrics poll every ten, so
+// the row would tell that for up to nine of them.
+//
+// The history keeps every reading, so the last values before an ONT went dark
+// are still on its chart — this only stops them being presented as current.
+func hideOpticsUnlessOnline(resp *ONTResponse, status models.ONTStatus) {
+	if status == models.ONTStatusOnline {
+		return
+	}
+	resp.RxPower = nil
+	resp.TxPower = nil
 }
 
 func ToONTResponseWithMetrics(ont *models.ONT, metrics *services.ONTMetricsRow) ONTResponse {
@@ -153,6 +173,12 @@ func ToONTResponseWithMetrics(ont *models.ONT, metrics *services.ONTMetricsRow) 
 			resp.TxErrors = &metrics.TxErrors
 		}
 	}
+
+	// Again at the exit, because the overlay above can put back what the rule
+	// removed: a live poll does return optical power for an ONT the OLT still
+	// answers for while calling it offline.
+	hideOpticsUnlessOnline(&resp, ont.Status)
+
 	return resp
 }
 
