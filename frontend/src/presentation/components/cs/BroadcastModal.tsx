@@ -96,6 +96,8 @@ export function BroadcastModal({
 
   const documentAttached = isDocumentFile(file);
   // Derived rather than cleared on attach: a document removed later restores
+  // the sender's own choice, instead of making them tick Status again for an
+  // attachment they have already withdrawn.
   const statusActive = statusChecked && !documentAttached;
 
   const targets: BroadcastTarget[] = [];
@@ -108,7 +110,18 @@ export function BroadcastModal({
     }
   }
 
-  const canSend = targets.length > 0 && (body.trim() !== "" || !!file);
+  // A ticked destination that contributed no target would drop out of the
+  // request silently: the backend cannot refuse a destination nobody named,
+  // and the sender would be left looking at a ticked box believing the
+  // announcement reached both places. Every ticked destination has to be
+  // complete before the button arms.
+  const channelReady = !channelChecked || !!selectedChannelId;
+  const statusReady = !statusActive || statusTargets.length > 0;
+  const canSend =
+    targets.length > 0 &&
+    channelReady &&
+    statusReady &&
+    (body.trim() !== "" || !!file);
 
   const handleSend = async () => {
     if (!canSend) return;

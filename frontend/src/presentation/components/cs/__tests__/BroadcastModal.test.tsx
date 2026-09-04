@@ -216,6 +216,90 @@ describe("BroadcastModal", () => {
     expect(screen.getByText(/sudah kedaluwarsa/i)).toBeInTheDocument();
   });
 
+  // The one piece of genuinely new logic in this modal: what it hands the
+  // caller. A destination that is ticked but incomplete must never silently
+  // vanish from this array — the request would simply not name it, and no
+  // server-side check can notice a destination nobody asked for.
+  it("hands the caller one target per chosen destination", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    open({ selectedChannelId: "c1", onSend });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /status wa/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "CS Utama" }));
+    await userEvent.type(
+      screen.getByPlaceholderText(/tulis pengumuman/i),
+      "Ada pemeliharaan",
+    );
+    await userEvent.click(sendButton());
+
+    expect(onSend).toHaveBeenCalledWith(
+      "Ada pemeliharaan",
+      [
+        { type: "channel", channelId: "c1" },
+        { type: "status", waAccountId: "a1" },
+      ],
+      undefined,
+    );
+  });
+
+  // One status per number: two numbers is two rows, which is what makes a
+  // partial failure readable afterwards.
+  it("hands the caller a status target for every number ticked", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    open({
+      onSend,
+      statusAccountIds: ["a1", "a2"],
+      accountLabels: { a1: "CS Utama", a2: "WA Billing" },
+    });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /status wa/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "CS Utama" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "WA Billing" }));
+    await userEvent.type(
+      screen.getByPlaceholderText(/tulis pengumuman/i),
+      "Ada pemeliharaan",
+    );
+    await userEvent.click(sendButton());
+
+    expect(onSend).toHaveBeenCalledWith(
+      "Ada pemeliharaan",
+      [
+        { type: "status", waAccountId: "a1" },
+        { type: "status", waAccountId: "a2" },
+      ],
+      undefined,
+    );
+  });
+
+  // A sender who believes both went out when only one did is worse off than
+  // one who sent nothing: an announcement cannot be withdrawn, and the ticked
+  // box is the only thing they have to go on.
+  it("will not send while Saluran is ticked with no channel chosen", async () => {
+    open({ statusAccountIds: ["a1"] });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Saluran" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /status wa/i }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "CS Utama" }));
+    await userEvent.type(
+      screen.getByPlaceholderText(/tulis pengumuman/i),
+      "Ada pemeliharaan",
+    );
+
+    expect(sendButton()).toBeDisabled();
+  });
+
+  it("will not send while Status WA is ticked with no number chosen", async () => {
+    open({ selectedChannelId: "c1" });
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /status wa/i }));
+    await userEvent.type(
+      screen.getByPlaceholderText(/tulis pengumuman/i),
+      "Ada pemeliharaan",
+    );
+
+    expect(sendButton()).toBeDisabled();
+  });
+
   // A channel post does not expire, so the note must not appear on one.
   it("does not mark a channel post as expired", () => {
     const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();

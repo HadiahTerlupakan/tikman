@@ -28,6 +28,8 @@ const UNKNOWN_NUMBER = "nomor tak dikenal";
  * stored: a column would claim we know something we only calculate. */
 const STATUS_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
+/** Whether a sent status is past the day WhatsApp shows it for. Exported for
+ * its own test: nothing else decides whether a row still reads as live. */
 export function statusHasExpired(
   post: BroadcastPost,
   now = Date.now(),
