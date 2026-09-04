@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ProLayout } from "@ant-design/pro-components";
 import { UserOutlined, LogoutOutlined, BellOutlined } from "@ant-design/icons";
-import { Dropdown, Avatar, Badge, App, Grid } from "antd";
+import { Dropdown, Avatar, Badge, App, Grid, Tooltip } from "antd";
 import type { MenuProps } from "antd";
 import { useEffect } from "react";
 import { useAuthStore } from "@/application/stores";
@@ -243,31 +243,54 @@ export function AppLayout() {
             title: user?.username,
             render: () => {
               return (
-                <Dropdown
-                  menu={{ items: userMenuItems }}
-                  placement="bottomRight"
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {canUseCs && (
-                      <Badge count={awaitingCount}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  {/* Outside the Dropdown deliberately: while the count was
+                      hardcoded to zero the bell sat inside the avatar's trigger
+                      and nobody noticed, but a bell showing a number invites a
+                      click, and that click opened the user menu. It now goes
+                      where the number points — the threads waiting on a reply. */}
+                  {canUseCs && (
+                    <Tooltip
+                      title={
+                        awaitingCount > 0
+                          ? `${awaitingCount} percakapan menunggu dibalas`
+                          : "Tidak ada yang menunggu dibalas"
+                      }
+                    >
+                      <Badge
+                        count={awaitingCount}
+                        // Ant Design puts the count in a native title attribute,
+                        // which browsers render as a second tooltip beside ours.
+                        title=""
+                      >
                         <BellOutlined
-                          style={{ fontSize: 18, color: "#a1a1aa" }}
+                          role="button"
+                          aria-label="Percakapan menunggu dibalas"
+                          onClick={() => navigate("/cs?view=belum-dibalas")}
+                          style={{
+                            fontSize: 18,
+                            color: "#a1a1aa",
+                            cursor: "pointer",
+                          }}
                         />
                       </Badge>
-                    )}
-                    <Avatar style={{ backgroundColor: "#3ecf8e" }}>
+                    </Tooltip>
+                  )}
+                  <Dropdown
+                    menu={{ items: userMenuItems }}
+                    placement="bottomRight"
+                  >
+                    <Avatar
+                      style={{
+                        backgroundColor: "#3ecf8e",
+                        cursor: "pointer",
+                      }}
+                    >
                       {user?.initials ||
                         user?.username?.charAt(0).toUpperCase()}
                     </Avatar>
-                  </div>
-                </Dropdown>
+                  </Dropdown>
+                </div>
               );
             },
           }}

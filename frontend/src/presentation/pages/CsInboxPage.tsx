@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useSearchParams } from "react-router-dom";
 import { Button, Empty, Space } from "antd";
 import { ThunderboltOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/application/stores";
@@ -35,6 +35,7 @@ import { PushOptInButton } from "@/presentation/components/cs/PushOptInButton";
 import {
   InboxFilterBar,
   filterFor,
+  isInboxView,
   type InboxView,
 } from "@/presentation/components/cs/InboxFilterBar";
 import { colors } from "@/shared/theme/colors";
@@ -71,8 +72,15 @@ export function CsInboxPage() {
   const [pairing, setPairing] = useState<WaAccount>();
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   // "Semua" by default, not "Milik saya": a CS opening the inbox needs to see
-  // what nobody has picked up, not only what is already theirs.
-  const [view, setView] = useState<InboxView>("semua");
+  // what nobody has picked up, not only what is already theirs. The navbar
+  // bell overrides it with ?view=belum-dibalas, so the count it shows and the
+  // list you land on are the same set — arriving on "Semua" would make the
+  // reader hunt for the threads the number was about.
+  const [searchParams] = useSearchParams();
+  const requestedView = searchParams.get("view");
+  const [view, setView] = useState<InboxView>(
+    isInboxView(requestedView) ? requestedView : "semua",
+  );
   const [search, setSearch] = useState("");
   const [replyTo, setReplyTo] = useState<CsMessage>();
 

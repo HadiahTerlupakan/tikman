@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterFor } from "../InboxFilterBar";
+import { filterFor, isInboxView } from "../InboxFilterBar";
 
 describe("filterFor", () => {
   // The backend checks mine, then awaiting-reply, then closed, and the first one
@@ -22,5 +22,22 @@ describe("filterFor", () => {
   // on every keystroke that clears the box and refetches for nothing.
   it("leaves an empty search out of the filter", () => {
     expect(filterFor("semua", "")).not.toHaveProperty("search");
+  });
+});
+
+describe("isInboxView", () => {
+  // The navbar bell links to ?view=belum-dibalas so the count it shows and the
+  // list you land on are the same set. Anything else off the URL — a typo, or a
+  // view that was renamed since someone bookmarked it — has to fall back rather
+  // than leave the segmented control on a value it cannot render.
+  it("accepts the four real views and nothing else", () => {
+    expect(isInboxView("semua")).toBe(true);
+    expect(isInboxView("milik-saya")).toBe(true);
+    expect(isInboxView("belum-dibalas")).toBe(true);
+    expect(isInboxView("selesai")).toBe(true);
+
+    expect(isInboxView("belum_dibalas")).toBe(false);
+    expect(isInboxView("")).toBe(false);
+    expect(isInboxView(null)).toBe(false);
   });
 });

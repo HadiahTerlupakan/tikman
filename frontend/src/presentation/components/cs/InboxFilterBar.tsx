@@ -16,6 +16,13 @@ const views: { value: InboxView; label: string }[] = [
   { value: "selesai", label: "Selesai" },
 ];
 
+/** Whether a value off the URL names one of the four views. A ?view= someone
+ * typed by hand, or one left over from a renamed view, has to fall back
+ * rather than leave the segmented control on a value it cannot show. */
+export function isInboxView(value: string | null): value is InboxView {
+  return views.some((view) => view.value === value);
+}
+
 /** Turns a view and a search term into the filter the API expects. */
 export function filterFor(
   view: InboxView,
