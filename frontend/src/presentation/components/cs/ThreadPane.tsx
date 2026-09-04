@@ -40,6 +40,9 @@ interface ThreadPaneProps {
   onCancelReply: () => void;
   onDeleteMessage: (message: CsMessage) => void;
   onClearThread: () => void;
+  /** Handed to ThreadHeader, and present only where the panes take turns. */
+  onBack?: () => void;
+  onOpenCustomer?: () => void;
   /** True while the customer is writing in this thread. */
   customerTyping: boolean;
   /** Raises or clears the "typing…" line on the customer's phone. */
@@ -74,6 +77,8 @@ export function ThreadPane({
   onCancelReply,
   onDeleteMessage,
   onClearThread,
+  onBack,
+  onOpenCustomer,
   customerTyping,
   onTypingChange,
 }: ThreadPaneProps) {
@@ -105,6 +110,8 @@ export function ThreadPane({
         }
         isHolder={isHolder}
         typing={customerTyping}
+        onBack={onBack}
+        onOpenCustomer={onOpenCustomer}
         onClear={canPurge ? onClearThread : undefined}
         clearing={clearing}
       />

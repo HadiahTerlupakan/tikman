@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import {
+  useNavigate,
+  useOutletContext,
+  useSearchParams,
+} from "react-router-dom";
 import { Grid } from "antd";
 import { Empty } from "antd";
 import { useAuthStore } from "@/application/stores";
@@ -41,6 +45,7 @@ import {
   type InboxView,
 } from "@/presentation/components/cs/InboxFilterBar";
 import { fullHeightPage } from "@/presentation/components/layout/layoutPadding";
+import { inboxLayout, type InboxPane } from "./inboxLayout";
 import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";
@@ -86,6 +91,7 @@ export function CsInboxPage() {
   //
   // "Semua" is the fallback, not "Milik saya": a CS opening the inbox needs to
   // see what nobody has picked up, not only what is already theirs.
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
   const view: InboxView = isInboxView(requestedView) ? requestedView : "semua";
@@ -99,13 +105,16 @@ export function CsInboxPage() {
 
   // replace, so a session of switching tabs and threads does not leave Back
   // walking through every one of them.
-  const patchParams = (changes: Record<string, string | undefined>) => {
+  const patchParams = (
+    changes: Record<string, string | undefined>,
+    push = false,
+  ) => {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(changes)) {
       if (value === undefined) next.delete(key);
       else next.set(key, value);
     }
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: !push });
   };
 
   const setView = (next: InboxView) =>
@@ -159,8 +168,16 @@ export function CsInboxPage() {
   // Leaving a thread drops a quote started in it. The quote belongs to that
   // conversation — the API refuses it anywhere else — so carrying it across
   // would fail the send with a message a CS could do nothing about.
+  // On a phone the panes take turns, so opening one is a step the back button
+  // should undo. On a desktop nothing moves and the existing replace stands:
+  // switching threads must not leave Back walking through every one of them.
+  const layout = inboxLayout(screens, selectedId, searchParams.get("panel"));
+  const showsPane = (pane: InboxPane) => layout.columns || layout.pane === pane;
+  const paneWidth = (column: number) =>
+    layout.columns ? { width: column } : { flex: 1, minWidth: 0 };
+
   const handleSelect = (id: string) => {
-    patchParams({ conversation: id });
+    patchParams({ conversation: id, panel: undefined }, !layout.columns);
     setReplyTo(undefined);
   };
 
@@ -233,98 +250,110 @@ export function CsInboxPage() {
       />
 
       <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            ...panel,
-            width: 340,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <InboxFilterBar
-            view={view}
-            onViewChange={setView}
-            onSearchChange={setSearch}
-          />
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            <ConversationList
-              conversations={conversations}
-              typingIn={csTyping}
-              selectedId={selectedId}
-              holderNames={holderNames}
+        {showsPane("list") && (
+          <div
+            style={{
+              ...panel,
+              ...paneWidth(340),
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <InboxFilterBar
+              view={view}
+              onViewChange={setView}
+              onSearchChange={setSearch}
+            />
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <ConversationList
+                conversations={conversations}
+                typingIn={csTyping}
+                selectedId={selectedId}
+                holderNames={holderNames}
+                currentUserId={currentUser?.id ?? ""}
+                onSelect={handleSelect}
+              />
+            </div>
+          </div>
+        )}
+
+        {showsPane("thread") && (
+          <div
+            style={{
+              ...panel,
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            }}
+          >
+            <ThreadPane
+              conversation={selected}
+              customerTyping={!!selected && !!csTyping[selected.id]}
+              onTypingChange={setTyping}
+              messages={historyQuery.data ?? []}
+              loading={historyQuery.isLoading}
               currentUserId={currentUser?.id ?? ""}
-              onSelect={handleSelect}
+              holderNames={holderNames}
+              users={usersQuery.data ?? []}
+              quickReplies={quickRepliesQuery.data ?? []}
+              replyTo={replyTo}
+              sending={sendMessage.isPending}
+              attaching={sendMedia.isPending}
+              transferring={assignConversation.isPending}
+              clearing={clearConversation.isPending}
+              canPurge={canPurge}
+              onSend={handleSend}
+              onAttach={handleAttach}
+              onTakeOver={handleTakeOver}
+              onTransfer={(userId) =>
+                selected &&
+                assignConversation.mutate({
+                  conversationId: selected.id,
+                  userId,
+                })
+              }
+              onReply={setReplyTo}
+              onCancelReply={() => setReplyTo(undefined)}
+              onDeleteMessage={(message) =>
+                selected &&
+                deleteMessage.mutate({
+                  messageId: message.id,
+                  conversationId: selected.id,
+                })
+              }
+              onClearThread={() =>
+                selected && clearConversation.mutate(selected.id)
+              }
+              onBack={layout.columns ? undefined : () => navigate(-1)}
+              onOpenCustomer={
+                layout.columns
+                  ? undefined
+                  : () => patchParams({ panel: "customer" }, true)
+              }
             />
           </div>
-        </div>
+        )}
 
-        <div
-          style={{
-            ...panel,
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-          }}
-        >
-          <ThreadPane
-            conversation={selected}
-            customerTyping={!!selected && !!csTyping[selected.id]}
-            onTypingChange={setTyping}
-            messages={historyQuery.data ?? []}
-            loading={historyQuery.isLoading}
-            currentUserId={currentUser?.id ?? ""}
-            holderNames={holderNames}
-            users={usersQuery.data ?? []}
-            quickReplies={quickRepliesQuery.data ?? []}
-            replyTo={replyTo}
-            sending={sendMessage.isPending}
-            attaching={sendMedia.isPending}
-            transferring={assignConversation.isPending}
-            clearing={clearConversation.isPending}
-            canPurge={canPurge}
-            onSend={handleSend}
-            onAttach={handleAttach}
-            onTakeOver={handleTakeOver}
-            onTransfer={(userId) =>
-              selected &&
-              assignConversation.mutate({
-                conversationId: selected.id,
-                userId,
-              })
-            }
-            onReply={setReplyTo}
-            onCancelReply={() => setReplyTo(undefined)}
-            onDeleteMessage={(message) =>
-              selected &&
-              deleteMessage.mutate({
-                messageId: message.id,
-                conversationId: selected.id,
-              })
-            }
-            onClearThread={() =>
-              selected && clearConversation.mutate(selected.id)
-            }
-          />
-        </div>
-
-        <div
-          style={{
-            ...panel,
-            width: 320,
-            overflowY: "auto",
-            padding: 14,
-          }}
-        >
-          {selected ? (
-            <CustomerPanel conversation={selected} />
-          ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Data pelanggan muncul di sini"
-            />
-          )}
-        </div>
+        {showsPane("customer") && (
+          <div
+            style={{
+              ...panel,
+              ...paneWidth(320),
+              overflowY: "auto",
+              padding: 14,
+            }}
+          >
+            {selected ? (
+              <CustomerPanel conversation={selected} />
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Data pelanggan muncul di sini"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {isAdmin && (

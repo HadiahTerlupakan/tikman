@@ -1,5 +1,5 @@
 import { Button, Popconfirm, Space, Tag, Typography } from "antd";
-import { ClearOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, ClearOutlined } from "@ant-design/icons";
 import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
@@ -19,6 +19,12 @@ interface ThreadHeaderProps {
    * a mistake from the customer's own words. */
   onClear?: () => void;
   clearing?: boolean;
+  /** Returns to the conversation list. Present only where the panes take
+   * turns; on a desktop the list is already beside this one. */
+  onBack?: () => void;
+  /** Opens the customer's details. Present for the same reason as onBack, and
+   * reached by tapping the name because that is where a chat app puts it. */
+  onOpenCustomer?: () => void;
 }
 
 /**
@@ -34,6 +40,8 @@ export function ThreadHeader({
   typing = false,
   onClear,
   clearing,
+  onBack,
+  onOpenCustomer,
 }: ThreadHeaderProps) {
   const unheld =
     conversation.status === "unassigned" || !conversation.assignedUserId;
@@ -49,9 +57,35 @@ export function ThreadHeader({
         background: colors.surface,
       }}
     >
+      {onBack && (
+        <Button
+          type="text"
+          aria-label="Kembali ke daftar percakapan"
+          icon={<ArrowLeftOutlined />}
+          onClick={onBack}
+        />
+      )}
+
       <CustomerAvatar conversation={conversation} size={38} />
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div
+        // A button only where there is somewhere to go: on a desktop the
+        // customer's details already sit in the third column.
+        role={onOpenCustomer ? "button" : undefined}
+        tabIndex={onOpenCustomer ? 0 : undefined}
+        onClick={onOpenCustomer}
+        onKeyDown={(e) => {
+          if (onOpenCustomer && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            onOpenCustomer();
+          }
+        }}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          cursor: onOpenCustomer ? "pointer" : undefined,
+        }}
+      >
         <Text
           strong
           style={{
