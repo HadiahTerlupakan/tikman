@@ -284,6 +284,26 @@ func (c *Client) SendMedia(
 	return resp.ID, nil
 }
 
+// MarkRead sends a read receipt for the customer's messages, which is what
+// turns their ticks blue.
+//
+// The sender JID is the chat JID: whatsmeow only reads it for group chats, and
+// this inbox stores none. Whether the customer actually sees the blue ticks is
+// not ours to decide — a number whose WhatsApp privacy settings have read
+// receipts off sends a receipt only to its own devices, and whatsmeow quietly
+// downgrades the type for us.
+func (c *Client) MarkRead(ctx context.Context, chatJID string, ids []string, at time.Time) error {
+	chat, err := types.ParseJID(chatJID)
+	if err != nil {
+		return fmt.Errorf("tujuan tidak valid %q: %w", chatJID, err)
+	}
+	stanzas := make([]types.MessageID, 0, len(ids))
+	for _, id := range ids {
+		stanzas = append(stanzas, types.MessageID(id))
+	}
+	return c.wa.MarkRead(ctx, stanzas, at, chat, chat)
+}
+
 // selfJID is this inbox's own number, needed to quote its own replies. It is
 // the zero JID before pairing finishes, which buildContextInfo treats as
 // "no participant" rather than naming an empty address.

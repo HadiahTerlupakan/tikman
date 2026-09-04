@@ -30,6 +30,24 @@ type fakeSender struct {
 	delay time.Duration
 	// quotes records what each send was told to quote, in the order sent.
 	quotes []*Quote
+	// reads records each read receipt as the chat it went to and the ids it
+	// named.
+	reads []readReceipt
+}
+
+type readReceipt struct {
+	chatJID string
+	ids     []string
+}
+
+func (f *fakeSender) MarkRead(_ context.Context, chatJID string, ids []string, _ time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.reads = append(f.reads, readReceipt{chatJID: chatJID, ids: ids})
+	return nil
 }
 
 // The sleep sits outside the lock on purpose: taking it first would serialise

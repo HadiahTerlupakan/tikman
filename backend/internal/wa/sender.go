@@ -3,6 +3,7 @@ package wa
 
 import (
 	"context"
+	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
 )
@@ -14,4 +15,8 @@ import (
 type Sender interface {
 	SendText(ctx context.Context, jid, body string, quote *Quote) (waMessageID string, err error)
 	SendMedia(ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string, quote *Quote) (waMessageID string, err error)
+	// MarkRead tells WhatsApp that the customer's messages have been read,
+	// which is what turns their ticks blue. Every id must come from the same
+	// sender, which holds here because a thread is one customer.
+	MarkRead(ctx context.Context, chatJID string, ids []string, at time.Time) error
 }

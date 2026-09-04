@@ -93,6 +93,7 @@ func (d *Drainer) Drain(ctx context.Context, limit int) (int, error) {
 			return sent, err
 		}
 		d.announce(ctx, msg.ConversationID)
+		d.acknowledgeRead(ctx, msg.ConversationID)
 		sent++
 	}
 	return sent, nil
@@ -114,6 +115,39 @@ func (d *Drainer) announce(ctx context.Context, conversationID uuid.UUID) {
 		Type:           EventStatus,
 		ConversationID: conversationID.String(),
 	})
+}
+
+// acknowledgeRead turns the customer's ticks blue, but only once a CS has
+// actually answered them. Marking on read of the inbox instead would tell every
+// customer their message had been seen the moment it landed in a queue, which
+// is a promise the team has not made yet.
+//
+// A CS answering in three short messages sends one receipt, not three: the
+// first marks the thread read and the next two find nothing left waiting.
+//
+// A failure here costs the blue ticks and nothing else — the reply has already
+// gone — so it is logged nowhere and stops nothing. The local status stays
+// unchanged, which means the next reply in the thread tries again.
+func (d *Drainer) acknowledgeRead(ctx context.Context, conversationID uuid.UUID) {
+	conv, err := d.conversations.Get(conversationID)
+	if err != nil {
+		return
+	}
+	waiting, err := d.messages.InboundAwaitingRead(conversationID)
+	if err != nil || len(waiting) == 0 {
+		return
+	}
+
+	ids := make([]string, 0, len(waiting))
+	rows := make([]uuid.UUID, 0, len(waiting))
+	for _, msg := range waiting {
+		ids = append(ids, *msg.WAMessageID)
+		rows = append(rows, msg.ID)
+	}
+	if err := d.sender.MarkRead(ctx, conv.CustomerJID, ids, time.Now()); err != nil {
+		return
+	}
+	_ = d.messages.MarkInboundRead(rows)
 }
 
 func (d *Drainer) send(ctx context.Context, msg models.CSMessage) (string, error) {

@@ -215,6 +215,35 @@ func (s *CSMessageService) ApplyReceipt(waMessageID string, status models.Messag
 	return msg.ConversationID, nil
 }
 
+// InboundAwaitingRead returns the customer's messages in a thread that WhatsApp
+// has not yet been told we read, oldest first. Inbound messages are stored as
+// delivered, so the status is the record of what has been acknowledged: without
+// it every reply in a long thread would re-acknowledge the whole history.
+func (s *CSMessageService) InboundAwaitingRead(conversationID uuid.UUID) ([]models.CSMessage, error) {
+	var msgs []models.CSMessage
+	err := s.db.Where(
+		"conversation_id = ? AND direction = ? AND status <> ? AND wa_message_id IS NOT NULL",
+		conversationID, models.MessageIn, models.MessageRead,
+	).Order("wa_timestamp ASC").Find(&msgs).Error
+	if err != nil {
+		return nil, fmt.Errorf("load inbound awaiting read: %w", err)
+	}
+	return msgs, nil
+}
+
+// MarkInboundRead records that WhatsApp has been told these messages were read.
+func (s *CSMessageService) MarkInboundRead(ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	err := s.db.Model(&models.CSMessage{}).Where("id IN ?", ids).
+		Update("status", models.MessageRead).Error
+	if err != nil {
+		return fmt.Errorf("mark inbound read: %w", err)
+	}
+	return nil
+}
+
 // Get loads one message. ServeMedia uses it to find where an attachment for
 // this message is stored on disk before serving it.
 func (s *CSMessageService) Get(id uuid.UUID) (*models.CSMessage, error) {
