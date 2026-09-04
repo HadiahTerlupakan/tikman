@@ -1,7 +1,8 @@
 import { Badge, Tag, Typography } from "antd";
 import { CustomerAvatar } from "./CustomerAvatar";
-import type { CsConversation, CsLastMessage } from "@/domain/entities";
+import type { CsConversation } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
+import { preview, shortTime } from "./conversationSummary";
 
 const { Text } = Typography;
 
@@ -28,36 +29,6 @@ function holderLabel(
   }
   if (conversation.assignedUserId === currentUserId) return "Anda";
   return holderNames[conversation.assignedUserId] ?? "Pengguna tidak dikenal";
-}
-
-// Media arrives with an empty body, so a preview built from the body alone
-// would show a blank line where a photo is the whole message.
-const kindLabels: Record<CsLastMessage["kind"], string> = {
-  text: "",
-  image: "Foto",
-  document: "Dokumen",
-  audio: "Pesan suara",
-  video: "Video",
-};
-
-function preview(last?: CsLastMessage): string {
-  if (!last) return "Belum ada pesan";
-  const label = kindLabels[last.kind];
-  const body = last.body.trim();
-  if (label) return body ? `${label} · ${body}` : label;
-  return body || "Pesan kosong";
-}
-
-// Today shows a clock, anything older shows a date — the same shorthand every
-// messaging app uses, because a bare timestamp on a week-old thread is noise.
-function shortTime(iso: string): string {
-  const at = new Date(iso);
-  const sameDay = new Date().toDateString() === at.toDateString();
-  return at.toLocaleString("id-ID", {
-    ...(sameDay
-      ? { hour: "2-digit", minute: "2-digit" }
-      : { day: "2-digit", month: "short" }),
-  });
 }
 
 export function ConversationList({

@@ -65,7 +65,6 @@ export function CsInboxPage() {
   const currentUser = useAuthStore((state) => state.user);
   const isAdmin = currentUser?.role === UserRole.ADMIN;
 
-  const [selectedId, setSelectedId] = useState<string>();
   const [numbersOpen, setNumbersOpen] = useState(false);
   // The number whose pairing panel is open, if any. Pairing is per number now,
   // so the panel has to be told which one rather than assuming the only one.
@@ -83,11 +82,27 @@ export function CsInboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
   const view: InboxView = isInboxView(requestedView) ? requestedView : "semua";
-  const setView = (next: InboxView) => {
-    // replace, so switching tabs does not stack a history entry per click and
-    // leave Back walking through them.
-    setSearchParams(next === "semua" ? {} : { view: next }, { replace: true });
+
+  // The selected thread rides the URL too, for the same reason and one more:
+  // the bell's panel links straight to a thread, so a CS clicking a second
+  // notification while already here navigates within this route. Held as state
+  // it would be set once and ignored afterwards. It also makes a thread a
+  // link somebody can send a colleague.
+  const selectedId = searchParams.get("conversation") ?? undefined;
+
+  // replace, so a session of switching tabs and threads does not leave Back
+  // walking through every one of them.
+  const patchParams = (changes: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === undefined) next.delete(key);
+      else next.set(key, value);
+    }
+    setSearchParams(next, { replace: true });
   };
+
+  const setView = (next: InboxView) =>
+    patchParams({ view: next === "semua" ? undefined : next });
   const [search, setSearch] = useState("");
   const [replyTo, setReplyTo] = useState<CsMessage>();
 
@@ -136,7 +151,7 @@ export function CsInboxPage() {
   // conversation — the API refuses it anywhere else — so carrying it across
   // would fail the send with a message a CS could do nothing about.
   const handleSelect = (id: string) => {
-    setSelectedId(id);
+    patchParams({ conversation: id });
     setReplyTo(undefined);
   };
 

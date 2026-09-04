@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ProLayout } from "@ant-design/pro-components";
-import { UserOutlined, LogoutOutlined, BellOutlined } from "@ant-design/icons";
-import { Dropdown, Avatar, Badge, App, Grid, Tooltip } from "antd";
+import { UserOutlined, LogoutOutlined } from "@ant-design/icons";
+import { Dropdown, Avatar, App, Grid } from "antd";
 import type { MenuProps } from "antd";
 import { useEffect } from "react";
 import { useAuthStore } from "@/application/stores";
@@ -11,6 +11,7 @@ import {
   type WaStreamStatus,
 } from "@/application/hooks/useCsStream";
 import { UserRole } from "@/domain/entities";
+import { NotificationBell } from "@/presentation/components/cs/NotificationBell";
 import {
   listenForForegroundMessages,
   registerForPush,
@@ -91,7 +92,6 @@ export function AppLayout() {
     { awaitingReply: true },
     { enabled: canUseCs },
   );
-  const awaitingCount = awaitingQuery.data?.length ?? 0;
 
   // Runs once per app-shell mount, not per click. This is the only place that
   // tells the backend about this device: the FID arrives asynchronously
@@ -250,31 +250,13 @@ export function AppLayout() {
                       click, and that click opened the user menu. It now goes
                       where the number points — the threads waiting on a reply. */}
                   {canUseCs && (
-                    <Tooltip
-                      title={
-                        awaitingCount > 0
-                          ? `${awaitingCount} percakapan menunggu dibalas`
-                          : "Tidak ada yang menunggu dibalas"
+                    <NotificationBell
+                      conversations={awaitingQuery.data ?? []}
+                      onOpen={(id) =>
+                        navigate(`/cs?view=belum-dibalas&conversation=${id}`)
                       }
-                    >
-                      <Badge
-                        count={awaitingCount}
-                        // Ant Design puts the count in a native title attribute,
-                        // which browsers render as a second tooltip beside ours.
-                        title=""
-                      >
-                        <BellOutlined
-                          role="button"
-                          aria-label="Percakapan menunggu dibalas"
-                          onClick={() => navigate("/cs?view=belum-dibalas")}
-                          style={{
-                            fontSize: 18,
-                            color: "#a1a1aa",
-                            cursor: "pointer",
-                          }}
-                        />
-                      </Badge>
-                    </Tooltip>
+                      onSeeAll={() => navigate("/cs?view=belum-dibalas")}
+                    />
                   )}
                   <Dropdown
                     menu={{ items: userMenuItems }}

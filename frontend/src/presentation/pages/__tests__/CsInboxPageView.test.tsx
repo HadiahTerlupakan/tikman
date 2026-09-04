@@ -235,4 +235,39 @@ describe("CsInboxPage view", () => {
 
     await waitFor(() => expect(selectedView()).toBe("Belum dibalas"));
   });
+  // The bell's panel links straight to one thread. Held as component state the
+  // selection would be read once, so clicking a second notification while
+  // already on this page would change the address and nothing else — the same
+  // shape of bug the view had.
+  it("follows the conversation the URL names, and keeps following it", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/cs",
+          element: <Outlet context={{ csStream: {} }} />,
+          children: [{ index: true, element: <CsInboxPage /> }],
+        },
+      ],
+      { initialEntries: ["/cs?view=belum-dibalas&conversation=abc"] },
+    );
+    render(
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        <RouterProvider router={router} />,
+      ),
+    );
+    expect(router.state.location.search).toContain("conversation=abc");
+
+    await router.navigate("/cs?view=belum-dibalas&conversation=def");
+
+    await waitFor(() =>
+      expect(router.state.location.search).toContain("conversation=def"),
+    );
+    // Still the awaiting view — switching threads must not reset the filter.
+    expect(selectedView()).toBe("Belum dibalas");
+  });
 });
