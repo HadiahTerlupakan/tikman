@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutPadding } from "./layoutPadding";
+import { fullHeightPage, layoutPadding } from "./layoutPadding";
 
 describe("layoutPadding", () => {
   it("leaves the desktop gutters as ProLayout sets them", () => {
@@ -24,5 +24,23 @@ describe("layoutPadding", () => {
     // Grid.useBreakpoint returns {} until Ant has measured. Treating that as a
     // phone would flash the narrow layout on every desktop load.
     expect(layoutPadding({})).toEqual({ contentInline: undefined, page: 24 });
+  });
+});
+
+describe("fullHeightPage", () => {
+  // The CS inbox used to hardcode "calc(100vh - 96px)", which counted the
+  // header and one padding instead of both. Eight pixels of overflow was
+  // enough to make the whole document scroll under a three-column layout that
+  // is supposed to fit exactly.
+  it("subtracts the header and the padding at both ends", () => {
+    expect(fullHeightPage({ sm: true, md: true, lg: true })).toBe(
+      "calc(100vh - 104px)",
+    );
+  });
+
+  // The gutters differ on a phone, and a page that fits the desktop while
+  // overflowing the phone is the same bug in a narrower window.
+  it("follows the gutters the screen size gets", () => {
+    expect(fullHeightPage({ xs: true })).toBe("calc(100vh - 80px)");
   });
 });

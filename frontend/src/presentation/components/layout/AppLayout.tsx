@@ -27,7 +27,7 @@ import { PushRepository } from "@/infrastructure/repositories";
 import { playNotificationChime } from "@/infrastructure/notificationSound";
 import { PushPermissionPrompt } from "@/presentation/components/cs/PushPermissionPrompt";
 import { buildNavigationRoutes } from "./navigationRoutes";
-import { layoutPadding } from "./layoutPadding";
+import { HEADER_HEIGHT, layoutPadding } from "./layoutPadding";
 
 const pushRepository = new PushRepository();
 
@@ -244,7 +244,7 @@ export function AppLayout() {
               colorHeaderTitle: "#ffffff",
               colorTextMenu: "#a1a1aa",
               colorTextMenuSelected: "#ffffff",
-              heightLayoutHeader: 56,
+              heightLayoutHeader: HEADER_HEIGHT,
             },
           }}
           menuItemRender={(item, dom) => (
@@ -306,7 +306,7 @@ export function AppLayout() {
           <div
             style={{
               padding: padding.page,
-              minHeight: "calc(100vh - 56px)",
+              minHeight: `calc(100vh - ${HEADER_HEIGHT}px)`,
               background: "transparent",
             }}
           >

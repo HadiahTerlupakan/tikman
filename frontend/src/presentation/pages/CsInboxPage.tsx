@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useOutletContext, useSearchParams } from "react-router-dom";
+import { Grid } from "antd";
 import { Empty } from "antd";
 import { useAuthStore } from "@/application/stores";
 import {
@@ -39,6 +40,7 @@ import {
   isInboxView,
   type InboxView,
 } from "@/presentation/components/cs/InboxFilterBar";
+import { fullHeightPage } from "@/presentation/components/layout/layoutPadding";
 import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";
@@ -65,6 +67,10 @@ function holderNameMap(users: User[]): Record<string, string> {
 export function CsInboxPage() {
   const currentUser = useAuthStore((state) => state.user);
   const isAdmin = currentUser?.role === UserRole.ADMIN;
+
+  // The three columns are meant to fit the screen exactly, so the height is
+  // derived from the shell's own constants rather than written down.
+  const screens = Grid.useBreakpoint();
 
   const [numbersOpen, setNumbersOpen] = useState(false);
   // The number whose pairing panel is open, if any. Pairing is per number now,
@@ -205,7 +211,7 @@ export function CsInboxPage() {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 96px)",
+        height: fullHeightPage(screens),
       }}
     >
       <PageHeader

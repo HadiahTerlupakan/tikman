@@ -27,3 +27,25 @@ const PHONE: LayoutPadding = { contentInline: 8, page: 12 };
 export function layoutPadding(screens: Screens): LayoutPadding {
   return screens.xs ? PHONE : DESKTOP;
 }
+
+/** The app bar's height, which ProLayout is told to render at this size. */
+export const HEADER_HEIGHT = 56;
+
+/**
+ * fullHeightPage answers the height a page should take to fill the viewport
+ * without the document scrolling.
+ *
+ * Derived rather than written down: the CS inbox carried "calc(100vh - 96px)",
+ * which counted the header and one of the two page paddings. It fitted nothing
+ * exactly, and eight pixels of overflow was enough to make a layout designed to
+ * fit the screen scroll instead. Change the header height or the gutters and
+ * this follows; a literal would not.
+ *
+ * It does not account for anything the layout renders above the page — the
+ * notification-permission banner is the one such thing today — so a page using
+ * this is exactly as tall as the viewport only while that banner is absent.
+ */
+export function fullHeightPage(screens: Screens): string {
+  const padding = layoutPadding(screens);
+  return `calc(100vh - ${HEADER_HEIGHT + padding.page * 2}px)`;
+}
