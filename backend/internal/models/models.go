@@ -26,6 +26,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&CSConversation{},
 		&CSMessage{},
 		&CSQuickReply{},
+		&WAChannel{},
+		&WAChannelPost{},
 		&PushSubscription{},
 	)
 }
