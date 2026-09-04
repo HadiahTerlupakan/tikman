@@ -68,7 +68,17 @@ func (l *PushEventListener) HandlePayload(ctx context.Context, payload string) {
 		return
 	}
 
-	if err := l.notifier.NotifyIncomingMessage(ctx, convID, msgID); err != nil {
+	// Logged on success as well as failure. A push that FCM accepts and the
+	// phone never shows leaves no other trace at all, and without this line
+	// there is no way to tell that case apart from one where nobody had
+	// notifications turned on in the first place.
+	sent, err := l.notifier.NotifyIncomingMessage(ctx, convID, msgID)
+	if err != nil {
 		l.logger.Warn("Could not send push notifications for an incoming message", zap.Error(err))
+		return
+	}
+	if sent > 0 {
+		l.logger.Info("Pushed an incoming message",
+			zap.String("conversation_id", convID.String()), zap.Int("devices", sent))
 	}
 }

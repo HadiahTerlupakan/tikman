@@ -80,9 +80,13 @@ func TestNotifyIncomingMessageSendsToEveryEligibleRole(t *testing.T) {
 	require.NoError(t, pushService.Subscribe(admin.ID, "admin-fid"))
 	require.NoError(t, pushService.Subscribe(viewer.ID, "viewer-fid"))
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	sent, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.NoError(t, notifyErr)
 
 	assert.Equal(t, []string{"admin-fid"}, sender.FIDs)
+	// The count is what the log reports, and it is the difference between
+	// "nobody has notifications on" and "we pushed and the phone stayed quiet".
+	assert.Equal(t, 1, sent)
 	assert.Equal(t, "Budi", sender.Title)
 	assert.Equal(t, "Internetnya mati sejak semalam", sender.Body)
 	assert.Equal(t, conv.ID.String(), sender.Data["conversation_id"])
@@ -107,7 +111,8 @@ func TestNotifyIncomingMessageFallsBackToPhoneWithNoName(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.NoError(t, notifyErr)
 	assert.Equal(t, "628222333444", sender.Title)
 }
 
@@ -128,7 +133,8 @@ func TestNotifyIncomingMessageTruncatesALongBody(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.NoError(t, notifyErr)
 	assert.Equal(t, strings.Repeat("a", 120)+"…", sender.Body)
 }
 
@@ -149,7 +155,8 @@ func TestNotifyIncomingMessageRemovesFIDsTheSenderReportsInvalid(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.NoError(t, notifyErr)
 
 	fids, err := pushService.FIDsForRoles(models.UserRoleAdmin)
 	require.NoError(t, err)
@@ -177,7 +184,7 @@ func TestNotifyIncomingMessageReportsARefusedSend(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	_, err = notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SenderId mismatch")
 }
@@ -203,7 +210,8 @@ func TestNotifyIncomingMessageStillPrunesWhenTheSendAlsoFails(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Error(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.Error(t, notifyErr)
 
 	fids, err := pushService.FIDsForRoles(models.UserRoleAdmin)
 	require.NoError(t, err)
@@ -221,7 +229,8 @@ func TestNotifyIncomingMessageSendsNothingWithNoEligibleFIDs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.NoError(t, notifyErr)
 	assert.Nil(t, sender.FIDs)
 }
 
@@ -242,7 +251,8 @@ func TestNotifyIncomingMessageIgnoresAnOutboundReply(t *testing.T) {
 	reply, err := messages.Queue(conv.ID, admin.ID, models.MessageKindText, "Baik pak, kami cek dulu", nil, nil)
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, reply.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, reply.ID)
+	require.NoError(t, notifyErr)
 	assert.Nil(t, sender.FIDs)
 }
 
@@ -281,7 +291,8 @@ func TestNotifyIncomingMessageNamesTheMediaKindWhenThereIsNoCaption(t *testing.T
 		})
 		require.NoError(t, err)
 
-		require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+		_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+		require.NoError(t, notifyErr)
 		assert.Equal(t, tc.want, sender.Body, "kind %s", tc.kind)
 	}
 }
@@ -307,7 +318,8 @@ func TestNotifyIncomingMessageTruncatesMultiByteBodiesByRune(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+	_, notifyErr := notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.NoError(t, notifyErr)
 	assert.Equal(t, strings.Repeat("😀", 120)+"…", sender.Body)
 	assert.True(t, utf8.ValidString(sender.Body))
 }

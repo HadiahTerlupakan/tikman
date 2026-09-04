@@ -60,29 +60,33 @@ func (s *PushNotifierService) SetSender(sender PushSender) {
 // send failure here is logged by the caller (see PushEventListener) and never
 // blocks message storage — push is additive, the same tolerance
 // wa/inbound.go already applies to its own SSE announcement.
-func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, conversationID, messageID uuid.UUID) error {
+//
+// It answers how many devices were sent to, which is the difference between
+// "nobody has notifications turned on" and "we pushed and the phone stayed
+// quiet" — two very different problems that looked identical from the log.
+func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, conversationID, messageID uuid.UUID) (int, error) {
 	conv, err := s.conversations.Get(conversationID)
 	if err != nil {
-		return fmt.Errorf("look up conversation: %w", err)
+		return 0, fmt.Errorf("look up conversation: %w", err)
 	}
 	msg, err := s.messages.Get(messageID)
 	if err != nil {
-		return fmt.Errorf("look up message: %w", err)
+		return 0, fmt.Errorf("look up message: %w", err)
 	}
 
 	// cs:events carries an EventMessage for outbound replies too (see
 	// CSHandler.announce), and pushing a CS's own reply to the whole team is
 	// worse than useless — it names the customer and quotes the sender.
 	if msg.Direction != models.MessageIn {
-		return nil
+		return 0, nil
 	}
 
 	fids, err := s.subscriptions.FIDsForRoles(pushEligibleRoles...)
 	if err != nil {
-		return fmt.Errorf("list push FIDs: %w", err)
+		return 0, fmt.Errorf("list push FIDs: %w", err)
 	}
 	if len(fids) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	title := conv.CustomerName
@@ -98,13 +102,13 @@ func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, convers
 	})
 	if len(invalid) > 0 {
 		if err := s.subscriptions.RemoveFIDs(invalid); err != nil {
-			return fmt.Errorf("remove invalid push FIDs: %w", err)
+			return 0, fmt.Errorf("remove invalid push FIDs: %w", err)
 		}
 	}
 	if sendErr != nil {
-		return fmt.Errorf("send push: %w", sendErr)
+		return 0, fmt.Errorf("send push: %w", sendErr)
 	}
-	return nil
+	return len(fids) - len(invalid), nil
 }
 
 // mediaKindLabels stand in for the body of a photo, document, voice note or
