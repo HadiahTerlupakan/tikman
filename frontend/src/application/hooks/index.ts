@@ -19,4 +19,5 @@ export * from "./useCsPurge";
 export * from "./useCsStream";
 export * from "./useCsQuickReplies";
 export * from "./useWaAccounts";
+export * from "./useWaChannels";
 export * from "./usePushNotifications";

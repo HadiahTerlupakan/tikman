@@ -2,11 +2,13 @@ import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import type { ICsRepository, LinkOntResult } from "@/domain/repositories";
 import type {
+  ChannelPost,
   CsConversation,
   CsConversationFilter,
   CsMessage,
   CsQuickReply,
   WaAccount,
+  WaChannel,
 } from "@/domain/entities";
 
 /**
@@ -190,6 +192,57 @@ export class CsRepository implements ICsRepository {
   /** Removes a number along with every thread, message and file on it. */
   async deleteWaAccount(id: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.CS_WA_ACCOUNT_BY_ID(id));
+  }
+
+  async listWaChannels(): Promise<WaChannel[]> {
+    const response = await apiClient.get(API_ENDPOINTS.CS_WA_CHANNELS);
+    return response.data.data;
+  }
+
+  /** Fire-and-forget: the API asks the wa process to re-read its channel
+   * lists and answers immediately. The result arrives as changed rows on the
+   * next fetch, not in this response. */
+  async refreshWaChannels(): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.CS_WA_CHANNELS_REFRESH);
+  }
+
+  async getChannelPosts(channelId: string): Promise<ChannelPost[]> {
+    const response = await apiClient.get(API_ENDPOINTS.CS_CHANNEL_POSTS, {
+      params: { channel_id: channelId },
+    });
+    return response.data.data;
+  }
+
+  async sendChannelPost(channelId: string, body: string): Promise<ChannelPost> {
+    const response = await apiClient.post(API_ENDPOINTS.CS_CHANNEL_POSTS, {
+      channel_id: channelId,
+      body,
+    });
+    return response.data.data;
+  }
+
+  async sendChannelPostMedia(
+    channelId: string,
+    file: File,
+    caption?: string,
+  ): Promise<ChannelPost> {
+    const form = new FormData();
+    form.append("file", file);
+    if (caption) {
+      form.append("caption", caption);
+    }
+
+    // The channel travels in the query string, not the form, for the reason
+    // sendMedia records: the API wraps the body in a size guard before
+    // anything reads it, and a form field would have to be parsed ahead of it.
+    const response = await apiClient.post(
+      `${API_ENDPOINTS.CS_CHANNEL_POSTS_MEDIA}?channel_id=${channelId}`,
+      form,
+      // Dropping the header hands the boundary to the browser, which is the
+      // only thing that knows it.
+      { headers: { "Content-Type": false } },
+    );
+    return response.data.data;
   }
 
   async deleteMessage(id: string): Promise<number> {

@@ -1,9 +1,11 @@
 import type {
+  ChannelPost,
   CsConversation,
   CsConversationFilter,
   CsMessage,
   CsQuickReply,
   WaAccount,
+  WaChannel,
 } from "../entities";
 
 /** LinkONT also reports whether the customer's number reached the ONT row —
@@ -48,4 +50,13 @@ export interface ICsRepository {
   clearConversation(conversationId: string): Promise<number>;
   clearWaAccountMessages(id: string): Promise<number>;
   clearInbox(): Promise<number>;
+  listWaChannels(): Promise<WaChannel[]>;
+  refreshWaChannels(): Promise<void>;
+  getChannelPosts(channelId: string): Promise<ChannelPost[]>;
+  sendChannelPost(channelId: string, body: string): Promise<ChannelPost>;
+  sendChannelPostMedia(
+    channelId: string,
+    file: File,
+    caption?: string,
+  ): Promise<ChannelPost>;
 }

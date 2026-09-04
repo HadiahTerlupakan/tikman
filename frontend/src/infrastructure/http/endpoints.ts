@@ -104,4 +104,8 @@ export const API_ENDPOINTS = {
     `/api/v1/cs/wa-accounts/${id}/messages`,
   CS_MESSAGE_BY_ID: (id: string) => `/api/v1/cs/messages/${id}`,
   CS_ALL_MESSAGES: "/api/v1/cs/messages",
+  CS_WA_CHANNELS: "/api/v1/cs/wa-channels",
+  CS_WA_CHANNELS_REFRESH: "/api/v1/cs/wa-channels/refresh",
+  CS_CHANNEL_POSTS: "/api/v1/cs/channel-posts",
+  CS_CHANNEL_POSTS_MEDIA: "/api/v1/cs/channel-posts/media",
 } as const;
