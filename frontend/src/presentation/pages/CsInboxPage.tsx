@@ -21,11 +21,7 @@ import {
   useUsers,
   useWaAccounts,
   usePushNotifications,
-  useWaChannels,
-  useRefreshWaChannels,
-  useChannelPosts,
-  useSendChannelPost,
-  useSendChannelPostMedia,
+  useChannelBroadcast,
 } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
 import type { CsMessage, User, WaAccount } from "@/domain/entities";
@@ -75,8 +71,6 @@ export function CsInboxPage() {
   // so the panel has to be told which one rather than assuming the only one.
   const [pairing, setPairing] = useState<WaAccount>();
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
-  const [broadcastChannelId, setBroadcastChannelId] = useState<string>();
   // The URL owns the view, rather than component state seeded from it. The
   // navbar bell links here with ?view=belum-dibalas, and a CS clicking it while
   // already on this page navigates within the same route: nothing remounts, so
@@ -124,8 +118,8 @@ export function CsInboxPage() {
   // admin — a connection down for hours produces no live SSE event, so this
   // initial fetch is what makes the badge honest for a CS or technician too.
   const accountsQuery = useWaAccounts();
-  const channelsQuery = useWaChannels();
-  const channelPostsQuery = useChannelPosts(broadcastChannelId);
+  const accounts = accountsQuery.data ?? [];
+  const broadcast = useChannelBroadcast(accounts);
 
   const sendMessage = useSendCsMessage();
   const sendMedia = useSendCsMedia();
@@ -138,14 +132,10 @@ export function CsInboxPage() {
   const clearConversation = useClearCsConversation();
   const clearAccountMessages = useClearWaAccountMessages();
   const clearInbox = useClearCsInbox();
-  const refreshChannels = useRefreshWaChannels();
-  const sendChannelPost = useSendChannelPost();
-  const sendChannelPostMedia = useSendChannelPostMedia();
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
   const holderNames = holderNameMap(usersQuery.data ?? []);
-  const accounts = accountsQuery.data ?? [];
   // A live status from this session's own stream is more current than the
   // fetch it started from — once one arrives for a number, it wins.
   const pairingLive = pairing ? stream[pairing.id] : undefined;
@@ -202,30 +192,6 @@ export function CsInboxPage() {
     }
   };
 
-  const handleBroadcast = async (
-    body: string,
-    file?: File,
-  ): Promise<boolean> => {
-    if (!broadcastChannelId) return false;
-    try {
-      if (file) {
-        await sendChannelPostMedia.mutateAsync({
-          channelId: broadcastChannelId,
-          file,
-          caption: body,
-        });
-      } else {
-        await sendChannelPost.mutateAsync({
-          channelId: broadcastChannelId,
-          body,
-        });
-      }
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const handleTakeOver = () => {
     if (!selected || !currentUser) return;
     assignConversation.mutate({
@@ -255,7 +221,7 @@ export function CsInboxPage() {
             onEnablePush={push.enable}
             onOpenQuickReplies={() => setQuickRepliesOpen(true)}
             onOpenNumbers={() => setNumbersOpen(true)}
-            onOpenBroadcast={() => setBroadcastOpen(true)}
+            onOpenBroadcast={broadcast.onOpen}
           />
         }
       />
@@ -383,22 +349,7 @@ export function CsInboxPage() {
         />
       )}
 
-      <ChannelBroadcastModal
-        open={broadcastOpen}
-        channels={channelsQuery.data ?? []}
-        accountLabels={Object.fromEntries(
-          accounts.map((account) => [account.id, account.label]),
-        )}
-        posts={channelPostsQuery.data ?? []}
-        loadingPosts={channelPostsQuery.isLoading}
-        refreshing={refreshChannels.isPending}
-        sending={sendChannelPost.isPending || sendChannelPostMedia.isPending}
-        selectedChannelId={broadcastChannelId}
-        onSelectChannel={setBroadcastChannelId}
-        onRefresh={() => refreshChannels.mutate()}
-        onSend={handleBroadcast}
-        onClose={() => setBroadcastOpen(false)}
-      />
+      <ChannelBroadcastModal {...broadcast} />
 
       {isAdmin && pairing && (
         <WaPairingModal

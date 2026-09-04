@@ -25,11 +25,30 @@ vi.mock("@/application/hooks", () => {
     requesting: false,
     enable: vi.fn(),
   };
+  // useChannelBroadcast returns the broadcast modal's own props (see
+  // useChannelBroadcast.ts), which the generic stub above does not shape —
+  // ChannelBroadcastModal renders unconditionally and destructures every one
+  // of these.
+  const channelBroadcastStub = {
+    open: false,
+    channels: [],
+    accountLabels: {},
+    posts: [],
+    loadingPosts: false,
+    refreshing: false,
+    sending: false,
+    selectedChannelId: undefined,
+    onSelectChannel: vi.fn(),
+    onRefresh: vi.fn(),
+    onSend: vi.fn().mockResolvedValue(true),
+    onClose: vi.fn(),
+    onOpen: vi.fn(),
+  };
   return {
     useAssignConversation: () => stub,
     useAssignOntToOdp: () => stub,
     useBrowserSettings: () => stub,
-    useChannelPosts: () => stub,
+    useChannelBroadcast: () => channelBroadcastStub,
     useClearCsConversation: () => stub,
     useClearCsInbox: () => stub,
     useClearWaAccountMessages: () => stub,
@@ -100,11 +119,8 @@ vi.mock("@/application/hooks", () => {
     useProvisionOnt: () => stub,
     usePushNotifications: () => stub,
     useRefreshOltSystem: () => stub,
-    useRefreshWaChannels: () => stub,
     useSaveSetting: () => stub,
     useSaveWireguardServer: () => stub,
-    useSendChannelPost: () => stub,
-    useSendChannelPostMedia: () => stub,
     useSendCsMedia: () => stub,
     useSendCsMessage: () => stub,
     useSetCableRoute: () => stub,
@@ -128,7 +144,6 @@ vi.mock("@/application/hooks", () => {
     useUser: () => stub,
     useUsers: () => stub,
     useWaAccounts: () => stub,
-    useWaChannels: () => stub,
     useWireguardPeers: () => stub,
     useWireguardServer: () => stub,
     useZteCommandPreview: () => stub,
