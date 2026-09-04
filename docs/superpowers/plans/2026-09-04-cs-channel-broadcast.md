@@ -379,7 +379,7 @@ func (s *CSChannelService) Replace(accountID uuid.UUID, channels []models.WAChan
 ```bash
 cd backend && go test ./internal/services/ -run 'TestReplace|TestGetRefuses' -v
 ```
-Expected: PASS, four tests.
+Expected: PASS, five tests.
 
 - [ ] **Step 8: Commit**
 
@@ -1598,7 +1598,7 @@ func TestAnUnacceptedAttachmentTypeIsRefused(t *testing.T) {
 }
 ```
 
-`uploadRequest(t, path, contentType string, size int)` already exists at `backend/internal/api/cs_handler_upload_test.go:18` and builds exactly this multipart POST; reuse it rather than writing a second helper. `env.cs`, `env.db`, `env.account` and `env.asUser` come from `setupCSHandler`. Drop `strings` from the imports if the media test is the only one that needed it.
+`uploadRequest(t, path, contentType string, size int)` already exists at `backend/internal/api/cs_handler_upload_test.go:18` and builds exactly this multipart POST; reuse it rather than writing a second helper. `env.cs`, `env.db`, `env.account` and `env.asUser` come from `setupCSHandler`.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -2104,7 +2104,7 @@ git commit -m "feat(cs): fetch the channel list and post updates from the browse
 - Create: `frontend/src/presentation/components/cs/ChannelBroadcastModal.tsx`
 - Create: `frontend/src/presentation/components/cs/InboxHeaderActions.tsx`
 - Modify: `frontend/src/presentation/pages/CsInboxPage.tsx` (imports, modal state, the `PageHeader` `extra` block, and the modal render)
-- Modify: `frontend/src/application/hooks/useCsStream.ts:7-14` (`CsEvent`) and `:100-110` (the invalidation block)
+- Modify: `frontend/src/application/hooks/useCsStream.ts:100-110` (the invalidation block)
 - Test: `frontend/src/presentation/components/cs/__tests__/ChannelBroadcastModal.test.tsx`
 
 **Interfaces:**
@@ -2115,13 +2115,7 @@ Both components are **props-driven and hold no hooks of their own**, matching `W
 
 - [ ] **Step 1: Teach the stream about channel posts**
 
-In `frontend/src/application/hooks/useCsStream.ts`, add to the `CsEvent` type:
-
-```ts
-  channel_id?: string;
-```
-
-and in `onEvent`, immediately after the `typing` branch and before the conversation invalidations:
+In `frontend/src/application/hooks/useCsStream.ts`, in `onEvent`, immediately after the `typing` branch and before the conversation invalidations:
 
 ```ts
       if (payload.type === "channel_post") {
@@ -2132,6 +2126,12 @@ and in `onEvent`, immediately after the `typing` branch and before the conversat
         return;
       }
 ```
+
+`CsEvent` gains no `channel_id` field: the event names the channel by JID
+while the query key holds the wa_channels row id, so the two could never be
+matched. Invalidating the whole `["cs", "channel-posts"]` prefix is the
+deliberate answer, and declaring a field nothing reads would only suggest
+otherwise.
 
 - [ ] **Step 2: Write the failing modal test**
 
@@ -2181,14 +2181,18 @@ describe("ChannelBroadcastModal", () => {
   // An update reaches every subscriber and cannot be withdrawn. Sending before
   // a channel is chosen would mean sending to whichever one happened to be
   // first.
-  it("keeps the send button dead until a channel and something to say exist", async () => {
+  it("keeps the send button dead while no channel is chosen", async () => {
     open();
     expect(sendButton()).toBeDisabled();
 
     await userEvent.type(screen.getByPlaceholderText(/tulis pembaruan/i), "Ada pemeliharaan");
-    expect(sendButton()).toBeDisabled();
 
+    expect(sendButton()).toBeDisabled();
+  });
+
+  it("keeps the send button dead while there is nothing to say", () => {
     open({ selectedChannelId: "c1" });
+
     expect(sendButton()).toBeDisabled();
   });
 
@@ -2456,7 +2460,7 @@ export function ChannelBroadcastModal({
 ```bash
 cd frontend && npm test -- --run ChannelBroadcastModal
 ```
-Expected: PASS, four tests.
+Expected: PASS, five tests.
 
 - [ ] **Step 7: Extract the inbox header actions**
 
@@ -2614,7 +2618,7 @@ and render the modal beside the existing ones:
 ```bash
 cd frontend && npm test -- --run
 ```
-Expected: PASS, including the four new modal tests and every existing test.
+Expected: PASS, including the five new modal tests and every existing test.
 
 - [ ] **Step 10: Confirm CsInboxPage is back under the limit**
 
