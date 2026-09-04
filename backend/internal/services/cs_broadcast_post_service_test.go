@@ -179,6 +179,36 @@ func TestQueueStoresAStatusPostWithoutAChannel(t *testing.T) {
 	assert.Equal(t, models.BroadcastQueued, post.Status)
 }
 
+// One request, one act: if any destination in it cannot be written, none of
+// them are. Without the transaction, the channel row ahead of the bad status
+// row would stay committed while the caller was told the whole request
+// failed — leaving an announcement half-sent that nobody could see went out.
+func TestQueueAllRollsBackEveryRowWhenOneDestinationFails(t *testing.T) {
+	posts, account, db := postSetup(t)
+
+	_, err := posts.QueueAll([]BroadcastPost{
+		{
+			WAAccountID: account.ID, Destination: models.DestinationChannel,
+			ChannelJID: infoGangguan, SenderUserID: uuid.New(),
+			Kind: models.MessageKindText, Body: "ke saluran",
+		},
+		{
+			// A status naming a channel is what Queue already refuses; here it
+			// is the second destination, arriving after a row that would
+			// otherwise have already been written.
+			WAAccountID: account.ID, Destination: models.DestinationStatus,
+			ChannelJID: infoGangguan, SenderUserID: uuid.New(),
+			Kind: models.MessageKindText, Body: "ke status",
+		},
+	})
+
+	assert.Error(t, err)
+
+	var stored []models.WABroadcastPost
+	require.NoError(t, db.Find(&stored).Error)
+	assert.Empty(t, stored, "no row may survive when any destination in the request fails")
+}
+
 // One announcement to both destinations is two rows, and the history is where
 // the sender sees both. Filtering to one channel would hide half of what they
 // just sent.

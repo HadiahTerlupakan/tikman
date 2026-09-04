@@ -36,14 +36,15 @@ func NewCSBroadcastPostService(db *gorm.DB) *CSBroadcastPostService {
 	return &CSBroadcastPostService{db: db}
 }
 
-// Queue writes an announcement as waiting to be sent. The wa process claims it,
-// and one written while that process was down is still here when it comes back.
+// buildBroadcastPost validates one announcement and turns it into a row ready
+// to insert, without touching the database. Queue and QueueAll both go
+// through this, so the two never drift apart on what makes a row valid.
 //
 // The destination and the channel are checked against each other here as well
 // as by the database, because the unit suite runs on SQLite, which has none of
 // migration 49's constraints — and a contradictory row would otherwise only
 // fail at the drainer, hours later, as a failure nobody could act on.
-func (s *CSBroadcastPostService) Queue(in BroadcastPost) (*models.WABroadcastPost, error) {
+func buildBroadcastPost(in BroadcastPost) (*models.WABroadcastPost, error) {
 	post := models.WABroadcastPost{
 		WAAccountID:  in.WAAccountID,
 		Destination:  in.Destination,
@@ -74,10 +75,52 @@ func (s *CSBroadcastPostService) Queue(in BroadcastPost) (*models.WABroadcastPos
 		post.MediaFilename = in.Media.Filename
 		post.MediaSize = in.Media.Size
 	}
-	if err := s.db.Create(&post).Error; err != nil {
+	return &post, nil
+}
+
+// Queue writes an announcement as waiting to be sent. The wa process claims it,
+// and one written while that process was down is still here when it comes back.
+func (s *CSBroadcastPostService) Queue(in BroadcastPost) (*models.WABroadcastPost, error) {
+	post, err := buildBroadcastPost(in)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.db.Create(post).Error; err != nil {
 		return nil, fmt.Errorf("queue broadcast post: %w", err)
 	}
-	return &post, nil
+	return post, nil
+}
+
+// QueueAll writes every announcement in the request as one transaction, so a
+// request naming several destinations lands as all of them or none.
+//
+// One announcement is one act, even when it reaches more than one place. A
+// request that half-succeeded — one row committed, the next failing on a DB
+// blip, a full disk, or a bad row — would tell the sender nothing went out
+// while something in fact did, which is worse than telling them nothing sent
+// at all: on the media path in particular, the caller deletes the upload on
+// any error from this call, and a row left committed after that delete would
+// name a file that no longer exists, sitting in the outbox unsendable and
+// invisible to anyone but a drainer failure nobody reads.
+func (s *CSBroadcastPostService) QueueAll(posts []BroadcastPost) ([]models.WABroadcastPost, error) {
+	rows := make([]models.WABroadcastPost, 0, len(posts))
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		for _, in := range posts {
+			post, err := buildBroadcastPost(in)
+			if err != nil {
+				return err
+			}
+			if err := tx.Create(post).Error; err != nil {
+				return fmt.Errorf("queue broadcast post: %w", err)
+			}
+			rows = append(rows, *post)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // ListRecent returns the latest announcements across every destination,

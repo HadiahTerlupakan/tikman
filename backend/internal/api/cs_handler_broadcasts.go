@@ -180,14 +180,16 @@ func statusAccepts(kind models.MessageKind) bool {
 	}
 }
 
-// queueAll writes one row per target.
+// queueAll turns each resolved destination into a services.BroadcastPost and
+// writes them together through QueueAll, which is transactional: a request
+// with several destinations lands as all of its rows or none of them.
 func (h *CSHandler) queueAll(
 	targets []broadcastTarget, userID uuid.UUID,
 	kind models.MessageKind, body string, media *services.MediaFile,
 ) ([]models.WABroadcastPost, error) {
-	queued := make([]models.WABroadcastPost, 0, len(targets))
-	for _, target := range targets {
-		post, err := h.broadcasts.Queue(services.BroadcastPost{
+	posts := make([]services.BroadcastPost, len(targets))
+	for i, target := range targets {
+		posts[i] = services.BroadcastPost{
 			WAAccountID:  target.accountID,
 			Destination:  target.destination,
 			ChannelJID:   target.channelJID,
@@ -195,13 +197,9 @@ func (h *CSHandler) queueAll(
 			Kind:         kind,
 			Body:         body,
 			Media:        media,
-		})
-		if err != nil {
-			return nil, err
 		}
-		queued = append(queued, *post)
 	}
-	return queued, nil
+	return h.broadcasts.QueueAll(posts)
 }
 
 // channelByID turns a picked id into the channel it names, refusing one that
