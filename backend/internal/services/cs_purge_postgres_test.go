@@ -2,6 +2,7 @@ package services
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -89,4 +90,38 @@ func TestPurgingAQuotedMessageNullsTheReplyPointerOnPostgres(t *testing.T) {
 	var stored models.CSMessage
 	require.NoError(t, db.First(&stored, "id = ?", reply.ID).Error)
 	assert.Nil(t, stored.ReplyToID, "the reply outlives the message it answered")
+}
+
+// wa_channel_posts references wa_accounts ON DELETE RESTRICT for the same
+// reason cs_conversations does, so a number that has ever broadcast is refused
+// the same way a number with threads is. Dropping the history is deliberate,
+// which is why the constraint stays and DeleteAccount clears it first.
+func TestDeleteAccountClearsItsBroadcastHistoryOnPostgres(t *testing.T) {
+	db, account, _ := purgePostgres(t)
+
+	root := t.TempDir()
+	rel := filepath.Join("2026", "09", "pengumuman.jpg")
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
+
+	_, err := NewCSChannelPostService(db).Queue(ChannelPost{
+		WAAccountID:  account.ID,
+		ChannelJID:   "120363000000000001@newsletter",
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindImage,
+		Body:         "Ada pemeliharaan malam ini",
+		Media:        &MediaFile{Path: rel, Mime: "image/jpeg", Filename: "pengumuman.jpg", Size: 1},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, NewCSPurgeService(db, root).DeleteAccount(account.ID))
+
+	var accounts, posts int64
+	require.NoError(t, db.Model(&models.WAAccount{}).Count(&accounts).Error)
+	require.NoError(t, db.Model(&models.WAChannelPost{}).Count(&posts).Error)
+	assert.Equal(t, int64(0), accounts)
+	assert.Equal(t, int64(0), posts)
+
+	_, statErr := os.Stat(filepath.Join(root, rel))
+	assert.True(t, os.IsNotExist(statErr), "the attachment goes with the row it belonged to")
 }

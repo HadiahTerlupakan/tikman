@@ -81,8 +81,37 @@ func (s *CSPurgeService) DeleteAccount(id uuid.UUID) error {
 	if err := s.db.Where("wa_account_id = ?", id).Delete(&models.CSConversation{}).Error; err != nil {
 		return fmt.Errorf("delete the threads of a wa account: %w", err)
 	}
+	if err := s.removeChannelPosts(id); err != nil {
+		return err
+	}
 	if err := s.db.Delete(&models.WAAccount{}, "id = ?", id).Error; err != nil {
 		return fmt.Errorf("delete wa account: %w", err)
+	}
+	return nil
+}
+
+// removeChannelPosts drops one number's broadcast history and the attachments
+// it points at. wa_channel_posts carries the same RESTRICT foreign key
+// cs_conversations does, so without this Postgres refuses to delete any number
+// that has ever posted an update.
+func (s *CSPurgeService) removeChannelPosts(accountID uuid.UUID) error {
+	var paths []string
+	err := s.db.Model(&models.WAChannelPost{}).
+		Where("wa_account_id = ? AND media_path <> ''", accountID).
+		Pluck("media_path", &paths).Error
+	if err != nil {
+		return fmt.Errorf("find the attachments of a number's channel posts: %w", err)
+	}
+
+	// Files before rows, the order purge uses and for the same reason: the
+	// other way round strands a file with its only pointer already gone.
+	if err := s.removeFiles(paths); err != nil {
+		return err
+	}
+
+	err = s.db.Where("wa_account_id = ?", accountID).Delete(&models.WAChannelPost{}).Error
+	if err != nil {
+		return fmt.Errorf("delete the channel posts of a wa account: %w", err)
 	}
 	return nil
 }
