@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
+
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.mau.fi/whatsmeow/types"
@@ -13,7 +15,7 @@ import (
 // receiptHandler records how far the replies we sent have travelled.
 type receiptHandler struct {
 	messages  *services.CSMessageService
-	publisher *Publisher
+	publisher announcer
 }
 
 // handle applies one receipt to every message it names. WhatsApp reports a
@@ -29,16 +31,27 @@ func (h *receiptHandler) handle(ctx context.Context, evt *events.Receipt) error 
 	// WhatsApp does not send a receipt twice, so a message skipped here keeps
 	// the tick it had until the customer happens to act on it again.
 	var failures []error
+	touched := make(map[uuid.UUID]struct{})
 	for _, id := range evt.MessageIDs {
-		if err := h.messages.ApplyReceipt(id, status); err != nil {
+		conversationID, err := h.messages.ApplyReceipt(id, status)
+		if err != nil {
 			failures = append(failures, err)
+			continue
+		}
+		if conversationID != uuid.Nil {
+			touched[conversationID] = struct{}{}
 		}
 	}
 
-	// The ticks a CS watches are the whole point of a receipt, so the browsers
-	// are told to look again rather than waiting for their next poll.
-	if err := h.publisher.Publish(ctx, Event{Type: EventStatus}); err != nil {
-		failures = append(failures, err)
+	// Named, one per thread the batch actually moved. A status event carrying
+	// no conversation only refreshes the inbox list — the ticks a CS is
+	// watching inside an open thread would sit unchanged until they navigated
+	// away and back, which is exactly what a receipt is supposed to prevent.
+	for conversationID := range touched {
+		event := Event{Type: EventStatus, ConversationID: conversationID.String()}
+		if err := h.publisher.Publish(ctx, event); err != nil {
+			failures = append(failures, err)
+		}
 	}
 	return errors.Join(failures...)
 }

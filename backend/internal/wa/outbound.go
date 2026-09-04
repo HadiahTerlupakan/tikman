@@ -30,6 +30,7 @@ type Drainer struct {
 	messages      *services.CSMessageService
 	conversations *services.CSConversationService
 	sender        Sender
+	publisher     announcer
 	mediaRoot     string
 	pace          time.Duration
 }
@@ -43,6 +44,7 @@ func NewDrainer(
 	messages *services.CSMessageService,
 	conversations *services.CSConversationService,
 	sender Sender,
+	publisher announcer,
 	mediaRoot string,
 	pace time.Duration,
 ) *Drainer {
@@ -51,6 +53,7 @@ func NewDrainer(
 		messages:      messages,
 		conversations: conversations,
 		sender:        sender,
+		publisher:     publisher,
 		mediaRoot:     mediaRoot,
 		pace:          pace,
 	}
@@ -83,14 +86,34 @@ func (d *Drainer) Drain(ctx context.Context, limit int) (int, error) {
 			if markErr := d.messages.MarkFailed(msg.ID, err.Error()); markErr != nil {
 				return sent, markErr
 			}
+			d.announce(ctx, msg.ConversationID)
 			continue
 		}
 		if err := d.messages.MarkSent(msg.ID, waID); err != nil {
 			return sent, err
 		}
+		d.announce(ctx, msg.ConversationID)
 		sent++
 	}
 	return sent, nil
+}
+
+// announce tells the browsers holding a thread open that one of its replies
+// moved. Published per message rather than once at the end of the drain: the
+// pace between sends is measured in seconds, so a batch would leave the first
+// reply showing a clock long after it had actually gone.
+//
+// Failing to announce is logged nowhere and returned to nobody, deliberately —
+// the reply is already sent, and Redis carries no truth here. The browser's
+// next refetch closes the gap.
+func (d *Drainer) announce(ctx context.Context, conversationID uuid.UUID) {
+	if d.publisher == nil {
+		return
+	}
+	_ = d.publisher.Publish(ctx, Event{
+		Type:           EventStatus,
+		ConversationID: conversationID.String(),
+	})
 }
 
 func (d *Drainer) send(ctx context.Context, msg models.CSMessage) (string, error) {

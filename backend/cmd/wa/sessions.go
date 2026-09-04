@@ -121,12 +121,15 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	// others — a logout used to exit the process, which with one number was
 	// harmless and with ten is an outage.
 	sessionCtx, stop := context.WithCancel(ctx)
+	// One publisher for the session: the client announces what arrives, the
+	// drainer announces what leaves, and both speak on the same channel.
+	publisher := wa.NewPublisher(s.deps.redis)
 	client, err := wa.NewClient(sessionCtx, wa.Options{
 		Container:     s.deps.container,
 		AccountID:     account.ID,
 		DeviceJID:     account.JID,
 		DB:            s.deps.db,
-		Publisher:     wa.NewPublisher(s.deps.redis),
+		Publisher:     publisher,
 		Logger:        s.deps.logger.With(zap.String("wa_account", account.Label)),
 		Conversations: s.deps.conversations,
 		Messages:      s.deps.messages,
@@ -142,7 +145,8 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 
 	client.Connect(sessionCtx)
 	drainer := wa.NewDrainer(account.ID, s.deps.messages, s.deps.conversations, client,
-		s.deps.cfg.WAMediaDir, time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
+		publisher, s.deps.cfg.WAMediaDir,
+		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
 
 	s.running[account.ID] = &session{client: client, drainer: drainer, stop: stop}
 	s.deps.logger.Info("Started a WhatsApp session",

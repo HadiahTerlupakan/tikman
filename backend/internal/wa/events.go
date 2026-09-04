@@ -62,6 +62,15 @@ const (
 	EventAccountStatus = "account_status"
 )
 
+// announcer is what the handlers in this package need of a Publisher: a way to
+// say something changed. Declared here, on the consuming side, so a test can
+// watch what was announced — the alternative the tests used before was a
+// Publisher aimed at a dead Redis, which cannot fail and cannot be observed,
+// so nothing checked that the right thing was said about the right thread.
+type announcer interface {
+	Publish(ctx context.Context, event Event) error
+}
+
 // Publisher announces inbox changes. Redis carries no truth here — it only
 // saves the browser from waiting for its next poll, so a failure to publish is
 // worth logging and nothing more.

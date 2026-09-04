@@ -120,8 +120,19 @@ func TestApplyReceiptWalksAMessageForwardOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, messages.MarkSent(msg.ID, "3EB0AAA"))
 
-	require.NoError(t, messages.ApplyReceipt("3EB0AAA", models.MessageRead))
-	require.NoError(t, messages.ApplyReceipt("3EB0AAA", models.MessageDelivered))
+	// A receipt that moves the message forward names its thread, so the caller
+	// knows which browsers to wake; one that changes nothing names none.
+	conversationID, err := messages.ApplyReceipt("3EB0AAA", models.MessageRead)
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, conversationID)
+
+	unchanged, err := messages.ApplyReceipt("3EB0AAA", models.MessageDelivered)
+	require.NoError(t, err)
+	require.Equal(t, uuid.Nil, unchanged, "a receipt that walks backwards announces nothing")
+
+	unknown, err := messages.ApplyReceipt("never-stored", models.MessageDelivered)
+	require.NoError(t, err)
+	require.Equal(t, uuid.Nil, unknown)
 
 	history, err := messages.History(conv.ID, 10, 0)
 	require.NoError(t, err)

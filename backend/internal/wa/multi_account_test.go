@@ -46,7 +46,7 @@ func TestASessionSendsOnlyTheRepliesForItsOwnNumber(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := &fakeSender{}
-	sent, err := NewDrainer(mine.WAAccountID, messages, conversations, sender, t.TempDir(), 0).
+	sent, err := NewDrainer(mine.WAAccountID, messages, conversations, sender, nil, t.TempDir(), 0).
 		Drain(context.Background(), 10)
 	require.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestTheOtherNumbersSessionStillSendsItsOwnReply(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := &fakeSender{}
-	_, err = NewDrainer(theirs.WAAccountID, messages, conversations, sender, t.TempDir(), 0).
+	_, err = NewDrainer(theirs.WAAccountID, messages, conversations, sender, nil, t.TempDir(), 0).
 		Drain(context.Background(), 10)
 	require.NoError(t, err)
 

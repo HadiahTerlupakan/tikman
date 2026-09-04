@@ -192,20 +192,27 @@ func (s *CSMessageService) MarkFailed(id uuid.UUID, reason string) error {
 }
 
 // ApplyReceipt walks a message forward through sent, delivered and read, and
-// refuses to walk it back when receipts arrive out of order.
-func (s *CSMessageService) ApplyReceipt(waMessageID string, status models.MessageStatus) error {
+// refuses to walk it back when receipts arrive out of order. It answers which
+// thread the message belongs to, so the caller can tell the browsers holding
+// that thread open to look again. uuid.Nil comes back when nothing moved — an
+// unknown message, or a receipt that does not advance the status it already
+// has — and the caller announces nothing for it.
+func (s *CSMessageService) ApplyReceipt(waMessageID string, status models.MessageStatus) (uuid.UUID, error) {
 	var msg models.CSMessage
 	err := s.db.Where("wa_message_id = ?", waMessageID).First(&msg).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil
+		return uuid.Nil, nil
 	}
 	if err != nil {
-		return fmt.Errorf("load message for receipt: %w", err)
+		return uuid.Nil, fmt.Errorf("load message for receipt: %w", err)
 	}
 	if receiptRank[status] <= receiptRank[msg.Status] {
-		return nil
+		return uuid.Nil, nil
 	}
-	return s.updateMessage(msg.ID, map[string]any{"status": status})
+	if err := s.updateMessage(msg.ID, map[string]any{"status": status}); err != nil {
+		return uuid.Nil, err
+	}
+	return msg.ConversationID, nil
 }
 
 // Get loads one message. ServeMedia uses it to find where an attachment for

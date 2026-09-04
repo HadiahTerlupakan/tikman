@@ -27,7 +27,7 @@ func TestDrainSendsTheWhatsAppIDOfTheQuotedMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := &fakeSender{}
-	sent, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	sent, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, nil, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err)
 	require.Equal(t, 1, sent)
 
@@ -53,7 +53,7 @@ func TestDrainMarksAQuoteOfOurOwnReplyAsOurs(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := &fakeSender{}
-	_, err = NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	_, err = NewDrainer(conv.WAAccountID, messages, conversations, sender, nil, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err)
 
 	require.Len(t, sender.quotes, 1)
@@ -78,7 +78,7 @@ func TestDrainStillSendsAReplyWhoseQuotedMessageIsGone(t *testing.T) {
 	require.NoError(t, db.Delete(&models.CSMessage{}, "id = ?", asked.ID).Error)
 
 	sender := &fakeSender{}
-	sent, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	sent, err := NewDrainer(conv.WAAccountID, messages, conversations, sender, nil, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, sent)
@@ -93,7 +93,7 @@ func TestDrainSendsNoQuoteForAnOrdinaryReply(t *testing.T) {
 	require.NoError(t, err)
 
 	sender := &fakeSender{}
-	_, err = NewDrainer(conv.WAAccountID, messages, conversations, sender, t.TempDir(), 0).Drain(context.Background(), 10)
+	_, err = NewDrainer(conv.WAAccountID, messages, conversations, sender, nil, t.TempDir(), 0).Drain(context.Background(), 10)
 	require.NoError(t, err)
 
 	require.Len(t, sender.quotes, 1)
