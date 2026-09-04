@@ -3,6 +3,7 @@ package push
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	firebase "firebase.google.com/go/v4"
@@ -84,11 +85,23 @@ func (c *Client) SendEach(ctx context.Context, fids []string, title, body string
 		return nil, err
 	}
 
-	var invalid []string
+	// SendEach answers per message, and only the whole call failing produces
+	// err above. A message FCM rejects on its own — a stale project, a
+	// malformed installation id, a key without permission — is reported only
+	// here, so dropping these left the one place that knows why a push never
+	// arrived throwing the answer away.
+	var (
+		invalid  []string
+		failures []error
+	)
 	for i, r := range resp.Responses {
-		if !r.Success && messaging.IsUnregistered(r.Error) {
+		switch {
+		case r.Success:
+		case messaging.IsUnregistered(r.Error):
 			invalid = append(invalid, fids[i])
+		default:
+			failures = append(failures, fmt.Errorf("fid %s: %w", fids[i], r.Error))
 		}
 	}
-	return invalid, nil
+	return invalid, errors.Join(failures...)
 }

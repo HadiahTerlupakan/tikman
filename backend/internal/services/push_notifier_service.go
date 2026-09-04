@@ -90,16 +90,19 @@ func (s *PushNotifierService) NotifyIncomingMessage(ctx context.Context, convers
 		title = conv.CustomerPhone
 	}
 
-	invalid, err := s.sender.SendEach(ctx, fids, title, previewFor(msg), map[string]string{
+	// Both answers matter, and the pruning comes first: a batch can name dead
+	// devices and fail on live ones at the same time, and returning on the
+	// error would leave the dead ones registered to fail again forever.
+	invalid, sendErr := s.sender.SendEach(ctx, fids, title, previewFor(msg), map[string]string{
 		"conversation_id": conversationID.String(),
 	})
-	if err != nil {
-		return fmt.Errorf("send push: %w", err)
-	}
 	if len(invalid) > 0 {
 		if err := s.subscriptions.RemoveFIDs(invalid); err != nil {
 			return fmt.Errorf("remove invalid push FIDs: %w", err)
 		}
+	}
+	if sendErr != nil {
+		return fmt.Errorf("send push: %w", sendErr)
 	}
 	return nil
 }

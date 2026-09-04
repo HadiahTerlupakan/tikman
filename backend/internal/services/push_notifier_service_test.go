@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -22,6 +23,9 @@ type FakePushSender struct {
 	Body    string
 	Data    map[string]string
 	Invalid []string
+	// Err is what the push service answered about the messages themselves, as
+	// opposed to the whole call failing.
+	Err error
 }
 
 func (f *FakePushSender) SendEach(_ context.Context, fids []string, title, body string, data map[string]string) ([]string, error) {
@@ -29,7 +33,7 @@ func (f *FakePushSender) SendEach(_ context.Context, fids []string, title, body 
 	f.Title = title
 	f.Body = body
 	f.Data = data
-	return f.Invalid, nil
+	return f.Invalid, f.Err
 }
 
 // pushTestSetup wires a notifier against a fake Sender and returns the db
@@ -150,6 +154,60 @@ func TestNotifyIncomingMessageRemovesFIDsTheSenderReportsInvalid(t *testing.T) {
 	fids, err := pushService.FIDsForRoles(models.UserRoleAdmin)
 	require.NoError(t, err)
 	assert.Empty(t, fids)
+}
+
+// A push that FCM refuses is the only evidence anyone gets that notifications
+// are misconfigured — a stale project, a key without permission. Swallowing it
+// leaves a CS staring at a phone that never rings and nothing in the log to
+// explain it.
+func TestNotifyIncomingMessageReportsARefusedSend(t *testing.T) {
+	notifier, sender, conversations, messages, pushService, accountID, db := pushTestSetup(t)
+	users := NewUserService(db)
+	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
+	require.NoError(t, err)
+	require.NoError(t, pushService.Subscribe(admin.ID, "live-fid"))
+	sender.Err = errors.New("SenderId mismatch")
+
+	conv, err := conversations.FindOrCreate(IncomingPeer{
+		WAAccountID: accountID, JID: "628777@s.whatsapp.net", Phone: "628777888999",
+	})
+	require.NoError(t, err)
+	msg, _, err := messages.SaveInbound(InboundMessage{
+		ConversationID: conv.ID, WAMessageID: "wamid-refused", Kind: models.MessageKindText, Body: "Halo",
+	})
+	require.NoError(t, err)
+
+	err = notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SenderId mismatch")
+}
+
+// One batch can name a device that is gone and fail on one that is not.
+// Returning on the error would leave the dead device registered to fail again
+// on every message for the rest of its life.
+func TestNotifyIncomingMessageStillPrunesWhenTheSendAlsoFails(t *testing.T) {
+	notifier, sender, conversations, messages, pushService, accountID, db := pushTestSetup(t)
+	users := NewUserService(db)
+	admin, err := users.Create("admin1", "admin1@example.com", "password123", "", models.UserRoleAdmin)
+	require.NoError(t, err)
+	require.NoError(t, pushService.Subscribe(admin.ID, "dead-fid"))
+	sender.Invalid = []string{"dead-fid"}
+	sender.Err = errors.New("SenderId mismatch")
+
+	conv, err := conversations.FindOrCreate(IncomingPeer{
+		WAAccountID: accountID, JID: "628888@s.whatsapp.net", Phone: "628888999000",
+	})
+	require.NoError(t, err)
+	msg, _, err := messages.SaveInbound(InboundMessage{
+		ConversationID: conv.ID, WAMessageID: "wamid-both", Kind: models.MessageKindText, Body: "Halo",
+	})
+	require.NoError(t, err)
+
+	require.Error(t, notifier.NotifyIncomingMessage(context.Background(), conv.ID, msg.ID))
+
+	fids, err := pushService.FIDsForRoles(models.UserRoleAdmin)
+	require.NoError(t, err)
+	assert.Empty(t, fids, "the dead device was still let go")
 }
 
 func TestNotifyIncomingMessageSendsNothingWithNoEligibleFIDs(t *testing.T) {
