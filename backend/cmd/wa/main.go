@@ -101,19 +101,19 @@ func main() {
 	assignment := services.NewCSAssignmentService(db, conversations, services.NewRedisPresence(redisClient))
 	retention := services.NewCSMediaRetention(db, cfg.WAMediaDir, cfg.WAMediaRetentionDays)
 	channels := services.NewCSChannelService(db)
-	channelPosts := services.NewCSBroadcastPostService(db)
+	broadcastPosts := services.NewCSBroadcastPostService(db)
 
 	live := newSessions(sessionDeps{
-		cfg:           cfg,
-		db:            db,
-		container:     sqlstore.NewWithDB(sqlDB, "postgres", waLog.Noop),
-		redis:         redisClient,
-		conversations: conversations,
-		messages:      messages,
-		assignment:    assignment,
-		channels:      channels,
-		channelPosts:  channelPosts,
-		logger:        logger,
+		cfg:            cfg,
+		db:             db,
+		container:      sqlstore.NewWithDB(sqlDB, "postgres", waLog.Noop),
+		redis:          redisClient,
+		conversations:  conversations,
+		messages:       messages,
+		assignment:     assignment,
+		channels:       channels,
+		broadcastPosts: broadcastPosts,
+		logger:         logger,
 	})
 	live.sync(ctx)
 

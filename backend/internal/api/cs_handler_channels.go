@@ -106,7 +106,7 @@ func (h *CSHandler) CreateChannelPost(c *gin.Context) {
 		return
 	}
 
-	h.announceChannelPost(c, channel.JID)
+	h.announceChannelPost(c)
 	c.JSON(http.StatusCreated, gin.H{"data": post})
 }
 
@@ -160,7 +160,7 @@ func (h *CSHandler) CreateChannelPostMedia(c *gin.Context) {
 		return
 	}
 
-	h.announceChannelPost(c, channel.JID)
+	h.announceChannelPost(c)
 	c.JSON(http.StatusCreated, gin.H{"data": post})
 }
 
@@ -220,9 +220,9 @@ func (h *CSHandler) channelByID(c *gin.Context, raw, code string) (*models.WACha
 // its sweep, and tells the other browsers a row appeared. Redis carries no
 // truth here — the row is already stored — so neither failure fails the
 // request.
-func (h *CSHandler) announceChannelPost(c *gin.Context, channelJID string) {
+func (h *CSHandler) announceChannelPost(c *gin.Context) {
 	ctx := c.Request.Context()
-	h.announceEvent(ctx, wa.Event{Type: wa.EventChannelPost, ChannelID: channelJID})
+	h.announceEvent(ctx, wa.Event{Type: wa.EventBroadcastPost})
 	if err := h.redis.Publish(ctx, wa.OutboxChannel, "").Err(); err != nil {
 		h.logger.Warn("publish cs outbox notice failed", zap.Error(err))
 	}

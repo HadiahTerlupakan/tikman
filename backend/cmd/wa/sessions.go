@@ -18,24 +18,24 @@ import (
 
 // sessionDeps is everything a session needs that is shared between all of them.
 type sessionDeps struct {
-	cfg           *config.Config
-	db            *gorm.DB
-	container     *sqlstore.Container
-	redis         *redis.Client
-	conversations *services.CSConversationService
-	messages      *services.CSMessageService
-	assignment    *services.CSAssignmentService
-	channels      *services.CSChannelService
-	channelPosts  *services.CSBroadcastPostService
-	logger        *zap.Logger
+	cfg            *config.Config
+	db             *gorm.DB
+	container      *sqlstore.Container
+	redis          *redis.Client
+	conversations  *services.CSConversationService
+	messages       *services.CSMessageService
+	assignment     *services.CSAssignmentService
+	channels       *services.CSChannelService
+	broadcastPosts *services.CSBroadcastPostService
+	logger         *zap.Logger
 }
 
 // session is one live WhatsApp connection and the loops that feed it.
 type session struct {
-	client         *wa.Client
-	drainer        *wa.Drainer
-	channelDrainer *wa.BroadcastDrainer
-	stop           context.CancelFunc
+	client           *wa.Client
+	drainer          *wa.Drainer
+	broadcastDrainer *wa.BroadcastDrainer
+	stop             context.CancelFunc
 }
 
 // sessions holds one live connection per CS number.
@@ -150,12 +150,12 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	drainer := wa.NewDrainer(account.ID, s.deps.messages, s.deps.conversations, client,
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
-	channelDrainer := wa.NewBroadcastDrainer(account.ID, s.deps.channelPosts, client,
+	broadcastDrainer := wa.NewBroadcastDrainer(account.ID, s.deps.broadcastPosts, client,
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
 
 	live := &session{
-		client: client, drainer: drainer, channelDrainer: channelDrainer, stop: stop,
+		client: client, drainer: drainer, broadcastDrainer: broadcastDrainer, stop: stop,
 	}
 	s.running[account.ID] = live
 	s.deps.logger.Info("Started a WhatsApp session",
@@ -179,7 +179,7 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 			// queued while this process was down has no announcement left to
 			// wake it and would sit at "Antre" until somebody happened to send
 			// something else.
-			drainBroadcastOutbox(ctx, live.channelDrainer, logger)
+			drainBroadcastOutbox(ctx, live.broadcastDrainer, logger)
 		})
 
 	// Off the connection being established rather than off Connect returning:
@@ -205,7 +205,7 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 func (s *sessions) drainAll(ctx context.Context) {
 	for _, live := range s.snapshot() {
 		drainOutbox(ctx, live.drainer, s.deps.logger)
-		drainBroadcastOutbox(ctx, live.channelDrainer, s.deps.logger)
+		drainBroadcastOutbox(ctx, live.broadcastDrainer, s.deps.logger)
 	}
 }
 
