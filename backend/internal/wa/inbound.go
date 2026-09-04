@@ -33,8 +33,16 @@ type inboundHandler struct {
 // thread must exist before the message lands in it, and the message must be
 // stored before anyone is told to come and read it.
 func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error {
-	if evt.Info.IsGroup || evt.Info.IsFromMe {
-		return nil // this inbox answers customers, not groups or its own echo
+	if evt.Info.IsGroup || evt.Info.IsFromMe || evt.Info.Chat.Server == types.NewsletterServer {
+		// This inbox answers customers, not groups, not its own echo, and not
+		// channels. The newsletter check cannot be folded into IsGroup:
+		// whatsmeow sets that flag only for GroupServer and BroadcastServer,
+		// so a channel arrives looking like a one-to-one chat. Nor does
+		// IsFromMe catch our own updates coming back — WhatsApp delivers those
+		// to the number that posted them with the channel as the sender, and a
+		// CS answering that thread would publish their reply to the channel's
+		// subscribers.
+		return nil
 	}
 	att, readable := describe(evt.Message)
 	if !readable {
