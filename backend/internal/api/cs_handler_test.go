@@ -152,9 +152,9 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 
 		cs.GET("/wa-channels", e.handler.ListChannels)
 		cs.POST("/wa-channels/refresh", e.handler.RefreshChannels)
-		cs.GET("/channel-posts", e.handler.ListChannelPosts)
-		cs.POST("/channel-posts", e.handler.CreateChannelPost)
-		cs.POST("/channel-posts/media", e.handler.CreateChannelPostMedia)
+		cs.GET("/broadcasts", e.handler.ListBroadcasts)
+		cs.POST("/broadcasts", e.handler.CreateBroadcast)
+		cs.POST("/broadcasts/media", e.handler.CreateBroadcastMedia)
 	}
 	return router
 }

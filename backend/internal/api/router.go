@@ -269,9 +269,9 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 
 			cs.GET("/wa-channels", csHandler.ListChannels)
 			cs.POST("/wa-channels/refresh", csHandler.RefreshChannels)
-			cs.GET("/channel-posts", csHandler.ListChannelPosts)
-			cs.POST("/channel-posts", csHandler.CreateChannelPost)
-			cs.POST("/channel-posts/media", csHandler.CreateChannelPostMedia)
+			cs.GET("/broadcasts", csHandler.ListBroadcasts)
+			cs.POST("/broadcasts", csHandler.CreateBroadcast)
+			cs.POST("/broadcasts/media", csHandler.CreateBroadcastMedia)
 		}
 
 		push := api.Group("/push")
