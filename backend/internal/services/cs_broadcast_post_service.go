@@ -12,9 +12,11 @@ import (
 // defaultPostHistoryLimit is one screen of a channel's broadcast history.
 const defaultPostHistoryLimit = 50
 
-// BroadcastPost is one update as the caller supplies it, before it is a row.
+// BroadcastPost is one announcement as the caller supplies it, before it is a
+// row. ChannelJID is empty for a status.
 type BroadcastPost struct {
 	WAAccountID  uuid.UUID
+	Destination  models.BroadcastDestination
 	ChannelJID   string
 	SenderUserID uuid.UUID
 	Kind         models.MessageKind
@@ -34,18 +36,38 @@ func NewCSBroadcastPostService(db *gorm.DB) *CSBroadcastPostService {
 	return &CSBroadcastPostService{db: db}
 }
 
-// Queue writes an update as waiting to be sent. The wa process claims it, and
-// one written while that process was down is still here when it comes back.
+// Queue writes an announcement as waiting to be sent. The wa process claims it,
+// and one written while that process was down is still here when it comes back.
+//
+// The destination and the channel are checked against each other here as well
+// as by the database, because the unit suite runs on SQLite, which has none of
+// migration 49's constraints — and a contradictory row would otherwise only
+// fail at the drainer, hours later, as a failure nobody could act on.
 func (s *CSBroadcastPostService) Queue(in BroadcastPost) (*models.WABroadcastPost, error) {
 	post := models.WABroadcastPost{
-		WAAccountID:    in.WAAccountID,
-		Destination:    models.DestinationChannel,
-		DestinationJID: &in.ChannelJID,
-		SenderUserID:   in.SenderUserID,
-		Kind:           in.Kind,
-		Body:           in.Body,
-		Status:         models.BroadcastQueued,
+		WAAccountID:  in.WAAccountID,
+		Destination:  in.Destination,
+		SenderUserID: in.SenderUserID,
+		Kind:         in.Kind,
+		Body:         in.Body,
+		Status:       models.BroadcastQueued,
 	}
+
+	switch in.Destination {
+	case models.DestinationChannel:
+		if in.ChannelJID == "" {
+			return nil, fmt.Errorf("kiriman saluran harus menyebut salurannya")
+		}
+		jid := in.ChannelJID
+		post.DestinationJID = &jid
+	case models.DestinationStatus:
+		if in.ChannelJID != "" {
+			return nil, fmt.Errorf("status tidak menyebut saluran")
+		}
+	default:
+		return nil, fmt.Errorf("tujuan tidak dikenal %q", in.Destination)
+	}
+
 	if in.Media != nil {
 		post.MediaPath = in.Media.Path
 		post.MediaMime = in.Media.Mime
@@ -53,25 +75,22 @@ func (s *CSBroadcastPostService) Queue(in BroadcastPost) (*models.WABroadcastPos
 		post.MediaSize = in.Media.Size
 	}
 	if err := s.db.Create(&post).Error; err != nil {
-		return nil, fmt.Errorf("queue channel post: %w", err)
+		return nil, fmt.Errorf("queue broadcast post: %w", err)
 	}
 	return &post, nil
 }
 
-// ListFor returns one channel's broadcast history, newest first.
-//
-// Keyed by the JID rather than the wa_channels row id: the sync deletes and
-// rebuilds those rows on every pass, and the record of what was announced
-// must not disappear with them.
-func (s *CSBroadcastPostService) ListFor(channelJID string, limit int) ([]models.WABroadcastPost, error) {
+// ListRecent returns the latest announcements across every destination,
+// newest first. Not filtered by channel: one action can now reach two places,
+// and a per-channel history would hide half of what was just sent.
+func (s *CSBroadcastPostService) ListRecent(limit int) ([]models.WABroadcastPost, error) {
 	if limit <= 0 || limit > defaultPostHistoryLimit {
 		limit = defaultPostHistoryLimit
 	}
 	var rows []models.WABroadcastPost
-	err := s.db.Where("destination_jid = ?", channelJID).
-		Order("created_at DESC").Limit(limit).Find(&rows).Error
+	err := s.db.Order("created_at DESC").Limit(limit).Find(&rows).Error
 	if err != nil {
-		return nil, fmt.Errorf("list channel posts: %w", err)
+		return nil, fmt.Errorf("list broadcast posts: %w", err)
 	}
 	return rows, nil
 }

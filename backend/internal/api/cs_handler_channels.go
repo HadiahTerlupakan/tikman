@@ -57,14 +57,14 @@ func (h *CSHandler) RefreshChannels(c *gin.Context) {
 	c.JSON(http.StatusAccepted, gin.H{"data": gin.H{"accounts": len(accounts)}})
 }
 
-// ListChannelPosts answers one channel's broadcast history, newest first.
+// ListChannelPosts answers the broadcast history, newest first.
 func (h *CSHandler) ListChannelPosts(c *gin.Context) {
-	channel, ok := h.channelFromQuery(c, "CHANNEL_HISTORY_FAILED")
+	_, ok := h.channelFromQuery(c, "CHANNEL_HISTORY_FAILED")
 	if !ok {
 		return
 	}
 
-	rows, err := h.broadcasts.ListFor(channel.JID, queryInt(c, "limit"))
+	rows, err := h.broadcasts.ListRecent(queryInt(c, "limit"))
 	if err != nil {
 		mapCSError(c, err, "CHANNEL_HISTORY_FAILED")
 		return
@@ -95,6 +95,7 @@ func (h *CSHandler) CreateChannelPost(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	post, err := h.broadcasts.Queue(services.BroadcastPost{
 		WAAccountID:  channel.WAAccountID,
+		Destination:  models.DestinationChannel,
 		ChannelJID:   channel.JID,
 		SenderUserID: userID,
 		Kind:         models.MessageKindText,
@@ -146,6 +147,7 @@ func (h *CSHandler) CreateChannelPostMedia(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	post, err := h.broadcasts.Queue(services.BroadcastPost{
 		WAAccountID:  channel.WAAccountID,
+		Destination:  models.DestinationChannel,
 		ChannelJID:   channel.JID,
 		SenderUserID: userID,
 		Kind:         kindForMime(mime),

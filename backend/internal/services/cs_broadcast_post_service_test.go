@@ -23,6 +23,7 @@ func queued(t *testing.T, s *CSBroadcastPostService, account models.WAAccount, b
 	t.Helper()
 	post, err := s.Queue(BroadcastPost{
 		WAAccountID:  account.ID,
+		Destination:  models.DestinationChannel,
 		ChannelJID:   infoGangguan,
 		SenderUserID: uuid.New(),
 		Kind:         models.MessageKindText,
@@ -84,7 +85,7 @@ func TestMarkFailedRecordsTheReason(t *testing.T) {
 
 	require.NoError(t, posts.MarkFailed(post.ID, "not authorized to post"))
 
-	history, err := posts.ListFor(infoGangguan, 10)
+	history, err := posts.ListRecent(10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, models.BroadcastFailed, history[0].Status)
@@ -100,7 +101,7 @@ func TestMarkSentClearsAnEarlierFailure(t *testing.T) {
 
 	require.NoError(t, posts.MarkSent(post.ID, "3EB0F1"))
 
-	history, err := posts.ListFor(infoGangguan, 10)
+	history, err := posts.ListRecent(10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, models.BroadcastSent, history[0].Status)
@@ -122,7 +123,86 @@ func TestHistorySurvivesTheChannelRowBeingRebuilt(t *testing.T) {
 
 	require.NoError(t, channels.Replace(account.ID, nil))
 
-	history, err := posts.ListFor(infoGangguan, 10)
+	history, err := posts.ListRecent(10)
 	require.NoError(t, err)
 	assert.Len(t, history, 1)
+}
+
+// The database enforces this too, but SQLite in the unit suite does not — and
+// a bad row would only fail hours later at the drainer, recorded as a failure
+// nobody could act on.
+func TestQueueRefusesAChannelPostWithoutItsChannel(t *testing.T) {
+	posts, account, _ := postSetup(t)
+
+	_, err := posts.Queue(BroadcastPost{
+		WAAccountID:  account.ID,
+		Destination:  models.DestinationChannel,
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindText,
+		Body:         "Ada pemeliharaan malam ini",
+	})
+
+	assert.Error(t, err)
+}
+
+// A status has no target beyond its account. Accepting a JID here would let two
+// different things be stored in one shape and read back as the same thing.
+func TestQueueRefusesAStatusPostThatNamesAChannel(t *testing.T) {
+	posts, account, _ := postSetup(t)
+
+	_, err := posts.Queue(BroadcastPost{
+		WAAccountID:  account.ID,
+		Destination:  models.DestinationStatus,
+		ChannelJID:   infoGangguan,
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindText,
+		Body:         "Ada pemeliharaan malam ini",
+	})
+
+	assert.Error(t, err)
+}
+
+func TestQueueStoresAStatusPostWithoutAChannel(t *testing.T) {
+	posts, account, _ := postSetup(t)
+
+	post, err := posts.Queue(BroadcastPost{
+		WAAccountID:  account.ID,
+		Destination:  models.DestinationStatus,
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindText,
+		Body:         "Ada pemeliharaan malam ini",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, models.DestinationStatus, post.Destination)
+	assert.Nil(t, post.DestinationJID)
+	assert.Equal(t, models.BroadcastQueued, post.Status)
+}
+
+// One announcement to both destinations is two rows, and the history is where
+// the sender sees both. Filtering to one channel would hide half of what they
+// just sent.
+func TestListRecentReturnsBothDestinationsNewestFirst(t *testing.T) {
+	posts, account, db := postSetup(t)
+
+	channelPost, err := posts.Queue(BroadcastPost{
+		WAAccountID: account.ID, Destination: models.DestinationChannel,
+		ChannelJID: infoGangguan, SenderUserID: uuid.New(),
+		Kind: models.MessageKindText, Body: "ke saluran",
+	})
+	require.NoError(t, err)
+	statusPost, err := posts.Queue(BroadcastPost{
+		WAAccountID: account.ID, Destination: models.DestinationStatus,
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindText, Body: "ke status",
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&models.WABroadcastPost{}).Where("id = ?", statusPost.ID).
+		Update("created_at", statusPost.CreatedAt.Add(time.Second)).Error)
+
+	recent, err := posts.ListRecent(10)
+	require.NoError(t, err)
+	require.Len(t, recent, 2)
+	assert.Equal(t, statusPost.ID, recent[0].ID)
+	assert.Equal(t, channelPost.ID, recent[1].ID)
 }

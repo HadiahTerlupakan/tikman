@@ -86,6 +86,7 @@ func queuePost(t *testing.T, posts *services.CSBroadcastPostService, account mod
 	t.Helper()
 	post, err := posts.Queue(services.BroadcastPost{
 		WAAccountID:  account.ID,
+		Destination:  models.DestinationChannel,
 		ChannelJID:   "120363000000000001@newsletter",
 		SenderUserID: uuid.New(),
 		Kind:         models.MessageKindText,
@@ -120,7 +121,7 @@ func TestARefusedUpdateKeepsItsReason(t *testing.T) {
 	_, err := drainer.Drain(context.Background(), 10)
 	require.NoError(t, err)
 
-	history, err := posts.ListFor("120363000000000001@newsletter", 10)
+	history, err := posts.ListRecent(10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, models.BroadcastFailed, history[0].Status)
@@ -171,6 +172,7 @@ func TestAMediaUpdateIsSentFromWhereTheUploadWasStored(t *testing.T) {
 
 	_, err := posts.Queue(services.BroadcastPost{
 		WAAccountID:  account.ID,
+		Destination:  models.DestinationChannel,
 		ChannelJID:   "120363000000000001@newsletter",
 		SenderUserID: uuid.New(),
 		Kind:         models.MessageKindImage,
@@ -194,7 +196,7 @@ func TestAMediaUpdateIsSentFromWhereTheUploadWasStored(t *testing.T) {
 	assert.Equal(t, "pengumuman.jpg", call.filename)
 	assert.Equal(t, "Ada pemeliharaan malam ini", call.caption, "the body travels as the caption")
 
-	history, err := posts.ListFor("120363000000000001@newsletter", 10)
+	history, err := posts.ListRecent(10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, models.BroadcastSent, history[0].Status)
