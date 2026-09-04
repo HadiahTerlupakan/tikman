@@ -154,12 +154,15 @@ func updateOntFields(db *gorm.DB, ont models.ONT, foundMetrics *connectivity.ONT
 		distance = foundMetrics.Distance
 
 		updates := make(map[string]interface{})
-		if rxPower != nil {
-			updates["rx_power"] = *rxPower
-		}
-		if txPower != nil {
-			updates["tx_power"] = *txPower
-		}
+		// Written on every cycle that reached this ONT, nil included. nil is how
+		// the decoder reports the OLT's no-signal sentinel, and skipping it left
+		// the column with no way back to empty: an ONT that went dark kept
+		// showing the reading it had while it was alive, beside a status saying
+		// it was not. Reaching here means the OLT answered for this ONT, so an
+		// empty reading is evidence rather than absence — a cycle that read
+		// nothing at all arrives as a nil foundMetrics and never gets this far.
+		updates["rx_power"] = rxPower
+		updates["tx_power"] = txPower
 		if distance > 0 {
 			updates["distance"] = distance
 		}
