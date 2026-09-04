@@ -17,9 +17,15 @@ export function PageHeader({ title, description, extra }: PageHeaderProps) {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-start",
+        // Wrapping, because the actions are a row of buttons with a real
+        // minimum width: on a phone they won the space outright and squeezed
+        // the title column to nothing, breaking the heading one letter per
+        // line. With room to spare nothing here changes.
+        flexWrap: "wrap",
+        gap: 16,
       }}
     >
-      <div>
+      <div style={{ minWidth: 0 }}>
         <Title
           level={4}
           style={{

@@ -33,7 +33,9 @@ export function InboxHeaderActions({
   onOpenBroadcast,
 }: InboxHeaderActionsProps) {
   return (
-    <Space>
+    // wrap, so four buttons fall onto a second line on a narrow screen
+    // rather than running off the side of it.
+    <Space wrap>
       {isAdmin && (
         <Button icon={<ThunderboltOutlined />} onClick={onOpenQuickReplies}>
           Balasan Cepat
