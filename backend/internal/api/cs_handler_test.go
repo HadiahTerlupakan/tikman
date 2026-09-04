@@ -68,6 +68,8 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	messages := services.NewCSMessageService(db, conversations)
 	quickReplies := services.NewCSQuickReplyService(db)
 	accounts := services.NewCSAccountService(db)
+	channels := services.NewCSChannelService(db)
+	channelPosts := services.NewCSChannelPostService(db)
 	presence := services.NewFakePresence()
 	assignment := services.NewCSAssignmentService(db, conversations, presence)
 	logger := zap.NewNop()
@@ -82,7 +84,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 
 	mediaRoot := t.TempDir()
 	handler := NewCSHandler(
-		conversations, messages, quickReplies, accounts,
+		conversations, messages, quickReplies, accounts, channels, channelPosts,
 		services.NewCSPurgeService(db, mediaRoot), assignment, presence,
 		audit, onts, services.NewUserService(db), publisher, redisClient, logger,
 		mediaRoot,
@@ -147,6 +149,12 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), e.handler.Disconnect)
 		cs.DELETE("/wa-accounts/:id", middleware.RequireRole(models.UserRoleAdmin), e.handler.DeleteAccount)
 		cs.DELETE("/wa-accounts/:id/messages", middleware.RequireRole(models.UserRoleAdmin), e.handler.ClearAccountMessages)
+
+		cs.GET("/wa-channels", e.handler.ListChannels)
+		cs.POST("/wa-channels/refresh", e.handler.RefreshChannels)
+		cs.GET("/channel-posts", e.handler.ListChannelPosts)
+		cs.POST("/channel-posts", e.handler.CreateChannelPost)
+		cs.POST("/channel-posts/media", e.handler.CreateChannelPostMedia)
 	}
 	return router
 }

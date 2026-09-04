@@ -82,13 +82,16 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csMessageService := services.NewCSMessageService(db, csConversationService)
 	csQuickReplyService := services.NewCSQuickReplyService(db)
 	csAccountService := services.NewCSAccountService(db)
+	csChannelService := services.NewCSChannelService(db)
+	csChannelPostService := services.NewCSChannelPostService(db)
 	csPurgeService := services.NewCSPurgeService(db, cfg.WAMediaDir)
 	csPresence := services.NewRedisPresence(csRedisClient)
 	csAssignmentService := services.NewCSAssignmentService(db, csConversationService, csPresence)
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
-		csConversationService, csMessageService, csQuickReplyService, csAccountService, csPurgeService, csAssignmentService,
-		csPresence, auditService, ontService, userService, csPublisher, csRedisClient, logger, cfg.WAMediaDir,
+		csConversationService, csMessageService, csQuickReplyService, csAccountService, csChannelService, csChannelPostService,
+		csPurgeService, csAssignmentService, csPresence, auditService, ontService, userService, csPublisher, csRedisClient,
+		logger, cfg.WAMediaDir,
 	)
 
 	pushService := services.NewPushService(db)
@@ -263,6 +266,12 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.POST("/wa-accounts/:id/disconnect", middleware.RequireRole(models.UserRoleAdmin), csHandler.Disconnect)
 			cs.DELETE("/wa-accounts/:id", middleware.RequireRole(models.UserRoleAdmin), csHandler.DeleteAccount)
 			cs.DELETE("/wa-accounts/:id/messages", middleware.RequireRole(models.UserRoleAdmin), csHandler.ClearAccountMessages)
+
+			cs.GET("/wa-channels", csHandler.ListChannels)
+			cs.POST("/wa-channels/refresh", csHandler.RefreshChannels)
+			cs.GET("/channel-posts", csHandler.ListChannelPosts)
+			cs.POST("/channel-posts", csHandler.CreateChannelPost)
+			cs.POST("/channel-posts/media", csHandler.CreateChannelPostMedia)
 		}
 
 		push := api.Group("/push")
