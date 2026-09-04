@@ -28,7 +28,8 @@ type BroadcastSender interface {
 	) (waMessageID string, err error)
 }
 
-// BroadcastDrainer posts the updates waiting in the channel outbox.
+// BroadcastDrainer posts the announcements waiting in the broadcast outbox,
+// channel updates and statuses alike.
 //
 // Only one drain runs at a time, for the reason the message Drainer records:
 // ClaimQueued reads rows without locking them, so overlapping drains would
@@ -67,7 +68,7 @@ func NewBroadcastDrainer(
 
 // Drain posts what is waiting and answers how many reached WhatsApp. An update
 // WhatsApp refuses is recorded with its reason and the drain continues: one
-// channel refusing must not hold up an announcement to another.
+// destination refusing must not hold up an announcement to another.
 func (d *BroadcastDrainer) Drain(ctx context.Context, limit int) (int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
