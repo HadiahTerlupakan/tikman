@@ -134,6 +134,31 @@ describe("useCsStream", () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
+  // A channel update belongs to no conversation, and the type is matched on a
+  // bare string across a process boundary. Falling through to the refetches
+  // below would reload the inbox list and the whole open thread every time an
+  // announcement moved from "Antre" to "Terkirim".
+  it("refetches only the channel history when an update moves", () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({
+          type: "channel_post",
+          channel_id: "120363000000000001@newsletter",
+        }),
+      ),
+    );
+
+    expect(invalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["cs", "channel-posts"] }),
+    );
+    expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
   // A phone that loses signal mid-word never sends its paused, and the line
   // would otherwise stay up for the rest of the shift.
   it("takes the line down on its own when the paused never arrives", async () => {

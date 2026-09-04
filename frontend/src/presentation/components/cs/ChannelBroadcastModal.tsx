@@ -21,6 +21,9 @@ interface ChannelBroadcastModalProps {
   /** The number's label per wa_account_id, so one flat list can still say
    * which number administers each channel. */
   accountLabels: Record<string, string>;
+  /** Each user's name by id, so the history can say who posted rather than
+   * showing a raw sender id or nothing at all. */
+  senderNames: Record<string, string>;
   posts: ChannelPost[];
   loadingPosts: boolean;
   refreshing: boolean;
@@ -43,6 +46,7 @@ export function ChannelBroadcastModal({
   open,
   channels,
   accountLabels,
+  senderNames,
   posts,
   loadingPosts,
   refreshing,
@@ -134,7 +138,11 @@ export function ChannelBroadcastModal({
             Kirim Pembaruan
           </Button>
 
-          <ChannelPostHistory posts={posts} loading={loadingPosts} />
+          <ChannelPostHistory
+            posts={posts}
+            loading={loadingPosts}
+            senderNames={senderNames}
+          />
         </Space>
       )}
     </Modal>

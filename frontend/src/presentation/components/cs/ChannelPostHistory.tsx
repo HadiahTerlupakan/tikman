@@ -17,9 +17,17 @@ const STATUS_COLOR: Record<ChannelPostStatus, string> = {
   failed: "error",
 };
 
+/** What a poster whose account has since been removed is shown as. A raw UUID
+ * on screen tells the reader nothing and looks like a bug. */
+const UNKNOWN_SENDER = "pengguna tak dikenal";
+
 interface ChannelPostHistoryProps {
   posts: ChannelPost[];
   loading: boolean;
+  /** Each user's name by id. The history is what the loose permission model
+   * was accepted on — Admin, CS and Technician can all broadcast irrevocably —
+   * so "who" is not decoration here. */
+  senderNames: Record<string, string>;
 }
 
 /** What has been announced on a channel, and what became of it.
@@ -29,6 +37,7 @@ interface ChannelPostHistoryProps {
 export function ChannelPostHistory({
   posts,
   loading,
+  senderNames,
 }: ChannelPostHistoryProps) {
   return (
     <List
@@ -46,6 +55,9 @@ export function ChannelPostHistory({
                 <Tag color={STATUS_COLOR[post.status]}>
                   {STATUS_LABEL[post.status]}
                 </Tag>
+                <Text strong>
+                  {senderNames[post.senderUserId] ?? UNKNOWN_SENDER}
+                </Text>{" "}
                 <Text type="secondary">
                   {new Date(post.createdAt).toLocaleString("id-ID")}
                 </Text>

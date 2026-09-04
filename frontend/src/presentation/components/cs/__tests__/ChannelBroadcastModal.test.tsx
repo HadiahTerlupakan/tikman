@@ -24,6 +24,7 @@ function open(
       open
       channels={channels}
       accountLabels={{ a1: "CS Utama" }}
+      senderNames={{ u1: "rina" }}
       posts={[]}
       loadingPosts={false}
       refreshing={false}
@@ -35,6 +36,20 @@ function open(
       {...props}
     />,
   );
+}
+
+function post(overrides: Partial<ChannelPost>): ChannelPost {
+  return {
+    id: "p1",
+    waAccountId: "a1",
+    channelJid: "120363000000000001@newsletter",
+    senderUserId: "u1",
+    kind: "text",
+    body: "Ada pemeliharaan malam ini",
+    status: "sent",
+    createdAt: "2026-09-04T01:00:00Z",
+    ...overrides,
+  };
 }
 
 const sendButton = () =>
@@ -76,23 +91,34 @@ describe("ChannelBroadcastModal", () => {
   // Sending only queues; the outcome arrives seconds later. The history is the
   // only place a failure is ever visible, so the reason has to be on screen.
   it("shows why an update failed", () => {
-    const failed: ChannelPost[] = [
-      {
-        id: "p1",
-        waAccountId: "a1",
-        channelJid: "120363000000000001@newsletter",
-        senderUserId: "u1",
-        kind: "text",
-        body: "Ada pemeliharaan malam ini",
-        status: "failed",
-        failReason: "not authorized to post",
-        createdAt: "2026-09-04T01:00:00Z",
-      },
+    const failed = [
+      post({ status: "failed", failReason: "not authorized to post" }),
     ];
     open({ selectedChannelId: "c1", posts: failed });
 
     expect(screen.getByText("Gagal")).toBeInTheDocument();
     expect(screen.getByText("not authorized to post")).toBeInTheDocument();
+  });
+
+  // Admin, CS and Technician can all broadcast irrevocably to every
+  // subscriber. That was accepted on the strength of the history being honest
+  // about who did it, so the name is the accountability half of the bargain.
+  it("names who posted each update", () => {
+    open({ selectedChannelId: "c1", posts: [post({})] });
+
+    expect(screen.getByText("rina")).toBeInTheDocument();
+  });
+
+  // A poster whose account has since been removed still has to render as
+  // something a reader can understand, not as a raw id.
+  it("says so plainly when the poster is no longer a user", () => {
+    open({
+      selectedChannelId: "c1",
+      posts: [post({ senderUserId: "u-gone" })],
+    });
+
+    expect(screen.getByText(/tak dikenal/i)).toBeInTheDocument();
+    expect(screen.queryByText("u-gone")).toBeNull();
   });
 
   // A number that admins no channel cannot be helped by this screen, and the

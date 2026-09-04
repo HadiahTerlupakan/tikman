@@ -1,7 +1,10 @@
 import { useState } from "react";
 import type { ComponentProps } from "react";
 import type { WaAccount } from "@/domain/entities";
-import { ChannelBroadcastModal } from "@/presentation/components/cs/ChannelBroadcastModal";
+// Type-only, deliberately: hooks/index.ts re-exports this module, so a value
+// import would pull the modal and its antd tree into every page that imports
+// from @/application/hooks. typeof still works in the type position.
+import type { ChannelBroadcastModal } from "@/presentation/components/cs/ChannelBroadcastModal";
 import {
   useWaChannels,
   useRefreshWaChannels,
@@ -30,6 +33,7 @@ interface UseChannelBroadcastResult extends ModalProps {
  */
 export function useChannelBroadcast(
   accounts: WaAccount[],
+  senderNames: Record<string, string>,
 ): UseChannelBroadcastResult {
   const [open, setOpen] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState<string>();
@@ -71,6 +75,7 @@ export function useChannelBroadcast(
     accountLabels: Object.fromEntries(
       accounts.map((account) => [account.id, account.label]),
     ),
+    senderNames,
     posts: channelPostsQuery.data ?? [],
     loadingPosts: channelPostsQuery.isLoading,
     refreshing: refreshChannels.isPending,

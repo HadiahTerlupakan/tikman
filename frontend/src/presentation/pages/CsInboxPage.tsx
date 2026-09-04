@@ -119,7 +119,8 @@ export function CsInboxPage() {
   // initial fetch is what makes the badge honest for a CS or technician too.
   const accountsQuery = useWaAccounts();
   const accounts = accountsQuery.data ?? [];
-  const broadcast = useChannelBroadcast(accounts);
+  const holderNames = holderNameMap(usersQuery.data ?? []);
+  const broadcast = useChannelBroadcast(accounts, holderNames);
 
   const sendMessage = useSendCsMessage();
   const sendMedia = useSendCsMedia();
@@ -135,7 +136,6 @@ export function CsInboxPage() {
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
-  const holderNames = holderNameMap(usersQuery.data ?? []);
   // A live status from this session's own stream is more current than the
   // fetch it started from — once one arrives for a number, it wins.
   const pairingLive = pairing ? stream[pairing.id] : undefined;
