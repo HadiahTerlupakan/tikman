@@ -2,12 +2,15 @@ import { Badge, Tag, Typography } from "antd";
 import { CustomerAvatar } from "./CustomerAvatar";
 import type { CsConversation } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
+import type { CsTypingStatus } from "@/application/hooks/useCsStream";
 import { preview, shortTime } from "./conversationSummary";
 
 const { Text } = Typography;
 
 interface ConversationListProps {
   conversations: CsConversation[];
+  /** Which threads have a customer writing in them right now. */
+  typingIn?: CsTypingStatus;
   selectedId?: string;
   holderNames: Record<string, string>;
   currentUserId: string;
@@ -33,6 +36,7 @@ function holderLabel(
 
 export function ConversationList({
   conversations,
+  typingIn = {},
   selectedId,
   holderNames,
   currentUserId,
@@ -132,8 +136,20 @@ export function ConversationList({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {conversation.lastMessage?.direction === "out" && "Anda: "}
-                  {preview(conversation.lastMessage)}
+                  {/* The line a customer is writing right now beats the one
+                      they finished a minute ago: it is the only thing in this
+                      row that will be out of date in ten seconds. */}
+                  {typingIn[conversation.id] ? (
+                    <span style={{ color: colors.success }}>
+                      sedang mengetik…
+                    </span>
+                  ) : (
+                    <>
+                      {conversation.lastMessage?.direction === "out" &&
+                        "Anda: "}
+                      {preview(conversation.lastMessage)}
+                    </>
+                  )}
                 </Text>
                 <Badge
                   count={conversation.unreadCount}

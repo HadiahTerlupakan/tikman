@@ -118,3 +118,24 @@ describe("ConversationList", () => {
     expect(screen.getByText(/Anda: sudah kami cek ya/)).toBeInTheDocument();
   });
 });
+
+describe("ConversationList typing", () => {
+  // The line a customer is writing right now beats the one they finished a
+  // minute ago: it is the only thing in the row that will be out of date in
+  // ten seconds, and it is what tells a CS which thread to open next.
+  it("shows a writing customer in place of their last message", () => {
+    render(
+      <ConversationList
+        conversations={rows}
+        typingIn={{ c1: true }}
+        selectedId="c1"
+        holderNames={{ me: "Saya", kolega: "Budi CS" }}
+        currentUserId="me"
+        onSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/sedang mengetik/i)).toBeInTheDocument();
+    expect(screen.queryByText(/internet saya mati sejak pagi/i)).toBeNull();
+  });
+});

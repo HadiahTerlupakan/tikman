@@ -10,6 +10,10 @@ interface ThreadHeaderProps {
   conversation: CsConversation;
   holderName?: string;
   isHolder: boolean;
+  /** True while the customer is writing. Shown in place of their number,
+   * because that is where a chat app puts it and a CS reads it without
+   * looking for it. */
+  typing?: boolean;
   /** Empties this thread's history. Absent for anyone who may not — the same
    * gate as replying, because the CS working a thread is the one who can tell
    * a mistake from the customer's own words. */
@@ -27,6 +31,7 @@ export function ThreadHeader({
   conversation,
   holderName,
   isHolder,
+  typing = false,
   onClear,
   clearing,
 }: ThreadHeaderProps) {
@@ -61,9 +66,15 @@ export function ThreadHeader({
           {conversation.customerName || conversation.customerPhone}
         </Text>
         <Space size={6}>
-          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-            {conversation.customerPhone}
-          </Text>
+          {typing ? (
+            <Text style={{ color: colors.success, fontSize: 12 }}>
+              sedang mengetik…
+            </Text>
+          ) : (
+            <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+              {conversation.customerPhone}
+            </Text>
+          )}
           {/* A CS about to type needs to know which of our numbers this
               customer is talking to — the reply leaves from that one. */}
           {conversation.waAccountLabel && (

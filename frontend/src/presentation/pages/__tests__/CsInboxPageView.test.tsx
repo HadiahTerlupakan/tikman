@@ -105,6 +105,7 @@ vi.mock("@/application/hooks", () => {
     useSendCsMessage: () => stub,
     useSetCableRoute: () => stub,
     useSetConversationStatus: () => stub,
+    useSetCsTyping: () => vi.fn(),
     useSettings: () => stub,
     useSite: () => stub,
     useSites: () => stub,
@@ -155,7 +156,7 @@ function renderAt(url: string) {
     [
       {
         path: "/cs",
-        element: <Outlet context={{ csStream: {} }} />,
+        element: <Outlet context={{ csStream: {}, csTyping: {} }} />,
         children: [{ index: true, element: <CsInboxPage /> }],
       },
     ],
@@ -216,7 +217,7 @@ describe("CsInboxPage view", () => {
       [
         {
           path: "/cs",
-          element: <Outlet context={{ csStream: {} }} />,
+          element: <Outlet context={{ csStream: {}, csTyping: {} }} />,
           children: [{ index: true, element: <CsInboxPage /> }],
         },
       ],
@@ -247,7 +248,7 @@ describe("CsInboxPage view", () => {
       [
         {
           path: "/cs",
-          element: <Outlet context={{ csStream: {} }} />,
+          element: <Outlet context={{ csStream: {}, csTyping: {} }} />,
           children: [{ index: true, element: <CsInboxPage /> }],
         },
       ],

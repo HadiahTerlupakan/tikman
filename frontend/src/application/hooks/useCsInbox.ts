@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CsRepository } from "@/infrastructure/repositories";
 import { reportCsMutationError } from "./csMutationError";
@@ -24,6 +25,20 @@ export function useCsHistory(conversationId?: string) {
     queryFn: () => csRepository.getHistory(conversationId as string),
     enabled: !!conversationId,
   });
+}
+
+/**
+ * Tells the customer's phone whether a CS is writing to them.
+ *
+ * Not a mutation: nothing is cached, nothing is invalidated, and a failure is
+ * swallowed on purpose. A typing line is worth nothing a moment later, and a
+ * red toast because one of them did not reach WhatsApp would be worse than the
+ * missing line.
+ */
+export function useSetCsTyping() {
+  return useCallback((conversationId: string, typing: boolean) => {
+    void csRepository.setTyping(conversationId, typing).catch(() => {});
+  }, []);
 }
 
 export function useSendCsMessage() {

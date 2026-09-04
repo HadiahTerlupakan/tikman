@@ -88,6 +88,7 @@ export const API_ENDPOINTS = {
   CS_CONVERSATIONS: "/api/v1/cs/conversations",
   CS_MESSAGES: (id: string) => `/api/v1/cs/conversations/${id}/messages`,
   CS_MEDIA_UPLOAD: (id: string) => `/api/v1/cs/conversations/${id}/media`,
+  CS_TYPING: (id: string) => `/api/v1/cs/conversations/${id}/typing`,
   CS_ASSIGN: (id: string) => `/api/v1/cs/conversations/${id}/assign`,
   CS_STATUS: (id: string) => `/api/v1/cs/conversations/${id}/status`,
   CS_LINK_ONT: (id: string) => `/api/v1/cs/conversations/${id}/ont`,

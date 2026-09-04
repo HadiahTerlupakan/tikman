@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
@@ -10,7 +10,18 @@ type CsEvent = {
   wa_account_id?: string;
   account_status?: WaAccountStatus;
   pairing_code?: string;
+  typing?: boolean;
 };
+
+/** How long a "sedang mengetik" line stays up on its own. WhatsApp repeats
+ * composing every few seconds while a customer writes and sends paused when
+ * they stop — but a paused that never arrives, from a phone that lost signal
+ * mid-word, would otherwise leave the line up for the rest of the session. */
+const TYPING_TTL_MS = 10_000;
+
+/** How often expired typing lines are swept. Only runs while somebody is
+ * actually typing. */
+const TYPING_SWEEP_MS = 1_000;
 
 /** What this stream has observed live about one number. Undefined until an
  * account_status event for that number arrives on this connection — the caller
@@ -24,6 +35,16 @@ export interface WaLiveStatus {
  * value because the team answers from several numbers: a single value would
  * show whichever number changed last as the state of all of them. */
 export type WaStreamStatus = Record<string, WaLiveStatus>;
+
+/** Which threads have a customer writing in them right now, keyed by
+ * conversation id. */
+export type CsTypingStatus = Record<string, boolean>;
+
+/** What the inbox reads back from the stream. */
+export interface CsStreamState {
+  accounts: WaStreamStatus;
+  typing: CsTypingStatus;
+}
 
 /**
  * Keeps the inbox current while the page is open.
@@ -40,9 +61,12 @@ export type WaStreamStatus = Record<string, WaLiveStatus>;
  * a connection that dropped and came back cannot leave the inbox showing a
  * stale thread — the refetch closes whatever gap the outage opened.
  */
-export function useCsStream(enabled = true, presence = false): WaStreamStatus {
+export function useCsStream(enabled = true, presence = false): CsStreamState {
   const queryClient = useQueryClient();
   const [waStatus, setWaStatus] = useState<WaStreamStatus>({});
+  // Deadlines rather than flags: a customer who is still writing keeps pushing
+  // theirs forward, and one whose phone went quiet has theirs pass.
+  const [typingUntil, setTypingUntil] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -56,6 +80,14 @@ export function useCsStream(enabled = true, presence = false): WaStreamStatus {
       try {
         payload = JSON.parse(event.data);
       } catch {
+        return;
+      }
+
+      if (payload.type === "typing") {
+        // Deliberately before the refetches below: typing changes nothing
+        // stored, and a customer holding down a key would otherwise reload the
+        // inbox and the whole thread every few seconds.
+        applyTyping(setTypingUntil, payload);
         return;
       }
 
@@ -82,5 +114,46 @@ export function useCsStream(enabled = true, presence = false): WaStreamStatus {
     return () => source.close();
   }, [queryClient, enabled, presence]);
 
-  return waStatus;
+  const typingCount = Object.keys(typingUntil).length;
+  useEffect(() => {
+    if (typingCount === 0) return;
+    const sweep = setInterval(() => {
+      setTypingUntil((current) => {
+        const now = Date.now();
+        const next = Object.fromEntries(
+          Object.entries(current).filter(([, until]) => until > now),
+        );
+        return Object.keys(next).length === Object.keys(current).length
+          ? current
+          : next;
+      });
+    }, TYPING_SWEEP_MS);
+    return () => clearInterval(sweep);
+  }, [typingCount]);
+
+  const typing = useMemo(
+    () => Object.fromEntries(Object.keys(typingUntil).map((id) => [id, true])),
+    [typingUntil],
+  );
+
+  return { accounts: waStatus, typing };
+}
+
+/** applyTyping records that one thread started or stopped having a customer
+ * write in it. Its own function so the event handler stays readable. */
+function applyTyping(
+  setTypingUntil: React.Dispatch<React.SetStateAction<Record<string, number>>>,
+  payload: CsEvent,
+) {
+  const id = payload.conversation_id;
+  if (!id) return;
+  setTypingUntil((current) => {
+    if (!payload.typing) {
+      if (!(id in current)) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    }
+    return { ...current, [id]: Date.now() + TYPING_TTL_MS };
+  });
 }

@@ -235,6 +235,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			cs.GET("/conversations/:id/messages", csHandler.History)
 			cs.POST("/conversations/:id/messages", csHandler.Send)
 			cs.POST("/conversations/:id/media", csHandler.SendMedia)
+			cs.POST("/conversations/:id/typing", csHandler.SetTyping)
 			cs.PUT("/conversations/:id/assign", csHandler.Assign)
 			cs.PUT("/conversations/:id/status", csHandler.SetStatus)
 			cs.PUT("/conversations/:id/ont", csHandler.LinkONT)

@@ -57,6 +57,13 @@ export class CsRepository implements ICsRepository {
     return response.data.data;
   }
 
+  /** Raises or clears the "typing…" line on the customer's phone. Nothing is
+   * stored and nothing comes back: a typing state is true for a few seconds
+   * and then is not. */
+  async setTyping(conversationId: string, typing: boolean): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.CS_TYPING(conversationId), { typing });
+  }
+
   async sendMedia(
     conversationId: string,
     file: File,

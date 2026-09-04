@@ -3,7 +3,6 @@ package wa
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,6 +52,7 @@ type Client struct {
 	logger    *zap.Logger
 	inbound   *inboundHandler
 	receipts  *receiptHandler
+	presence  *presenceHandler
 	// dropped carries "the socket went away" from an event handler to the
 	// supervisor. It holds one slot because a second drop before the first is
 	// answered says nothing new.
@@ -105,6 +105,11 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		logger:        opt.Logger,
 	}
 	client.receipts = &receiptHandler{messages: opt.Messages, publisher: opt.Publisher}
+	client.presence = &presenceHandler{
+		accountID:     opt.AccountID,
+		conversations: opt.Conversations,
+		publisher:     opt.Publisher,
+	}
 	return client, nil
 }
 
@@ -175,6 +180,10 @@ func (c *Client) route(rawEvt any) {
 		if err := c.receipts.handle(c.ctx, evt); err != nil {
 			c.logger.Error("Could not apply WhatsApp receipt", zap.Error(err))
 		}
+	case *events.ChatPresence:
+		if err := c.presence.handle(c.ctx, evt); err != nil {
+			c.logger.Warn("Could not announce that a customer is typing", zap.Error(err))
+		}
 	case *events.PairSuccess:
 		// Fired for both QR and phone-number pairing once the phone approves —
 		// the store now has a device, so the supervisor no longer needs to
@@ -188,6 +197,7 @@ func (c *Client) route(rawEvt any) {
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 	case *events.Connected:
 		c.setStatus(c.ctx, models.WAAccountConnected)
+		c.goOnline(c.ctx)
 	case *events.Disconnected:
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 		c.signalDropped()
@@ -242,74 +252,17 @@ func (c *Client) setStatus(ctx context.Context, status models.WAAccountStatus) {
 	}
 }
 
-// SendText sends one reply and answers with the id WhatsApp gave it.
-func (c *Client) SendText(ctx context.Context, jid, body string, quote *Quote) (string, error) {
-	to, err := types.ParseJID(jid)
-	if err != nil {
-		return "", fmt.Errorf("tujuan tidak valid %q: %w", jid, err)
-	}
-
-	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, buildContextInfo(quote, to, c.selfJID())))
-	if err != nil {
-		return "", err
-	}
-	return resp.ID, nil
-}
-
-// SendMedia uploads an attachment and sends it. The file is read whole, which
-// is only safe because the upload boundary caps it: SendMedia in the API
-// wraps the request body in a MaxBytesReader before a byte is stored.
-func (c *Client) SendMedia(
-	ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string, quote *Quote,
-) (string, error) {
-	to, err := types.ParseJID(jid)
-	if err != nil {
-		return "", fmt.Errorf("tujuan tidak valid %q: %w", jid, err)
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("baca lampiran: %w", err)
-	}
-	uploaded, err := c.wa.Upload(ctx, data, uploadTypeFor(kind))
-	if err != nil {
-		return "", fmt.Errorf("unggah lampiran: %w", err)
-	}
-
-	quoted := buildContextInfo(quote, to, c.selfJID())
-	resp, err := c.wa.SendMessage(ctx, to, buildMediaMessage(kind, uploaded, mime, filename, caption, quoted))
-	if err != nil {
-		return "", err
-	}
-	return resp.ID, nil
-}
-
-// MarkRead sends a read receipt for the customer's messages, which is what
-// turns their ticks blue.
+// goOnline tells WhatsApp this number is available.
 //
-// The sender JID is the chat JID: whatsmeow only reads it for group chats, and
-// this inbox stores none. Whether the customer actually sees the blue ticks is
-// not ours to decide — a number whose WhatsApp privacy settings have read
-// receipts off sends a receipt only to its own devices, and whatsmeow quietly
-// downgrades the type for us.
-func (c *Client) MarkRead(ctx context.Context, chatJID string, ids []string, at time.Time) error {
-	chat, err := types.ParseJID(chatJID)
-	if err != nil {
-		return fmt.Errorf("tujuan tidak valid %q: %w", chatJID, err)
+// It is what makes the server push the customer's typing to us at all: chat
+// state is only routed to a device the server believes somebody is looking at.
+// whatsmeow also wants it called once per connection so the server has our
+// pushname, without which the customer sees "-" where our name should be.
+//
+// The cost is that the number reads as online while the process runs, which for
+// an inbox a team actually watches is closer to the truth than the alternative.
+func (c *Client) goOnline(ctx context.Context) {
+	if err := c.wa.SendPresence(ctx, types.PresenceAvailable); err != nil {
+		c.logger.Warn("Could not mark this WhatsApp number available", zap.Error(err))
 	}
-	stanzas := make([]types.MessageID, 0, len(ids))
-	for _, id := range ids {
-		stanzas = append(stanzas, types.MessageID(id))
-	}
-	return c.wa.MarkRead(ctx, stanzas, at, chat, chat)
-}
-
-// selfJID is this inbox's own number, needed to quote its own replies. It is
-// the zero JID before pairing finishes, which buildContextInfo treats as
-// "no participant" rather than naming an empty address.
-func (c *Client) selfJID() types.JID {
-	if c.wa.Store.ID == nil {
-		return types.JID{}
-	}
-	return c.wa.Store.ID.ToNonAD()
 }

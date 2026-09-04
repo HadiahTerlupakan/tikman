@@ -40,6 +40,10 @@ interface ThreadPaneProps {
   onCancelReply: () => void;
   onDeleteMessage: (message: CsMessage) => void;
   onClearThread: () => void;
+  /** True while the customer is writing in this thread. */
+  customerTyping: boolean;
+  /** Raises or clears the "typing…" line on the customer's phone. */
+  onTypingChange: (conversationId: string, typing: boolean) => void;
 }
 
 /**
@@ -70,6 +74,8 @@ export function ThreadPane({
   onCancelReply,
   onDeleteMessage,
   onClearThread,
+  customerTyping,
+  onTypingChange,
 }: ThreadPaneProps) {
   if (!conversation) {
     return (
@@ -98,6 +104,7 @@ export function ThreadPane({
             : undefined
         }
         isHolder={isHolder}
+        typing={customerTyping}
         onClear={canPurge ? onClearThread : undefined}
         clearing={clearing}
       />
@@ -157,6 +164,7 @@ export function ThreadPane({
         attaching={attaching}
         replyTo={replyTo}
         onCancelReply={onCancelReply}
+        onTypingChange={onTypingChange}
       />
     </>
   );

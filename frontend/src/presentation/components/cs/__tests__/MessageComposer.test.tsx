@@ -24,6 +24,7 @@ describe("MessageComposer", () => {
         holderName="Budi CS"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
       />,
     );
@@ -41,6 +42,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
       />,
     );
@@ -61,6 +63,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={onSend}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
       />,
     );
@@ -82,6 +85,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={onSend}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
       />,
     );
@@ -102,6 +106,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
         replyTo={{
           id: "m1",
@@ -131,6 +136,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
         replyTo={{
           id: "m1",
@@ -159,6 +165,7 @@ describe("MessageComposer", () => {
         holderName="Saya"
         onSend={vi.fn()}
         onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
         onAttach={vi.fn()}
       />,
     );
@@ -166,5 +173,96 @@ describe("MessageComposer", () => {
     expect(
       screen.queryByRole("button", { name: /batalkan balasan/i }),
     ).toBeNull();
+  });
+});
+
+describe("MessageComposer typing", () => {
+  const held = { ...conversation, assignedUserId: "me" };
+
+  function composer(
+    onTypingChange: (id: string, typing: boolean) => void,
+    props: Partial<React.ComponentProps<typeof MessageComposer>> = {},
+  ) {
+    return (
+      <MessageComposer
+        conversation={held}
+        currentUserId="me"
+        holderName="Saya"
+        onSend={vi.fn().mockResolvedValue(true)}
+        onTakeOver={vi.fn()}
+        onAttach={vi.fn()}
+        onTypingChange={onTypingChange}
+        {...props}
+      />
+    );
+  }
+
+  // A CS types faster than WhatsApp needs to hear about it. One update when
+  // they start is the whole point; one per keystroke is a request per letter
+  // for a line that looks identical either way.
+  it("raises the line once, however many letters follow", async () => {
+    const onTypingChange = vi.fn();
+    render(composer(onTypingChange));
+
+    await userEvent.type(screen.getByPlaceholderText(/tulis balasan/i), "halo");
+
+    expect(onTypingChange).toHaveBeenCalledTimes(1);
+    expect(onTypingChange).toHaveBeenCalledWith("c1", true);
+  });
+
+  // The reply itself says everything the line was saying. Leaving it up would
+  // show the customer somebody typing at the exact moment nobody is.
+  it("takes the line down when the reply goes", async () => {
+    const onTypingChange = vi.fn();
+    render(composer(onTypingChange));
+
+    await userEvent.type(screen.getByPlaceholderText(/tulis balasan/i), "halo");
+    await userEvent.click(screen.getByRole("button", { name: /^kirim$/i }));
+
+    await waitFor(() =>
+      expect(onTypingChange).toHaveBeenLastCalledWith("c1", false),
+    );
+  });
+
+  // Clearing the box is stopping. Without this the line would stay up on a
+  // thread whose reply the CS thought better of.
+  it("takes the line down when the box is emptied", async () => {
+    const onTypingChange = vi.fn();
+    render(composer(onTypingChange));
+
+    const box = screen.getByPlaceholderText(/tulis balasan/i);
+    await userEvent.type(box, "halo");
+    await userEvent.clear(box);
+
+    expect(onTypingChange).toHaveBeenLastCalledWith("c1", false);
+  });
+
+  // The thread the line comes down on is the one that was left, not the one
+  // just opened — otherwise a customer nobody is writing to keeps a line up
+  // while the customer being answered has none.
+  it("clears the thread it left, not the one it arrived at", async () => {
+    const onTypingChange = vi.fn();
+    const { rerender } = render(composer(onTypingChange));
+
+    await userEvent.type(screen.getByPlaceholderText(/tulis balasan/i), "halo");
+    rerender(
+      composer(onTypingChange, {
+        conversation: { ...held, id: "c2", customerPhone: "628999888777" },
+      }),
+    );
+
+    expect(onTypingChange).toHaveBeenLastCalledWith("c1", false);
+  });
+
+  // The last thing this component does is put the line down. A CS who closes
+  // the tab mid-word would otherwise leave the customer watching it.
+  it("takes the line down when the composer goes away", async () => {
+    const onTypingChange = vi.fn();
+    const { unmount } = render(composer(onTypingChange));
+
+    await userEvent.type(screen.getByPlaceholderText(/tulis balasan/i), "halo");
+    unmount();
+
+    expect(onTypingChange).toHaveBeenLastCalledWith("c1", false);
   });
 });

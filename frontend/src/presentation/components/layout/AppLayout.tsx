@@ -12,6 +12,7 @@ import {
 } from "@/application/hooks";
 import {
   useCsStream,
+  type CsTypingStatus,
   type WaStreamStatus,
 } from "@/application/hooks/useCsStream";
 import { UserRole } from "@/domain/entities";
@@ -79,6 +80,8 @@ async function trackPushRegistration(): Promise<() => void> {
  * feeds the navbar badge has to run here, not on that page. */
 export interface AppLayoutContext {
   csStream: WaStreamStatus;
+  /** Which threads have a customer writing in them right now. */
+  csTyping: CsTypingStatus;
 }
 
 export function AppLayout() {
@@ -314,7 +317,14 @@ export function AppLayout() {
                 onEnable={push.enable}
               />
             )}
-            <Outlet context={{ csStream: stream } satisfies AppLayoutContext} />
+            <Outlet
+              context={
+                {
+                  csStream: stream.accounts,
+                  csTyping: stream.typing,
+                } satisfies AppLayoutContext
+              }
+            />
           </div>
         </ProLayout>
       </App>

@@ -18,6 +18,7 @@ import {
   useDeleteWaAccount,
   useSendCsMedia,
   useSendCsMessage,
+  useSetCsTyping,
   useUsers,
   useWaAccounts,
   usePushNotifications,
@@ -106,7 +107,8 @@ export function CsInboxPage() {
   const [search, setSearch] = useState("");
   const [replyTo, setReplyTo] = useState<CsMessage>();
 
-  const { csStream: stream } = useOutletContext<AppLayoutContext>();
+  const { csStream: stream, csTyping } = useOutletContext<AppLayoutContext>();
+  const setTyping = useSetCsTyping();
   const push = usePushNotifications();
   const conversationsQuery = useCsConversations(filterFor(view, search));
   const historyQuery = useCsHistory(selectedId);
@@ -249,6 +251,7 @@ export function CsInboxPage() {
           <div style={{ flex: 1, overflowY: "auto" }}>
             <ConversationList
               conversations={conversations}
+              typingIn={csTyping}
               selectedId={selectedId}
               holderNames={holderNames}
               currentUserId={currentUser?.id ?? ""}
@@ -268,6 +271,8 @@ export function CsInboxPage() {
         >
           <ThreadPane
             conversation={selected}
+            customerTyping={!!selected && !!csTyping[selected.id]}
+            onTypingChange={setTyping}
             messages={historyQuery.data ?? []}
             loading={historyQuery.isLoading}
             currentUserId={currentUser?.id ?? ""}

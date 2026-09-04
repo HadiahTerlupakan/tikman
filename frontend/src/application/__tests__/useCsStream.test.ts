@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { useCsStream } from "../hooks/useCsStream";
@@ -66,6 +66,85 @@ describe("useCsStream", () => {
     expect(invalidate).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["cs", "messages", "abc"] }),
     );
+  });
+
+  it("marks the thread a customer is writing in, and clears it when they stop", () => {
+    const client = new QueryClient();
+    const { result } = renderHook(() => useCsStream(), {
+      wrapper: wrapper(client),
+    });
+    const source = FakeEventSource.instances[0];
+
+    act(() =>
+      source.emit(
+        "cs",
+        JSON.stringify({
+          type: "typing",
+          conversation_id: "abc",
+          typing: true,
+        }),
+      ),
+    );
+    expect(result.current.typing.abc).toBe(true);
+
+    act(() =>
+      source.emit(
+        "cs",
+        JSON.stringify({ type: "typing", conversation_id: "abc" }),
+      ),
+    );
+    expect(result.current.typing.abc).toBeUndefined();
+  });
+
+  // A customer holding down a key sends composing every few seconds. Treating
+  // those as the nudge every other event is would reload the inbox list and
+  // the whole open thread while they are still writing the first sentence.
+  it("refetches nothing while a customer types", () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({
+          type: "typing",
+          conversation_id: "abc",
+          typing: true,
+        }),
+      ),
+    );
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  // A phone that loses signal mid-word never sends its paused, and the line
+  // would otherwise stay up for the rest of the shift.
+  it("takes the line down on its own when the paused never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new QueryClient();
+      const { result } = renderHook(() => useCsStream(), {
+        wrapper: wrapper(client),
+      });
+
+      act(() =>
+        FakeEventSource.instances[0].emit(
+          "cs",
+          JSON.stringify({
+            type: "typing",
+            conversation_id: "abc",
+            typing: true,
+          }),
+        ),
+      );
+      expect(result.current.typing.abc).toBe(true);
+
+      act(() => vi.advanceTimersByTime(11_000));
+      expect(result.current.typing.abc).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("closes the connection when the page goes away", () => {

@@ -16,6 +16,18 @@ const EventsChannel = "cs:events"
 // process drains it in seconds instead of waiting for its next sweep.
 const OutboxChannel = "cs:outbox"
 
+// PresenceChannel carries "a CS is typing" the other way, to the wa process —
+// the only thing holding a WhatsApp connection to tell the customer about it.
+const PresenceChannel = "cs:presence"
+
+// PresenceMessage is one CS typing state on PresenceChannel. It names the
+// thread rather than the number: the wa process already knows which number a
+// thread belongs to, and the browser that sends it does not need to care.
+type PresenceMessage struct {
+	ConversationID string `json:"conversation_id"`
+	Typing         bool   `json:"typing"`
+}
+
 // ControlChannel carries admin actions — pair a number, or give one up — to
 // the wa process, the only thing that holds the WhatsApp connection.
 const ControlChannel = "cs:control"
@@ -52,6 +64,9 @@ type Event struct {
 	// PairingCode is the eight-character code an admin types into WhatsApp
 	// under Linked Devices, set only while AccountStatus is "pairing".
 	PairingCode string `json:"pairing_code,omitempty"`
+	// Typing says whether the customer is writing, on a typing event. It is
+	// absent when they have stopped, which reads as false.
+	Typing bool `json:"typing,omitempty"`
 }
 
 // Event types.
@@ -60,6 +75,10 @@ const (
 	EventAssignment    = "assignment"
 	EventStatus        = "status"
 	EventAccountStatus = "account_status"
+	// EventTyping says a customer started or stopped writing. It carries no
+	// stored change, so a browser answers it by showing a line rather than by
+	// refetching anything.
+	EventTyping = "typing"
 )
 
 // announcer is what the handlers in this package need of a Publisher: a way to

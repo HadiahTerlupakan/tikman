@@ -125,6 +125,7 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.GET("/conversations/:id/messages", e.handler.History)
 		cs.POST("/conversations/:id/messages", e.handler.Send)
 		cs.POST("/conversations/:id/media", e.handler.SendMedia)
+		cs.POST("/conversations/:id/typing", e.handler.SetTyping)
 		cs.PUT("/conversations/:id/assign", e.handler.Assign)
 		cs.PUT("/conversations/:id/status", e.handler.SetStatus)
 		cs.PUT("/conversations/:id/ont", e.handler.LinkONT)

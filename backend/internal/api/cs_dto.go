@@ -5,6 +5,13 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
+// TypingRequest is a CS starting or stopping writing on a thread they hold.
+// The field is not required: a false has to be as sendable as a true, and
+// binding:"required" would reject exactly the message that clears the line.
+type TypingRequest struct {
+	Typing bool `json:"typing"`
+}
+
 // SendMessageRequest is a CS reply on a thread they hold.
 type SendMessageRequest struct {
 	Body string `json:"body" binding:"required"`

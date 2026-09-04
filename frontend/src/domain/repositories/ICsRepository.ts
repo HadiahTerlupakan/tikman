@@ -22,6 +22,7 @@ export interface ICsRepository {
     offset?: number,
   ): Promise<CsMessage[]>;
   sendMessage(conversationId: string, body: string): Promise<CsMessage>;
+  setTyping(conversationId: string, typing: boolean): Promise<void>;
   sendMedia(
     conversationId: string,
     file: File,

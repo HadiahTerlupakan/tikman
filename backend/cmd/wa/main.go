@@ -115,6 +115,7 @@ func main() {
 
 	go controlLoop(ctx, redisClient, live, logger)
 	go drainOnAnnouncement(ctx, redisClient, live, logger)
+	go presenceLoop(ctx, redisClient, live, conversations, logger)
 	go every(ctx, assignSweep, func() { assignWaiting(ctx, assignment, logger) })
 	go func() {
 		// Once at startup as well as on the ticker: a process that is restarted
