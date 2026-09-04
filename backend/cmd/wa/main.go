@@ -101,7 +101,7 @@ func main() {
 	assignment := services.NewCSAssignmentService(db, conversations, services.NewRedisPresence(redisClient))
 	retention := services.NewCSMediaRetention(db, cfg.WAMediaDir, cfg.WAMediaRetentionDays)
 	channels := services.NewCSChannelService(db)
-	channelPosts := services.NewCSChannelPostService(db)
+	channelPosts := services.NewCSBroadcastPostService(db)
 
 	live := newSessions(sessionDeps{
 		cfg:           cfg,
@@ -266,9 +266,9 @@ func drainOutbox(ctx context.Context, drainer *wa.Drainer, logger *zap.Logger) {
 	}
 }
 
-// drainChannelOutbox posts what is waiting for the channels one number
+// drainBroadcastOutbox posts what is waiting for the channels one number
 // administers, logging how many went.
-func drainChannelOutbox(ctx context.Context, drainer *wa.ChannelDrainer, logger *zap.Logger) {
+func drainBroadcastOutbox(ctx context.Context, drainer *wa.BroadcastDrainer, logger *zap.Logger) {
 	sent, err := drainer.Drain(ctx, outboxBatch)
 	if err != nil {
 		logger.Error("Could not post the queued channel updates", zap.Error(err))

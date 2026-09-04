@@ -90,12 +90,13 @@ func TestAQueuedUpdateCarriesTheChannelAndItsNumber(t *testing.T) {
 	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
 	require.Equal(t, http.StatusCreated, rec.Code)
 
-	var stored []models.WAChannelPost
+	var stored []models.WABroadcastPost
 	require.NoError(t, env.db.Find(&stored).Error)
 	require.Len(t, stored, 1)
-	assert.Equal(t, channel.JID, stored[0].ChannelJID)
+	require.NotNil(t, stored[0].DestinationJID)
+	assert.Equal(t, channel.JID, *stored[0].DestinationJID)
 	assert.Equal(t, env.account.ID, stored[0].WAAccountID)
-	assert.Equal(t, models.ChannelPostQueued, stored[0].Status)
+	assert.Equal(t, models.BroadcastQueued, stored[0].Status)
 }
 
 // The upload allowlist is the same one chat attachments go through, and it
@@ -144,12 +145,13 @@ func TestAQueuedMediaUpdateKeepsTheFileItNames(t *testing.T) {
 	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
 	require.Equal(t, http.StatusCreated, rec.Code)
 
-	var stored []models.WAChannelPost
+	var stored []models.WABroadcastPost
 	require.NoError(t, env.db.Find(&stored).Error)
 	require.Len(t, stored, 1)
-	assert.Equal(t, channel.JID, stored[0].ChannelJID)
+	require.NotNil(t, stored[0].DestinationJID)
+	assert.Equal(t, channel.JID, *stored[0].DestinationJID)
 	assert.Equal(t, env.account.ID, stored[0].WAAccountID)
-	assert.Equal(t, models.ChannelPostQueued, stored[0].Status)
+	assert.Equal(t, models.BroadcastQueued, stored[0].Status)
 	assert.Equal(t, models.MessageKindImage, stored[0].Kind)
 	assert.Equal(t, "image/jpeg", stored[0].MediaMime)
 	assert.Equal(t, "foto.jpg", stored[0].MediaFilename)

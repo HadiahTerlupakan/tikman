@@ -75,7 +75,7 @@ func (r *CSMediaRetention) expired(cutoff time.Time) ([]attachment, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list expired media: %w", err)
 	}
-	var posts []models.WAChannelPost
+	var posts []models.WABroadcastPost
 	err = r.db.Where("media_path <> '' AND created_at < ?", cutoff).Find(&posts).Error
 	if err != nil {
 		return nil, fmt.Errorf("list expired channel media: %w", err)
@@ -86,7 +86,7 @@ func (r *CSMediaRetention) expired(cutoff time.Time) ([]attachment, error) {
 		files = append(files, attachment{id: row.ID, path: row.MediaPath, table: &models.CSMessage{}})
 	}
 	for _, row := range posts {
-		files = append(files, attachment{id: row.ID, path: row.MediaPath, table: &models.WAChannelPost{}})
+		files = append(files, attachment{id: row.ID, path: row.MediaPath, table: &models.WABroadcastPost{}})
 	}
 	return files, nil
 }

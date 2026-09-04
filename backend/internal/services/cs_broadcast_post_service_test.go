@@ -13,15 +13,15 @@ import (
 
 const infoGangguan = "120363000000000001@newsletter"
 
-func postSetup(t *testing.T) (*CSChannelPostService, models.WAAccount, *gorm.DB) {
+func postSetup(t *testing.T) (*CSBroadcastPostService, models.WAAccount, *gorm.DB) {
 	t.Helper()
 	db := setupTestDB(t)
-	return NewCSChannelPostService(db), csAccount(t, db), db
+	return NewCSBroadcastPostService(db), csAccount(t, db), db
 }
 
-func queued(t *testing.T, s *CSChannelPostService, account models.WAAccount, body string) *models.WAChannelPost {
+func queued(t *testing.T, s *CSBroadcastPostService, account models.WAAccount, body string) *models.WABroadcastPost {
 	t.Helper()
-	post, err := s.Queue(ChannelPost{
+	post, err := s.Queue(BroadcastPost{
 		WAAccountID:  account.ID,
 		ChannelJID:   infoGangguan,
 		SenderUserID: uuid.New(),
@@ -39,7 +39,7 @@ func TestQueueStoresAnUpdateAsWaiting(t *testing.T) {
 
 	post := queued(t, posts, account, "Ada pemeliharaan malam ini")
 
-	assert.Equal(t, models.ChannelPostQueued, post.Status)
+	assert.Equal(t, models.BroadcastQueued, post.Status)
 	assert.Nil(t, post.WAMessageID)
 	assert.Nil(t, post.SentAt)
 }
@@ -53,7 +53,7 @@ func TestClaimQueuedAnswersOldestFirst(t *testing.T) {
 	second := queued(t, posts, account, "kedua")
 	// created_at is written by the database on insert; SQLite resolves both to
 	// the same instant often enough that ordering has to be made deterministic.
-	require.NoError(t, db.Model(&models.WAChannelPost{}).Where("id = ?", second.ID).
+	require.NoError(t, db.Model(&models.WABroadcastPost{}).Where("id = ?", second.ID).
 		Update("created_at", second.CreatedAt.Add(time.Second)).Error)
 
 	waiting, err := posts.ClaimQueued(account.ID, 10)
@@ -87,7 +87,7 @@ func TestMarkFailedRecordsTheReason(t *testing.T) {
 	history, err := posts.ListFor(infoGangguan, 10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, models.ChannelPostFailed, history[0].Status)
+	assert.Equal(t, models.BroadcastFailed, history[0].Status)
 	assert.Equal(t, "not authorized to post", history[0].FailReason)
 }
 
@@ -103,7 +103,7 @@ func TestMarkSentClearsAnEarlierFailure(t *testing.T) {
 	history, err := posts.ListFor(infoGangguan, 10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, models.ChannelPostSent, history[0].Status)
+	assert.Equal(t, models.BroadcastSent, history[0].Status)
 	assert.Empty(t, history[0].FailReason)
 	require.NotNil(t, history[0].WAMessageID)
 	assert.Equal(t, "3EB0F1", *history[0].WAMessageID)

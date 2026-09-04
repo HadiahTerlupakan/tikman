@@ -176,23 +176,25 @@ func TestSweepDeletesAnOldChannelAttachment(t *testing.T) {
 	_, statErr = os.Stat(filepath.Join(root, freshPath))
 	assert.NoError(t, statErr, "a recent one stays")
 
-	var stored models.WAChannelPost
+	var stored models.WABroadcastPost
 	require.NoError(t, db.First(&stored, "id = ?", old.ID).Error)
 	assert.Empty(t, stored.MediaPath, "the row stops pointing at a file")
 	assert.Equal(t, "pengumuman.jpg", stored.MediaFilename, "but still names what was announced")
 }
 
-func channelPostWithMedia(accountID uuid.UUID, path string, at time.Time) models.WAChannelPost {
-	return models.WAChannelPost{
-		WAAccountID:   accountID,
-		ChannelJID:    "120363000000000001@newsletter",
-		SenderUserID:  uuid.New(),
-		Kind:          models.MessageKindImage,
-		Status:        models.ChannelPostSent,
-		MediaPath:     path,
-		MediaMime:     "image/jpeg",
-		MediaFilename: "pengumuman.jpg",
-		MediaSize:     1,
-		CreatedAt:     at,
+func channelPostWithMedia(accountID uuid.UUID, path string, at time.Time) models.WABroadcastPost {
+	jid := "120363000000000001@newsletter"
+	return models.WABroadcastPost{
+		WAAccountID:    accountID,
+		Destination:    models.DestinationChannel,
+		DestinationJID: &jid,
+		SenderUserID:   uuid.New(),
+		Kind:           models.MessageKindImage,
+		Status:         models.BroadcastSent,
+		MediaPath:      path,
+		MediaMime:      "image/jpeg",
+		MediaFilename:  "pengumuman.jpg",
+		MediaSize:      1,
+		CreatedAt:      at,
 	}
 }

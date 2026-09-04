@@ -2,6 +2,7 @@ package wa
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -11,10 +12,10 @@ import (
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
-// ChannelSender is the part of whatsmeow that posting an update needs. It is
+// BroadcastSender is the part of whatsmeow that posting an update needs. It is
 // its own interface rather than an addition to Sender so the message outbox
 // and its tests are untouched by channel work.
-type ChannelSender interface {
+type BroadcastSender interface {
 	SendChannelText(ctx context.Context, channelJID, body string) (waMessageID string, err error)
 	SendChannelMedia(
 		ctx context.Context, channelJID string, kind models.MessageKind,
@@ -22,33 +23,34 @@ type ChannelSender interface {
 	) (waMessageID string, err error)
 }
 
-// ChannelDrainer posts the updates waiting in the channel outbox.
+// BroadcastDrainer posts the updates waiting in the channel outbox.
 //
 // Only one drain runs at a time, for the reason the message Drainer records:
 // ClaimQueued reads rows without locking them, so overlapping drains would
 // hand both the same row — and a duplicate here reaches every subscriber.
-type ChannelDrainer struct {
+type BroadcastDrainer struct {
 	mu        sync.Mutex
 	accountID uuid.UUID
-	posts     *services.CSChannelPostService
-	sender    ChannelSender
+	posts     *services.CSBroadcastPostService
+	sender    BroadcastSender
 	publisher announcer
 	mediaRoot string
 	pace      time.Duration
 }
 
-// NewChannelDrainer constructs a ChannelDrainer. pace is the gap left between
-// two posts, for the same reason the message drainer has one: emptying a queue
-// as fast as the connection allows is what gets an unofficial number flagged.
-func NewChannelDrainer(
+// NewBroadcastDrainer constructs a BroadcastDrainer. pace is the gap left
+// between two posts, for the same reason the message drainer has one:
+// emptying a queue as fast as the connection allows is what gets an
+// unofficial number flagged.
+func NewBroadcastDrainer(
 	accountID uuid.UUID,
-	posts *services.CSChannelPostService,
-	sender ChannelSender,
+	posts *services.CSBroadcastPostService,
+	sender BroadcastSender,
 	publisher announcer,
 	mediaRoot string,
 	pace time.Duration,
-) *ChannelDrainer {
-	return &ChannelDrainer{
+) *BroadcastDrainer {
+	return &BroadcastDrainer{
 		accountID: accountID,
 		posts:     posts,
 		sender:    sender,
@@ -61,7 +63,7 @@ func NewChannelDrainer(
 // Drain posts what is waiting and answers how many reached WhatsApp. An update
 // WhatsApp refuses is recorded with its reason and the drain continues: one
 // channel refusing must not hold up an announcement to another.
-func (d *ChannelDrainer) Drain(ctx context.Context, limit int) (int, error) {
+func (d *BroadcastDrainer) Drain(ctx context.Context, limit int) (int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -97,12 +99,16 @@ func (d *ChannelDrainer) Drain(ctx context.Context, limit int) (int, error) {
 	return sent, nil
 }
 
-func (d *ChannelDrainer) send(ctx context.Context, post models.WAChannelPost) (string, error) {
+func (d *BroadcastDrainer) send(ctx context.Context, post models.WABroadcastPost) (string, error) {
+	if post.DestinationJID == nil {
+		return "", fmt.Errorf("tujuan saluran tidak ada pada kiriman %s", post.ID)
+	}
+	jid := *post.DestinationJID
 	if post.Kind == models.MessageKindText {
-		return d.sender.SendChannelText(ctx, post.ChannelJID, post.Body)
+		return d.sender.SendChannelText(ctx, jid, post.Body)
 	}
 	return d.sender.SendChannelMedia(
-		ctx, post.ChannelJID, post.Kind,
+		ctx, jid, post.Kind,
 		filepath.Join(d.mediaRoot, post.MediaPath),
 		post.MediaMime, post.MediaFilename, post.Body,
 	)
@@ -116,12 +122,16 @@ func (d *ChannelDrainer) send(ctx context.Context, post models.WAChannelPost) (s
 //
 // A failure to publish is returned to nobody: the update is already sent, and
 // the browser's next refetch closes the gap.
-func (d *ChannelDrainer) announce(ctx context.Context, post models.WAChannelPost) {
+func (d *BroadcastDrainer) announce(ctx context.Context, post models.WABroadcastPost) {
 	if d.publisher == nil {
 		return
 	}
+	channelID := ""
+	if post.DestinationJID != nil {
+		channelID = *post.DestinationJID
+	}
 	_ = d.publisher.Publish(ctx, Event{
 		Type:      EventChannelPost,
-		ChannelID: post.ChannelJID,
+		ChannelID: channelID,
 	})
 }

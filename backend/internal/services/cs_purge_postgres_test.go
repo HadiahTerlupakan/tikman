@@ -92,7 +92,7 @@ func TestPurgingAQuotedMessageNullsTheReplyPointerOnPostgres(t *testing.T) {
 	assert.Nil(t, stored.ReplyToID, "the reply outlives the message it answered")
 }
 
-// wa_channel_posts references wa_accounts ON DELETE RESTRICT for the same
+// wa_broadcast_posts references wa_accounts ON DELETE RESTRICT for the same
 // reason cs_conversations does, so a number that has ever broadcast is refused
 // the same way a number with threads is. Dropping the history is deliberate,
 // which is why the constraint stays and DeleteAccount clears it first.
@@ -104,7 +104,7 @@ func TestDeleteAccountClearsItsBroadcastHistoryOnPostgres(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
 
-	_, err := NewCSChannelPostService(db).Queue(ChannelPost{
+	_, err := NewCSBroadcastPostService(db).Queue(BroadcastPost{
 		WAAccountID:  account.ID,
 		ChannelJID:   "120363000000000001@newsletter",
 		SenderUserID: uuid.New(),
@@ -118,7 +118,7 @@ func TestDeleteAccountClearsItsBroadcastHistoryOnPostgres(t *testing.T) {
 
 	var accounts, posts int64
 	require.NoError(t, db.Model(&models.WAAccount{}).Count(&accounts).Error)
-	require.NoError(t, db.Model(&models.WAChannelPost{}).Count(&posts).Error)
+	require.NoError(t, db.Model(&models.WABroadcastPost{}).Count(&posts).Error)
 	assert.Equal(t, int64(0), accounts)
 	assert.Equal(t, int64(0), posts)
 

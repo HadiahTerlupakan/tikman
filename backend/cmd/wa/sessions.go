@@ -26,7 +26,7 @@ type sessionDeps struct {
 	messages      *services.CSMessageService
 	assignment    *services.CSAssignmentService
 	channels      *services.CSChannelService
-	channelPosts  *services.CSChannelPostService
+	channelPosts  *services.CSBroadcastPostService
 	logger        *zap.Logger
 }
 
@@ -34,7 +34,7 @@ type sessionDeps struct {
 type session struct {
 	client         *wa.Client
 	drainer        *wa.Drainer
-	channelDrainer *wa.ChannelDrainer
+	channelDrainer *wa.BroadcastDrainer
 	stop           context.CancelFunc
 }
 
@@ -150,7 +150,7 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	drainer := wa.NewDrainer(account.ID, s.deps.messages, s.deps.conversations, client,
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
-	channelDrainer := wa.NewChannelDrainer(account.ID, s.deps.channelPosts, client,
+	channelDrainer := wa.NewBroadcastDrainer(account.ID, s.deps.channelPosts, client,
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
 
@@ -179,7 +179,7 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 			// queued while this process was down has no announcement left to
 			// wake it and would sit at "Antre" until somebody happened to send
 			// something else.
-			drainChannelOutbox(ctx, live.channelDrainer, logger)
+			drainBroadcastOutbox(ctx, live.channelDrainer, logger)
 		})
 
 	// Off the connection being established rather than off Connect returning:
@@ -205,7 +205,7 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 func (s *sessions) drainAll(ctx context.Context) {
 	for _, live := range s.snapshot() {
 		drainOutbox(ctx, live.drainer, s.deps.logger)
-		drainChannelOutbox(ctx, live.channelDrainer, s.deps.logger)
+		drainBroadcastOutbox(ctx, live.channelDrainer, s.deps.logger)
 	}
 }
 

@@ -21,19 +21,33 @@ ALTER TABLE wa_channels DROP CONSTRAINT IF EXISTS fk_wa_channels_account;
 ALTER TABLE wa_channels ADD CONSTRAINT fk_wa_channels_account
     FOREIGN KEY (wa_account_id) REFERENCES wa_accounts(id) ON DELETE CASCADE;
 
-ALTER TABLE wa_channel_posts DROP CONSTRAINT IF EXISTS wa_channel_posts_status_valid;
-ALTER TABLE wa_channel_posts ADD CONSTRAINT wa_channel_posts_status_valid
-    CHECK (status IN ('queued', 'sent', 'failed'));
+-- wa_channel_posts guarded on existing: migration 49 (added after this one
+-- shipped) removes the WAChannelPost model and folds its table into
+-- wa_broadcast_posts, so AutoMigrate no longer creates wa_channel_posts on a
+-- database that has not run this migration yet. Everywhere this migration
+-- already applied, the table is real and the guard is simply true.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = current_schema() AND table_name = 'wa_channel_posts'
+    ) THEN
+        ALTER TABLE wa_channel_posts DROP CONSTRAINT IF EXISTS wa_channel_posts_status_valid;
+        ALTER TABLE wa_channel_posts ADD CONSTRAINT wa_channel_posts_status_valid
+            CHECK (status IN ('queued', 'sent', 'failed'));
 
--- RESTRICT, matching cs_conversations in migration 41: deleting a number that
--- has broadcast history is a mistake worth refusing, and it is what keeps that
--- history readable.
-ALTER TABLE wa_channel_posts DROP CONSTRAINT IF EXISTS fk_wa_channel_posts_account;
-ALTER TABLE wa_channel_posts ADD CONSTRAINT fk_wa_channel_posts_account
-    FOREIGN KEY (wa_account_id) REFERENCES wa_accounts(id) ON DELETE RESTRICT;
+        -- RESTRICT, matching cs_conversations in migration 41: deleting a
+        -- number that has broadcast history is a mistake worth refusing, and
+        -- it is what keeps that history readable.
+        ALTER TABLE wa_channel_posts DROP CONSTRAINT IF EXISTS fk_wa_channel_posts_account;
+        ALTER TABLE wa_channel_posts ADD CONSTRAINT fk_wa_channel_posts_account
+            FOREIGN KEY (wa_account_id) REFERENCES wa_accounts(id) ON DELETE RESTRICT;
 
--- The drainer asks only for queued rows, and history grows without bound while
--- the queue stays near empty. A partial index keeps that claim cheap.
-CREATE INDEX IF NOT EXISTS idx_wa_channel_posts_queued
-    ON wa_channel_posts (wa_account_id, created_at)
-    WHERE status = 'queued';
+        -- The drainer asks only for queued rows, and history grows without
+        -- bound while the queue stays near empty. A partial index keeps that
+        -- claim cheap.
+        CREATE INDEX IF NOT EXISTS idx_wa_channel_posts_queued
+            ON wa_channel_posts (wa_account_id, created_at)
+            WHERE status = 'queued';
+    END IF;
+END $$;

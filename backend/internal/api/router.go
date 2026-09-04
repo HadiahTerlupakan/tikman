@@ -83,13 +83,13 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csQuickReplyService := services.NewCSQuickReplyService(db)
 	csAccountService := services.NewCSAccountService(db)
 	csChannelService := services.NewCSChannelService(db)
-	csChannelPostService := services.NewCSChannelPostService(db)
+	csBroadcastPostService := services.NewCSBroadcastPostService(db)
 	csPurgeService := services.NewCSPurgeService(db, cfg.WAMediaDir)
 	csPresence := services.NewRedisPresence(csRedisClient)
 	csAssignmentService := services.NewCSAssignmentService(db, csConversationService, csPresence)
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
-		csConversationService, csMessageService, csQuickReplyService, csAccountService, csChannelService, csChannelPostService,
+		csConversationService, csMessageService, csQuickReplyService, csAccountService, csChannelService, csBroadcastPostService,
 		csPurgeService, csAssignmentService, csPresence, auditService, ontService, userService, csPublisher, csRedisClient,
 		logger, cfg.WAMediaDir,
 	)

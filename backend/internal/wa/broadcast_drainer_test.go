@@ -59,7 +59,7 @@ func (f *fakeChannelSender) SendChannelMedia(
 	return "3EB0MEDIA", nil
 }
 
-func channelDrainSetup(t *testing.T) (*ChannelDrainer, *fakeChannelSender, *services.CSChannelPostService, models.WAAccount, string) {
+func channelDrainSetup(t *testing.T) (*BroadcastDrainer, *fakeChannelSender, *services.CSBroadcastPostService, models.WAAccount, string) {
 	t.Helper()
 	// Built here rather than borrowed from the services package, matching
 	// drainSetup in outbound_test.go — including the single connection, which
@@ -76,15 +76,15 @@ func channelDrainSetup(t *testing.T) (*ChannelDrainer, *fakeChannelSender, *serv
 
 	account := models.WAAccount{Label: "CS Utama", Status: models.WAAccountConnected}
 	require.NoError(t, db.Create(&account).Error)
-	posts := services.NewCSChannelPostService(db)
+	posts := services.NewCSBroadcastPostService(db)
 	sender := &fakeChannelSender{}
 	root := t.TempDir()
-	return NewChannelDrainer(account.ID, posts, sender, nil, root, 0), sender, posts, account, root
+	return NewBroadcastDrainer(account.ID, posts, sender, nil, root, 0), sender, posts, account, root
 }
 
-func queuePost(t *testing.T, posts *services.CSChannelPostService, account models.WAAccount, body string) uuid.UUID {
+func queuePost(t *testing.T, posts *services.CSBroadcastPostService, account models.WAAccount, body string) uuid.UUID {
 	t.Helper()
-	post, err := posts.Queue(services.ChannelPost{
+	post, err := posts.Queue(services.BroadcastPost{
 		WAAccountID:  account.ID,
 		ChannelJID:   "120363000000000001@newsletter",
 		SenderUserID: uuid.New(),
@@ -123,7 +123,7 @@ func TestARefusedUpdateKeepsItsReason(t *testing.T) {
 	history, err := posts.ListFor("120363000000000001@newsletter", 10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, models.ChannelPostFailed, history[0].Status)
+	assert.Equal(t, models.BroadcastFailed, history[0].Status)
 	assert.Contains(t, history[0].FailReason, "not authorized")
 }
 
@@ -169,7 +169,7 @@ func TestAMediaUpdateIsSentFromWhereTheUploadWasStored(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
 
-	_, err := posts.Queue(services.ChannelPost{
+	_, err := posts.Queue(services.BroadcastPost{
 		WAAccountID:  account.ID,
 		ChannelJID:   "120363000000000001@newsletter",
 		SenderUserID: uuid.New(),
@@ -197,7 +197,7 @@ func TestAMediaUpdateIsSentFromWhereTheUploadWasStored(t *testing.T) {
 	history, err := posts.ListFor("120363000000000001@newsletter", 10)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, models.ChannelPostSent, history[0].Status)
+	assert.Equal(t, models.BroadcastSent, history[0].Status)
 	require.NotNil(t, history[0].WAMessageID)
 	assert.Equal(t, "3EB0MEDIA", *history[0].WAMessageID)
 }

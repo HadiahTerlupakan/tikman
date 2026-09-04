@@ -81,7 +81,7 @@ func (s *CSPurgeService) DeleteAccount(id uuid.UUID) error {
 	if err := s.db.Where("wa_account_id = ?", id).Delete(&models.CSConversation{}).Error; err != nil {
 		return fmt.Errorf("delete the threads of a wa account: %w", err)
 	}
-	if err := s.removeChannelPosts(id); err != nil {
+	if err := s.removeBroadcastPosts(id); err != nil {
 		return err
 	}
 	if err := s.db.Delete(&models.WAAccount{}, "id = ?", id).Error; err != nil {
@@ -90,13 +90,13 @@ func (s *CSPurgeService) DeleteAccount(id uuid.UUID) error {
 	return nil
 }
 
-// removeChannelPosts drops one number's broadcast history and the attachments
-// it points at. wa_channel_posts carries the same RESTRICT foreign key
-// cs_conversations does, so without this Postgres refuses to delete any number
-// that has ever posted an update.
-func (s *CSPurgeService) removeChannelPosts(accountID uuid.UUID) error {
+// removeBroadcastPosts drops one number's broadcast history and the
+// attachments it points at. wa_broadcast_posts carries the same RESTRICT
+// foreign key cs_conversations does, so without this Postgres refuses to
+// delete any number that has ever posted an update.
+func (s *CSPurgeService) removeBroadcastPosts(accountID uuid.UUID) error {
 	var paths []string
-	err := s.db.Model(&models.WAChannelPost{}).
+	err := s.db.Model(&models.WABroadcastPost{}).
 		Where("wa_account_id = ? AND media_path <> ''", accountID).
 		Pluck("media_path", &paths).Error
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *CSPurgeService) removeChannelPosts(accountID uuid.UUID) error {
 		return err
 	}
 
-	err = s.db.Where("wa_account_id = ?", accountID).Delete(&models.WAChannelPost{}).Error
+	err = s.db.Where("wa_account_id = ?", accountID).Delete(&models.WABroadcastPost{}).Error
 	if err != nil {
 		return fmt.Errorf("delete the channel posts of a wa account: %w", err)
 	}

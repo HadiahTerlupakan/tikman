@@ -64,7 +64,7 @@ func (h *CSHandler) ListChannelPosts(c *gin.Context) {
 		return
 	}
 
-	rows, err := h.channelPosts.ListFor(channel.JID, queryInt(c, "limit"))
+	rows, err := h.broadcasts.ListFor(channel.JID, queryInt(c, "limit"))
 	if err != nil {
 		mapCSError(c, err, "CHANNEL_HISTORY_FAILED")
 		return
@@ -93,7 +93,7 @@ func (h *CSHandler) CreateChannelPost(c *gin.Context) {
 	}
 
 	userID, _ := middleware.GetUserID(c)
-	post, err := h.channelPosts.Queue(services.ChannelPost{
+	post, err := h.broadcasts.Queue(services.BroadcastPost{
 		WAAccountID:  channel.WAAccountID,
 		ChannelJID:   channel.JID,
 		SenderUserID: userID,
@@ -144,7 +144,7 @@ func (h *CSHandler) CreateChannelPostMedia(c *gin.Context) {
 	}
 
 	userID, _ := middleware.GetUserID(c)
-	post, err := h.channelPosts.Queue(services.ChannelPost{
+	post, err := h.broadcasts.Queue(services.BroadcastPost{
 		WAAccountID:  channel.WAAccountID,
 		ChannelJID:   channel.JID,
 		SenderUserID: userID,

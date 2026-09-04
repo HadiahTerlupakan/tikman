@@ -69,7 +69,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	quickReplies := services.NewCSQuickReplyService(db)
 	accounts := services.NewCSAccountService(db)
 	channels := services.NewCSChannelService(db)
-	channelPosts := services.NewCSChannelPostService(db)
+	channelPosts := services.NewCSBroadcastPostService(db)
 	presence := services.NewFakePresence()
 	assignment := services.NewCSAssignmentService(db, conversations, presence)
 	logger := zap.NewNop()
