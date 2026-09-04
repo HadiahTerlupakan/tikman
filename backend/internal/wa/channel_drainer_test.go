@@ -3,6 +3,8 @@ package wa
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -21,7 +23,18 @@ import (
 type fakeChannelSender struct {
 	mu     sync.Mutex
 	sent   []string
+	media  []mediaCall
 	refuse string
+}
+
+// mediaCall is what the drainer handed the sender for one attachment, so a
+// test can check the path it built and the fields it forwarded.
+type mediaCall struct {
+	kind     models.MessageKind
+	path     string
+	mime     string
+	filename string
+	caption  string
 }
 
 func (f *fakeChannelSender) SendChannelText(_ context.Context, _, body string) (string, error) {
@@ -35,15 +48,18 @@ func (f *fakeChannelSender) SendChannelText(_ context.Context, _, body string) (
 }
 
 func (f *fakeChannelSender) SendChannelMedia(
-	_ context.Context, _ string, _ models.MessageKind, _, _, _, caption string,
+	_ context.Context, _ string, kind models.MessageKind, path, mime, filename, caption string,
 ) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sent = append(f.sent, caption)
+	f.media = append(f.media, mediaCall{
+		kind: kind, path: path, mime: mime, filename: filename, caption: caption,
+	})
 	return "3EB0MEDIA", nil
 }
 
-func channelDrainSetup(t *testing.T) (*ChannelDrainer, *fakeChannelSender, *services.CSChannelPostService, models.WAAccount) {
+func channelDrainSetup(t *testing.T) (*ChannelDrainer, *fakeChannelSender, *services.CSChannelPostService, models.WAAccount, string) {
 	t.Helper()
 	// Built here rather than borrowed from the services package, matching
 	// drainSetup in outbound_test.go — including the single connection, which
@@ -62,7 +78,8 @@ func channelDrainSetup(t *testing.T) (*ChannelDrainer, *fakeChannelSender, *serv
 	require.NoError(t, db.Create(&account).Error)
 	posts := services.NewCSChannelPostService(db)
 	sender := &fakeChannelSender{}
-	return NewChannelDrainer(account.ID, posts, sender, nil, t.TempDir(), 0), sender, posts, account
+	root := t.TempDir()
+	return NewChannelDrainer(account.ID, posts, sender, nil, root, 0), sender, posts, account, root
 }
 
 func queuePost(t *testing.T, posts *services.CSChannelPostService, account models.WAAccount, body string) uuid.UUID {
@@ -81,7 +98,7 @@ func queuePost(t *testing.T, posts *services.CSChannelPostService, account model
 // One channel refusing an update must not hold up the announcements queued
 // behind it.
 func TestDrainKeepsGoingAfterWhatsAppRefusesOne(t *testing.T) {
-	drainer, sender, posts, account := channelDrainSetup(t)
+	drainer, sender, posts, account, _ := channelDrainSetup(t)
 	sender.refuse = "ditolak"
 	queuePost(t, posts, account, "ditolak")
 	queuePost(t, posts, account, "berhasil")
@@ -96,7 +113,7 @@ func TestDrainKeepsGoingAfterWhatsAppRefusesOne(t *testing.T) {
 // The refusal has to survive on the row, because the history is the only place
 // the sender ever learns their announcement did not go.
 func TestARefusedUpdateKeepsItsReason(t *testing.T) {
-	drainer, sender, posts, account := channelDrainSetup(t)
+	drainer, sender, posts, account, _ := channelDrainSetup(t)
 	sender.refuse = "ditolak"
 	queuePost(t, posts, account, "ditolak")
 
@@ -113,7 +130,7 @@ func TestARefusedUpdateKeepsItsReason(t *testing.T) {
 // ClaimQueued reads without locking, so two drains racing would hand both the
 // same row and subscribers would receive the announcement twice.
 func TestTwoDrainsNeverSendTheSameUpdateTwice(t *testing.T) {
-	drainer, sender, posts, account := channelDrainSetup(t)
+	drainer, sender, posts, account, _ := channelDrainSetup(t)
 	queuePost(t, posts, account, "sekali saja")
 
 	var wg sync.WaitGroup
@@ -131,7 +148,7 @@ func TestTwoDrainsNeverSendTheSameUpdateTwice(t *testing.T) {
 
 // A sent update stops being claimable, so a later sweep does not repeat it.
 func TestASentUpdateLeavesTheQueue(t *testing.T) {
-	drainer, _, posts, account := channelDrainSetup(t)
+	drainer, _, posts, account, _ := channelDrainSetup(t)
 	queuePost(t, posts, account, "sudah terkirim")
 	_, err := drainer.Drain(context.Background(), 10)
 	require.NoError(t, err)
@@ -139,4 +156,48 @@ func TestASentUpdateLeavesTheQueue(t *testing.T) {
 	waiting, err := posts.ClaimQueued(account.ID, 10)
 	require.NoError(t, err)
 	assert.Empty(t, waiting)
+}
+
+// The drainer builds the absolute path itself, joining the media root onto the
+// relative path storeUpload wrote. Nothing exercised that branch: if the two
+// ever disagree the read fails inside the wa process, and all the sender ever
+// sees is "Gagal".
+func TestAMediaUpdateIsSentFromWhereTheUploadWasStored(t *testing.T) {
+	drainer, sender, posts, account, root := channelDrainSetup(t)
+
+	rel := filepath.Join("2026", "09", "pengumuman.jpg")
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
+
+	_, err := posts.Queue(services.ChannelPost{
+		WAAccountID:  account.ID,
+		ChannelJID:   "120363000000000001@newsletter",
+		SenderUserID: uuid.New(),
+		Kind:         models.MessageKindImage,
+		Body:         "Ada pemeliharaan malam ini",
+		Media: &services.MediaFile{
+			Path: rel, Mime: "image/jpeg", Filename: "pengumuman.jpg", Size: 1,
+		},
+	})
+	require.NoError(t, err)
+
+	sent, err := drainer.Drain(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, sent)
+
+	require.Len(t, sender.media, 1)
+	call := sender.media[0]
+	assert.Equal(t, filepath.Join(root, rel), call.path)
+	assert.FileExists(t, call.path, "the path the drainer built is the file that was stored")
+	assert.Equal(t, models.MessageKindImage, call.kind)
+	assert.Equal(t, "image/jpeg", call.mime)
+	assert.Equal(t, "pengumuman.jpg", call.filename)
+	assert.Equal(t, "Ada pemeliharaan malam ini", call.caption, "the body travels as the caption")
+
+	history, err := posts.ListFor("120363000000000001@newsletter", 10)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, models.ChannelPostSent, history[0].Status)
+	require.NotNil(t, history[0].WAMessageID)
+	assert.Equal(t, "3EB0MEDIA", *history[0].WAMessageID)
 }

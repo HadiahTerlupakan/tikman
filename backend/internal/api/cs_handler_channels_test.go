@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -127,4 +128,34 @@ func TestAChannelLookupThatFailsIsNotReportedAsMissing(t *testing.T) {
 	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+// The media handler's success path: only its MIME refusal was ever exercised,
+// and this is where the file on disk and the row that names it have to agree —
+// the drainer reads exactly what storeUpload wrote, or the post fails on the
+// wa side with nothing the sender can act on.
+func TestAQueuedMediaUpdateKeepsTheFileItNames(t *testing.T) {
+	env := setupCSHandler(t)
+	channel := adminChannel(t, env)
+
+	req := uploadRequest(t,
+		"/api/v1/cs/channel-posts/media?channel_id="+channel.ID.String(), "image/jpeg", 32)
+	rec := httptest.NewRecorder()
+	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
+	require.Equal(t, http.StatusCreated, rec.Code)
+
+	var stored []models.WAChannelPost
+	require.NoError(t, env.db.Find(&stored).Error)
+	require.Len(t, stored, 1)
+	assert.Equal(t, channel.JID, stored[0].ChannelJID)
+	assert.Equal(t, env.account.ID, stored[0].WAAccountID)
+	assert.Equal(t, models.ChannelPostQueued, stored[0].Status)
+	assert.Equal(t, models.MessageKindImage, stored[0].Kind)
+	assert.Equal(t, "image/jpeg", stored[0].MediaMime)
+	assert.Equal(t, "foto.jpg", stored[0].MediaFilename)
+	assert.Equal(t, int64(32), stored[0].MediaSize)
+
+	require.NotEmpty(t, stored[0].MediaPath)
+	assert.FileExists(t, filepath.Join(env.mediaRoot, stored[0].MediaPath),
+		"the row points at the file that was actually written")
 }
