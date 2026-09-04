@@ -41,9 +41,13 @@ export const HEADER_HEIGHT = 56;
  * fit the screen scroll instead. Change the header height or the gutters and
  * this follows; a literal would not.
  *
- * It does not account for anything the layout renders above the page — the
- * notification-permission banner is the one such thing today — so a page using
- * this is exactly as tall as the viewport only while that banner is absent.
+ * It accounts for the shell's own two numbers and nothing else. ProLayout adds
+ * spacing of its own around the content area, and the layout renders the
+ * notification-permission banner above the page, so a page using this comes
+ * close to the viewport rather than matching it. Measured on 2026-09-04 that
+ * was near enough to keep; making it exact means measuring the page's real
+ * position at render, or turning the whole shell into a flex chain, and both
+ * were considered and declined.
  */
 export function fullHeightPage(screens: Screens): string {
   const padding = layoutPadding(screens);
