@@ -154,40 +154,50 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
 
-	s.running[account.ID] = &session{
+	live := &session{
 		client: client, drainer: drainer, channelDrainer: channelDrainer, stop: stop,
 	}
+	s.running[account.ID] = live
 	s.deps.logger.Info("Started a WhatsApp session",
 		zap.String("wa_account", account.Label),
 		zap.Bool("needs_pairing", client.NeedsPairing()))
 
-	go s.feed(sessionCtx, account, drainer, client)
+	go s.feed(sessionCtx, account, live)
 }
 
 // feed runs the loops that belong to one number: its outboxes, its channel
 // list, and its customers' profile photos. All are scoped to the account, so
 // they never touch another number's threads.
-func (s *sessions) feed(ctx context.Context, account models.WAAccount, drainer *wa.Drainer, client *wa.Client) {
+func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *session) {
 	logger := s.deps.logger.With(zap.String("wa_account", account.Label))
 
 	go every(ctx, max(time.Duration(s.deps.cfg.WADrainIntervalSeconds)*time.Second, time.Second),
-		func() { drainOutbox(ctx, drainer, logger) })
+		func() {
+			drainOutbox(ctx, live.drainer, logger)
+			// The channel outbox rides the same ticker for the same reason the
+			// message one needs it: Redis pub/sub is not durable, so a post
+			// queued while this process was down has no announcement left to
+			// wake it and would sit at "Antre" until somebody happened to send
+			// something else.
+			drainChannelOutbox(ctx, live.channelDrainer, logger)
+		})
 
-	syncChannels(ctx, client, s.deps.channels, account.ID, logger)
+	syncChannels(ctx, live.client, s.deps.channels, account.ID, logger)
 	go every(ctx, channelSync, func() {
-		syncChannels(ctx, client, s.deps.channels, account.ID, logger)
+		syncChannels(ctx, live.client, s.deps.channels, account.ID, logger)
 	})
 
-	avatars := wa.NewAvatarSweeper(account.ID, s.deps.conversations, client,
+	avatars := wa.NewAvatarSweeper(account.ID, s.deps.conversations, live.client,
 		s.deps.cfg.WAMediaDir, avatarPace, avatarRefresh)
 	sweepAvatars(ctx, avatars, logger)
 	every(ctx, avatarSweep, func() { sweepAvatars(ctx, avatars, logger) })
 }
 
-// drainAll empties every number's outbox. The announcement that a reply is
-// waiting does not say which number it belongs to, and it does not need to:
-// each session's claim is scoped to its own threads, so the others find
-// nothing and cost one indexed query.
+// drainAll empties both of every number's outboxes, the chat replies and the
+// channel updates. The announcement that something is waiting does not say
+// which number it belongs to, and it does not need to: each session's claim is
+// scoped to its own rows, so the others find nothing and cost one indexed
+// query.
 func (s *sessions) drainAll(ctx context.Context) {
 	for _, live := range s.snapshot() {
 		drainOutbox(ctx, live.drainer, s.deps.logger)
