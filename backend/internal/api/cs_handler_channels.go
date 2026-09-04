@@ -125,12 +125,8 @@ func (h *CSHandler) CreateChannelPostMedia(c *gin.Context) {
 	}
 
 	mime := wa.NormalizeMime(fileHeader.Header.Get("Content-Type"))
-	ext, allowed := wa.AllowedExtension(mime)
-	if !allowed {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: fmt.Sprintf("attachment type %q is not accepted", mime),
-			Code:  "MEDIA_TYPE_NOT_ALLOWED",
-		})
+	ext, ok := validateAttachmentMime(c, mime)
+	if !ok {
 		return
 	}
 
@@ -138,7 +134,7 @@ func (h *CSHandler) CreateChannelPostMedia(c *gin.Context) {
 	if err != nil {
 		h.logger.Error("store channel attachment failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: "failed to store attachment", Code: "MEDIA_STORE_FAILED",
+			Error: "gagal menyimpan lampiran", Code: "MEDIA_STORE_FAILED",
 		})
 		return
 	}
@@ -160,6 +156,24 @@ func (h *CSHandler) CreateChannelPostMedia(c *gin.Context) {
 
 	h.announceChannelPost(c, channel.JID)
 	c.JSON(http.StatusCreated, gin.H{"data": post})
+}
+
+// validateAttachmentMime refuses an upload whose declared type is not on the
+// allowlist before anything is written to disk. The check runs on the type
+// alone, ahead of storeUpload, because html/svg/xml are deliberately absent
+// from the allowlist — ServeMedia later hands attachments back from the API's
+// own origin, and a rejected file must never have touched disk in the first
+// place for that guarantee to hold.
+func validateAttachmentMime(c *gin.Context, mime string) (string, bool) {
+	ext, allowed := wa.AllowedExtension(mime)
+	if !allowed {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: fmt.Sprintf("tipe lampiran %q tidak diterima", mime),
+			Code:  "MEDIA_TYPE_NOT_ALLOWED",
+		})
+		return "", false
+	}
+	return ext, true
 }
 
 // channelFromQuery resolves the channel_id query parameter.
