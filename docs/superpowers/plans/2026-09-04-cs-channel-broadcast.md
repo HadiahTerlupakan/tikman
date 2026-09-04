@@ -1271,8 +1271,7 @@ Expected: PASS, including the four new channel drainer tests and every existing 
 
 ```bash
 git add backend/internal/wa/channel_send.go backend/internal/wa/channel_drainer.go \
-        backend/internal/wa/channel_drainer_test.go backend/internal/wa/events.go \
-        backend/internal/services/testing.go
+        backend/internal/wa/channel_drainer_test.go backend/internal/wa/events.go
 git commit -m "feat(cs): send queued channel updates through WhatsApp"
 ```
 
