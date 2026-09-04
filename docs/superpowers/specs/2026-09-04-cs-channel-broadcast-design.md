@@ -19,7 +19,7 @@ to those numbers. It is the right place for the button.
 - **Isi kiriman: teks dan lampiran** (gambar, video, dokumen), matching what
   `MessageComposer` already offers for chat, rather than text alone.
 - **Hak akses: setiap peran yang bisa membuka CS Inbox** — Admin, CS, and
-  Technician, the three the `/api/cs/*` group already admits
+  Technician, the three the `/api/v1/cs/*` group already admits
   (`router.go:232`). No extra `RequireRole`. This is deliberately looser than
   the neighbouring "Balasan Cepat" and number management buttons, which are
   admin-only. Accepted with its consequence stated: a post reaches every
@@ -93,8 +93,13 @@ into a React Query invalidation, exactly as it already does for conversations
 
 ## 5. Skema database
 
-Migration `48_cs_channels.sql`, following the flat numbering the repository
-actually uses.
+`AutoMigrate` creates both tables from the model tags, as it does for every
+other table here. Migration `48_cs_channels.sql` — flat numbering, the scheme
+the repository actually uses — adds only what a GORM tag cannot say: the status
+and role check constraints, the foreign key to `wa_accounts`, the unique index
+on `(wa_account_id, jid)`, and a partial index on `status = 'queued'` so the
+drainer's claim stays cheap as history accumulates. This is the same split
+migration 41 describes for the rest of the CS module.
 
 **`wa_channels`** — a mirror, not a source of truth. It may be dropped and
 rebuilt at any time.
@@ -139,18 +144,18 @@ so `delivered` and `read` will never arrive and must not be promised on screen.
 
 ## 6. Hak akses
 
-The `/api/cs` group's existing `RequireRole(Admin, CS, Technician)` is the
+The `/api/v1/cs` group's existing `RequireRole(Admin, CS, Technician)` is the
 whole gate. No route-level role check is added, and the button in the inbox
 header is not wrapped in `isAdmin` — unlike "Balasan Cepat" beside it.
 
 ## 7. Endpoint
 
 ```
-GET  /api/cs/wa-channels                     daftar saluran yang diadmin
-POST /api/cs/wa-channels/refresh             minta sinkronisasi ulang
-GET  /api/cs/channel-posts?channel_id=<uuid> riwayat satu saluran
-POST /api/cs/channel-posts                   kirim teks (JSON)
-POST /api/cs/channel-posts/media             kirim lampiran (multipart)
+GET  /api/v1/cs/wa-channels                     daftar saluran yang diadmin
+POST /api/v1/cs/wa-channels/refresh             minta sinkronisasi ulang
+GET  /api/v1/cs/channel-posts?channel_id=<uuid> riwayat satu saluran
+POST /api/v1/cs/channel-posts                   kirim teks (JSON)
+POST /api/v1/cs/channel-posts/media             kirim lampiran (multipart)
 ```
 
 A request names a channel by the `wa_channels` row id, not by its JID. The
@@ -205,7 +210,8 @@ Backend:
 
 - `internal/models/cs_channel.go` — `WAChannel`, `WAChannelPost`,
   `ChannelPostStatus`, `BeforeCreate`, `TableName`
-- `migrations/48_cs_channels.sql`
+- `migrations/48_cs_channels.sql` — constraints and indexes only
+- edit: `internal/models/models.go` — both models added to `AutoMigrate`
 - `internal/services/cs_channel_service.go` — `List`, `Replace`, `Get`
 - `internal/services/cs_channel_post_service.go` — `Queue`, `ListFor`,
   `ClaimQueued`, `MarkSent`, `MarkFailed`
