@@ -21,7 +21,7 @@ import {
   useUsers,
   useWaAccounts,
   usePushNotifications,
-  useChannelBroadcast,
+  useBroadcast,
 } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
 import type { CsMessage, User, WaAccount } from "@/domain/entities";
@@ -32,7 +32,7 @@ import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
 import { WaNumbersModal } from "@/presentation/components/cs/WaNumbersModal";
 import { InboxHeaderActions } from "@/presentation/components/cs/InboxHeaderActions";
-import { ChannelBroadcastModal } from "@/presentation/components/cs/ChannelBroadcastModal";
+import { BroadcastModal } from "@/presentation/components/cs/BroadcastModal";
 import {
   InboxFilterBar,
   filterFor,
@@ -120,7 +120,7 @@ export function CsInboxPage() {
   const accountsQuery = useWaAccounts();
   const accounts = accountsQuery.data ?? [];
   const holderNames = holderNameMap(usersQuery.data ?? []);
-  const broadcast = useChannelBroadcast(accounts, holderNames);
+  const broadcast = useBroadcast(accounts, holderNames);
 
   const sendMessage = useSendCsMessage();
   const sendMedia = useSendCsMedia();
@@ -349,7 +349,7 @@ export function CsInboxPage() {
         />
       )}
 
-      <ChannelBroadcastModal {...broadcast} />
+      <BroadcastModal {...broadcast} />
 
       {isAdmin && pairing && (
         <WaPairingModal

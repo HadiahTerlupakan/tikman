@@ -42,7 +42,7 @@ export function InboxHeaderActions({
       {/* Deliberately not behind isAdmin, unlike the button beside it:
           broadcasting is open to every role that can open the inbox. */}
       <Button icon={<NotificationOutlined />} onClick={onOpenBroadcast}>
-        Pembaruan Saluran
+        Pengumuman
       </Button>
       <PushOptInButton
         permission={pushPermission}

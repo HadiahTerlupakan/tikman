@@ -20,5 +20,5 @@ export * from "./useCsStream";
 export * from "./useCsQuickReplies";
 export * from "./useWaAccounts";
 export * from "./useWaChannels";
-export * from "./useChannelBroadcast";
+export * from "./useBroadcast";
 export * from "./usePushNotifications";

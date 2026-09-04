@@ -25,14 +25,16 @@ vi.mock("@/application/hooks", () => {
     requesting: false,
     enable: vi.fn(),
   };
-  // useChannelBroadcast returns the broadcast modal's own props (see
-  // useChannelBroadcast.ts), which the generic stub above does not shape —
-  // ChannelBroadcastModal renders unconditionally and destructures every one
-  // of these.
-  const channelBroadcastStub = {
+  // useBroadcast returns the broadcast modal's own props (see
+  // useBroadcast.ts), which the generic stub above does not shape —
+  // BroadcastModal renders unconditionally and destructures every one of
+  // these.
+  const broadcastStub = {
     open: false,
     channels: [],
+    statusAccountIds: [],
     accountLabels: {},
+    channelNames: {},
     posts: [],
     loadingPosts: false,
     refreshing: false,
@@ -47,8 +49,8 @@ vi.mock("@/application/hooks", () => {
   return {
     useAssignConversation: () => stub,
     useAssignOntToOdp: () => stub,
+    useBroadcast: () => broadcastStub,
     useBrowserSettings: () => stub,
-    useChannelBroadcast: () => channelBroadcastStub,
     useClearCsConversation: () => stub,
     useClearCsInbox: () => stub,
     useClearWaAccountMessages: () => stub,
