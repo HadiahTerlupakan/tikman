@@ -99,6 +99,14 @@ export function useCsStream(enabled = true, presence = false): CsStreamState {
         return;
       }
 
+      if (payload.type === "channel_post") {
+        // Returns rather than falling through: a channel update belongs to no
+        // conversation, and the refetches below would reload the whole inbox
+        // for something that changed nothing in it.
+        queryClient.invalidateQueries({ queryKey: ["cs", "channel-posts"] });
+        return;
+      }
+
       queryClient.invalidateQueries({ queryKey: ["cs", "conversations"] });
       if (payload.conversation_id) {
         queryClient.invalidateQueries({
