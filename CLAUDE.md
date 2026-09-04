@@ -51,7 +51,7 @@ go test -v -run TestFunctionName ./internal/services/
 - `cmd/worker/main.go` — OLT/ONT polling and monitoring events. Claims work from
   the `olt_poll_jobs` queue rather than sweeping every OLT on one timer: each OLT
   has a `status` job (1 min, one SNMP table), a `metrics` job (10 min, optical
-  and traffic) and a `discovery` job (1 hour, inventory). Run more than one with
+  and traffic) and a `discovery` job (6 hours, inventory). Run more than one with
   `docker compose up -d --scale worker=N worker`; they share the queue through
   `FOR UPDATE SKIP LOCKED`, and a claim keeps two workers off one chassis.
 - `cmd/seed-events/main.go` — development event seeding utility
