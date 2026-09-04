@@ -71,16 +71,23 @@ export function CsInboxPage() {
   // so the panel has to be told which one rather than assuming the only one.
   const [pairing, setPairing] = useState<WaAccount>();
   const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
-  // "Semua" by default, not "Milik saya": a CS opening the inbox needs to see
-  // what nobody has picked up, not only what is already theirs. The navbar
-  // bell overrides it with ?view=belum-dibalas, so the count it shows and the
-  // list you land on are the same set — arriving on "Semua" would make the
-  // reader hunt for the threads the number was about.
-  const [searchParams] = useSearchParams();
+  // The URL owns the view, rather than component state seeded from it. The
+  // navbar bell links here with ?view=belum-dibalas, and a CS clicking it while
+  // already on this page navigates within the same route: nothing remounts, so
+  // a useState initial value would be read once and never again — the click
+  // would change the address bar and nothing else. Deriving it means the list
+  // always matches the URL, and the view survives a reload or a shared link.
+  //
+  // "Semua" is the fallback, not "Milik saya": a CS opening the inbox needs to
+  // see what nobody has picked up, not only what is already theirs.
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
-  const [view, setView] = useState<InboxView>(
-    isInboxView(requestedView) ? requestedView : "semua",
-  );
+  const view: InboxView = isInboxView(requestedView) ? requestedView : "semua";
+  const setView = (next: InboxView) => {
+    // replace, so switching tabs does not stack a history entry per click and
+    // leave Back walking through them.
+    setSearchParams(next === "semua" ? {} : { view: next }, { replace: true });
+  };
   const [search, setSearch] = useState("");
   const [replyTo, setReplyTo] = useState<CsMessage>();
 
