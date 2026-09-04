@@ -32,3 +32,24 @@ func syncChannels(
 	}
 	logger.Info("Refreshed the channel list", zap.Int("channels", len(found)))
 }
+
+// syncChannelsOnConnect runs the first sync once the session is really
+// authenticated, which is what spec §4 means by "when a number's session
+// connects". Client.Connect returns as soon as the noise handshake is sent, so
+// syncing off it usually reaches a socket that cannot answer yet — an error,
+// or a wait for whatsmeow's 75-second request timeout — and the picker stays
+// empty until the hourly sweep comes round.
+func syncChannelsOnConnect(
+	ctx context.Context,
+	client *wa.Client,
+	channels *services.CSChannelService,
+	accountID uuid.UUID,
+	logger *zap.Logger,
+) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-client.Connected():
+	}
+	syncChannels(ctx, client, channels, accountID, logger)
+}

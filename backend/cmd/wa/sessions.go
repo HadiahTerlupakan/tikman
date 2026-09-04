@@ -182,7 +182,11 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 			drainChannelOutbox(ctx, live.channelDrainer, logger)
 		})
 
-	syncChannels(ctx, live.client, s.deps.channels, account.ID, logger)
+	// Off the connection being established rather than off Connect returning:
+	// Connect returns once the noise handshake is sent, and asking an
+	// unauthenticated socket for the channel list either errors or waits out
+	// whatsmeow's 75-second request timeout.
+	go syncChannelsOnConnect(ctx, live.client, s.deps.channels, account.ID, logger)
 	go every(ctx, channelSync, func() {
 		syncChannels(ctx, live.client, s.deps.channels, account.ID, logger)
 	})

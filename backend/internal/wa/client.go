@@ -63,6 +63,12 @@ type Client struct {
 	// instead of exiting: exiting would leave nothing running to recover the
 	// very session this pairing is about to produce.
 	paired chan struct{}
+	// connected carries "this session is authenticated" to whoever has to wait
+	// for it. Connect returns once the noise handshake is sent, which is well
+	// before whatsmeow can serve a request, so anything that asks WhatsApp a
+	// question at startup waits here instead. One slot, like the others: a
+	// reconnect nobody is waiting on says nothing new.
+	connected chan struct{}
 	// ctx is the process lifetime, and is what the event handlers work under:
 	// whatsmeow hands them no context of their own.
 	ctx context.Context
@@ -92,6 +98,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		logger:    opt.Logger,
 		dropped:   make(chan struct{}, 1),
 		paired:    make(chan struct{}, 1),
+		connected: make(chan struct{}, 1),
 		ctx:       ctx,
 	}
 	client.inbound = &inboundHandler{
@@ -117,6 +124,13 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 // account before it can do anything.
 func (c *Client) NeedsPairing() bool {
 	return c.wa.Store.ID == nil
+}
+
+// Connected answers a channel that receives once the session is authenticated
+// and can actually serve a request. It is what startup work has to wait on:
+// Connect returns as soon as the handshake is sent.
+func (c *Client) Connected() <-chan struct{} {
+	return c.connected
 }
 
 // Connect opens the session and keeps it open for as long as ctx lives.
@@ -198,6 +212,7 @@ func (c *Client) route(rawEvt any) {
 	case *events.Connected:
 		c.setStatus(c.ctx, models.WAAccountConnected)
 		c.goOnline(c.ctx)
+		c.signalConnected()
 	case *events.Disconnected:
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 		c.signalDropped()

@@ -27,6 +27,13 @@ func (c *Client) signalPaired() {
 	}
 }
 
+func (c *Client) signalConnected() {
+	select {
+	case c.connected <- struct{}{}:
+	default:
+	}
+}
+
 // supervise puts the session back after every drop until ctx ends. A drop
 // while the store is unpaired is not something reconnecting can fix — there
 // is no device to reconnect — so supervise waits for a pairing to succeed
