@@ -67,6 +67,8 @@ type Event struct {
 	// Typing says whether the customer is writing, on a typing event. It is
 	// absent when they have stopped, which reads as false.
 	Typing bool `json:"typing,omitempty"`
+	// ChannelID is the JID of the channel an EventChannelPost is about.
+	ChannelID string `json:"channel_id,omitempty"`
 }
 
 // Event types.
@@ -79,6 +81,10 @@ const (
 	// stored change, so a browser answers it by showing a line rather than by
 	// refetching anything.
 	EventTyping = "typing"
+	// EventChannelPost says one channel update changed status. It names the
+	// channel by JID rather than a row id, because the wa_channels row is
+	// deleted and recreated on every sync while the JID does not move.
+	EventChannelPost = "channel_post"
 )
 
 // announcer is what the handlers in this package need of a Publisher: a way to
