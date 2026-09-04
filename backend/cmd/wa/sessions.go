@@ -25,14 +25,17 @@ type sessionDeps struct {
 	conversations *services.CSConversationService
 	messages      *services.CSMessageService
 	assignment    *services.CSAssignmentService
+	channels      *services.CSChannelService
+	channelPosts  *services.CSChannelPostService
 	logger        *zap.Logger
 }
 
 // session is one live WhatsApp connection and the loops that feed it.
 type session struct {
-	client  *wa.Client
-	drainer *wa.Drainer
-	stop    context.CancelFunc
+	client         *wa.Client
+	drainer        *wa.Drainer
+	channelDrainer *wa.ChannelDrainer
+	stop           context.CancelFunc
 }
 
 // sessions holds one live connection per CS number.
@@ -147,8 +150,13 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	drainer := wa.NewDrainer(account.ID, s.deps.messages, s.deps.conversations, client,
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
+	channelDrainer := wa.NewChannelDrainer(account.ID, s.deps.channelPosts, client,
+		publisher, s.deps.cfg.WAMediaDir,
+		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
 
-	s.running[account.ID] = &session{client: client, drainer: drainer, stop: stop}
+	s.running[account.ID] = &session{
+		client: client, drainer: drainer, channelDrainer: channelDrainer, stop: stop,
+	}
 	s.deps.logger.Info("Started a WhatsApp session",
 		zap.String("wa_account", account.Label),
 		zap.Bool("needs_pairing", client.NeedsPairing()))
@@ -156,14 +164,19 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	go s.feed(sessionCtx, account, drainer, client)
 }
 
-// feed runs the loops that belong to one number: its outbox and its customers'
-// profile photos. Both are scoped to the account, so they never touch another
-// number's threads.
+// feed runs the loops that belong to one number: its outboxes, its channel
+// list, and its customers' profile photos. All are scoped to the account, so
+// they never touch another number's threads.
 func (s *sessions) feed(ctx context.Context, account models.WAAccount, drainer *wa.Drainer, client *wa.Client) {
 	logger := s.deps.logger.With(zap.String("wa_account", account.Label))
 
 	go every(ctx, max(time.Duration(s.deps.cfg.WADrainIntervalSeconds)*time.Second, time.Second),
 		func() { drainOutbox(ctx, drainer, logger) })
+
+	syncChannels(ctx, client, s.deps.channels, account.ID, logger)
+	go every(ctx, channelSync, func() {
+		syncChannels(ctx, client, s.deps.channels, account.ID, logger)
+	})
 
 	avatars := wa.NewAvatarSweeper(account.ID, s.deps.conversations, client,
 		s.deps.cfg.WAMediaDir, avatarPace, avatarRefresh)
@@ -178,6 +191,7 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, drainer *
 func (s *sessions) drainAll(ctx context.Context) {
 	for _, live := range s.snapshot() {
 		drainOutbox(ctx, live.drainer, s.deps.logger)
+		drainChannelOutbox(ctx, live.channelDrainer, s.deps.logger)
 	}
 }
 

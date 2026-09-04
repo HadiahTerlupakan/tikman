@@ -49,6 +49,10 @@ const (
 	// accountRescan is how often a number added from the admin screen is
 	// noticed. Adding one is a rare, human action, so this is unhurried.
 	accountRescan = 30 * time.Second
+	// channelSync is how often a number re-reads which channels it administers.
+	// Hourly rather than minutes: admin rights on a channel change rarely, and the
+	// refresh button covers the case where somebody cannot wait.
+	channelSync = time.Hour
 )
 
 func main() {
@@ -96,6 +100,8 @@ func main() {
 	messages := services.NewCSMessageService(db, conversations)
 	assignment := services.NewCSAssignmentService(db, conversations, services.NewRedisPresence(redisClient))
 	retention := services.NewCSMediaRetention(db, cfg.WAMediaDir, cfg.WAMediaRetentionDays)
+	channels := services.NewCSChannelService(db)
+	channelPosts := services.NewCSChannelPostService(db)
 
 	live := newSessions(sessionDeps{
 		cfg:           cfg,
@@ -105,6 +111,8 @@ func main() {
 		conversations: conversations,
 		messages:      messages,
 		assignment:    assignment,
+		channels:      channels,
+		channelPosts:  channelPosts,
 		logger:        logger,
 	})
 	live.sync(ctx)
@@ -221,6 +229,8 @@ func applyControl(ctx context.Context, payload string, live *sessions, logger *z
 		// number no longer has one. The rescan would have closed this session
 		// within the minute anyway — this only spares the inbox that wait.
 		live.restart(accountID)
+	case wa.ControlSyncChannels:
+		syncChannels(ctx, client, live.deps.channels, accountID, logger)
 	default:
 		logger.Warn("Unknown WhatsApp control action", zap.String("action", msg.Action))
 	}
@@ -253,6 +263,19 @@ func drainOutbox(ctx context.Context, drainer *wa.Drainer, logger *zap.Logger) {
 	}
 	if sent > 0 {
 		logger.Info("Sent queued CS replies", zap.Int("count", sent))
+	}
+}
+
+// drainChannelOutbox posts what is waiting for the channels one number
+// administers, logging how many went.
+func drainChannelOutbox(ctx context.Context, drainer *wa.ChannelDrainer, logger *zap.Logger) {
+	sent, err := drainer.Drain(ctx, outboxBatch)
+	if err != nil {
+		logger.Error("Could not post the queued channel updates", zap.Error(err))
+		return
+	}
+	if sent > 0 {
+		logger.Info("Posted queued channel updates", zap.Int("sent", sent))
 	}
 }
 

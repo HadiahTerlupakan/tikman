@@ -40,6 +40,10 @@ const (
 	// everything on it. All it asks of this process is to let the pairing go,
 	// so the phone stops listing a device for an inbox that no longer exists.
 	ControlDelete = "delete"
+	// ControlSyncChannels asks this process to re-read which channels a number
+	// administers. The mirror refreshes hourly on its own; this is the button
+	// for an admin who has just been given a channel and does not want to wait.
+	ControlSyncChannels = "sync-channels"
 )
 
 // ControlMessage is one admin action on ControlChannel. The API is the only
