@@ -106,6 +106,7 @@ func TestDeleteAccountClearsItsBroadcastHistoryOnPostgres(t *testing.T) {
 
 	_, err := NewCSBroadcastPostService(db).Queue(BroadcastPost{
 		WAAccountID:  account.ID,
+		Destination:  models.DestinationChannel,
 		ChannelJID:   "120363000000000001@newsletter",
 		SenderUserID: uuid.New(),
 		Kind:         models.MessageKindImage,
