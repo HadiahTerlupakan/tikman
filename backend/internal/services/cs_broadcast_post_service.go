@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// defaultPostHistoryLimit is one screen of a channel's broadcast history.
+// defaultPostHistoryLimit is one screen of broadcast history.
 const defaultPostHistoryLimit = 50
 
 // BroadcastPost is one announcement as the caller supplies it, before it is a
@@ -24,7 +24,7 @@ type BroadcastPost struct {
 	Media        *MediaFile
 }
 
-// CSBroadcastPostService is the outbox and the history of channel updates.
+// CSBroadcastPostService is the outbox and the history of announcements.
 // They are one table: a queued row is what the drainer claims, and the same
 // row is what the sender reads the outcome from afterwards.
 type CSBroadcastPostService struct {
@@ -151,7 +151,7 @@ func (s *CSBroadcastPostService) ClaimQueued(accountID uuid.UUID, limit int) ([]
 	err := s.db.Where("status = ? AND wa_account_id = ?", models.BroadcastQueued, accountID).
 		Order("created_at ASC").Limit(limit).Find(&rows).Error
 	if err != nil {
-		return nil, fmt.Errorf("claim queued channel posts: %w", err)
+		return nil, fmt.Errorf("claim queued broadcast posts: %w", err)
 	}
 	return rows, nil
 }
@@ -180,7 +180,7 @@ func (s *CSBroadcastPostService) MarkFailed(id uuid.UUID, reason string) error {
 func (s *CSBroadcastPostService) update(id uuid.UUID, fields map[string]any) error {
 	res := s.db.Model(&models.WABroadcastPost{}).Where("id = ?", id).Updates(fields)
 	if res.Error != nil {
-		return fmt.Errorf("update channel post: %w", res.Error)
+		return fmt.Errorf("update broadcast post: %w", res.Error)
 	}
 	if res.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound

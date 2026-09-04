@@ -63,12 +63,12 @@ func (r *CSMediaRetention) Sweep() (int, error) {
 }
 
 // expired lists what is past the window in both tables that store an
-// attachment: the chat messages and the channel updates, which go through the
+// attachment: the chat messages and the announcements, which go through the
 // same upload into the same root and would otherwise grow there without bound.
 //
-// A channel update is aged by created_at rather than by a wa_timestamp. It has
-// none: a channel sends no receipts, so nothing ever comes back to date a post
-// by.
+// An announcement is aged by created_at rather than by a wa_timestamp. It has
+// none: neither a channel nor a status sends receipts, so nothing ever comes
+// back to date a post by.
 func (r *CSMediaRetention) expired(cutoff time.Time) ([]attachment, error) {
 	var messages []models.CSMessage
 	err := r.db.Where("media_path <> '' AND wa_timestamp < ?", cutoff).Find(&messages).Error
@@ -78,7 +78,7 @@ func (r *CSMediaRetention) expired(cutoff time.Time) ([]attachment, error) {
 	var posts []models.WABroadcastPost
 	err = r.db.Where("media_path <> '' AND created_at < ?", cutoff).Find(&posts).Error
 	if err != nil {
-		return nil, fmt.Errorf("list expired channel media: %w", err)
+		return nil, fmt.Errorf("list expired broadcast media: %w", err)
 	}
 
 	files := make([]attachment, 0, len(messages)+len(posts))

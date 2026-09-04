@@ -33,7 +33,8 @@ type BroadcastSender interface {
 //
 // Only one drain runs at a time, for the reason the message Drainer records:
 // ClaimQueued reads rows without locking them, so overlapping drains would
-// hand both the same row — and a duplicate here reaches every subscriber.
+// hand both the same row — and a duplicate here reaches every subscriber or
+// viewer.
 type BroadcastDrainer struct {
 	mu        sync.Mutex
 	accountID uuid.UUID

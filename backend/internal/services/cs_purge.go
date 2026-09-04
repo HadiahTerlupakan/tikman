@@ -100,18 +100,24 @@ func (s *CSPurgeService) removeBroadcastPosts(accountID uuid.UUID) error {
 		Where("wa_account_id = ? AND media_path <> ''", accountID).
 		Pluck("media_path", &paths).Error
 	if err != nil {
-		return fmt.Errorf("find the attachments of a number's channel posts: %w", err)
+		return fmt.Errorf("find the attachments of a number's broadcast posts: %w", err)
 	}
 
 	// Files before rows, the order purge uses and for the same reason: the
 	// other way round strands a file with its only pointer already gone.
+	//
+	// One announcement sent from two numbers writes two rows naming the same
+	// media_path, so deleting one number can remove a file the other's row
+	// still points at. Tolerated: that row's attachment is already past
+	// sending, and the retention sweep treats a file somebody else deleted as
+	// cleared rather than as a failure.
 	if err := s.removeFiles(paths); err != nil {
 		return err
 	}
 
 	err = s.db.Where("wa_account_id = ?", accountID).Delete(&models.WABroadcastPost{}).Error
 	if err != nil {
-		return fmt.Errorf("delete the channel posts of a wa account: %w", err)
+		return fmt.Errorf("delete the broadcast posts of a wa account: %w", err)
 	}
 	return nil
 }

@@ -85,7 +85,6 @@ func TestMigration49CarriesChannelHistoryIntoTheBroadcastTable(t *testing.T) {
 // The constraint is the design: a status names no channel, a channel must.
 func TestPostgresRefusesADestinationThatContradictsItsJID(t *testing.T) {
 	db := setupPostgresTestDB(t)
-	require.NoError(t, database.RunSQLMigrations(db, migrationsDirForTest(t)))
 	account := models.WAAccount{Label: "CS Utama", Status: models.WAAccountConnected}
 	require.NoError(t, db.Create(&account).Error)
 

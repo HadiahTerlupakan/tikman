@@ -266,16 +266,16 @@ func drainOutbox(ctx context.Context, drainer *wa.Drainer, logger *zap.Logger) {
 	}
 }
 
-// drainBroadcastOutbox posts what is waiting for the channels one number
-// administers, logging how many went.
+// drainBroadcastOutbox posts the announcements waiting on one number, channel
+// updates and statuses alike, logging how many went.
 func drainBroadcastOutbox(ctx context.Context, drainer *wa.BroadcastDrainer, logger *zap.Logger) {
 	sent, err := drainer.Drain(ctx, outboxBatch)
 	if err != nil {
-		logger.Error("Could not post the queued channel updates", zap.Error(err))
+		logger.Error("Could not post the queued announcements", zap.Error(err))
 		return
 	}
 	if sent > 0 {
-		logger.Info("Posted queued channel updates", zap.Int("sent", sent))
+		logger.Info("Posted queued announcements", zap.Int("sent", sent))
 	}
 }
 
