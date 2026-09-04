@@ -91,24 +91,47 @@ The SSE event is renamed too: `EventChannelPost` becomes `EventBroadcastPost`
 and its wire string becomes `"broadcast_post"`, because a status update
 announced as `"channel_post"` would be a lie in the one place a future reader
 would trust it. The string does move, and the cost is bounded: during the
-seconds between the two containers restarting, an event either side does not
-recognise is ignored, costing one missed refetch that the next event closes.
+seconds between the two containers restarting, an old page receiving
+`broadcast_post` does not recognise it and falls through to the default branch
+in `useCsStream`, which invalidates the conversations query — so the cost is
+one needless inbox refetch, not a missed one.
 
 ## 5. Skema database
 
-Migration `49_cs_broadcast_posts.sql`. AutoMigrate cannot rename, so unlike
-migration 48 this file does structural work:
+Migration `49_cs_broadcast_posts.sql`. It cannot rename the old table:
+`AutoMigrate` runs *before* the SQL migrations — `cmd/api/main.go` calls
+`models.AutoMigrate` and only then `database.RunSQLMigrations` — so by the time
+49 runs, `wa_broadcast_posts` has already been created from the model tags. A
+`RENAME` would collide with a table that exists, the migration would fail, and
+the API would not start. So the history is copied into the table AutoMigrate
+made, and the old table is dropped:
 
 ```
-ALTER TABLE wa_channel_posts RENAME TO wa_broadcast_posts;
-ALTER TABLE wa_broadcast_posts RENAME COLUMN channel_jid TO destination_jid;
-ALTER TABLE wa_broadcast_posts ALTER COLUMN destination_jid DROP NOT NULL;
-ALTER TABLE wa_broadcast_posts ADD COLUMN destination varchar(20) NOT NULL DEFAULT 'channel';
-ALTER TABLE wa_broadcast_posts ALTER COLUMN destination DROP DEFAULT;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_schema = current_schema()
+                 AND table_name = 'wa_channel_posts') THEN
+        INSERT INTO wa_broadcast_posts (
+            id, wa_account_id, destination, destination_jid, sender_user_id,
+            kind, body, media_path, media_mime, media_size, media_filename,
+            status, fail_reason, wa_message_id, created_at, sent_at)
+        SELECT
+            id, wa_account_id, 'channel', channel_jid, sender_user_id,
+            kind, body, media_path, media_mime, media_size, media_filename,
+            status, fail_reason, wa_message_id, created_at, sent_at
+        FROM wa_channel_posts
+        ON CONFLICT (id) DO NOTHING;
+
+        DROP TABLE wa_channel_posts;
+    END IF;
+END $$;
 ```
 
-The default exists only to give the one existing row a value, and is dropped
-immediately so no future insert can omit the column silently.
+The literal `'channel'` is what gives every pre-existing row its destination;
+no column default is added, so no future insert can omit the column silently.
+The whole copy is guarded on the old table existing, so a fresh database runs
+this as a no-op rather than an error.
 
 Constraints, replacing migration 48's equivalents under their new names:
 
