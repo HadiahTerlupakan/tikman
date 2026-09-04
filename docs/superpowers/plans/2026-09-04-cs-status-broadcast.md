@@ -26,7 +26,7 @@
   Claude-Session: https://claude.ai/code/session_011W57YMHYScTo9hPzpkqrY7
   ```
 
-**A live-data warning that binds every task:** `wa_broadcast_posts` exists in production with one real row (an announcement sent 2026-09-04). Migration 49 renames a live table. Nothing in this plan may drop, recreate, or truncate it.
+**A live-data warning that binds every task:** `wa_channel_posts` exists in production with one real row — an announcement genuinely sent on 2026-09-04. Migration 49 moves that history into `wa_broadcast_posts` and drops the old table. Nothing in this plan may truncate the history or drop the old table without first copying it, and the copy is under test.
 
 ---
 
@@ -54,23 +54,38 @@ The rename breaks compilation until every reference moves, so this task does the
 Create `backend/migrations/49_cs_broadcast_posts.sql`:
 
 ```sql
--- Posting to a WhatsApp Status as well as a Channel. The outbox is
--- generalized rather than duplicated: one table, one drainer, one history.
+-- Generalizing the channel outbox into a broadcast outbox.
 --
--- Unlike migration 48, this file does structural work — AutoMigrate cannot
--- rename a table or a column, and it must not be allowed to "fix" the drift
--- by creating a second table beside the live one.
+-- AutoMigrate runs BEFORE this file — cmd/api/main.go:56 against :68 — and it
+-- creates wa_broadcast_posts from the model tags. A RENAME would therefore
+-- collide with a table that already exists, the migration would fail, and the
+-- API would not start. So the history is copied into the table AutoMigrate
+-- made, and the old table is retired.
+--
+-- Guarded on the old table existing, so a fresh database runs this as a no-op
+-- rather than an error.
 
-ALTER TABLE wa_channel_posts RENAME TO wa_broadcast_posts;
-ALTER TABLE wa_broadcast_posts RENAME COLUMN channel_jid TO destination_jid;
-ALTER TABLE wa_broadcast_posts ALTER COLUMN destination_jid DROP NOT NULL;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = current_schema() AND table_name = 'wa_channel_posts'
+    ) THEN
+        INSERT INTO wa_broadcast_posts (
+            id, wa_account_id, destination, destination_jid, sender_user_id,
+            kind, body, media_path, media_mime, media_size, media_filename,
+            status, fail_reason, wa_message_id, created_at, sent_at)
+        SELECT
+            id, wa_account_id, 'channel', channel_jid, sender_user_id,
+            kind, body, media_path, media_mime, media_size, media_filename,
+            status, fail_reason, wa_message_id, created_at, sent_at
+        FROM wa_channel_posts
+        ON CONFLICT (id) DO NOTHING;
 
--- The default exists only to give rows written before this migration a value,
--- and is dropped immediately so no later insert can omit the column silently.
-ALTER TABLE wa_broadcast_posts ADD COLUMN IF NOT EXISTS destination varchar(20) NOT NULL DEFAULT 'channel';
-ALTER TABLE wa_broadcast_posts ALTER COLUMN destination DROP DEFAULT;
+        DROP TABLE wa_channel_posts;
+    END IF;
+END $$;
 
-ALTER TABLE wa_broadcast_posts DROP CONSTRAINT IF EXISTS wa_channel_posts_status_valid;
 ALTER TABLE wa_broadcast_posts DROP CONSTRAINT IF EXISTS wa_broadcast_posts_status_valid;
 ALTER TABLE wa_broadcast_posts ADD CONSTRAINT wa_broadcast_posts_status_valid
     CHECK (status IN ('queued', 'sent', 'failed'));
@@ -88,16 +103,16 @@ ALTER TABLE wa_broadcast_posts ADD CONSTRAINT wa_broadcast_posts_jid_matches_des
     OR (destination = 'status' AND destination_jid IS NULL)
 );
 
-ALTER TABLE wa_broadcast_posts DROP CONSTRAINT IF EXISTS fk_wa_channel_posts_account;
 ALTER TABLE wa_broadcast_posts DROP CONSTRAINT IF EXISTS fk_wa_broadcast_posts_account;
 ALTER TABLE wa_broadcast_posts ADD CONSTRAINT fk_wa_broadcast_posts_account
     FOREIGN KEY (wa_account_id) REFERENCES wa_accounts(id) ON DELETE RESTRICT;
 
-DROP INDEX IF EXISTS idx_wa_channel_posts_queued;
 CREATE INDEX IF NOT EXISTS idx_wa_broadcast_posts_queued
     ON wa_broadcast_posts (wa_account_id, created_at)
     WHERE status = 'queued';
 ```
+
+The old table's constraints and partial index go with the `DROP TABLE`; there is nothing left of migration 48's post half to clean up separately.
 
 - [ ] **Step 2: Write the model**
 
@@ -239,41 +254,69 @@ func (d *BroadcastDrainer) send(ctx context.Context, post models.WABroadcastPost
 
 Create `backend/internal/services/cs_broadcast_post_postgres_test.go`. Find how the existing Postgres suite is set up — `grep -n "setupPostgresTestDB" backend/internal/services/*_test.go` — and follow it exactly, including how it skips without `TEST_POSTGRES_DSN`.
 
-The test inserts a row in the pre-migration shape, runs the migrations, and asserts the row survived:
+The test must exercise the **copy**, not just insert and read back — so it builds the legacy table with raw SQL, puts a row in it, runs the SQL migrations, and asserts the row landed in the new table:
 
 ```go
-// Migration 49 renames a table that is live in production with real history in
-// it. A rename that drops and recreates would lose announcements already sent,
-// and SQLite — which has none of these constraints — would never catch it.
-func TestMigration49PreservesExistingChannelPosts(t *testing.T) {
+// Migration 49 retires a table that is live in production with real history in
+// it. AutoMigrate creates the new table before the SQL migrations run, so the
+// copy — not a rename — is what carries that history across, and nothing but a
+// real Postgres will catch it going wrong: SQLite has none of these tables'
+// constraints and the unit suite never runs the SQL migrations at all.
+func TestMigration49CarriesChannelHistoryIntoTheBroadcastTable(t *testing.T) {
 	db := setupPostgresTestDB(t)
 
 	account := models.WAAccount{Label: "CS Utama", Status: models.WAAccountConnected}
 	require.NoError(t, db.Create(&account).Error)
 
-	jid := "120363000000000001@newsletter"
-	before := models.WABroadcastPost{
-		WAAccountID:    account.ID,
-		Destination:    models.DestinationChannel,
-		DestinationJID: &jid,
-		SenderUserID:   uuid.New(),
-		Kind:           models.MessageKindText,
-		Body:           "Selamat datang di chanel SBL Network",
-		Status:         models.BroadcastSent,
-	}
-	require.NoError(t, db.Create(&before).Error)
+	// The pre-migration shape, as migration 48 left it.
+	require.NoError(t, db.Exec(`
+		CREATE TABLE wa_channel_posts (
+			id uuid PRIMARY KEY,
+			wa_account_id uuid NOT NULL,
+			channel_jid varchar(128) NOT NULL,
+			sender_user_id uuid NOT NULL,
+			kind varchar(20) NOT NULL,
+			body text,
+			media_path text,
+			media_mime varchar(100),
+			media_size bigint,
+			media_filename varchar(255),
+			status varchar(20) NOT NULL,
+			fail_reason text,
+			wa_message_id varchar(128),
+			created_at timestamptz NOT NULL DEFAULT now(),
+			sent_at timestamptz
+		)`).Error)
 
-	var after models.WABroadcastPost
-	require.NoError(t, db.First(&after, "id = ?", before.ID).Error)
-	assert.Equal(t, models.DestinationChannel, after.Destination)
-	require.NotNil(t, after.DestinationJID)
-	assert.Equal(t, jid, *after.DestinationJID)
-	assert.Equal(t, "Selamat datang di chanel SBL Network", after.Body)
+	legacyID := uuid.New()
+	require.NoError(t, db.Exec(`
+		INSERT INTO wa_channel_posts
+			(id, wa_account_id, channel_jid, sender_user_id, kind, body, status)
+		VALUES (?, ?, ?, ?, 'text', 'Selamat datang di chanel SBL Network', 'sent')`,
+		legacyID, account.ID, "120363000000000001@newsletter", uuid.New()).Error)
+
+	require.NoError(t, database.RunSQLMigrations(db, migrationsDirForTest(t)))
+
+	var moved models.WABroadcastPost
+	require.NoError(t, db.First(&moved, "id = ?", legacyID).Error)
+	assert.Equal(t, models.DestinationChannel, moved.Destination)
+	require.NotNil(t, moved.DestinationJID)
+	assert.Equal(t, "120363000000000001@newsletter", *moved.DestinationJID)
+	assert.Equal(t, "Selamat datang di chanel SBL Network", moved.Body)
+	assert.Equal(t, models.BroadcastSent, moved.Status)
+
+	var legacyLeft int64
+	require.NoError(t, db.Raw(`
+		SELECT count(*) FROM information_schema.tables
+		WHERE table_schema = current_schema() AND table_name = 'wa_channel_posts'`).
+		Scan(&legacyLeft).Error)
+	assert.Zero(t, legacyLeft, "the old table must be gone once its history has moved")
 }
 
 // The constraint is the design: a status names no channel, a channel must.
 func TestPostgresRefusesADestinationThatContradictsItsJID(t *testing.T) {
 	db := setupPostgresTestDB(t)
+	require.NoError(t, database.RunSQLMigrations(db, migrationsDirForTest(t)))
 	account := models.WAAccount{Label: "CS Utama", Status: models.WAAccountConnected}
 	require.NoError(t, db.Create(&account).Error)
 
@@ -293,6 +336,8 @@ func TestPostgresRefusesADestinationThatContradictsItsJID(t *testing.T) {
 	assert.Error(t, db.Create(&channelWithout).Error)
 }
 ```
+
+`migrationsDirForTest` resolves `backend/migrations` from the test's working directory — check whether the repository already has such a helper (`grep -rn "RunSQLMigrations" backend/ --include='*_test.go'`) and reuse it; write one only if none exists, and keep it to the two lines it needs.
 
 - [ ] **Step 6: Run the whole backend gate**
 
@@ -1440,6 +1485,6 @@ find backend/internal backend/cmd frontend/src/presentation/components/cs \
 
 No non-test file may exceed 350 lines except `CsInboxPage.tsx`, whose overage predates this work.
 
-**The Postgres suite is not optional for this plan.** Migration 49 renames a live table, and SQLite has none of its constraints — run the backend suite with `TEST_POSTGRES_DSN` set at least once and report that you did, or report plainly that the migration tests skipped.
+**The Postgres suite is not optional for this plan.** Migration 49 moves real history between two tables and then drops one; SQLite has none of these constraints and the unit suite never runs the SQL migrations at all. Run the backend suite with `TEST_POSTGRES_DSN` set at least once and report that you did, or report plainly that the migration tests skipped — a skipped migration test is not a passing one.
 
 Finally, run `graphify update .` to keep the knowledge graph current.
