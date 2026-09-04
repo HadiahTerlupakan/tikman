@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -143,4 +144,55 @@ func TestSweepKeepsGoingPastAPathItCannotRemove(t *testing.T) {
 
 	_, statErr := os.Stat(filepath.Join(root, removablePath))
 	assert.True(t, os.IsNotExist(statErr), "the file behind the stuck one is gone")
+}
+
+// Channel attachments are written by the same storeUpload into the same media
+// root as chat ones. Left out of the sweep they are the one thing on that disk
+// nothing ever removes, in a module whose sweeper exists because attachments
+// cost gigabytes a month.
+func TestSweepDeletesAnOldChannelAttachment(t *testing.T) {
+	db := setupTestDB(t)
+	account := csAccount(t, db)
+
+	root := t.TempDir()
+	oldPath := filepath.Join("2026", "01", "pengumuman-lama.jpg")
+	freshPath := filepath.Join("2026", "09", "pengumuman-baru.jpg")
+	for _, rel := range []string{oldPath, freshPath} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, rel)), 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(root, rel), []byte("x"), 0o600))
+	}
+
+	old := channelPostWithMedia(account.ID, oldPath, time.Now().Add(-100*24*time.Hour))
+	require.NoError(t, db.Create(&old).Error)
+	fresh := channelPostWithMedia(account.ID, freshPath, time.Now())
+	require.NoError(t, db.Create(&fresh).Error)
+
+	cleared, err := NewCSMediaRetention(db, root, 90).Sweep()
+	require.NoError(t, err)
+	assert.Equal(t, 1, cleared)
+
+	_, statErr := os.Stat(filepath.Join(root, oldPath))
+	assert.True(t, os.IsNotExist(statErr), "the aged attachment is gone")
+	_, statErr = os.Stat(filepath.Join(root, freshPath))
+	assert.NoError(t, statErr, "a recent one stays")
+
+	var stored models.WAChannelPost
+	require.NoError(t, db.First(&stored, "id = ?", old.ID).Error)
+	assert.Empty(t, stored.MediaPath, "the row stops pointing at a file")
+	assert.Equal(t, "pengumuman.jpg", stored.MediaFilename, "but still names what was announced")
+}
+
+func channelPostWithMedia(accountID uuid.UUID, path string, at time.Time) models.WAChannelPost {
+	return models.WAChannelPost{
+		WAAccountID:   accountID,
+		ChannelJID:    "120363000000000001@newsletter",
+		SenderUserID:  uuid.New(),
+		Kind:          models.MessageKindImage,
+		Status:        models.ChannelPostSent,
+		MediaPath:     path,
+		MediaMime:     "image/jpeg",
+		MediaFilename: "pengumuman.jpg",
+		MediaSize:     1,
+		CreatedAt:     at,
+	}
 }
