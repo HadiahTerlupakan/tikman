@@ -5,7 +5,11 @@ import { Dropdown, Avatar, App, Grid } from "antd";
 import type { MenuProps } from "antd";
 import { useEffect } from "react";
 import { useAuthStore } from "@/application/stores";
-import { useLogout, useCsConversations } from "@/application/hooks";
+import {
+  useLogout,
+  useCsConversations,
+  usePushNotifications,
+} from "@/application/hooks";
 import {
   useCsStream,
   type WaStreamStatus,
@@ -19,6 +23,8 @@ import {
   startPushRegistration,
 } from "@/infrastructure/firebase/messaging";
 import { PushRepository } from "@/infrastructure/repositories";
+import { playNotificationChime } from "@/infrastructure/notificationSound";
+import { PushPermissionPrompt } from "@/presentation/components/cs/PushPermissionPrompt";
 import { buildNavigationRoutes } from "./navigationRoutes";
 import { layoutPadding } from "./layoutPadding";
 
@@ -92,6 +98,7 @@ export function AppLayout() {
     { awaitingReply: true },
     { enabled: canUseCs },
   );
+  const push = usePushNotifications();
 
   // Runs once per app-shell mount, not per click. This is the only place that
   // tells the backend about this device: the FID arrives asynchronously
@@ -121,6 +128,9 @@ export function AppLayout() {
       );
 
     listenForForegroundMessages((title, body) => {
+      // The OS tone belongs to notifications it renders itself; one shown from
+      // an open tab is silent unless the page makes a sound of its own.
+      void playNotificationChime();
       void showLocalNotification(title, body).catch((error) =>
         console.warn("Could not show a foreground notification", error),
       );
@@ -297,6 +307,13 @@ export function AppLayout() {
               background: "transparent",
             }}
           >
+            {canUseCs && (
+              <PushPermissionPrompt
+                permission={push.permission}
+                requesting={push.requesting}
+                onEnable={push.enable}
+              />
+            )}
             <Outlet context={{ csStream: stream } satisfies AppLayoutContext} />
           </div>
         </ProLayout>
