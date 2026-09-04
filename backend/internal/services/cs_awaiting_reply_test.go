@@ -83,7 +83,17 @@ func TestAwaitingReplyCatchesACustomerWritingAfterTheThreadWasClosed(t *testing.
 	require.NoError(t, err)
 	require.Empty(t, waiting, "a closed thread with our answer last is not waiting on anyone")
 
-	customerWrote(t, messages, conv.ID, "3EB0B")
+	// Both steps, because inbound.go performs both for every message that
+	// arrives: FindOrCreate reopens the closed thread, and only then is the
+	// message stored. Storing without reopening is a sequence production
+	// never produces, and a test that skips the first step would assert
+	// against a state the inbox cannot reach.
+	reopened, err := conversations.FindOrCreate(IncomingPeer{
+		WAAccountID: acc.ID, JID: "628111222333@s.whatsapp.net",
+		Phone: "628111222333", Name: "Pelanggan",
+	})
+	require.NoError(t, err)
+	customerWrote(t, messages, reopened.ID, "3EB0B")
 
 	waiting, err = conversations.List(ConversationFilter{AwaitingReply: true})
 	require.NoError(t, err)
@@ -103,6 +113,21 @@ func TestAwaitingReplyClearsAsSoonAsAReplyIsQueued(t *testing.T) {
 	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, models.MessageQueued, msg.Status, "still waiting to be sent")
+
+	waiting, err := conversations.List(ConversationFilter{AwaitingReply: true})
+	require.NoError(t, err)
+	assert.Empty(t, waiting)
+}
+
+// Closing a thread does not change which side spoke last, so a thread closed
+// while the customer's message was the final one used to sit in "Belum
+// dibalas" for ever — work the team had already decided was finished.
+func TestAwaitingReplyDropsAThreadOnceItIsClosed(t *testing.T) {
+	messages, conversations, acc := awaitingSetup(t)
+	conv := thread(t, conversations, acc, "628111222333")
+	customerWrote(t, messages, conv.ID, "3EB0A")
+
+	require.NoError(t, conversations.Close(conv.ID))
 
 	waiting, err := conversations.List(ConversationFilter{AwaitingReply: true})
 	require.NoError(t, err)

@@ -35,9 +35,10 @@ type ConversationSummary struct {
 // between: their own threads, the ones nobody holds, or the finished ones.
 type ConversationFilter struct {
 	Mine *uuid.UUID
-	// AwaitingReply is every thread whose last message came from the customer,
-	// whoever holds it. One rule covers both the chat nobody has answered yet
-	// and the customer who wrote again after theirs was closed.
+	// AwaitingReply is every open thread whose last message came from the
+	// customer, whoever holds it. One rule covers both the chat nobody has
+	// answered yet and the customer who wrote again after theirs was closed;
+	// a thread the team has finished is not waiting on anyone.
 	AwaitingReply bool
 	Closed        bool
 	Search        string
@@ -53,7 +54,14 @@ func (s *CSConversationService) List(f ConversationFilter) ([]ConversationSummar
 	case f.Mine != nil:
 		q = q.Where("assigned_user_id = ? AND status <> ?", *f.Mine, models.ConversationClosed)
 	case f.AwaitingReply:
-		q = q.Where("last_message_direction = ?", models.MessageIn)
+		// Closed is excluded, and it has to be checked separately: closing a
+		// thread does not change which side spoke last, so a thread finished
+		// while the customer's message was the final one would otherwise sit
+		// here for ever. This does not hide a customer who writes again —
+		// FindOrCreate reopens a closed thread before the message is stored,
+		// so by the time this filter runs it is unassigned again.
+		q = q.Where("last_message_direction = ? AND status <> ?",
+			models.MessageIn, models.ConversationClosed)
 	case f.Closed:
 		q = q.Where("status = ?", models.ConversationClosed)
 	}
