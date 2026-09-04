@@ -1,5 +1,6 @@
 import type {
-  ChannelPost,
+  BroadcastPost,
+  BroadcastTarget,
   CsConversation,
   CsConversationFilter,
   CsMessage,
@@ -52,11 +53,14 @@ export interface ICsRepository {
   clearInbox(): Promise<number>;
   listWaChannels(): Promise<WaChannel[]>;
   refreshWaChannels(): Promise<void>;
-  getChannelPosts(channelId: string): Promise<ChannelPost[]>;
-  sendChannelPost(channelId: string, body: string): Promise<ChannelPost>;
-  sendChannelPostMedia(
-    channelId: string,
+  getBroadcasts(): Promise<BroadcastPost[]>;
+  sendBroadcast(
+    body: string,
+    targets: BroadcastTarget[],
+  ): Promise<BroadcastPost[]>;
+  sendBroadcastMedia(
     file: File,
-    caption?: string,
-  ): Promise<ChannelPost>;
+    caption: string,
+    targets: BroadcastTarget[],
+  ): Promise<BroadcastPost[]>;
 }

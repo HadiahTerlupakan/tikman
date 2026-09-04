@@ -5,7 +5,16 @@ export type ChannelRole = "owner" | "admin";
 
 /** How far an update has travelled. There is no "delivered" or "read": a
  * channel sends no receipts, so promising either on screen would be a lie. */
-export type ChannelPostStatus = "queued" | "sent" | "failed";
+export type BroadcastPostStatus = "queued" | "sent" | "failed";
+
+/** Where one announcement goes. A channel names its channel; a status names
+ * nothing beyond the number it goes out from. */
+export type BroadcastDestination = "channel" | "status";
+
+/** One destination as the composer asks for it. */
+export type BroadcastTarget =
+  | { type: "channel"; channelId: string }
+  | { type: "status"; waAccountId: string };
 
 /** One WhatsApp Channel a paired number administers. */
 export interface WaChannel {
@@ -18,16 +27,17 @@ export interface WaChannel {
   syncedAt: string;
 }
 
-/** One update, on its way to a channel or already gone. */
-export interface ChannelPost {
+/** One announcement, on its way to a channel or status, or already gone. */
+export interface BroadcastPost {
   id: string;
   waAccountId: string;
-  channelJid: string;
+  destination: BroadcastDestination;
+  destinationJid?: string;
   senderUserId: string;
   kind: string;
   body: string;
   mediaFilename?: string;
-  status: ChannelPostStatus;
+  status: BroadcastPostStatus;
   failReason?: string;
   createdAt: string;
   sentAt?: string;

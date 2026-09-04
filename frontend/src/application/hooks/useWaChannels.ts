@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CsRepository } from "@/infrastructure/repositories";
+import type { BroadcastTarget } from "@/domain/entities";
 import { reportCsMutationError } from "./csMutationError";
 
 const csRepository = new CsRepository();
@@ -30,43 +31,40 @@ export function useRefreshWaChannels() {
   });
 }
 
-/** One channel's broadcast history. This is where a sender learns whether
- * their update actually went: sending only queues it. */
-export function useChannelPosts(channelId?: string) {
+const BROADCASTS_KEY = ["cs", "broadcasts"];
+
+/** The most recent announcements across every destination. This is where a
+ * sender learns whether theirs actually went: sending only queues it. */
+export function useBroadcasts() {
   return useQuery({
-    queryKey: ["cs", "channel-posts", channelId],
-    queryFn: () => csRepository.getChannelPosts(channelId as string),
-    enabled: !!channelId,
+    queryKey: BROADCASTS_KEY,
+    queryFn: () => csRepository.getBroadcasts(),
   });
 }
 
-export function useSendChannelPost() {
+export function useSendBroadcast() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { channelId: string; body: string }) =>
-      csRepository.sendChannelPost(vars.channelId, vars.body),
-    onSuccess: (_post, vars) => {
-      queryClient.invalidateQueries({
-        queryKey: ["cs", "channel-posts", vars.channelId],
-      });
+    mutationFn: (vars: { body: string; targets: BroadcastTarget[] }) =>
+      csRepository.sendBroadcast(vars.body, vars.targets),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: BROADCASTS_KEY });
     },
     onError: reportCsMutationError,
   });
 }
 
-export function useSendChannelPostMedia() {
+export function useSendBroadcastMedia() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { channelId: string; file: File; caption?: string }) =>
-      csRepository.sendChannelPostMedia(
-        vars.channelId,
-        vars.file,
-        vars.caption,
-      ),
-    onSuccess: (_post, vars) => {
-      queryClient.invalidateQueries({
-        queryKey: ["cs", "channel-posts", vars.channelId],
-      });
+    mutationFn: (vars: {
+      file: File;
+      caption: string;
+      targets: BroadcastTarget[];
+    }) =>
+      csRepository.sendBroadcastMedia(vars.file, vars.caption, vars.targets),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: BROADCASTS_KEY });
     },
     onError: reportCsMutationError,
   });

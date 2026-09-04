@@ -106,6 +106,6 @@ export const API_ENDPOINTS = {
   CS_ALL_MESSAGES: "/api/v1/cs/messages",
   CS_WA_CHANNELS: "/api/v1/cs/wa-channels",
   CS_WA_CHANNELS_REFRESH: "/api/v1/cs/wa-channels/refresh",
-  CS_CHANNEL_POSTS: "/api/v1/cs/channel-posts",
-  CS_CHANNEL_POSTS_MEDIA: "/api/v1/cs/channel-posts/media",
+  CS_BROADCASTS: "/api/v1/cs/broadcasts",
+  CS_BROADCASTS_MEDIA: "/api/v1/cs/broadcasts/media",
 } as const;

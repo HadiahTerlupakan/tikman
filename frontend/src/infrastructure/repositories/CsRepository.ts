@@ -2,7 +2,8 @@ import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import type { ICsRepository, LinkOntResult } from "@/domain/repositories";
 import type {
-  ChannelPost,
+  BroadcastPost,
+  BroadcastTarget,
   CsConversation,
   CsConversationFilter,
   CsMessage,
@@ -206,37 +207,45 @@ export class CsRepository implements ICsRepository {
     await apiClient.post(API_ENDPOINTS.CS_WA_CHANNELS_REFRESH);
   }
 
-  async getChannelPosts(channelId: string): Promise<ChannelPost[]> {
-    const response = await apiClient.get(API_ENDPOINTS.CS_CHANNEL_POSTS, {
-      params: { channel_id: channelId },
-    });
+  async getBroadcasts(): Promise<BroadcastPost[]> {
+    const response = await apiClient.get(API_ENDPOINTS.CS_BROADCASTS);
     return response.data.data;
   }
 
-  async sendChannelPost(channelId: string, body: string): Promise<ChannelPost> {
-    const response = await apiClient.post(API_ENDPOINTS.CS_CHANNEL_POSTS, {
-      channel_id: channelId,
+  async sendBroadcast(
+    body: string,
+    targets: BroadcastTarget[],
+  ): Promise<BroadcastPost[]> {
+    const response = await apiClient.post(API_ENDPOINTS.CS_BROADCASTS, {
       body,
+      destinations: targets,
     });
     return response.data.data;
   }
 
-  async sendChannelPostMedia(
-    channelId: string,
+  async sendBroadcastMedia(
     file: File,
-    caption?: string,
-  ): Promise<ChannelPost> {
+    caption: string,
+    targets: BroadcastTarget[],
+  ): Promise<BroadcastPost[]> {
     const form = new FormData();
     form.append("file", file);
     if (caption) {
       form.append("caption", caption);
     }
 
-    // The channel travels in the query string, not the form, for the reason
+    // Destinations travel in the query string, not the form, for the reason
     // sendMedia records: the API wraps the body in a size guard before
     // anything reads it, and a form field would have to be parsed ahead of it.
+    const params = new URLSearchParams();
+    for (const target of targets) {
+      if (target.type === "channel")
+        params.append("channel_id", target.channelId);
+      else params.append("status_account_id", target.waAccountId);
+    }
+
     const response = await apiClient.post(
-      `${API_ENDPOINTS.CS_CHANNEL_POSTS_MEDIA}?channel_id=${channelId}`,
+      `${API_ENDPOINTS.CS_BROADCASTS_MEDIA}?${params.toString()}`,
       form,
       // Dropping the header hands the boundary to the browser, which is the
       // only thing that knows it.
