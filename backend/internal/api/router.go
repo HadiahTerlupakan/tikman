@@ -32,7 +32,7 @@ const (
 	loginRequestsPerMinute = 10
 )
 
-func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener) {
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener, *services.RedisPresence) {
 	router := ginEngine
 
 	router.Use(corsMiddleware(cfg.AllowedOrigins))
@@ -345,5 +345,5 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		}
 	}
 
-	return router, pushNotifier, pushListener
+	return router, pushNotifier, pushListener, csPresence
 }

@@ -45,6 +45,13 @@ func (p *RedisPresence) MarkOnline(ctx context.Context, userID uuid.UUID) error 
 	return p.client.Set(ctx, presenceKeyPrefix+userID.String(), "1", presenceTTL).Err()
 }
 
+// MarkOffline drops an agent from the online set immediately, rather than
+// waiting out the TTL. The TTL is the outage path; a departure the mirror can
+// see must not have to wait sixty seconds for it.
+func (p *RedisPresence) MarkOffline(ctx context.Context, userID uuid.UUID) error {
+	return p.client.Del(ctx, presenceKeyPrefix+userID.String()).Err()
+}
+
 // Online lists the CS currently at their desks, sorted so that the rotation is
 // the same order for every caller.
 func (p *RedisPresence) Online(ctx context.Context) ([]uuid.UUID, error) {
@@ -108,6 +115,20 @@ func (p *FakePresence) MarkOnline(_ context.Context, userID uuid.UUID) error {
 		}
 	}
 	p.online = append(p.online, userID)
+	return nil
+}
+
+// MarkOffline removes a user from the online set.
+func (p *FakePresence) MarkOffline(_ context.Context, userID uuid.UUID) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	kept := p.online[:0]
+	for _, id := range p.online {
+		if id != userID {
+			kept = append(kept, id)
+		}
+	}
+	p.online = kept
 	return nil
 }
 

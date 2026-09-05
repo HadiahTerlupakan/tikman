@@ -37,7 +37,7 @@ func TestHealthEndpoint(t *testing.T) {
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 
-	router, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger,
+	router, _, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger,
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -75,7 +75,7 @@ func TestHealthEndpoint_ReportsDatabaseDown(t *testing.T) {
 		AllowedOrigins: "http://localhost:3000",
 	}
 
-	router, _, _ := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
+	router, _, _, _ := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 
 	// Closing the pool makes every query fail, standing in for an unreachable
@@ -115,7 +115,7 @@ func TestRouterSetup(t *testing.T) {
 
 	sessionStore := auth.NewMemoryStore(24 * time.Hour)
 
-	router, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger,
+	router, _, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger,
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 
 	assert.NotNil(t, router)
@@ -140,7 +140,7 @@ func TestTestConnectionRouteIsRegisteredWithoutID(t *testing.T) {
 		AllowedOrigins: "http://localhost:3000",
 	}
 
-	router, _, _ := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
+	router, _, _, _ := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 
 	req := httptest.NewRequest("POST", "/api/v1/olts/test-connection", nil)
