@@ -30,7 +30,6 @@ type csHandlerEnv struct {
 	account       models.WAAccount
 	conversations *services.CSConversationService
 	messages      *services.CSMessageService
-	presence      *services.FakePresence
 	onts          *services.ONTService
 	// mediaRoot is where attachments land, so a test can look on the disk
 	// rather than trust the handler's word for what it removed.
@@ -85,7 +84,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	mediaRoot := t.TempDir()
 	handler := NewCSHandler(
 		conversations, messages, quickReplies, accounts, channels, channelPosts,
-		services.NewCSPurgeService(db, mediaRoot), assignment, presence,
+		services.NewCSPurgeService(db, mediaRoot), assignment,
 		audit, onts, services.NewUserService(db), publisher, redisClient, logger,
 		mediaRoot,
 	)
@@ -95,7 +94,6 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 		account:       account,
 		conversations: conversations,
 		messages:      messages,
-		presence:      presence,
 		onts:          onts,
 		mediaRoot:     mediaRoot,
 		// Real rows, not bare ids: replies are signed with the sender's name, and
@@ -138,7 +136,6 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.DELETE("/conversations/:id/messages", e.handler.ClearConversation)
 		cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), e.handler.ClearInbox)
 		cs.GET("/stream", e.handler.Stream)
-		cs.GET("/online", e.handler.Online)
 
 		cs.GET("/quick-replies", e.handler.ListQuickReplies)
 		cs.POST("/quick-replies", middleware.RequireRole(models.UserRoleAdmin), e.handler.CreateQuickReply)

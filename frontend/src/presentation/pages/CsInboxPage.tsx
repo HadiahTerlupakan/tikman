@@ -4,7 +4,7 @@ import {
   useOutletContext,
   useSearchParams,
 } from "react-router-dom";
-import { Grid } from "antd";
+import { Grid, Typography } from "antd";
 import { Empty } from "antd";
 import { useAuthStore } from "@/application/stores";
 import {
@@ -29,6 +29,7 @@ import {
   usePushNotifications,
   useBroadcast,
 } from "@/application/hooks";
+import type { PresenceStatus } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
 import type { CsMessage, User, WaAccount } from "@/domain/entities";
 import { PageHeader } from "@/presentation/components/common";
@@ -52,6 +53,8 @@ import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";
 
+const { Text } = Typography;
+
 // One shape for all three columns: without it they read as content floating on
 // the page rather than as panes of one screen.
 const panel = {
@@ -60,6 +63,25 @@ const panel = {
   borderRadius: 10,
   overflow: "hidden",
 } as const;
+
+// Only the two statuses an agent can act on say anything. A deployment with no
+// Firebase project, and a connection still coming up, are both silent: a banner
+// standing permanently under an empty panel is how the real warnings stop being
+// read.
+const presenceNotice: Partial<
+  Record<PresenceStatus, { text: string; color: string }>
+> = {
+  stale: {
+    text: "Terputus — daftar ini mungkin sudah tidak akurat",
+    color: colors.textMuted,
+  },
+  // The one an agent needs most: the list being a little old costs them
+  // nothing, not being in the rotation costs them the shift.
+  unclaimed: {
+    text: "Belum masuk rotasi — muat ulang halaman agar chat baru masuk",
+    color: colors.warning,
+  },
+};
 
 function holderNameMap(users: User[]): Record<string, string> {
   return Object.fromEntries(users.map((u) => [u.id, u.username]));
@@ -151,6 +173,8 @@ export function CsInboxPage() {
   const clearConversation = useClearCsConversation();
   const clearAccountMessages = useClearWaAccountMessages();
   const clearInbox = useClearCsInbox();
+
+  const notice = presenceNotice[onlineQuery.status];
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
@@ -369,6 +393,18 @@ export function CsInboxPage() {
                 flexShrink: 0,
               }}
             >
+              {notice && (
+                <Text
+                  style={{
+                    display: "block",
+                    padding: "8px 14px 0",
+                    color: notice.color,
+                    fontSize: 11,
+                  }}
+                >
+                  {notice.text}
+                </Text>
+              )}
               <CsTeamPanel
                 users={usersQuery.data ?? []}
                 online={onlineQuery.data ?? []}

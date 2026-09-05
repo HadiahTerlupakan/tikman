@@ -56,19 +56,13 @@ export interface CsStreamState {
 /**
  * Keeps the inbox current while the page is open.
  *
- * `presence` marks this agent online for as long as the connection lasts, so
- * round-robin only ever hands work to somebody who actually has the inbox in
- * front of them. The app shell runs this hook on every page, so only the inbox
- * route passes it — it is in the effect's dependencies so navigating in and out
- * of the inbox reopens the connection with the right claim.
- *
  * Events carry no data of their own, with one exception: account_status also
  * carries the WhatsApp connection state, and while pairing, the eight-character
  * code an admin types into WhatsApp. Everything else is a nudge to refetch, so
  * a connection that dropped and came back cannot leave the inbox showing a
  * stale thread — the refetch closes whatever gap the outage opened.
  */
-export function useCsStream(enabled = true, presence = false): CsStreamState {
+export function useCsStream(enabled = true): CsStreamState {
   const queryClient = useQueryClient();
   const [waStatus, setWaStatus] = useState<WaStreamStatus>({});
   // Deadlines rather than flags: a customer who is still writing keeps pushing
@@ -77,7 +71,7 @@ export function useCsStream(enabled = true, presence = false): CsStreamState {
 
   useEffect(() => {
     if (!enabled) return;
-    const url = `${env.apiUrl}${API_ENDPOINTS.CS_STREAM}${presence ? "?presence=1" : ""}`;
+    const url = `${env.apiUrl}${API_ENDPOINTS.CS_STREAM}`;
     let source: EventSource | undefined;
     let reopen: ReturnType<typeof setTimeout> | undefined;
     let delay = REOPEN_DELAY_MS;
@@ -155,7 +149,7 @@ export function useCsStream(enabled = true, presence = false): CsStreamState {
       clearTimeout(reopen);
       source?.close();
     };
-  }, [queryClient, enabled, presence]);
+  }, [queryClient, enabled]);
 
   const typingCount = Object.keys(typingUntil).length;
   useEffect(() => {

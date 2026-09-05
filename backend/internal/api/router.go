@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	firebase "firebase.google.com/go/v4"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/tikman/olt-provisioning/internal/auth"
@@ -31,7 +32,7 @@ const (
 	loginRequestsPerMinute = 10
 )
 
-func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService) (*gin.Engine, *services.PushNotifierService, *PushEventListener) {
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener, *services.RedisPresence) {
 	router := ginEngine
 
 	router.Use(corsMiddleware(cfg.AllowedOrigins))
@@ -70,6 +71,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	wireguardHandler := NewWireGuardHandler(wgService, auditService)
 	settingHandler := NewSettingHandler(settingService, auditService)
 	distributionHandler := NewDistributionHandler(services.NewDistributionService(db))
+	firebaseTokenHandler := NewFirebaseTokenHandler(firebaseApp, logger)
 
 	// A dedicated connection: the CS inbox's presence and pub/sub traffic is
 	// unrelated to the session store above, and giving it its own client keeps
@@ -90,7 +92,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
 		csConversationService, csMessageService, csQuickReplyService, csAccountService, csChannelService, csBroadcastPostService,
-		csPurgeService, csAssignmentService, csPresence, auditService, ontService, userService, csPublisher, csRedisClient,
+		csPurgeService, csAssignmentService, auditService, ontService, userService, csPublisher, csRedisClient,
 		logger, cfg.WAMediaDir,
 	)
 
@@ -120,6 +122,10 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			auth.POST("/login", middleware.RateLimitMiddleware(loginRequestsPerMinute), authHandler.Login)
 			auth.POST("/logout", authHandler.Logout)
 			auth.GET("/me", middleware.AuthMiddleware(authStore, logger), authHandler.Me)
+			auth.GET("/firebase-token",
+				middleware.AuthMiddleware(authStore, logger),
+				middleware.RequireRole(models.UserRoleAdmin, models.UserRoleCS, models.UserRoleTechnician),
+				firebaseTokenHandler.Token)
 		}
 
 		users := api.Group("/users")
@@ -251,7 +257,6 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			// natural owner to gate it, so it is the admin's alone.
 			cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), csHandler.ClearInbox)
 			cs.GET("/stream", csHandler.Stream)
-			cs.GET("/online", csHandler.Online)
 
 			cs.GET("/quick-replies", csHandler.ListQuickReplies)
 			cs.POST("/quick-replies", middleware.RequireRole(models.UserRoleAdmin), csHandler.CreateQuickReply)
@@ -339,5 +344,5 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 		}
 	}
 
-	return router, pushNotifier, pushListener
+	return router, pushNotifier, pushListener, csPresence
 }

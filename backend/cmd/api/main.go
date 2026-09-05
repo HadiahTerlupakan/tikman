@@ -17,6 +17,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/database"
+	"github.com/tikman/olt-provisioning/internal/firebaseapp"
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/push"
@@ -115,9 +116,14 @@ func main() {
 		log.Fatal("Failed to set trusted proxies", zap.Error(err))
 	}
 
-	router, pushNotifier, pushListener := api.Setup(engine, cfg, db, sessionStore, log, wgService)
+	firebaseApp, err := firebaseapp.New(context.Background(), cfg.FirebaseServiceAccountJSONB64)
+	if err != nil {
+		log.Warn("Firebase is not available", zap.Error(err))
+	}
 
-	pushClient, err := push.NewClient(context.Background(), cfg.FirebaseServiceAccountJSONB64)
+	router, pushNotifier, pushListener, csPresence := api.Setup(engine, cfg, db, sessionStore, log, wgService, firebaseApp)
+
+	pushClient, err := push.NewClient(context.Background(), firebaseApp)
 	if err != nil {
 		log.Warn("Push notifications are not available", zap.Error(err))
 	} else if pushClient != nil {
@@ -126,6 +132,17 @@ func main() {
 		log.Info("Push notification listener started")
 	} else {
 		log.Info("FIREBASE_SERVICE_ACCOUNT_JSON_B64 not set — push notifications disabled")
+	}
+
+	rtdbPresence, err := firebaseapp.NewRTDBPresence(context.Background(), firebaseApp, cfg.FirebaseDatabaseURL)
+	if err != nil {
+		log.Warn("CS presence mirror is not available", zap.Error(err))
+	} else if rtdbPresence != nil {
+		mirror := services.NewPresenceMirror(rtdbPresence, csPresence, log)
+		go mirror.Run(context.Background())
+		log.Info("CS presence mirror started")
+	} else {
+		log.Info("FIREBASE_DATABASE_URL not set — CS presence is not mirrored")
 	}
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)

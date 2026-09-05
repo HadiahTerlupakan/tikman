@@ -33,10 +33,14 @@ type Config struct {
 	// WAMediaRetentionDays is how long an attachment is kept on disk.
 	WAMediaRetentionDays int
 	// FirebaseServiceAccountJSONB64 is the base64-encoded Firebase service
-	// account key used to send push notifications. Empty means the feature is
-	// not configured yet — cmd/api must still start normally (see
-	// internal/push.NewClient).
+	// account key behind pushes, custom tokens and the presence mirror. Empty
+	// means Firebase is not configured yet — cmd/api must still start normally
+	// (see internal/firebaseapp.New).
 	FirebaseServiceAccountJSONB64 string
+	// FirebaseDatabaseURL is the Realtime Database the presence mirror reads.
+	// Empty means presence is not mirrored, which leaves the round-robin with
+	// nobody online — the same state as an unconfigured Firebase project.
+	FirebaseDatabaseURL string
 }
 
 func Load() (*Config, error) {
@@ -82,6 +86,7 @@ func Load() (*Config, error) {
 		WAMediaRetentionDays:   viper.GetInt("WA_MEDIA_RETENTION_DAYS"),
 
 		FirebaseServiceAccountJSONB64: viper.GetString("FIREBASE_SERVICE_ACCOUNT_JSON_B64"),
+		FirebaseDatabaseURL:           viper.GetString("FIREBASE_DATABASE_URL"),
 	}
 
 	if err := validateConfig(cfg); err != nil {
