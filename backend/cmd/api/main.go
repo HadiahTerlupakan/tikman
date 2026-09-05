@@ -116,12 +116,12 @@ func main() {
 		log.Fatal("Failed to set trusted proxies", zap.Error(err))
 	}
 
-	router, pushNotifier, pushListener := api.Setup(engine, cfg, db, sessionStore, log, wgService)
-
 	firebaseApp, err := firebaseapp.New(context.Background(), cfg.FirebaseServiceAccountJSONB64)
 	if err != nil {
 		log.Warn("Firebase is not available", zap.Error(err))
 	}
+
+	router, pushNotifier, pushListener := api.Setup(engine, cfg, db, sessionStore, log, wgService, firebaseApp)
 
 	pushClient, err := push.NewClient(context.Background(), firebaseApp)
 	if err != nil {

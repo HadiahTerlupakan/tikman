@@ -172,7 +172,7 @@ func TestSettingsAreClosedToNonAdminsButBrowserValuesAreNot(t *testing.T) {
 	require.NoError(t, err)
 
 	router, _, _ := Setup(gin.New(), cfg, db, sessionStore, logger,
-		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}))
+		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 
 	call := func(path string) int {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
