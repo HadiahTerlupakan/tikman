@@ -73,10 +73,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		true, // HttpOnly
 	)
 
-	c.JSON(http.StatusOK, LoginResponse{
-		User:  ToUserResponse(user),
-		Token: token,
-	})
+	c.JSON(http.StatusOK, LoginResponse{User: ToUserResponse(user)})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {

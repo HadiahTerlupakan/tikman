@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -63,13 +64,12 @@ func TestAuthHandler_Login_Success(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "testuser", response.User.Username)
-	assert.NotEmpty(t, response.Token)
 
 	// Check cookie
 	cookies := w.Result().Cookies()
 	assert.Len(t, cookies, 1)
 	assert.Equal(t, "session_token", cookies[0].Name)
-	assert.Equal(t, response.Token, cookies[0].Value)
+	assert.NotEmpty(t, cookies[0].Value)
 }
 
 func TestAuthHandler_Login_InvalidCredentials(t *testing.T) {
@@ -289,4 +289,32 @@ func TestAuthHandler_Login_SecureCookieFollowsEnvironment(t *testing.T) {
 			assert.True(t, cookies[0].HttpOnly)
 		})
 	}
+}
+
+// The session cookie is HttpOnly so that no script in the dashboard can read
+// the token. Echoing the same token in the login body hands it back to that
+// script anyway, which is the thing HttpOnly was set to prevent.
+func TestLoginDoesNotEchoTheSessionTokenInTheBody(t *testing.T) {
+	_, userService, _, handler := setupAuthTest(t)
+	_, err := userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	body, _ := json.Marshal(LoginRequest{Username: "testuser", Password: "password123"})
+	c.Request = httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Login(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &payload))
+	assert.NotContains(t, payload, "token")
+
+	cookies := w.Result().Cookies()
+	require.Len(t, cookies, 1)
+	assert.NotEmpty(t, cookies[0].Value)
 }

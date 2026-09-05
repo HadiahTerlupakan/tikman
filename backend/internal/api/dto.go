@@ -56,9 +56,10 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required,min=8,max=100"`
 }
 
+// LoginResponse carries no token: the session travels in an HttpOnly cookie,
+// and echoing it here would hand the same value to any script on the page.
 type LoginResponse struct {
-	User  UserResponse `json:"user"`
-	Token string       `json:"token"`
+	User UserResponse `json:"user"`
 }
 
 type ErrorResponse struct {

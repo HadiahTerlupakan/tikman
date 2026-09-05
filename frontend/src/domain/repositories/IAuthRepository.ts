@@ -5,9 +5,9 @@ export interface LoginCredentials {
   password: string;
 }
 
+/** The session itself arrives as an HttpOnly cookie, never in this body. */
 export interface LoginResponse {
   user: User;
-  token: string;
 }
 
 export interface IAuthRepository {
