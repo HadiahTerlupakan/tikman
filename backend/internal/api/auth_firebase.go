@@ -9,6 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// tikmanClaim marks a token as minted by this backend for a signed-in TikMan
+// user. database.rules.json requires it; the two must be changed together.
+const tikmanClaim = "tikman"
+
 // FirebaseTokenHandler mints the short-lived identity a browser needs before
 // it may write its own presence node.
 type FirebaseTokenHandler struct {
@@ -56,7 +60,13 @@ func (h *FirebaseTokenHandler) Token(c *gin.Context) {
 		return
 	}
 
-	token, err := client.CustomToken(c.Request.Context(), userID.String())
+	// The claim is what the RTDB rules test, instead of a bare `auth != null`.
+	// Only a holder of the service account can set it, so a browser that signed
+	// in through any provider the console happens to have enabled — Anonymous,
+	// Google, whatever gets switched on later — carries no such claim and is
+	// refused. Presence security stops depending on a console toggle.
+	token, err := client.CustomTokenWithClaims(
+		c.Request.Context(), userID.String(), map[string]interface{}{tikmanClaim: true})
 	if err != nil {
 		h.logger.Error("mint firebase custom token", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{

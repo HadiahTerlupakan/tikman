@@ -1,9 +1,9 @@
 {
   "rules": {
     "cs-presence": {
-      ".read": "auth != null",
+      ".read": "auth != null && auth.token.tikman === true",
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.token.tikman === true && auth.uid === $uid",
         ".validate": "newData.hasChildren(['at'])"
       }
     }
