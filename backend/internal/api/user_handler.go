@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/middleware"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
@@ -125,6 +126,22 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, ToUserResponse(user))
 }
 
+// mayUpdateUser decides who PUT /users/:id is for. A technician is on the
+// route to maintain their own account, so anything wider is refused: someone
+// else's row, or a role on any row at all. Without the second half the route
+// was a one-request promotion to admin, which every admin-only route behind
+// RequireRole then honoured.
+func mayUpdateUser(c *gin.Context, targetID uuid.UUID, role *models.UserRole) bool {
+	if actorRole, ok := middleware.GetUserRole(c); ok && actorRole == models.UserRoleAdmin {
+		return true
+	}
+	if role != nil {
+		return false
+	}
+	actorID, ok := middleware.GetUserID(c)
+	return ok && actorID == targetID
+}
+
 func (h *UserHandler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -141,6 +158,14 @@ func (h *UserHandler) Update(c *gin.Context) {
 			Error:   "Invalid request body",
 			Code:    "INVALID_REQUEST",
 			Details: err.Error(),
+		})
+		return
+	}
+
+	if !mayUpdateUser(c, id, req.Role) {
+		c.JSON(http.StatusForbidden, ErrorResponse{
+			Error: "You may only update your own account, and only an admin may change a role",
+			Code:  "FORBIDDEN",
 		})
 		return
 	}
