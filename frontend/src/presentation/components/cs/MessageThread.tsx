@@ -9,6 +9,7 @@ import { QuotedBlock } from "./QuotedBlock";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
 import { colors } from "@/shared/theme/colors";
+import { MessageText } from "./MessageText";
 
 const { Text } = Typography;
 
@@ -155,7 +156,7 @@ function MessageBubble({
               wordBreak: "break-word",
             }}
           >
-            {message.body}
+            <MessageText body={message.body} />
           </Text>
         )}
 
