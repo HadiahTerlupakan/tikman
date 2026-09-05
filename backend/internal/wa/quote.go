@@ -2,6 +2,7 @@ package wa
 
 import (
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
@@ -44,15 +45,29 @@ func buildContextInfo(q *Quote, chat, self types.JID) *waE2E.ContextInfo {
 }
 
 // buildTextMessage picks the shape a reply has to take. A plain Conversation
-// has nowhere to carry a quote, so one that quotes something is sent in the
-// extended form WhatsApp itself uses for exactly that.
-func buildTextMessage(body string, ctx *waE2E.ContextInfo) *waE2E.Message {
-	if ctx == nil {
+// has nowhere to carry a quote or a link card, so a message with either is
+// sent in the extended form WhatsApp itself uses for exactly that.
+//
+// The card is built by the sender, never the receiver: WhatsApp's own clients
+// fetch the page and attach what they found, which is why a message sent
+// without these fields shows a bare link however good the page's metadata is.
+func buildTextMessage(body string, ctx *waE2E.ContextInfo, preview *linkpreview.Preview) *waE2E.Message {
+	if ctx == nil && preview == nil {
 		return &waE2E.Message{Conversation: proto.String(body)}
 	}
-	return &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-		Text: proto.String(body), ContextInfo: ctx,
-	}}
+
+	ext := &waE2E.ExtendedTextMessage{Text: proto.String(body), ContextInfo: ctx}
+	if preview != nil {
+		ext.MatchedText = proto.String(preview.URL)
+		ext.Title = proto.String(preview.Title)
+		if preview.Description != "" {
+			ext.Description = proto.String(preview.Description)
+		}
+		if len(preview.Thumbnail) > 0 {
+			ext.JPEGThumbnail = preview.Thumbnail
+		}
+	}
+	return &waE2E.Message{ExtendedTextMessage: ext}
 }
 
 // quotedMessageFor rebuilds enough of the quoted message for the grey block to

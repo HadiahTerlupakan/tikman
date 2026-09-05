@@ -3,6 +3,7 @@ package wa
 import (
 	"context"
 	"fmt"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"os"
 	"time"
 
@@ -17,7 +18,12 @@ func (c *Client) SendText(ctx context.Context, jid, body string, quote *Quote) (
 		return "", fmt.Errorf("tujuan tidak valid %q: %w", jid, err)
 	}
 
-	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, buildContextInfo(quote, to, c.selfJID())))
+	// Resolved before the send and never allowed to fail it: linkpreview.Resolve
+	// returns nil for a slow site, a refused address or a page with no
+	// metadata, and the message then goes out exactly as it did before.
+	preview := linkpreview.Resolve(ctx, body)
+
+	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, buildContextInfo(quote, to, c.selfJID()), preview))
 	if err != nil {
 		return "", err
 	}

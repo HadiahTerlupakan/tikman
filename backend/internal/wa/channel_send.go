@@ -3,6 +3,7 @@ package wa
 import (
 	"context"
 	"fmt"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"os"
 
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -17,7 +18,7 @@ func (c *Client) SendChannelText(ctx context.Context, channelJID, body string) (
 		return "", fmt.Errorf("saluran tidak valid %q: %w", channelJID, err)
 	}
 
-	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, nil))
+	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, nil, linkpreview.Resolve(ctx, body)))
 	if err != nil {
 		return "", err
 	}

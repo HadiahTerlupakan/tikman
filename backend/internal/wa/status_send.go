@@ -7,6 +7,7 @@ package wa
 import (
 	"context"
 	"fmt"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"os"
 
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -15,7 +16,7 @@ import (
 
 // SendStatusText posts a text status and answers the id WhatsApp gave it.
 func (c *Client) SendStatusText(ctx context.Context, body string) (string, error) {
-	resp, err := c.wa.SendMessage(ctx, types.StatusBroadcastJID, buildTextMessage(body, nil))
+	resp, err := c.wa.SendMessage(ctx, types.StatusBroadcastJID, buildTextMessage(body, nil, linkpreview.Resolve(ctx, body)))
 	if err != nil {
 		return "", err
 	}
