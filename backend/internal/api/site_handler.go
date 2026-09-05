@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/middleware"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
@@ -157,7 +158,7 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Get old state for audit log
+	// Read before the write, so the audit entry can say what changed.
 	oldSite, err := h.service.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -167,30 +168,8 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		return
 	}
 
-	updates := make(map[string]interface{})
-	if req.Name != nil {
-		updates["name"] = *req.Name
-	}
-	if req.Location != nil {
-		updates["location"] = *req.Location
-	}
-	if req.Description != nil {
-		updates["description"] = *req.Description
-	}
-	applyCoordinateUpdate(req, updates)
-
-	if err := h.service.Update(id, updates); err != nil {
-		if errors.Is(err, services.ErrValidation) {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
-				Code:  "INVALID_COORDINATES",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: "Failed to update site",
-			Code:  "UPDATE_FAILED",
-		})
+	if err := h.service.Update(id, siteUpdates(req)); err != nil {
+		refuseSiteUpdate(c, err)
 		return
 	}
 
@@ -203,33 +182,68 @@ func (h *SiteHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Audit log
-	actorID, _ := middleware.GetUserID(c)
-	oldState := map[string]interface{}{
-		"name":        oldSite.Name,
-		"location":    oldSite.Location,
-		"description": oldSite.Description,
-	}
-	newState := map[string]interface{}{
-		"name":        site.Name,
-		"location":    site.Location,
-		"description": site.Description,
-	}
-	if h.auditService != nil {
-		_ = h.auditService.Log(
-			actorID,
-			"update",
-			"site",
-			site.ID,
-			oldState,
-			newState,
-			c.ClientIP(),
-			c.Request.UserAgent(),
-		)
-	}
+	h.logSiteUpdate(c, oldSite, site)
 
 	oltCount, _ := h.service.CountOLTsBySite(site.ID)
 	c.JSON(http.StatusOK, ToSiteResponse(oltCount, site))
+}
+
+// refuseSiteUpdate separates coordinates the operator can correct from a
+// failure that is ours.
+func refuseSiteUpdate(c *gin.Context, err error) {
+	if errors.Is(err, services.ErrValidation) {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+			Code:  "INVALID_COORDINATES",
+		})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, ErrorResponse{
+		Error: "Failed to update site",
+		Code:  "UPDATE_FAILED",
+	})
+}
+
+// siteUpdates turns the supplied fields into the columns to write, leaving
+// absent ones alone.
+func siteUpdates(req UpdateSiteRequest) map[string]interface{} {
+	updates := make(map[string]interface{})
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.Location != nil {
+		updates["location"] = *req.Location
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	applyCoordinateUpdate(req, updates)
+	return updates
+}
+
+func (h *SiteHandler) logSiteUpdate(c *gin.Context, before, after *models.Site) {
+	if h.auditService == nil {
+		return
+	}
+	actorID, _ := middleware.GetUserID(c)
+	_ = h.auditService.Log(
+		actorID,
+		"update",
+		"site",
+		after.ID,
+		map[string]interface{}{
+			"name":        before.Name,
+			"location":    before.Location,
+			"description": before.Description,
+		},
+		map[string]interface{}{
+			"name":        after.Name,
+			"location":    after.Location,
+			"description": after.Description,
+		},
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
 }
 
 func (h *SiteHandler) Delete(c *gin.Context) {

@@ -124,36 +124,8 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// The bound is applied to the body itself, not to what the multipart
-	// header claims: everything downstream — storeUpload's copy to disk, and
-	// wa.Client.SendMedia reading the file whole to hand it to whatsmeow —
-	// works on however many bytes actually arrive.
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadBytes)
-
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		refuseUpload(c, err)
-		return
-	}
-
-	// The allowlist check happens on the declared type before anything is
-	// written, not after: html/svg/xhtml/xml are deliberately absent from it,
-	// because ServeMedia later hands this file back from the API's own origin,
-	// and a CS must not be able to put a script in front of a customer there.
-	mime := wa.NormalizeMime(fileHeader.Header.Get("Content-Type"))
-	ext, allowed := wa.AllowedExtension(mime)
-	if !allowed {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: fmt.Sprintf("attachment type %q is not accepted", mime),
-			Code:  "MEDIA_TYPE_NOT_ALLOWED",
-		})
-		return
-	}
-
-	media, err := h.storeUpload(fileHeader, mime, ext)
-	if err != nil {
-		h.logger.Error("store outgoing attachment failed", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to store attachment", Code: "MEDIA_STORE_FAILED"})
+	media, mime, ok := h.acceptUpload(c)
+	if !ok {
 		return
 	}
 
@@ -174,6 +146,45 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 
 	h.announce(c.Request.Context(), convID, msg.ID)
 	c.JSON(http.StatusCreated, gin.H{"data": msg})
+}
+
+// acceptUpload takes the attachment off the request and stores it, answering
+// the request itself on every refusal.
+//
+// The allowlist check happens on the declared type before anything is written,
+// not after: html/svg/xhtml/xml are deliberately absent from it, because
+// ServeMedia later hands this file back from the API's own origin, and a CS
+// must not be able to put a script in front of a customer there.
+func (h *CSHandler) acceptUpload(c *gin.Context) (*services.MediaFile, string, bool) {
+	// The bound is applied to the body itself, not to what the multipart
+	// header claims: everything downstream — storeUpload's copy to disk, and
+	// wa.Client.SendMedia reading the file whole to hand it to whatsmeow —
+	// works on however many bytes actually arrive.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadBytes)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		refuseUpload(c, err)
+		return nil, "", false
+	}
+
+	mime := wa.NormalizeMime(fileHeader.Header.Get("Content-Type"))
+	ext, allowed := wa.AllowedExtension(mime)
+	if !allowed {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: fmt.Sprintf("attachment type %q is not accepted", mime),
+			Code:  "MEDIA_TYPE_NOT_ALLOWED",
+		})
+		return nil, "", false
+	}
+
+	media, err := h.storeUpload(fileHeader, mime, ext)
+	if err != nil {
+		h.logger.Error("store outgoing attachment failed", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to store attachment", Code: "MEDIA_STORE_FAILED"})
+		return nil, "", false
+	}
+	return media, mime, true
 }
 
 // refuseUpload answers the two ways a multipart body yields no file: one that

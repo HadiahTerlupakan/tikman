@@ -151,8 +151,7 @@ func (h *MetricsHandler) GetRealtime(c *gin.Context) {
 // GetTrafficTimeSeries returns bucketed traffic rates for a period. Rates are
 // the worker-collected octet-rate gauges averaged per bucket.
 func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Code:  "INVALID_ID",
@@ -161,10 +160,35 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 		return
 	}
 
-	period := c.DefaultQuery("period", "3h")
+	series, ok := h.trafficSeries(c, id)
+	if !ok {
+		return
+	}
+
+	points := make([]ONTTrafficTimeSeriesResponse, len(series.Points))
+	for i, point := range series.Points {
+		points[i] = ONTTrafficTimeSeriesResponse{
+			Time:    point.Time,
+			RxBytes: point.RxBytes,
+			TxBytes: point.TxBytes,
+			RxMbps:  rateOrZero(point.RxRateMbps),
+			TxMbps:  rateOrZero(point.TxRateMbps),
+			RxMax:   rateOrZero(point.RxMaxMbps),
+			TxMax:   rateOrZero(point.TxMaxMbps),
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"points": points, "usage": series.Usage})
+}
+
+// trafficSeries reads either an explicit range or a named period. An explicit
+// range is validated rather than fallen back on: a graph silently answering a
+// different window than the one asked for is worse than an error.
+func (h *MetricsHandler) trafficSeries(c *gin.Context, id uuid.UUID) (services.TrafficSeries, bool) {
+	var series services.TrafficSeries
+	var err error
 
 	startStr, endStr := c.Query("start"), c.Query("end")
-	var series services.TrafficSeries
 	if startStr != "" && endStr != "" {
 		startTime, errStart := time.Parse(time.RFC3339, startStr)
 		endTime, errEnd := time.Parse(time.RFC3339, endStr)
@@ -173,56 +197,38 @@ func (h *MetricsHandler) GetTrafficTimeSeries(c *gin.Context) {
 				Code:  "INVALID_RANGE",
 				Error: "start and end must be RFC3339 timestamps",
 			})
-			return
+			return series, false
 		}
 		if !startTime.Before(endTime) {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Code:  "INVALID_RANGE",
 				Error: "start must be before end",
 			})
-			return
+			return series, false
 		}
-		bucket := c.DefaultQuery("bucket", "day")
-		series, err = h.metricsService.GetONTTrafficSeriesRange(id, startTime, endTime, bucket)
+		series, err = h.metricsService.GetONTTrafficSeriesRange(id, startTime, endTime, c.DefaultQuery("bucket", "day"))
 	} else {
-		series, err = h.metricsService.GetONTTrafficSeries(id, period)
+		series, err = h.metricsService.GetONTTrafficSeries(id, c.DefaultQuery("period", "3h"))
 	}
+
 	if err != nil {
 		log.Printf("[ERROR] GetTrafficTimeSeries failed for ONT %s: %v", id, err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "QUERY_FAILED",
 			Error: err.Error(),
 		})
-		return
+		return series, false
 	}
+	return series, true
+}
 
-	points := make([]ONTTrafficTimeSeriesResponse, len(series.Points))
-	for i, point := range series.Points {
-		var rxMbps, txMbps, rxMax, txMax float64
-		if point.RxRateMbps != nil {
-			rxMbps = *point.RxRateMbps
-		}
-		if point.TxRateMbps != nil {
-			txMbps = *point.TxRateMbps
-		}
-		if point.RxMaxMbps != nil {
-			rxMax = *point.RxMaxMbps
-		}
-		if point.TxMaxMbps != nil {
-			txMax = *point.TxMaxMbps
-		}
-		points[i] = ONTTrafficTimeSeriesResponse{
-			Time:    point.Time,
-			RxBytes: point.RxBytes,
-			TxBytes: point.TxBytes,
-			RxMbps:  rxMbps,
-			TxMbps:  txMbps,
-			RxMax:   rxMax,
-			TxMax:   txMax,
-		}
+// rateOrZero renders a bucket with no reading as 0 Mbps, which is how the
+// chart draws a gap.
+func rateOrZero(rate *float64) float64 {
+	if rate == nil {
+		return 0
 	}
-
-	c.JSON(http.StatusOK, gin.H{"points": points, "usage": series.Usage})
+	return *rate
 }
 
 // GetOLTAggregateTraffic handles GET /api/v1/olts/:id/metrics/traffic. Without

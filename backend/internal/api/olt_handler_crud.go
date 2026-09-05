@@ -61,11 +61,17 @@ func (h *OLTHandler) GetByID(c *gin.Context) {
 		return
 	}
 
+	h.respondWithOLT(c, http.StatusOK, olt)
+}
+
+// respondWithOLT renders one OLT for the caller. Every single-OLT answer goes
+// through here so the redaction cannot be forgotten on a new one.
+func (h *OLTHandler) respondWithOLT(c *gin.Context, status int, olt *models.OLT) {
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
 	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
 	response := ToOLTResponse(siteName, ontCount, olt)
 	redactCredentials(c, &response)
-	c.JSON(http.StatusOK, response)
+	c.JSON(status, response)
 }
 
 func (h *OLTHandler) Delete(c *gin.Context) {

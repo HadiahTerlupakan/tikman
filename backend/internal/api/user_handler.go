@@ -44,25 +44,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 	user, err := h.service.Create(req.Username, req.Email, req.Password, req.Initials, req.Role)
 	if err != nil {
-		// Check for duplicate username/email
-		if isDuplicateError(err, "username") {
-			c.JSON(http.StatusConflict, ErrorResponse{
-				Error: "Username already exists",
-				Code:  "USERNAME_EXISTS",
-			})
-			return
-		}
-		if isDuplicateError(err, "email") {
-			c.JSON(http.StatusConflict, ErrorResponse{
-				Error: "Email already exists",
-				Code:  "EMAIL_EXISTS",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: "Failed to create user",
-			Code:  "CREATE_FAILED",
-		})
+		refuseUserCreate(c, err)
 		return
 	}
 
@@ -84,6 +66,28 @@ func (h *UserHandler) Create(c *gin.Context) {
 	)
 
 	c.JSON(http.StatusCreated, ToUserResponse(user))
+}
+
+// refuseUserCreate names the field already taken, so the form can point at it
+// rather than reporting a server fault the operator cannot act on.
+func refuseUserCreate(c *gin.Context, err error) {
+	switch {
+	case isDuplicateError(err, "username"):
+		c.JSON(http.StatusConflict, ErrorResponse{
+			Error: "Username already exists",
+			Code:  "USERNAME_EXISTS",
+		})
+	case isDuplicateError(err, "email"):
+		c.JSON(http.StatusConflict, ErrorResponse{
+			Error: "Email already exists",
+			Code:  "EMAIL_EXISTS",
+		})
+	default:
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: "Failed to create user",
+			Code:  "CREATE_FAILED",
+		})
+	}
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -170,16 +174,33 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Get old state for audit log
+	// Read before the write, so the audit entry can say what changed.
 	oldUser, err := h.service.GetByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: "User not found",
-			Code:  "NOT_FOUND",
-		})
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "User not found", Code: "NOT_FOUND"})
 		return
 	}
 
+	if err := h.service.Update(id, userUpdates(req)); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to update user", Code: "UPDATE_FAILED"})
+		return
+	}
+
+	user, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "User updated but failed to retrieve", Code: "FETCH_FAILED"})
+		return
+	}
+
+	h.logUserUpdate(c, oldUser, user)
+
+	c.JSON(http.StatusOK, ToUserResponse(user))
+}
+
+// userUpdates turns the supplied fields into the columns to write. The
+// password arrives in plain text and the service hashes it; nothing here
+// writes it as given.
+func userUpdates(req UpdateUserRequest) map[string]interface{} {
 	updates := make(map[string]interface{})
 	if req.Email != nil {
 		updates["email"] = *req.Email
@@ -193,46 +214,21 @@ func (h *UserHandler) Update(c *gin.Context) {
 	if req.Role != nil {
 		updates["role"] = *req.Role
 	}
+	return updates
+}
 
-	if err := h.service.Update(id, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: "Failed to update user",
-			Code:  "UPDATE_FAILED",
-		})
-		return
-	}
-
-	user, err := h.service.GetByID(id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: "Failed to retrieve updated user",
-			Code:  "FETCH_FAILED",
-		})
-		return
-	}
-
-	// Audit log
+func (h *UserHandler) logUserUpdate(c *gin.Context, before, after *models.User) {
 	actorID, _ := middleware.GetUserID(c)
-	oldState := map[string]interface{}{
-		"email": oldUser.Email,
-		"role":  oldUser.Role,
-	}
-	newState := map[string]interface{}{
-		"email": user.Email,
-		"role":  user.Role,
-	}
 	_ = h.auditService.Log(
 		actorID,
 		"update",
 		"user",
-		user.ID,
-		oldState,
-		newState,
+		after.ID,
+		map[string]interface{}{"email": before.Email, "role": before.Role},
+		map[string]interface{}{"email": after.Email, "role": after.Role},
 		c.ClientIP(),
 		c.Request.UserAgent(),
 	)
-
-	c.JSON(http.StatusOK, ToUserResponse(user))
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {

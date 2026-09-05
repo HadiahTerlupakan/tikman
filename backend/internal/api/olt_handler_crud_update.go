@@ -30,55 +30,7 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		return
 	}
 
-	_, _ = h.service.GetByID(id)
-
-	updates := make(map[string]interface{})
-	// Clearing wins over a supplied value: an operator who ticks "remove the
-	// pin" and leaves stale numbers in the fields means the removal.
-	if req.ClearCoordinates {
-		updates["latitude"] = (*float64)(nil)
-		updates["longitude"] = (*float64)(nil)
-	} else {
-		if req.Latitude != nil {
-			updates["latitude"] = req.Latitude
-		}
-		if req.Longitude != nil {
-			updates["longitude"] = req.Longitude
-		}
-	}
-
-	if req.Name != nil {
-		updates["name"] = *req.Name
-	}
-	if req.IPAddress != nil {
-		updates["ip_address"] = *req.IPAddress
-	}
-	if req.SSHPort != nil {
-		updates["ssh_port"] = *req.SSHPort
-	}
-	if req.TelnetPort != nil {
-		updates["telnet_port"] = *req.TelnetPort
-	}
-	if req.SNMPPort != nil {
-		updates["snmp_port"] = *req.SNMPPort
-	}
-	if req.SNMPCommunity != nil {
-		updates["snmp_community"] = *req.SNMPCommunity
-	}
-	if req.PreferredProtocol != nil {
-		updates["preferred_protocol"] = *req.PreferredProtocol
-	}
-	if req.Model != nil {
-		updates["model"] = *req.Model
-	}
-	if req.Username != nil {
-		updates["username"] = *req.Username
-	}
-	if req.Password != nil {
-		updates["password"] = *req.Password
-	}
-
-	if err := h.service.Update(id, updates); err != nil {
+	if err := h.service.Update(id, oltUpdates(req)); err != nil {
 		if errors.Is(err, services.ErrValidation) {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
@@ -102,11 +54,58 @@ func (h *OLTHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Discovery runs on create and worker cycles; avoid starting a second
-	// long-running SNMP walk on every metadata-only update.
+	// Discovery runs on create and worker cycles; a metadata-only update must
+	// not start a second long-running SNMP walk.
+	h.respondWithOLT(c, http.StatusOK, olt)
+}
 
-	siteName := h.service.SiteNameForOLT(olt.SiteID)
-	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
-	response := ToOLTResponse(siteName, ontCount, olt)
-	c.JSON(http.StatusOK, response)
+// oltUpdates turns the supplied fields into the columns to write. Absent
+// fields are left alone, which is what makes the form able to send only what
+// the operator touched.
+func oltUpdates(req UpdateOLTRequest) map[string]interface{} {
+	updates := make(map[string]interface{})
+
+	// Clearing wins over a supplied value: an operator who ticks "remove the
+	// pin" and leaves stale numbers in the fields means the removal.
+	if req.ClearCoordinates {
+		updates["latitude"] = (*float64)(nil)
+		updates["longitude"] = (*float64)(nil)
+	} else {
+		if req.Latitude != nil {
+			updates["latitude"] = req.Latitude
+		}
+		if req.Longitude != nil {
+			updates["longitude"] = req.Longitude
+		}
+	}
+
+	setString := map[string]*string{
+		"name": req.Name, "ip_address": req.IPAddress,
+		"username": req.Username, "password": req.Password,
+	}
+	for column, value := range setString {
+		if value != nil {
+			updates[column] = *value
+		}
+	}
+
+	setInt := map[string]*int{
+		"ssh_port": req.SSHPort, "telnet_port": req.TelnetPort, "snmp_port": req.SNMPPort,
+	}
+	for column, value := range setInt {
+		if value != nil {
+			updates[column] = *value
+		}
+	}
+
+	if req.SNMPCommunity != nil {
+		updates["snmp_community"] = *req.SNMPCommunity
+	}
+	if req.PreferredProtocol != nil {
+		updates["preferred_protocol"] = *req.PreferredProtocol
+	}
+	if req.Model != nil {
+		updates["model"] = *req.Model
+	}
+	return updates
 }

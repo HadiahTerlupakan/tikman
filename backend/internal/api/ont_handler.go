@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
@@ -57,80 +56,12 @@ func optionalInt(raw string) *int {
 }
 
 func (h *ONTHandler) List(c *gin.Context) {
-	var oltID *uuid.UUID
-	var status *models.ONTStatus
-	var startTime, endTime *time.Time
-
-	// Parse filters
-	if oltIDStr := c.Query("olt_id"); oltIDStr != "" {
-		id, err := uuid.Parse(oltIDStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:    "INVALID_OLT_ID",
-				Error:   "Invalid OLT ID format",
-				Details: map[string]string{"olt_id": oltIDStr},
-			})
-			return
-		}
-		oltID = &id
+	filter, ok := ontListFilter(c)
+	if !ok {
+		return
 	}
 
-	if statusStr := c.Query("status"); statusStr != "" {
-		s := models.ONTStatus(statusStr)
-		status = &s
-	}
-
-	// Parse optional time range filter
-	if startTimeStr := c.Query("start_time"); startTimeStr != "" {
-		t, err := time.Parse(time.RFC3339, startTimeStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:  "INVALID_TIME_RANGE",
-				Error: fmt.Sprintf("Invalid start_time format: %v", err),
-			})
-			return
-		}
-		startTime = &t
-	}
-
-	if endTimeStr := c.Query("end_time"); endTimeStr != "" {
-		t, err := time.Parse(time.RFC3339, endTimeStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Code:  "INVALID_TIME_RANGE",
-				Error: fmt.Sprintf("Invalid end_time format: %v", err),
-			})
-			return
-		}
-		endTime = &t
-	}
-
-	// A card and port narrow a position. Anything unparseable is left unset
-	// rather than rejected: a stray query parameter should widen the answer, not
-	// fail the page an operator is looking at.
-	slot := optionalInt(c.Query("slot"))
-	portID := optionalInt(c.Query("port_id"))
-
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-
-	if limit < 1 {
-		limit = maxONTPageSize
-	} else if limit > maxONTPageSize {
-		limit = maxONTPageSize
-	}
-
-	onts, total, err := h.ontService.ListFiltered(services.ONTListFilter{
-		OLTID:     oltID,
-		Status:    status,
-		Slot:      slot,
-		PortID:    portID,
-		Search:    strings.TrimSpace(c.Query("search")),
-		StartTime: startTime,
-		EndTime:   endTime,
-		Limit:     limit,
-		Offset:    offset,
-	})
+	onts, total, err := h.ontService.ListFiltered(filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "LIST_FAILED",
@@ -139,48 +70,125 @@ func (h *ONTHandler) List(c *gin.Context) {
 		return
 	}
 
-	oltMap := make(map[uuid.UUID]string)
-	var metricsMap map[uuid.UUID]*services.ONTMetricsRow
-
-	if len(onts) > 0 {
-		oltIDs := make([]uuid.UUID, 0)
-		ontIDs := make([]uuid.UUID, len(onts))
-		seenOLT := make(map[uuid.UUID]bool)
-
-		for i, ont := range onts {
-			ontIDs[i] = ont.ID
-			if !seenOLT[ont.OLTID] {
-				oltIDs = append(oltIDs, ont.OLTID)
-				seenOLT[ont.OLTID] = true
-			}
-		}
-
-		if olts, err := h.ontService.GetONTOlts(oltIDs); err == nil {
-			for _, olt := range olts {
-				oltMap[olt.ID] = olt.Name
-			}
-		}
-
-		metricsMap, _ = h.metricsService.GetLatestMetricsBatch(ontIDs)
-	}
-
-	responses := make([]ONTResponse, len(onts))
-	for i, ont := range onts {
-		metrics := metricsMap[ont.ID]
-		resp := ToONTResponseWithMetrics(&ont, metrics)
-		resp.OLTName = oltMap[ont.OLTID]
-		responses[i] = resp
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"data":   responses,
+		"data":   h.decorateONTs(onts),
 		"total":  total,
-		"limit":  limit,
-		"offset": offset,
+		"limit":  filter.Limit,
+		"offset": filter.Offset,
 	})
 }
 
-// GetByID handles GET /api/v1/onts/:id
+// ontListFilter reads the query into a filter, answering the request itself
+// and returning false when a parameter is malformed in a way that would
+// silently change which rows come back.
+func ontListFilter(c *gin.Context) (services.ONTListFilter, bool) {
+	var filter services.ONTListFilter
+
+	if oltIDStr := c.Query("olt_id"); oltIDStr != "" {
+		id, err := uuid.Parse(oltIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:    "INVALID_OLT_ID",
+				Error:   "Invalid OLT ID format",
+				Details: map[string]string{"olt_id": oltIDStr},
+			})
+			return filter, false
+		}
+		filter.OLTID = &id
+	}
+
+	if statusStr := c.Query("status"); statusStr != "" {
+		status := models.ONTStatus(statusStr)
+		filter.Status = &status
+	}
+
+	start, ok := queryTime(c, "start_time")
+	if !ok {
+		return filter, false
+	}
+	end, ok := queryTime(c, "end_time")
+	if !ok {
+		return filter, false
+	}
+	filter.StartTime, filter.EndTime = start, end
+
+	// A card and port narrow a position. Anything unparseable is left unset
+	// rather than rejected: a stray query parameter should widen the answer, not
+	// fail the page an operator is looking at.
+	filter.Slot = optionalInt(c.Query("slot"))
+	filter.PortID = optionalInt(c.Query("port_id"))
+	filter.Search = strings.TrimSpace(c.Query("search"))
+	filter.Limit, filter.Offset = pageBounds(c)
+
+	return filter, true
+}
+
+// queryTime reads an RFC3339 parameter. Unlike the position filters a bad
+// timestamp is refused, because a range the operator asked for and did not get
+// would read as missing history.
+func queryTime(c *gin.Context, name string) (*time.Time, bool) {
+	raw := c.Query(name)
+	if raw == "" {
+		return nil, true
+	}
+	value, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Code:  "INVALID_TIME_RANGE",
+			Error: fmt.Sprintf("Invalid %s format: %v", name, err),
+		})
+		return nil, false
+	}
+	return &value, true
+}
+
+// pageBounds caps a page at maxONTPageSize, and reads a limit below 1 as a
+// request for everything rather than for nothing.
+func pageBounds(c *gin.Context) (int, int) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit < 1 || limit > maxONTPageSize {
+		limit = maxONTPageSize
+	}
+	return limit, offset
+}
+
+// decorateONTs attaches the OLT name and the latest reading to each row, both
+// fetched for the whole page at once: a per-row lookup is what made a 5000-ONT
+// list slow enough to notice.
+func (h *ONTHandler) decorateONTs(onts []models.ONT) []ONTResponse {
+	responses := make([]ONTResponse, len(onts))
+	if len(onts) == 0 {
+		return responses
+	}
+
+	ontIDs := make([]uuid.UUID, len(onts))
+	oltIDs := make([]uuid.UUID, 0)
+	seenOLT := make(map[uuid.UUID]bool)
+	for i, ont := range onts {
+		ontIDs[i] = ont.ID
+		if !seenOLT[ont.OLTID] {
+			oltIDs = append(oltIDs, ont.OLTID)
+			seenOLT[ont.OLTID] = true
+		}
+	}
+
+	oltNames := make(map[uuid.UUID]string)
+	if olts, err := h.ontService.GetONTOlts(oltIDs); err == nil {
+		for _, olt := range olts {
+			oltNames[olt.ID] = olt.Name
+		}
+	}
+	metricsMap, _ := h.metricsService.GetLatestMetricsBatch(ontIDs)
+
+	for i, ont := range onts {
+		resp := ToONTResponseWithMetrics(&ont, metricsMap[ont.ID])
+		resp.OLTName = oltNames[ont.OLTID]
+		responses[i] = resp
+	}
+	return responses
+}
+
 func (h *ONTHandler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -203,187 +211,4 @@ func (h *ONTHandler) GetByID(c *gin.Context) {
 	metrics, _ := h.metricsService.GetLatestMetrics(ont.ID)
 
 	c.JSON(http.StatusOK, ToONTResponseWithMetrics(ont, metrics))
-}
-
-// Create handles POST /api/v1/onts
-func (h *ONTHandler) Create(c *gin.Context) {
-	var req CreateONTRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "VALIDATION_ERROR",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	ont := &models.ONT{
-		OLTID:        req.OLTID,
-		PortID:       req.PortID,
-		ONTID:        req.ONTID,
-		SerialNumber: req.SerialNumber,
-		Description:  req.Description,
-		Status:       req.Status,
-		Phone:        req.Phone,
-	}
-
-	if err := h.ontService.Create(ont); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "CREATE_FAILED",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	// Audit log
-	actorID, _ := middleware.GetUserID(c)
-	_ = h.auditService.Log(
-		actorID,
-		"create",
-		"ont",
-		ont.ID,
-		nil,
-		map[string]interface{}{
-			"olt_id":        ont.OLTID,
-			"port_id":       ont.PortID,
-			"ont_id":        ont.ONTID,
-			"serial_number": ont.SerialNumber,
-		},
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
-
-	c.JSON(http.StatusCreated, ToONTResponse(ont))
-}
-
-// Update handles PUT /api/v1/onts/:id
-func (h *ONTHandler) Update(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "INVALID_ID",
-			Error: "Invalid ONT ID format",
-		})
-		return
-	}
-
-	var req UpdateONTRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "VALIDATION_ERROR",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	// Get old state for audit
-	oldONT, _ := h.ontService.GetByID(id)
-
-	updates := make(map[string]interface{})
-	if req.Description != nil {
-		updates["description"] = *req.Description
-	}
-	if req.Status != nil {
-		updates["status"] = *req.Status
-	}
-	if req.Phone != nil {
-		updates["phone"] = *req.Phone
-	}
-
-	ont, err := h.ontService.Update(id, updates)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "UPDATE_FAILED",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	// Audit log
-	actorID, _ := middleware.GetUserID(c)
-	_ = h.auditService.Log(
-		actorID,
-		"update",
-		"ont",
-		ont.ID,
-		map[string]interface{}{
-			"description": oldONT.Description,
-			"status":      oldONT.Status,
-		},
-		map[string]interface{}{
-			"description": ont.Description,
-			"status":      ont.Status,
-		},
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
-
-	c.JSON(http.StatusOK, ToONTResponse(ont))
-}
-
-// Delete handles DELETE /api/v1/onts/:id
-func (h *ONTHandler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "INVALID_ID",
-			Error: "Invalid ONT ID format",
-		})
-		return
-	}
-
-	// Get ONT for audit before deleting
-	ont, err := h.ontService.GetByID(id)
-	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Code:  "NOT_FOUND",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	// The OLT is cleared first. Deleting TikMan's rows before the device would
-	// leave an ONU configured on the OLT that nothing tracks any more, and the
-	// next discovery poll would simply register it again.
-	if c.Query("remove_from_olt") == "true" {
-		if h.removalService == nil {
-			c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-				Code:  "OLT_REMOVAL_UNAVAILABLE",
-				Error: "This deployment has no CLI access configured for OLT removal",
-			})
-			return
-		}
-		if err := h.removalService.RemoveFromOLT(c.Request.Context(), id); err != nil {
-			c.JSON(http.StatusBadGateway, ErrorResponse{
-				Code:  "OLT_REMOVAL_FAILED",
-				Error: err.Error(),
-			})
-			return
-		}
-	}
-
-	if err := h.ontService.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Code:  "DELETE_FAILED",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	// Audit log
-	actorID, _ := middleware.GetUserID(c)
-	_ = h.auditService.Log(
-		actorID,
-		"delete",
-		"ont",
-		id,
-		map[string]interface{}{
-			"serial_number": ont.SerialNumber,
-			"olt_id":        ont.OLTID,
-		},
-		nil,
-		c.ClientIP(),
-		c.Request.UserAgent(),
-	)
-
-	c.JSON(http.StatusOK, gin.H{"message": "ONT deleted successfully"})
 }

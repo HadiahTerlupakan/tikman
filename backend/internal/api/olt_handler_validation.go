@@ -17,34 +17,28 @@ func (h *OLTHandler) TestConnection(c *gin.Context) {
 		return
 	}
 
-	// Apply defaults
-	sshPort := req.SSHPort
-	if sshPort == 0 {
-		sshPort = 22
-	}
-	telnetPort := req.TelnetPort
-	if telnetPort == 0 {
-		telnetPort = 23
-	}
-	snmpPort := req.SNMPPort
-	if snmpPort == 0 {
-		snmpPort = 161
-	}
-	snmpCommunity := req.SNMPCommunity
-	if snmpCommunity == "" {
-		snmpCommunity = "public"
-	}
+	// The same defaults the create form applies, so testing a connection and
+	// then saving it reach the chassis the same way.
+	in := createOLTInput(CreateOLTRequest{
+		IPAddress:         req.IPAddress,
+		Username:          req.Username,
+		Password:          req.Password,
+		SSHPort:           req.SSHPort,
+		TelnetPort:        req.TelnetPort,
+		SNMPPort:          req.SNMPPort,
+		SNMPCommunity:     req.SNMPCommunity,
+		PreferredProtocol: req.PreferredProtocol,
+	})
 
-	// Run validation tests
 	result, err := h.validatorService.ValidateCreate(
-		req.IPAddress,
-		req.Username,
-		req.Password,
-		sshPort,
-		telnetPort,
-		snmpPort,
-		snmpCommunity,
-		req.PreferredProtocol,
+		in.IPAddress,
+		in.Username,
+		in.Password,
+		in.SSHPort,
+		in.TelnetPort,
+		in.SNMPPort,
+		in.SNMPCommunity,
+		in.PreferredProtocol,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{

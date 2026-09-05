@@ -9,50 +9,60 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/middleware"
+	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 )
 
-// DiscoverOLTTopology handles POST /api/v1/olts/:id/topology discovery
-func (h *OLTHandler) DiscoverOLTTopology(c *gin.Context) {
+// oltForDiscovery resolves the OLT a discovery route names and the driver for
+// its model. It answers the request itself on every failure, so a false return
+// means the caller owes the client nothing further.
+func (h *OLTHandler) oltForDiscovery(c *gin.Context) (*models.OLT, connectivity.Driver, bool) {
 	oltID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Code:  "INVALID_ID",
 			Error: "Invalid OLT ID format",
 		})
-		return
+		return nil, nil, false
 	}
 
-	// Get OLT details using the existing service
 	olt, err := h.service.GetByID(oltID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Code:  "NOT_FOUND",
 			Error: "OLT not found",
 		})
-		return
+		return nil, nil, false
 	}
 
-	// Decrypt SNMP community if needed
-	snmpCommunity := olt.SNMPCommunity
-	if snmpCommunity == "" {
+	if olt.SNMPCommunity == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Code:  "CONFIG_ERROR",
 			Error: "SNMP community not configured for this OLT",
 		})
-		return
+		return nil, nil, false
 	}
 
-	// Perform topology discovery
 	driver, err := connectivity.DriverFor(olt.Model)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Code:  "UNSUPPORTED_MODEL",
 			Error: err.Error(),
 		})
+		return nil, nil, false
+	}
+
+	return olt, driver, true
+}
+
+// DiscoverOLTTopology handles POST /api/v1/olts/:id/topology discovery
+func (h *OLTHandler) DiscoverOLTTopology(c *gin.Context) {
+	olt, driver, ok := h.oltForDiscovery(c)
+	if !ok {
 		return
 	}
 
-	topology, err := connectivity.DiscoverOLTTopology(driver, olt.IPAddress, snmpCommunity, olt.SNMPPort)
+	topology, err := connectivity.DiscoverOLTTopology(driver, olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "DISCOVERY_FAILED",
@@ -62,53 +72,20 @@ func (h *OLTHandler) DiscoverOLTTopology(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"olt_id":   oltID,
+		"olt_id":   olt.ID,
 		"topology": topology,
 	})
 }
 
-// DiscoverONTs handles POST /api/v1/olts/:id/discover
+// DiscoverONTs handles POST /api/v1/olts/:id/discover with the flat walk kept
+// for backwards compatibility.
 func (h *OLTHandler) DiscoverONTs(c *gin.Context) {
-	oltID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "INVALID_ID",
-			Error: "Invalid OLT ID format",
-		})
+	olt, driver, ok := h.oltForDiscovery(c)
+	if !ok {
 		return
 	}
 
-	// Get OLT details using the existing service
-	olt, err := h.service.GetByID(oltID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Code:  "NOT_FOUND",
-			Error: "OLT not found",
-		})
-		return
-	}
-
-	// Decrypt SNMP community if needed
-	snmpCommunity := olt.SNMPCommunity
-	if snmpCommunity == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "CONFIG_ERROR",
-			Error: "SNMP community not configured for this OLT",
-		})
-		return
-	}
-
-	// Use legacy flat discovery (deprecated but kept for backwards compat)
-	driver, err := connectivity.DriverFor(olt.Model)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  "UNSUPPORTED_MODEL",
-			Error: err.Error(),
-		})
-		return
-	}
-
-	discovered, err := connectivity.DiscoverONTs(driver, olt.IPAddress, snmpCommunity, olt.SNMPPort)
+	discovered, err := connectivity.DiscoverONTs(driver, olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Code:  "DISCOVERY_FAILED",
@@ -117,7 +94,6 @@ func (h *OLTHandler) DiscoverONTs(c *gin.Context) {
 		return
 	}
 
-	// Convert to response format
 	results := make([]gin.H, len(discovered))
 	for i, ont := range discovered {
 		results[i] = gin.H{
@@ -129,7 +105,7 @@ func (h *OLTHandler) DiscoverONTs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"olt_id":     oltID,
+		"olt_id":     olt.ID,
 		"discovered": len(discovered),
 		"onts":       results,
 	})
@@ -146,7 +122,6 @@ func (h *OLTHandler) DiscoverAndRegisterONTs(c *gin.Context) {
 		return
 	}
 
-	// Perform discovery
 	discovered, err := h.service.DiscoverONTs(oltID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -156,23 +131,8 @@ func (h *OLTHandler) DiscoverAndRegisterONTs(c *gin.Context) {
 		return
 	}
 
-	// Bulk register
 	result := h.ontService.BulkRegisterFromDiscovery(oltID, discovered)
-
-	// Audit log
-	if h.auditService != nil && result.Registered > 0 {
-		actorID, _ := middleware.GetUserID(c)
-		_ = h.auditService.Log(
-			actorID,
-			"bulk_create",
-			"ont",
-			oltID,
-			map[string]interface{}{"registered": result.Registered},
-			nil,
-			fmt.Sprintf("Registered %d ONTs from discovery", result.Registered),
-			"",
-		)
-	}
+	h.logBulkRegistration(c, oltID, result.Registered)
 
 	c.JSON(http.StatusOK, gin.H{
 		"olt_id":     oltID,
@@ -181,6 +141,23 @@ func (h *OLTHandler) DiscoverAndRegisterONTs(c *gin.Context) {
 		"skipped":    result.Skipped,
 		"errors":     result.Errors,
 	})
+}
+
+func (h *OLTHandler) logBulkRegistration(c *gin.Context, oltID uuid.UUID, registered int) {
+	if h.auditService == nil || registered == 0 {
+		return
+	}
+	actorID, _ := middleware.GetUserID(c)
+	_ = h.auditService.Log(
+		actorID,
+		"bulk_create",
+		"ont",
+		oltID,
+		map[string]interface{}{"registered": registered},
+		nil,
+		fmt.Sprintf("Registered %d ONTs from discovery", registered),
+		"",
+	)
 }
 
 // GetCachedTopology handles GET /api/v1/olts/:id/topology/cached - returns topology from database
@@ -203,20 +180,29 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 		return
 	}
 
-	// Grouped by the ONT's own card. This used to hardcode slot 1 on the
-	// grounds that the model had no slot; it has one, and it is populated, so
-	// the filter was offering "Card 1" for ONUs sitting on card 3.
-	slotMap := make(map[int]map[int][]map[string]interface{})
-
-	// Seeded with every fitted card, so one carrying no ONU still appears. A
-	// card cannot be inferred from where ONUs live.
+	// A card cannot be inferred from where ONUs live, so the fitted cards are
+	// read separately and a card carrying none still appears.
 	cards, err := h.service.ListCards(oltID)
 	if err != nil {
 		cards = nil
 	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"topology": renderTopology(groupONTsByCard(cards, onts)),
+		"source":   "database",
+	})
+}
+
+// groupONTsByCard indexes the ONTs by the card and PON port they sit on.
+//
+// Grouping used to hardcode slot 1 on the grounds that the model had no slot;
+// it has one, and it is populated, so the filter was offering "Card 1" for
+// ONUs sitting on card 3.
+func groupONTsByCard(cards []connectivity.ZTECard, onts []services.ONTSummary) map[int]map[int][]map[string]interface{} {
+	byCard := make(map[int]map[int][]map[string]interface{})
 	for _, card := range cards {
-		if slotMap[card.Slot] == nil {
-			slotMap[card.Slot] = make(map[int][]map[string]interface{})
+		if byCard[card.Slot] == nil {
+			byCard[card.Slot] = make(map[int][]map[string]interface{})
 		}
 	}
 
@@ -225,11 +211,10 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 			continue
 		}
 		slot := *ont.Slot
-		if slotMap[slot] == nil {
-			slotMap[slot] = make(map[int][]map[string]interface{})
+		if byCard[slot] == nil {
+			byCard[slot] = make(map[int][]map[string]interface{})
 		}
-
-		ontData := map[string]interface{}{
+		byCard[slot][ont.PortID] = append(byCard[slot][ont.PortID], map[string]interface{}{
 			"ont_id":        ont.ONTID,
 			"port_id":       ont.PortID,
 			"serial_number": ont.SerialNumber,
@@ -237,23 +222,25 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 			"name":          ont.Name,
 			"description":   ont.Description,
 			"run_state":     mapStatusToRunState(ont.Status),
-		}
-
-		slotMap[slot][ont.PortID] = append(slotMap[slot][ont.PortID], ontData)
+		})
 	}
+	return byCard
+}
 
-	// Sorted, because a map's order changes between requests and the card and
-	// PON dropdowns are built straight from this. Empty lists rather than nil:
-	// a fitted card with no ONU must still answer with an array.
-	slots := make([]int, 0, len(slotMap))
-	for slot := range slotMap {
+// renderTopology sorts the grouping into the arrays the card and PON dropdowns
+// are built from. Sorted, because a map's order changes between requests; and
+// empty lists rather than nil, because a fitted card with no ONU must still
+// answer with an array.
+func renderTopology(byCard map[int]map[int][]map[string]interface{}) []map[string]interface{} {
+	slots := make([]int, 0, len(byCard))
+	for slot := range byCard {
 		slots = append(slots, slot)
 	}
 	sort.Ints(slots)
 
 	topology := make([]map[string]interface{}, 0, len(slots))
 	for _, slot := range slots {
-		ports := slotMap[slot]
+		ports := byCard[slot]
 		portIDs := make([]int, 0, len(ports))
 		for portID := range ports {
 			portIDs = append(portIDs, portID)
@@ -273,11 +260,7 @@ func (h *OLTHandler) GetCachedTopology(c *gin.Context) {
 			"ports": portList,
 		})
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"topology": topology,
-		"source":   "database",
-	})
+	return topology
 }
 
 // mapStatusToRunState converts ONT status to run_state integer

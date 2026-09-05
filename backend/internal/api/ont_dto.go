@@ -130,56 +130,55 @@ func hideOpticsUnlessOnline(resp *ONTResponse, status models.ONTStatus) {
 
 func ToONTResponseWithMetrics(ont *models.ONT, metrics *services.ONTMetricsRow) ONTResponse {
 	resp := ToONTResponse(ont)
-	if metrics != nil {
-		// A reading the walk did not return must not replace the one already
-		// stored on the ONT. The OLT drops varbinds under load, so an
-		// unguarded overlay blanked the distance and optical power of rows that
-		// had perfectly good values a minute earlier — the list appeared to
-		// lose data at random.
-		if metrics.Distance != 0 {
-			resp.Distance = &metrics.Distance
-		}
-		if metrics.RxPower != nil {
-			resp.RxPower = metrics.RxPower
-		}
-		if metrics.TxPower != nil {
-			resp.TxPower = metrics.TxPower
-		}
-		if metrics.Temperature != 0 {
-			resp.Temperature = &metrics.Temperature
-		}
-		if metrics.Voltage != 0 {
-			resp.Voltage = &metrics.Voltage
-		}
-		if metrics.TxBiasCurrent != 0 {
-			resp.TxBiasCurrent = &metrics.TxBiasCurrent
-		}
-		if metrics.RxBytes != 0 {
-			resp.RxBytes = &metrics.RxBytes
-		}
-		if metrics.TxBytes != 0 {
-			resp.TxBytes = &metrics.TxBytes
-		}
-		if metrics.RxPackets != 0 {
-			resp.RxPackets = &metrics.RxPackets
-		}
-		if metrics.TxPackets != 0 {
-			resp.TxPackets = &metrics.TxPackets
-		}
-		if metrics.RxErrors != 0 {
-			resp.RxErrors = &metrics.RxErrors
-		}
-		if metrics.TxErrors != 0 {
-			resp.TxErrors = &metrics.TxErrors
-		}
-	}
+	overlayMetrics(&resp, metrics)
 
-	// Again at the exit, because the overlay above can put back what the rule
+	// Again at the exit, because the overlay can put back what the rule
 	// removed: a live poll does return optical power for an ONT the OLT still
 	// answers for while calling it offline.
 	hideOpticsUnlessOnline(&resp, ont.Status)
 
 	return resp
+}
+
+// overlayMetrics writes the latest reading over the row's stored values.
+//
+// A reading the walk did not return must not replace the one already stored on
+// the ONT. The OLT drops varbinds under load, so an unguarded overlay blanked
+// the distance and optical power of rows that had perfectly good values a
+// minute earlier — the list appeared to lose data at random.
+func overlayMetrics(resp *ONTResponse, metrics *services.ONTMetricsRow) {
+	if metrics == nil {
+		return
+	}
+
+	// Optical power is the exception: it is already a pointer on the reading,
+	// so absent and zero are distinguishable and a genuine 0 dBm survives.
+	if metrics.RxPower != nil {
+		resp.RxPower = metrics.RxPower
+	}
+	if metrics.TxPower != nil {
+		resp.TxPower = metrics.TxPower
+	}
+
+	overlayNonZero(&resp.Distance, metrics.Distance)
+	overlayNonZero(&resp.Temperature, metrics.Temperature)
+	overlayNonZero(&resp.Voltage, metrics.Voltage)
+	overlayNonZero(&resp.TxBiasCurrent, metrics.TxBiasCurrent)
+	overlayNonZero(&resp.RxBytes, metrics.RxBytes)
+	overlayNonZero(&resp.TxBytes, metrics.TxBytes)
+	overlayNonZero(&resp.RxPackets, metrics.RxPackets)
+	overlayNonZero(&resp.TxPackets, metrics.TxPackets)
+	overlayNonZero(&resp.RxErrors, metrics.RxErrors)
+	overlayNonZero(&resp.TxErrors, metrics.TxErrors)
+}
+
+// overlayNonZero replaces a response field only when the reading carried a
+// value. A zero here means "the OLT did not answer", not "the counter is zero".
+func overlayNonZero[T comparable](field **T, value T) {
+	var missing T
+	if value != missing {
+		*field = &value
+	}
 }
 
 // ONT Metrics DTOs
