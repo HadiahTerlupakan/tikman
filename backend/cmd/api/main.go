@@ -17,6 +17,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/config"
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/database"
+	"github.com/tikman/olt-provisioning/internal/firebaseapp"
 	"github.com/tikman/olt-provisioning/internal/logger"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/push"
@@ -117,7 +118,12 @@ func main() {
 
 	router, pushNotifier, pushListener := api.Setup(engine, cfg, db, sessionStore, log, wgService)
 
-	pushClient, err := push.NewClient(context.Background(), cfg.FirebaseServiceAccountJSONB64)
+	firebaseApp, err := firebaseapp.New(context.Background(), cfg.FirebaseServiceAccountJSONB64)
+	if err != nil {
+		log.Warn("Firebase is not available", zap.Error(err))
+	}
+
+	pushClient, err := push.NewClient(context.Background(), firebaseApp)
 	if err != nil {
 		log.Warn("Push notifications are not available", zap.Error(err))
 	} else if pushClient != nil {
