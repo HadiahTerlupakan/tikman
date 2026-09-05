@@ -72,10 +72,18 @@ export function OntTable({
       key: "oltName",
     },
     {
-      title: "PON Port/ONT ID",
+      title: "Kartu/PON Port/ONT ID",
       key: "position",
       render: (_: unknown, record: Ont) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {/* Port numbers repeat across cards, so the port alone does not name
+              an ONU. Omitted rather than dashed where the OLT never reported a
+              card: an empty label reads as card zero. */}
+          {record.slot !== undefined && (
+            <span>
+              Kartu: <strong>{record.slot}</strong>
+            </span>
+          )}
           <span>
             PON Port: <strong>{record.portId}</strong>
           </span>
