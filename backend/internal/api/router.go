@@ -179,9 +179,12 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			// Test Connection button hitting a 404.
 			olts.POST("/test-connection", middleware.RequireRole(models.UserRoleAdmin), oltHandler.TestConnection)
 			olts.GET("/:id/topology/cached", oltHandler.GetCachedTopology)
-			olts.POST("/:id/topology", oltHandler.DiscoverOLTTopology)
-			olts.POST("/:id/discover", oltHandler.DiscoverONTs)
-			olts.POST("/:id/discover-and-register", oltHandler.DiscoverAndRegisterONTs)
+			// Discovery talks to the chassis over SNMP, and the last of these
+			// writes the ONT rows it finds, so it carries the same gate as
+			// /discover-now rather than bare authentication.
+			olts.POST("/:id/topology", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverOLTTopology)
+			olts.POST("/:id/discover", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverONTs)
+			olts.POST("/:id/discover-and-register", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverAndRegisterONTs)
 			olts.POST("/:id/discover-now", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), oltHandler.DiscoverNow)
 			olts.GET("/:id/stats", metricsHandler.GetOltsStats)
 			olts.GET("/:id/unconfigured-onus", unconfiguredONUHandler.ListByOLT)
