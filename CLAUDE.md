@@ -138,11 +138,25 @@ When running the API directly on the host, use `DB_HOST=localhost` and
 `DB_PORT=5437`; when running it in a container, use `DB_HOST=postgres` and
 `DB_PORT=5432`. Development Redis uses the password `dev-password`.
 
-**VPN WireGuard:** container `api` runs interface `wg0` and because of that
-has `NET_ADMIN` and `/dev/net/tun`; `worker` shares network namespace with it
-via `network_mode: service:api`, so restarting `api` also restarts `worker`.
-Port UDP 51820 must be opened in the VPS provider's firewall, because the site
-initiating the connection won't be able to handshake without it.
+**VPN WireGuard:** `wg0` lives inside the `api` container, not on the host, and
+`cap_add: NET_ADMIN` is the whole of what it needs. No `/dev/net/tun` device is
+mapped and none is wanted: that is what a userspace WireGuard needs, while this
+drives the kernel module over netlink (`vishvananda/netlink` creates the link,
+`wgctrl` fills in the keys and peers). There is no `wg` binary on the host or in
+the container, so `sudo wg show` on the VPS finds nothing — read the peers
+through the VPN page or `/api/v1/wireguard/peers` instead.
+
+The one part that is the host's: the `wireguard` kernel module must be loaded
+there, because a container cannot load it. A kernel upgrade that leaves the
+module unavailable stops `wg0` from being created with no code having changed,
+which is why the Jenkins Preflight stage checks for it.
+
+`worker` and `trapd` both share this network namespace via
+`network_mode: service:api`, so they hold `api`'s interfaces and port bindings:
+recreating `api` while they run fails, and stopping them first is what the
+deploy order in `Jenkinsfile` is about. Port UDP 51820 must be opened in the VPS
+provider's firewall, because the site initiating the connection won't be able to
+handshake without it.
 
 ## Architecture
 
