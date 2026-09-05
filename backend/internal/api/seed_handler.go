@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -131,7 +132,7 @@ func (h *SeedHandler) SeedEventHistory(c *gin.Context) {
 
 			if eventsCreated > 0 {
 				totalEvents += eventsCreated
-				details = append(details, ont.SerialNumber+" - Created "+string(rune(eventsCreated))+" events")
+				details = append(details, fmt.Sprintf("%s - Created %d events", ont.SerialNumber, eventsCreated))
 			}
 		}
 
