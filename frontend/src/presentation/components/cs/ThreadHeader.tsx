@@ -46,6 +46,14 @@ export function ThreadHeader({
   const unheld =
     conversation.status === "unassigned" || !conversation.assignedUserId;
 
+  // onBack arrives only where the panes take turns, which is the only place
+  // this row is too narrow to hold everything: at 375px the fixed items left
+  // the identity 19px and antd's word-break shattered the number into a
+  // column of two-digit fragments. The holder tag is what gives way — the
+  // composer directly below states the same thing whenever the reader is not
+  // the holder, and where they are, the live input says it instead.
+  const compact = !!onBack;
+
   return (
     <div
       style={{
@@ -105,7 +113,15 @@ export function ThreadHeader({
               sedang mengetik…
             </Text>
           ) : (
-            <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+            <Text
+              style={{
+                color: colors.textMuted,
+                fontSize: 12,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
               {conversation.customerPhone}
             </Text>
           )}
@@ -119,7 +135,7 @@ export function ThreadHeader({
         </Space>
       </div>
 
-      {conversation.status === "closed" ? (
+      {compact ? null : conversation.status === "closed" ? (
         <Tag>Selesai</Tag>
       ) : unheld ? (
         <Tag color="warning">Belum dipegang</Tag>
