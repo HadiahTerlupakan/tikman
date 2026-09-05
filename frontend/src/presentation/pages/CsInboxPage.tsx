@@ -149,7 +149,10 @@ export function CsInboxPage() {
     let release: (() => Promise<void>) | undefined;
     let cancelled = false;
 
-    claimPresence()
+    const failed = (error: unknown) =>
+      console.warn("Could not claim presence", error);
+
+    claimPresence(failed)
       .then((r) => {
         if (cancelled) {
           void r();
@@ -157,7 +160,7 @@ export function CsInboxPage() {
         }
         release = r;
       })
-      .catch((error) => console.warn("Could not claim presence", error));
+      .catch(failed);
 
     return () => {
       cancelled = true;
