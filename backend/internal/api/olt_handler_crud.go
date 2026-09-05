@@ -6,7 +6,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/middleware"
+	"github.com/tikman/olt-provisioning/internal/models"
 )
+
+// redactCredentials clears the fields of an OLT response that are credentials
+// for the chassis rather than facts about it. The community string is one: an
+// SNMP agent authenticates on it, so it goes only to the roles that may manage
+// the OLT — the same ones that can reach the edit form which reads it back.
+func redactCredentials(c *gin.Context, response *OLTResponse) {
+	role, ok := middleware.GetUserRole(c)
+	if ok && (role == models.UserRoleAdmin || role == models.UserRoleTechnician) {
+		return
+	}
+	response.SNMPCommunity = ""
+}
 
 func (h *OLTHandler) List(c *gin.Context) {
 	olts, err := h.service.List()
@@ -23,6 +36,7 @@ func (h *OLTHandler) List(c *gin.Context) {
 		siteName := h.service.SiteNameForOLT(olt.SiteID)
 		ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
 		responses[i] = ToOLTResponse(siteName, ontCount, &olt)
+		redactCredentials(c, &responses[i])
 	}
 
 	c.JSON(http.StatusOK, responses)
@@ -50,6 +64,7 @@ func (h *OLTHandler) GetByID(c *gin.Context) {
 	siteName := h.service.SiteNameForOLT(olt.SiteID)
 	ontCount, _ := h.ontService.CountONTsByOLT(olt.ID)
 	response := ToOLTResponse(siteName, ontCount, olt)
+	redactCredentials(c, &response)
 	c.JSON(http.StatusOK, response)
 }
 
