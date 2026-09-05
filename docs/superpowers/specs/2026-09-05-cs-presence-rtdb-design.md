@@ -242,5 +242,16 @@ mirror. It is **not** added to `wa`, which is the point of the design.
 ## Prerequisite on the operator
 
 The RTDB instance does not exist. Before implementation can be verified, the
-Firebase console needs a Realtime Database created and its URL supplied, and
-the rules above published. Everything else in this spec is code.
+Firebase console needs a Realtime Database created, its URL supplied as
+`FIREBASE_DATABASE_URL` and `VITE_FIREBASE_DATABASE_URL`, and the rules
+published.
+
+The rules are `database.rules.json` at the repository root — the same JSON as
+the section above, kept as a file so what protects the tree is reviewable and
+diffable rather than prose somebody retypes into a console. Publish it with
+`firebase deploy --only database` against the project, or paste it into
+Realtime Database > Rules. Until it is published the tree is whatever the
+console defaulted to, and the config in the public bundle is enough for anyone
+to mark another CS online or empty it.
+
+Everything else in this spec is code.
