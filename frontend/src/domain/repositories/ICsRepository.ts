@@ -19,6 +19,8 @@ export interface LinkOntResult {
 
 export interface ICsRepository {
   getConversations(filter?: CsConversationFilter): Promise<CsConversation[]>;
+  /** Ids of the agents currently holding the inbox open. */
+  getOnlineAgents(): Promise<string[]>;
   getHistory(
     conversationId: string,
     limit?: number,

@@ -12,6 +12,7 @@ import {
   useConnectWaAccount,
   useDisconnectWaAccount,
   useCsConversations,
+  useOnlineAgents,
   useCsHistory,
   useCreateWaAccount,
   useCsQuickReplies,
@@ -34,6 +35,7 @@ import { PageHeader } from "@/presentation/components/common";
 import { ConversationList } from "@/presentation/components/cs/ConversationList";
 import { ThreadPane } from "@/presentation/components/cs/ThreadPane";
 import { CustomerPanel } from "@/presentation/components/cs/CustomerPanel";
+import { CsTeamPanel } from "@/presentation/components/cs/CsTeamPanel";
 import { WaPairingModal } from "@/presentation/components/cs/WaPairingModal";
 import { WaNumbersModal } from "@/presentation/components/cs/WaNumbersModal";
 import { InboxHeaderActions } from "@/presentation/components/cs/InboxHeaderActions";
@@ -128,6 +130,7 @@ export function CsInboxPage() {
   const conversationsQuery = useCsConversations(filterFor(view, search));
   const historyQuery = useCsHistory(selectedId);
   const usersQuery = useUsers();
+  const onlineQuery = useOnlineAgents();
   const quickRepliesQuery = useCsQuickReplies();
   // Reading the account list is open to the whole inbox team, not just an
   // admin — a connection down for hours produces no live SSE event, so this
@@ -340,18 +343,38 @@ export function CsInboxPage() {
             style={{
               ...panel,
               ...paneWidth(320),
-              overflowY: "auto",
-              padding: 14,
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            {selected ? (
-              <CustomerPanel conversation={selected} />
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Data pelanggan muncul di sini"
+            <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+              {selected ? (
+                <CustomerPanel conversation={selected} />
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Data pelanggan muncul di sini"
+                />
+              )}
+            </div>
+
+            {/* Fixed height rather than shared: who is at the inbox is
+                ambient, and letting it grow would push the subscriber's
+                details — the reason the column exists — off the screen. */}
+            <div
+              style={{
+                borderTop: `1px solid ${colors.border}`,
+                maxHeight: 200,
+                overflowY: "auto",
+                flexShrink: 0,
+              }}
+            >
+              <CsTeamPanel
+                users={usersQuery.data ?? []}
+                online={onlineQuery.data ?? []}
+                currentUserId={currentUser?.id}
               />
-            )}
+            </div>
           </div>
         )}
       </div>

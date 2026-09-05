@@ -85,6 +85,7 @@ export const API_ENDPOINTS = {
 
   // CS inbox
   CS_STREAM: "/api/v1/cs/stream",
+  CS_ONLINE: "/api/v1/cs/online",
   CS_CONVERSATIONS: "/api/v1/cs/conversations",
   CS_MESSAGES: (id: string) => `/api/v1/cs/conversations/${id}/messages`,
   CS_MEDIA_UPLOAD: (id: string) => `/api/v1/cs/conversations/${id}/media`,

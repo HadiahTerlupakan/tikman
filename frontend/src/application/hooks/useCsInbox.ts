@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CsRepository } from "@/infrastructure/repositories";
 import { reportCsMutationError } from "./csMutationError";
+import { CS_PRESENCE_POLL_MS } from "@/shared/config/limits";
 import type { CsConversationFilter } from "@/domain/entities";
 
 const csRepository = new CsRepository();
@@ -14,6 +15,17 @@ export function useCsConversations(
   return useQuery({
     queryKey: ["cs", "conversations", filter],
     queryFn: () => csRepository.getConversations(filter),
+    enabled: options?.enabled,
+  });
+}
+
+/** Ids of the agents with the inbox open, re-asked on a timer because
+ * presence expires rather than announcing itself. */
+export function useOnlineAgents(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["cs", "online"],
+    queryFn: () => csRepository.getOnlineAgents(),
+    refetchInterval: CS_PRESENCE_POLL_MS,
     enabled: options?.enabled,
   });
 }

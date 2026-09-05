@@ -68,6 +68,7 @@ vi.mock("@/application/hooks", () => {
     useCreateWaAccount: () => stub,
     useCreateWireguardPeer: () => stub,
     useCsConversations: () => stub,
+    useOnlineAgents: () => stub,
     useCsHistory: () => stub,
     useCsQuickReplies: () => stub,
     useCsStream: () => stub,
