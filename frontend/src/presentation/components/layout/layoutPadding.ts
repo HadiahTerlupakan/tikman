@@ -36,7 +36,7 @@ export const HEADER_HEIGHT = 56;
  * than letting its padding decide, so this number stays true instead of
  * approximating what the text happens to measure.
  */
-export const FOOTER_HEIGHT = 40;
+export const FOOTER_HEIGHT = 48;
 
 /**
  * fullHeightPage answers the height a page should take to fill the viewport

@@ -4,6 +4,18 @@ import { FOOTER_HEIGHT } from "./layoutPadding";
 
 const AUTHOR = "Rohadi M Raja";
 
+const DIM = "#52525b";
+const BRIGHT = "#a1a1aa";
+const RULE = "#27272a";
+
+function Dot() {
+  return (
+    <span aria-hidden style={{ color: "#3f3f46" }}>
+      ·
+    </span>
+  );
+}
+
 /**
  * AppFooter is the credit line under every admin page.
  *
@@ -11,33 +23,52 @@ const AUTHOR = "Rohadi M Raja";
  * because fullHeightPage subtracts that number to keep the CS inbox from
  * scrolling — an approximation there would put the scrollbar back.
  *
- * The text stays on one line for the same reason, which is why it shrinks a
- * point on a phone: at 12px the full credit needs about 300px, and a 320px
- * screen would wrap it into a second line the reserved height has no room for.
+ * The rule above it fades out at both ends. Nothing else in this UI draws a
+ * bare line: every other boundary is the edge of a card, so an edge-to-edge
+ * rule on the grid background read as something stuck on afterwards.
+ *
+ * The text stays on one line, which is why it shrinks a point on a phone: at
+ * 12px the full credit needs about 300px, and a 320px screen would wrap it
+ * into a second line the reserved height has no room for.
  */
 export function AppFooter() {
   const screens = Grid.useBreakpoint();
 
   return (
-    <div
+    <footer
       style={{
         height: FOOTER_HEIGHT,
         boxSizing: "border-box",
-        borderTop: "1px solid #27272a",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        fontSize: screens.xs ? 11 : 12,
-        color: "#71717a",
-        whiteSpace: "nowrap",
+        flexDirection: "column",
       }}
     >
-      <span>TikMan © {new Date().getFullYear()}</span>
-      <span aria-hidden>·</span>
-      <span>Dibuat oleh {AUTHOR}</span>
-      <span aria-hidden>·</span>
-      <span>v{version}</span>
-    </div>
+      <div
+        style={{
+          height: 1,
+          background: `linear-gradient(90deg, transparent, ${RULE} 15%, ${RULE} 85%, transparent)`,
+        }}
+      />
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          fontSize: screens.xs ? 11 : 12,
+          color: DIM,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span>TikMan © {new Date().getFullYear()}</span>
+        <Dot />
+        <span>
+          Dibuat oleh <span style={{ color: BRIGHT }}>{AUTHOR}</span>
+        </span>
+        <Dot />
+        <span>v{version}</span>
+      </div>
+    </footer>
   );
 }

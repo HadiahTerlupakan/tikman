@@ -23,9 +23,9 @@ describe("AppFooter", () => {
   // That subtraction is a lie unless the footer really occupies it, so the
   // height is asserted rather than left to whatever the padding measures.
   it("occupies exactly the height the page arithmetic reserves for it", () => {
-    const { container } = render(<AppFooter />);
+    render(<AppFooter />);
 
-    expect(container.firstElementChild).toHaveStyle({
+    expect(screen.getByRole("contentinfo")).toHaveStyle({
       height: `${FOOTER_HEIGHT}px`,
     });
   });

@@ -36,13 +36,13 @@ describe("fullHeightPage", () => {
   // height too.
   it("subtracts the header, the padding at both ends, and the footer", () => {
     expect(fullHeightPage({ sm: true, md: true, lg: true })).toBe(
-      "calc(100vh - 144px)",
+      "calc(100vh - 152px)",
     );
   });
 
   // The gutters differ on a phone, and a page that fits the desktop while
   // overflowing the phone is the same bug in a narrower window.
   it("follows the gutters the screen size gets", () => {
-    expect(fullHeightPage({ xs: true })).toBe("calc(100vh - 120px)");
+    expect(fullHeightPage({ xs: true })).toBe("calc(100vh - 128px)");
   });
 });
