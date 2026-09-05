@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/spf13/viper"
 )
 
@@ -43,22 +44,31 @@ type Config struct {
 	FirebaseDatabaseURL string
 }
 
+// defaults are what an installation runs on when the environment says nothing.
+// Everything without one — the passwords, the keys — is required, and
+// validateConfig refuses a process that starts without them.
+var defaults = map[string]interface{}{
+	"DB_HOST":                   "localhost",
+	"DB_PORT":                   5432,
+	"DB_USER":                   "tikman",
+	"DB_NAME":                   "tikman",
+	"REDIS_HOST":                "localhost",
+	"REDIS_PORT":                6379,
+	"LOG_LEVEL":                 "info",
+	"API_PORT":                  8080,
+	"ENVIRONMENT":               "development",
+	"ALLOWED_ORIGINS":           "http://localhost:3000",
+	"SNMP_MAX_REPETITIONS":      10,
+	"WA_MEDIA_DIR":              "/data/cs-media",
+	"WA_SEND_INTERVAL_MS":       1200,
+	"WA_DRAIN_INTERVAL_SECONDS": 30,
+	"WA_MEDIA_RETENTION_DAYS":   90,
+}
+
 func Load() (*Config, error) {
-	viper.SetDefault("DB_HOST", "localhost")
-	viper.SetDefault("DB_PORT", 5432)
-	viper.SetDefault("DB_USER", "tikman")
-	viper.SetDefault("DB_NAME", "tikman")
-	viper.SetDefault("REDIS_HOST", "localhost")
-	viper.SetDefault("REDIS_PORT", 6379)
-	viper.SetDefault("LOG_LEVEL", "info")
-	viper.SetDefault("API_PORT", 8080)
-	viper.SetDefault("ENVIRONMENT", "development")
-	viper.SetDefault("ALLOWED_ORIGINS", "http://localhost:3000")
-	viper.SetDefault("SNMP_MAX_REPETITIONS", 10)
-	viper.SetDefault("WA_MEDIA_DIR", "/data/cs-media")
-	viper.SetDefault("WA_SEND_INTERVAL_MS", 1200)
-	viper.SetDefault("WA_DRAIN_INTERVAL_SECONDS", 30)
-	viper.SetDefault("WA_MEDIA_RETENTION_DAYS", 90)
+	for key, value := range defaults {
+		viper.SetDefault(key, value)
+	}
 
 	viper.AutomaticEnv()
 

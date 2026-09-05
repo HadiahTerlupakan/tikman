@@ -198,6 +198,15 @@ func (c *Client) route(rawEvt any) {
 		if err := c.presence.handle(c.ctx, evt); err != nil {
 			c.logger.Warn("Could not announce that a customer is typing", zap.Error(err))
 		}
+	default:
+		c.routeSession(rawEvt)
+	}
+}
+
+// routeSession handles the events that say what the connection is doing,
+// rather than what a customer sent.
+func (c *Client) routeSession(rawEvt any) {
+	switch evt := rawEvt.(type) {
 	case *events.PairSuccess:
 		// Fired for both QR and phone-number pairing once the phone approves —
 		// the store now has a device, so the supervisor no longer needs to

@@ -33,25 +33,8 @@ type inboundHandler struct {
 // thread must exist before the message lands in it, and the message must be
 // stored before anyone is told to come and read it.
 func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error {
-	if evt.Info.IsGroup || evt.Info.IsFromMe || evt.Info.Chat.Server == types.NewsletterServer {
-		// This inbox answers customers, not groups, not its own echo, and not
-		// channels. The newsletter check cannot be folded into IsGroup:
-		// whatsmeow sets that flag only for GroupServer and BroadcastServer,
-		// so a channel arrives looking like a one-to-one chat. Nor does
-		// IsFromMe catch our own updates coming back — WhatsApp delivers those
-		// to the number that posted them with the channel as the sender, and a
-		// CS answering that thread would publish their reply to the channel's
-		// subscribers.
-		return nil
-	}
-	att, readable := describe(evt.Message)
-	if !readable {
-		// Stickers, locations, contact cards and polls land here alongside the
-		// reactions and protocol messages. A CS who is never told cannot ask
-		// the customer to send it in a form the inbox can hold.
-		h.logger.Info("Ignoring a WhatsApp message this inbox cannot store",
-			zap.String("wa_message_id", evt.Info.ID),
-			zap.String("shape", messageShape(evt.Message)))
+	att, keep := h.attachmentFor(evt)
+	if !keep {
 		return nil
 	}
 
@@ -92,23 +75,57 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		return nil
 	}
 
-	// Neither of the last two steps decides whether the message was stored, and
-	// both have a safety net: AssignWaiting sweeps every minute, and a browser
-	// that misses the announcement still sees the message on its next poll.
-	if _, err := h.assignment.AssignOne(ctx, conv.ID); err != nil {
-		h.logger.Error("Could not assign an incoming conversation",
-			zap.String("conversation_id", conv.ID.String()), zap.Error(err))
+	h.assignAndAnnounce(ctx, conv.ID, msg.ID)
+	return nil
+}
+
+// attachmentFor decides whether a message belongs in this inbox at all, and
+// what shape it has.
+//
+// This inbox answers customers, not groups, not its own echo, and not
+// channels. The newsletter check cannot be folded into IsGroup: whatsmeow sets
+// that flag only for GroupServer and BroadcastServer, so a channel arrives
+// looking like a one-to-one chat. Nor does IsFromMe catch our own updates
+// coming back — WhatsApp delivers those to the number that posted them with
+// the channel as the sender, and a CS answering that thread would publish
+// their reply to the channel's subscribers.
+func (h *inboundHandler) attachmentFor(evt *events.Message) (attachment, bool) {
+	if evt.Info.IsGroup || evt.Info.IsFromMe || evt.Info.Chat.Server == types.NewsletterServer {
+		return attachment{}, false
 	}
-	err = h.publisher.Publish(ctx, Event{
+
+	att, readable := describe(evt.Message)
+	if !readable {
+		// Stickers, locations, contact cards and polls land here alongside the
+		// reactions and protocol messages. A CS who is never told cannot ask
+		// the customer to send it in a form the inbox can hold.
+		h.logger.Info("Ignoring a WhatsApp message this inbox cannot store",
+			zap.String("wa_message_id", evt.Info.ID),
+			zap.String("shape", messageShape(evt.Message)))
+		return attachment{}, false
+	}
+	return att, true
+}
+
+// assignAndAnnounce hands the thread to a CS and tells the browsers. Neither
+// step decides whether the message was stored, and both have a safety net:
+// AssignWaiting sweeps every minute, and a browser that misses the
+// announcement still sees the message on its next poll.
+func (h *inboundHandler) assignAndAnnounce(ctx context.Context, conversationID, messageID uuid.UUID) {
+	if _, err := h.assignment.AssignOne(ctx, conversationID); err != nil {
+		h.logger.Error("Could not assign an incoming conversation",
+			zap.String("conversation_id", conversationID.String()), zap.Error(err))
+	}
+
+	err := h.publisher.Publish(ctx, Event{
 		Type:           EventMessage,
-		ConversationID: conv.ID.String(),
-		MessageID:      msg.ID.String(),
+		ConversationID: conversationID.String(),
+		MessageID:      messageID.String(),
 	})
 	if err != nil {
 		h.logger.Warn("Could not announce an incoming WhatsApp message",
-			zap.String("conversation_id", conv.ID.String()), zap.Error(err))
+			zap.String("conversation_id", conversationID.String()), zap.Error(err))
 	}
-	return nil
 }
 
 // discard removes an attachment that ended up belonging to no message row.
