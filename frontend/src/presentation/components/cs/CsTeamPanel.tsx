@@ -39,11 +39,17 @@ export function CsTeamPanel({
   const team = users
     .filter((u) => INBOX_ROLES.includes(u.role))
     .sort((a, b) => a.username.localeCompare(b.username, "id"));
+  // Counted over `team`, not over `online`: someone present but holding a role
+  // this panel refuses to list would otherwise push the count past the total.
+  const hereCount = team.filter((u) => here.has(u.id)).length;
 
   return (
     <div style={{ padding: 14 }}>
+      {/* A count rather than a legend. It answers the question a CS actually
+          has — how many of us are here — and in answering it explains the
+          dots, which a sentence spelling out the colours did not. */}
       <Text style={{ color: colors.textMuted, fontSize: 11 }}>
-        TIM CS · titik hijau berarti sedang membuka inbox
+        TIM CS · {hereCount} dari {team.length} di inbox
       </Text>
 
       <ul
@@ -73,7 +79,12 @@ export function CsTeamPanel({
                   height: 8,
                   borderRadius: "50%",
                   flexShrink: 0,
-                  background: isHere ? colors.success : colors.border,
+                  boxSizing: "border-box",
+                  // Filled when present, a hollow ring when not. A filled dot
+                  // in the border colour vanished against this background, so
+                  // an absent row read as a name with no status at all.
+                  background: isHere ? colors.success : "transparent",
+                  border: isHere ? "none" : `1px solid ${colors.textMuted}`,
                 }}
               />
               <Text

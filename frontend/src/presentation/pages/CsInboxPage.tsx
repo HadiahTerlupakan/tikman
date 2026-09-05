@@ -371,7 +371,20 @@ export function CsInboxPage() {
               flexDirection: "column",
             }}
           >
-            <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+            {/* The placeholder is centred and the real panel is not: pinned to
+                the top, "Data pelanggan muncul di sini" left the column
+                looking broken rather than empty. A loaded panel scrolls from
+                the top as it always did. */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: 14,
+                display: selected ? "block" : "flex",
+                alignItems: selected ? undefined : "center",
+                justifyContent: selected ? undefined : "center",
+              }}
+            >
               {selected ? (
                 <CustomerPanel conversation={selected} />
               ) : (

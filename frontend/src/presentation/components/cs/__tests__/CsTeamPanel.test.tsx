@@ -67,6 +67,31 @@ describe("CsTeamPanel", () => {
     ).toBeInTheDocument();
   });
 
+  // The legend used to spell out what a green dot meant, in a sentence that
+  // took the whole header. A count says the same thing and answers the
+  // question the reader actually has: how many of us are here.
+  it("counts how many of the team are at the inbox", () => {
+    render(
+      <CsTeamPanel
+        users={team}
+        online={["u-rina", "u-admin"]}
+        currentUserId="u-rina"
+      />,
+    );
+
+    expect(screen.getByText(/2 dari 3 di inbox/)).toBeInTheDocument();
+  });
+
+  // The Viewer is not in the list, so it must not be in the total either — a
+  // count that includes people the panel refuses to show can never reach it.
+  it("counts only the roles it lists", () => {
+    render(
+      <CsTeamPanel users={team} online={["u-vera"]} currentUserId="u-rina" />,
+    );
+
+    expect(screen.getByText(/0 dari 3 di inbox/)).toBeInTheDocument();
+  });
+
   // Seeing your own row lit is how a CS knows their own presence registered —
   // the thing the round-robin uses to hand them work.
   it("marks the reader's own row", () => {
