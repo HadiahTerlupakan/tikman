@@ -9,8 +9,9 @@ import (
 	"github.com/tikman/olt-provisioning/internal/wa"
 )
 
-// heartbeatInterval is well inside the sixty-second presence TTL, so one slow
-// moment on the network does not drop a CS out of the rotation.
+// heartbeatInterval keeps an idle stream from being taken for a dead one by the
+// browser or by whatever ends up proxying it. Presence no longer rides on this
+// tick, so a missed beat costs a reconnect and nothing else.
 const heartbeatInterval = 15 * time.Second
 
 // Stream keeps one CS browser up to date. It carries no truth of its own: every

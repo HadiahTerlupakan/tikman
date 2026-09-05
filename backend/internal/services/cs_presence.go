@@ -12,8 +12,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// presenceTTL outlives the fifteen-second SSE heartbeat several times over, so
-// one slow network moment does not drop a CS out of the rotation mid-shift.
+// presenceTTL outlives the mirror's fifteen-second pass several times over, so a
+// slow poll does not drop a CS out of the rotation. It is also the only thing
+// that empties the rotation when api cannot reach the Realtime Database at all:
+// nothing refreshes these keys then, and within a minute assignment stops
+// handing work to browsers nobody can still see.
 const presenceTTL = 60 * time.Second
 
 const (
@@ -29,8 +32,10 @@ type Presence interface {
 	NextTurn(ctx context.Context) (uint64, error)
 }
 
-// RedisPresence keeps the online set as keys that expire on their own, so a CS
-// whose browser died simply stops being counted; nothing has to clean up.
+// RedisPresence keeps the online set as one key per agent — a projection of the
+// Realtime Database that only the mirror writes. A departure is deleted
+// explicitly rather than left to expire, because waiting out presenceTTL is the
+// sixty-second lag the move to RTDB exists to remove.
 type RedisPresence struct {
 	client *redis.Client
 }
