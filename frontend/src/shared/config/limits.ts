@@ -18,13 +18,3 @@ export const ONT_FETCH_LIMIT = 2000;
  * character at a time should cost one query rather than twelve.
  */
 export const SEARCH_DEBOUNCE_MS = 300;
-
-/**
- * How often the inbox re-asks who is at their desk.
- *
- * Presence has no change event: an agent leaves by their Redis key expiring
- * after sixty seconds, and nothing observes that. Polling faster than this
- * would re-fetch a set that cannot have changed, and the sixty-second TTL
- * already bounds how stale the answer can be.
- */
-export const CS_PRESENCE_POLL_MS = 20_000;

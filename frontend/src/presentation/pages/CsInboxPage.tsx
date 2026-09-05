@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useNavigate,
   useOutletContext,
   useSearchParams,
 } from "react-router-dom";
-import { Grid } from "antd";
+import { Grid, Typography } from "antd";
 import { Empty } from "antd";
 import { useAuthStore } from "@/application/stores";
+import { claimPresence } from "@/infrastructure/firebase/presence";
 import {
   useAssignConversation,
   useConnectWaAccount,
@@ -51,6 +52,8 @@ import { inboxLayout, type InboxPane } from "./inboxLayout";
 import { colors } from "@/shared/theme/colors";
 import { QuickReplyManagerModal } from "@/presentation/components/cs/QuickReplyManagerModal";
 import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";
+
+const { Text } = Typography;
 
 // One shape for all three columns: without it they read as content floating on
 // the page rather than as panes of one screen.
@@ -139,6 +142,28 @@ export function CsInboxPage() {
   const accounts = accountsQuery.data ?? [];
   const holderNames = holderNameMap(usersQuery.data ?? []);
   const broadcast = useBroadcast(accounts, holderNames);
+
+  // Only this page claims presence — the same rule the SSE stream's
+  // ?presence=1 followed: someone reading the OLT map is not at the inbox.
+  useEffect(() => {
+    let release: (() => Promise<void>) | undefined;
+    let cancelled = false;
+
+    claimPresence()
+      .then((r) => {
+        if (cancelled) {
+          void r();
+          return;
+        }
+        release = r;
+      })
+      .catch((error) => console.warn("Could not claim presence", error));
+
+    return () => {
+      cancelled = true;
+      void release?.();
+    };
+  }, []);
 
   const sendMessage = useSendCsMessage();
   const sendMedia = useSendCsMedia();
@@ -369,6 +394,18 @@ export function CsInboxPage() {
                 flexShrink: 0,
               }}
             >
+              {!onlineQuery.connected && (
+                <Text
+                  style={{
+                    display: "block",
+                    padding: "8px 14px 0",
+                    color: colors.textMuted,
+                    fontSize: 11,
+                  }}
+                >
+                  Terputus — daftar ini mungkin sudah tidak akurat
+                </Text>
+              )}
               <CsTeamPanel
                 users={usersQuery.data ?? []}
                 online={onlineQuery.data ?? []}

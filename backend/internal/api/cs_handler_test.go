@@ -138,7 +138,6 @@ func (e *csHandlerEnv) asUser(id uuid.UUID, role models.UserRole) *gin.Engine {
 		cs.DELETE("/conversations/:id/messages", e.handler.ClearConversation)
 		cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), e.handler.ClearInbox)
 		cs.GET("/stream", e.handler.Stream)
-		cs.GET("/online", e.handler.Online)
 
 		cs.GET("/quick-replies", e.handler.ListQuickReplies)
 		cs.POST("/quick-replies", middleware.RequireRole(models.UserRoleAdmin), e.handler.CreateQuickReply)

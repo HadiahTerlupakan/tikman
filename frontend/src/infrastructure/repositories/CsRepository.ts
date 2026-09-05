@@ -34,11 +34,6 @@ export class CsRepository implements ICsRepository {
     return response.data.data ?? [];
   }
 
-  async getOnlineAgents(): Promise<string[]> {
-    const response = await apiClient.get(API_ENDPOINTS.CS_ONLINE);
-    return response.data.data ?? [];
-  }
-
   async getFirebaseToken(): Promise<string> {
     const response = await apiClient.get(API_ENDPOINTS.AUTH_FIREBASE_TOKEN);
     return response.data.data.token;

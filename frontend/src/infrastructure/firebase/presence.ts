@@ -83,3 +83,16 @@ export function watchPresence(onChange: (ids: string[]) => void): () => void {
     onChange(Object.keys(value));
   });
 }
+
+/** Subscribes to RTDB's own view of whether this browser is connected.
+ * Reports false when Firebase is not configured, which is the truth. */
+export function watchConnection(
+  onChange: (connected: boolean) => void,
+): () => void {
+  if (!isPresenceConfigured) {
+    onChange(false);
+    return () => {};
+  }
+  const node = ref(getDatabase(app()), ".info/connected");
+  return onValue(node, (snapshot) => onChange(snapshot.val() === true));
+}
