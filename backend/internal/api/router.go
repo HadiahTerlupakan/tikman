@@ -92,7 +92,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	csPublisher := wa.NewPublisher(csRedisClient)
 	csHandler := NewCSHandler(
 		csConversationService, csMessageService, csQuickReplyService, csAccountService, csChannelService, csBroadcastPostService,
-		csPurgeService, csAssignmentService, csPresence, auditService, ontService, userService, csPublisher, csRedisClient,
+		csPurgeService, csAssignmentService, auditService, ontService, userService, csPublisher, csRedisClient,
 		logger, cfg.WAMediaDir,
 	)
 

@@ -143,8 +143,8 @@ export function CsInboxPage() {
   const holderNames = holderNameMap(usersQuery.data ?? []);
   const broadcast = useBroadcast(accounts, holderNames);
 
-  // Only this page claims presence — the same rule the SSE stream's
-  // ?presence=1 followed: someone reading the OLT map is not at the inbox.
+  // Only this page claims presence: someone reading the OLT map is not at
+  // the inbox.
   useEffect(() => {
     let release: (() => Promise<void>) | undefined;
     let cancelled = false;
