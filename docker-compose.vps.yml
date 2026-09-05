@@ -31,7 +31,13 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.8.2
     container_name: tikman-cloudflared
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    # http2 rather than the default quic: dialling the edge over UDP fails
+    # repeatedly from this VPS — 87 "no recent network activity" timeouts
+    # between 2026-08-30 and 2026-09-05 — and every one of them tears the
+    # long-lived connections through the tunnel with it. The CS inbox's SSE
+    # stream is the one that notices, since it is the only request meant to
+    # stay open for hours.
+    command: tunnel --no-autoupdate --protocol http2 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       frontend:
         condition: service_healthy
