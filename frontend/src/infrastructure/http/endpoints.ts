@@ -3,6 +3,7 @@ export const API_ENDPOINTS = {
   AUTH_LOGIN: "/api/v1/auth/login",
   AUTH_LOGOUT: "/api/v1/auth/logout",
   AUTH_ME: "/api/v1/auth/me",
+  AUTH_FIREBASE_TOKEN: "/api/v1/auth/firebase-token",
 
   // Users
   USERS: "/api/v1/users",
