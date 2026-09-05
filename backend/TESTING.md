@@ -27,12 +27,20 @@ For testing without real hardware, you can:
 3. Create OLT pointing to 127.0.0.1
 
 ### Expected Response Format
-Validation failure returns:
+Validation failure returns `400 Bad Request`. A failure at Ping or SSH/Telnet:
 ```json
 {
   "error": "OLT validation failed",
   "code": "VALIDATION_FAILED",
   "details": "OLT validation failed - Passed: [Ping, SSH], Failed: SNMP (timeout after 1s)"
+}
+```
+A failure at SNMP carries its own code, so the operator sees which stage broke:
+```json
+{
+  "error": "SNMP connection test failed",
+  "code": "SNMP_TEST_FAILED",
+  "details": "SNMP connection test failed: ..."
 }
 ```
 
@@ -43,8 +51,6 @@ Validation failure returns:
 cd backend
 go test ./... -v
 ```
-
-**Note:** Handler-level tests that create OLTs will fail in test environment because they expect successful validation, but test IPs (192.168.1.1, etc.) are unreachable. Service-level tests pass because they document and expect validation failures. This is expected behavior - validation is working correctly.
 
 ### With Coverage
 ```bash
@@ -66,13 +72,18 @@ cd backend
 golangci-lint run ./...
 ```
 
-## Known Test Behavior
+## Catatan Validasi
 
-**Handler Tests (OLT creation):**
-- Will fail validation because test IPs are unreachable
-- Expected behavior: validation prevents saving invalid OLTs
+Handler tests run the real validator, so creating an OLT at an unreachable IP
+fails — and that failure is what they assert. `TestOLTHandler_Create` expects
+`400` with code `SNMP_TEST_FAILED`, which is why the suite is green rather than
+in spite of it. It does assume `192.168.1.1` is unreachable from the machine
+running the tests; on a LAN where that address answers SNMP, the assertion
+flips.
 
-**Service Tests:**
-- Expect and document validation failures
-- Test duplicate IP, invalid site ID, etc.
-- LocalhostSSH test may pass if SSH is available on localhost:22
+Service-level tests exercise the same validator directly and document the
+failures per stage. `TestValidateCreate_LocalhostSSH` depends on whether SSH is
+listening on `localhost:22`.
+
+Every test in the suite is expected to pass. A red suite is a defect, never
+"expected behaviour" — see the pre-commit gate in `CLAUDE.md`.

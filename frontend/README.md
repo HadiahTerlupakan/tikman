@@ -7,7 +7,7 @@ React + TypeScript frontend for ZTE OLT Provisioning System.
 - React 18 + TypeScript 5
 - Vite 5 (build tool)
 - Ant Design 5 (UI library)
-- React Router v6 (routing)
+- React Router v7 (routing)
 - React Query (server state)
 - Zustand (client state)
 - Axios (HTTP client)
@@ -29,8 +29,8 @@ npm install
 # Run dev server
 npm run dev
 
-# Run tests
-npm test
+# Run tests (bare `npm test` is watch mode)
+npm test -- --run
 
 # Build for production
 npm run build
@@ -53,6 +53,18 @@ docker run -p 3000:80 tikman-frontend
 
 - `VITE_API_URL`: Backend API URL (default: http://localhost:8080)
 - `VITE_APP_NAME`: Application name
+
+Push notifications need the Firebase web config. Vite inlines these at build
+time, so `docker-compose.yml` passes them as build args rather than runtime
+environment — leaving them unset builds an image with push permanently inert:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_VAPID_KEY`
 
 ## Project Structure
 

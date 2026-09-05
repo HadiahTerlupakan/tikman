@@ -1,12 +1,21 @@
 # API Reference
 
+Covers config templates and single-ONT provisioning. Other surfaces (sites,
+OLTs, ONTs, users, CS inbox, WireGuard, health) are not documented here yet.
+
 ## Base URL
 ```
 http://localhost:8080/api/v1
 ```
 
 ## Authentication
-All protected endpoints require authentication via HTTP-only cookie session. Login at `/login` returns JWT cookie automatically.
+
+Every endpoint below requires an authenticated session. `POST /api/v1/auth/login`
+sets an HTTP-only `session_token` cookie backed by Redis; send that cookie on
+subsequent requests. There is no bearer token — `Authorization` headers are
+ignored, and a request without the cookie gets `401 UNAUTHORIZED`.
+
+Endpoints that also need a role say so. The rest accept any authenticated user.
 
 ---
 
@@ -15,7 +24,6 @@ All protected endpoints require authentication via HTTP-only cookie session. Log
 ### List All Templates
 ```
 GET /api/v1/config-templates
-Authorization: Bearer
 ```
 **Response:** `200 OK`
 ```json
@@ -39,15 +47,14 @@ Authorization: Bearer
 ### Get Template by ID
 ```
 GET /api/v1/config-templates/:id
-Authorization: Bearer
 ```
 **Response:** `200 OK` or `404 NOT_FOUND`
 
 ### Create Template
 ```
 POST /api/v1/config-templates
-Authorization: Bearer
 Content-Type: application/json
+Role: Admin/Technician
 ```
 **Request Body:**
 ```json
@@ -64,14 +71,14 @@ Content-Type: application/json
 ### Update Template
 ```
 PUT /api/v1/config-templates/:id
-Authorization: Bearer (Admin/Tech role)
+Role: Admin/Technician
 ```
 **Response:** `200 OK`
 
 ### Delete Template
 ```
 DELETE /api/v1/config-templates/:id
-Authorization: Bearer (Admin role)
+Role: Admin
 ```
 **Response:** `200 OK` or `409 CONFLICT` if referenced by jobs
 
@@ -82,7 +89,6 @@ Authorization: Bearer (Admin role)
 ### Start Provisioning
 ```
 POST /api/v1/onts/:id/provision
-Authorization: Bearer
 Content-Type: application/json
 Role: Admin/Technician
 ```
@@ -98,7 +104,7 @@ Role: Admin/Technician
 ```json
 {
   "job_id": "uuid",
-  "status": "pending|running|success|failed",
+  "status": "pending|running|success|failed|rolled_back",
   "message": "provisioning completed"
 }
 ```
@@ -106,58 +112,14 @@ Role: Admin/Technician
 ### Get Job Status
 ```
 GET /api/v1/provision-jobs/:id
-Authorization: Bearer
 ```
 **Response:** `200 OK` with job details including errorMessage if failed
 
 ### List Jobs for ONT
 ```
 GET /api/v1/onts/:id/provision-jobs?limit=20&offset=0
-Authorization: Bearer
 ```
 **Response:** Paginated list of provisioning jobs
-
----
-
-## Batch Provisioning
-
-### Start Batch Provision
-```
-POST /api/v1/batch-provision
-Authorization: Bearer
-Content-Type: application/json
-Role: Admin/Technician
-```
-**Request Body:**
-```json
-{
-  "template_id": "uuid-required",
-  "ont_ids": ["uuid1", "uuid2", ...],
-  "manual_config": {},
-  "confirm": true
-}
-```
-**Response:** `200 OK`
-```json
-{
-  "job_id": "uuid",
-  "status": "running|success|failed|partial_rollback",
-  "succeeded": ["uuid"],
-  "failed": ["uuid"],
-  "rolled_back": ["uuid"],
-  "details": {
-    "uuid1": {"status": "success"},
-    "uuid2": {"status": "failed", "error": "SNMP timeout"}
-  }
-}
-```
-
-### Get Batch Job Status
-```
-GET /api/v1/batch-jobs/:id
-Authorization: Bearer
-```
-**Response:** `200 OK` with full batch result
 
 ---
 
@@ -173,5 +135,4 @@ Authorization: Bearer
 ## Validation Guards
 - UUID format validated for all `:id` path params
 - `confirm=true` required for all provisioning operations
-- Empty ONT list rejected for batch operations
 - Template name must be unique and 3-100 characters

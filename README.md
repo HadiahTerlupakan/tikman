@@ -13,7 +13,7 @@ Network device management and monitoring system with web-based interface.
 ## Tech Stack
 
 **Backend:**
-- Go 1.23+ with Gin framework
+- Go 1.25+ with Gin framework
 - PostgreSQL 15
 - Redis 7
 
@@ -89,15 +89,17 @@ npm run dev
 # Backend tests
 cd backend && go test ./... -v
 
-# Frontend tests
-cd frontend && npm test
+# Frontend tests (bare `npm test` is watch mode)
+cd frontend && npm test -- --run
 ```
 
 ## Documentation
 
 - [Security Guidelines](docs/SECURITY.md)
 - [Scripts Guide](scripts/README.md)
-- [Architecture Details](docs/MONITORING_MODULE_DESIGN.md)
+- [Operator Guide](docs/operator_guide.md)
+- [API Reference](docs/api_reference.md)
+- [Architecture Notes](CLAUDE.md)
 
 ## License
 

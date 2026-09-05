@@ -26,14 +26,7 @@ Panduan operasional untuk sistem provisioning ONT TikMan.
 | `running` | Provisioning sedang berjalan |
 | `success` | Provisioning sukses & terverifikasi |
 | `failed` | Provisioning gagal, rollback dijalankan |
-| `locked` | Sudah di-rollback ke snapshot sebelumnya |
-
-### Status Batch
-| Status | Arti |
-|--------|------|
-| `success` | Semua ONT berhasil |
-| `failed` | Ada yang gagal, semua yang sukses di-rollback |
-| `partial_rollback` | Sebagian ONT di-rollback |
+| `rolled_back` | Sudah di-rollback ke snapshot sebelumnya |
 
 ---
 
@@ -63,25 +56,6 @@ Template yang sudah digunakan oleh job provisioning **tidak bisa dihapus** (HTTP
 
 ### Melihat History
 Klik **History** pada baris ONT untuk melihat semua job provisioning sebelumnya beserta error message.
-
----
-
-## Batch Provisioning
-
-### Peringatan
-> Batch provisioning bersifat **all-or-nothing**: jika satu ONT gagal, semua ONT lain yang sudah sukses akan di-rollback otomatis.
-
-### Via API (UI picker belum tersedia)
-```bash
-curl -X POST http://localhost:8080/api/v1/batch-provision \
-  -H "Content-Type: application/json" \
-  -b "cookies.txt" \
-  -d '{
-    "template_id": "<uuid>",
-    "ont_ids": ["<uuid1>", "<uuid2>"],
-    "confirm": true
-  }'
-```
 
 ---
 

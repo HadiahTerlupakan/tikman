@@ -4,6 +4,11 @@
 **Auditor:** Claude (Automated Security Audit)  
 **Status:** 🟢 Good (dengan beberapa rekomendasi)
 
+> Temuan di bawah adalah keadaan pada tanggal audit. Nilai yang sudah berubah
+> sejak itu: rate limit global kini 600 permintaan/menit per IP dengan 10/menit
+> khusus `POST /api/v1/auth/login` (`internal/api/router.go`), bukan 100 seperti
+> tercatat di bagian 6. `docs/SECURITY.md` adalah rujukan yang dipelihara.
+
 ---
 
 ## Executive Summary

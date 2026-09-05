@@ -4,7 +4,13 @@
 **Module:** Monitoring & Alerting  
 **Version:** 1.0  
 **Date:** 2026-08-15  
-**Status:** Draft - Awaiting Approval
+**Status:** Draft, superseded in part
+
+> Kept as a design record, not as current reference. What shipped differs most
+> in the polling design below: instead of fixed timers per metric type, each OLT
+> has three queue-backed jobs — status every 1 minute, metrics every 10 minutes,
+> discovery every 6 hours (`internal/services/poll_job_service.go`). See
+> `CLAUDE.md` for the shape that exists.
 
 ---
 

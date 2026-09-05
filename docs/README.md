@@ -13,9 +13,18 @@ Historical documentation, fix summaries, and implementation notes:
 
 ### Root (`/docs`)
 Active documentation:
+- `operator_guide.md` - Day-to-day operations: provisioning, VPN sites, OLT map, deploy
+- `api_reference.md` - Config templates and single-ONT provisioning endpoints
 - `SECURITY.md` - Security guidelines and best practices
-- `SECURITY_AUDIT.md` - Security audit results
-- `MONITORING_MODULE_DESIGN.md` - Monitoring module design
+
+Dated records, kept as history rather than as current reference:
+- `SECURITY_AUDIT.md` - Security audit, 2026-08-15
+- `MONITORING_MODULE_DESIGN.md` - Monitoring module design draft, 2026-08-15;
+  its polling design was superseded by the job-queue tiers described in `CLAUDE.md`
+
+### `/superpowers`
+Dated design specs and implementation plans. Snapshots of what was decided at
+the time — not maintained against the code.
 
 ## Usage
 
