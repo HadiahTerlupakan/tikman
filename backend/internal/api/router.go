@@ -257,6 +257,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 			// natural owner to gate it, so it is the admin's alone.
 			cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), csHandler.ClearInbox)
 			cs.GET("/stream", csHandler.Stream)
+			cs.GET("/link-preview", csHandler.LinkPreview)
 
 			cs.GET("/quick-replies", csHandler.ListQuickReplies)
 			cs.POST("/quick-replies", middleware.RequireRole(models.UserRoleAdmin), csHandler.CreateQuickReply)

@@ -3,6 +3,7 @@ import type {
   BroadcastTarget,
   CsConversation,
   CsConversationFilter,
+  CsLinkPreview,
   CsMessage,
   CsQuickReply,
   WaAccount,
@@ -21,6 +22,8 @@ export interface ICsRepository {
   getConversations(filter?: CsConversationFilter): Promise<CsConversation[]>;
   /** A Firebase custom token for the signed-in user. */
   getFirebaseToken(): Promise<string>;
+  /** The card for the first link in a draft, or null. */
+  getLinkPreview(text: string): Promise<CsLinkPreview | null>;
   getHistory(
     conversationId: string,
     limit?: number,

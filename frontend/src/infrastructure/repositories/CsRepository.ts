@@ -6,6 +6,7 @@ import type {
   BroadcastTarget,
   CsConversation,
   CsConversationFilter,
+  CsLinkPreview,
   CsMessage,
   CsQuickReply,
   WaAccount,
@@ -37,6 +38,13 @@ export class CsRepository implements ICsRepository {
   async getFirebaseToken(): Promise<string> {
     const response = await apiClient.get(API_ENDPOINTS.AUTH_FIREBASE_TOKEN);
     return response.data.data.token;
+  }
+
+  async getLinkPreview(text: string): Promise<CsLinkPreview | null> {
+    const response = await apiClient.get(API_ENDPOINTS.CS_LINK_PREVIEW, {
+      params: { text },
+    });
+    return response.data.data ?? null;
   }
 
   async getHistory(

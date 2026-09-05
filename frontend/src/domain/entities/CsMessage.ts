@@ -40,3 +40,13 @@ export interface CsQuickReply {
   createdAt: string;
   updatedAt: string;
 }
+
+/** What a link in a draft resolves to, for the card the composer draws.
+ * Display only — the send path resolves the page again for itself. */
+export interface CsLinkPreview {
+  url: string;
+  title: string;
+  description?: string;
+  /** base64 JPEG, absent when the page named no usable image. */
+  thumbnail?: string;
+}

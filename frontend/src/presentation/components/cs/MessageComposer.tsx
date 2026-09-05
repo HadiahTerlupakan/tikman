@@ -6,6 +6,8 @@ import {
   SendOutlined,
 } from "@ant-design/icons";
 import { colors } from "@/shared/theme/colors";
+import { useLinkPreview } from "@/application/hooks";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import type {
   CsConversation,
   CsMessage,
@@ -72,6 +74,7 @@ export function MessageComposer({
   onTypingChange,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
+  const linkPreview = useLinkPreview(text);
   const isHolder = conversation.assignedUserId === currentUserId;
 
   // Which thread the customer currently sees a line on, null when none does.
@@ -213,6 +216,13 @@ export function MessageComposer({
             title="Batalkan balasan"
           />
         </div>
+      )}
+
+      {linkPreview.preview && (
+        <LinkPreviewCard
+          preview={linkPreview.preview}
+          onDismiss={linkPreview.dismiss}
+        />
       )}
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
