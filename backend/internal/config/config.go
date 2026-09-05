@@ -37,6 +37,10 @@ type Config struct {
 	// not configured yet — cmd/api must still start normally (see
 	// internal/push.NewClient).
 	FirebaseServiceAccountJSONB64 string
+	// FirebaseDatabaseURL is the Realtime Database the presence mirror reads.
+	// Empty means presence is not mirrored, which leaves the round-robin with
+	// nobody online — the same state as an unconfigured Firebase project.
+	FirebaseDatabaseURL string
 }
 
 func Load() (*Config, error) {
@@ -82,6 +86,7 @@ func Load() (*Config, error) {
 		WAMediaRetentionDays:   viper.GetInt("WA_MEDIA_RETENTION_DAYS"),
 
 		FirebaseServiceAccountJSONB64: viper.GetString("FIREBASE_SERVICE_ACCOUNT_JSON_B64"),
+		FirebaseDatabaseURL:           viper.GetString("FIREBASE_DATABASE_URL"),
 	}
 
 	if err := validateConfig(cfg); err != nil {
