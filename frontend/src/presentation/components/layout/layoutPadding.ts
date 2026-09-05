@@ -32,6 +32,13 @@ export function layoutPadding(screens: Screens): LayoutPadding {
 export const HEADER_HEIGHT = 56;
 
 /**
+ * The credit footer's height. AppFooter is given this as a fixed height rather
+ * than letting its padding decide, so this number stays true instead of
+ * approximating what the text happens to measure.
+ */
+export const FOOTER_HEIGHT = 40;
+
+/**
  * fullHeightPage answers the height a page should take to fill the viewport
  * without the document scrolling.
  *
@@ -41,7 +48,7 @@ export const HEADER_HEIGHT = 56;
  * fit the screen scroll instead. Change the header height or the gutters and
  * this follows; a literal would not.
  *
- * It accounts for the shell's own two numbers and nothing else. ProLayout adds
+ * It accounts for the shell's own three numbers and nothing else. ProLayout adds
  * spacing of its own around the content area, and the layout renders the
  * notification-permission banner above the page, so a page using this comes
  * close to the viewport rather than matching it. Measured on 2026-09-04 that
@@ -51,5 +58,6 @@ export const HEADER_HEIGHT = 56;
  */
 export function fullHeightPage(screens: Screens): string {
   const padding = layoutPadding(screens);
-  return `calc(100vh - ${HEADER_HEIGHT + padding.page * 2}px)`;
+  const chrome = HEADER_HEIGHT + padding.page * 2 + FOOTER_HEIGHT;
+  return `calc(100vh - ${chrome}px)`;
 }

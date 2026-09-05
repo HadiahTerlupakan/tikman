@@ -31,16 +31,18 @@ describe("fullHeightPage", () => {
   // The CS inbox used to hardcode "calc(100vh - 96px)", which counted the
   // header and one padding instead of both. Eight pixels of overflow was
   // enough to make the whole document scroll under a three-column layout that
-  // is supposed to fit exactly.
-  it("subtracts the header and the padding at both ends", () => {
+  // is supposed to fit exactly. The credit footer is in the same reckoning:
+  // it sits below the content, so a page sized to the viewport gives up its
+  // height too.
+  it("subtracts the header, the padding at both ends, and the footer", () => {
     expect(fullHeightPage({ sm: true, md: true, lg: true })).toBe(
-      "calc(100vh - 104px)",
+      "calc(100vh - 144px)",
     );
   });
 
   // The gutters differ on a phone, and a page that fits the desktop while
   // overflowing the phone is the same bug in a narrower window.
   it("follows the gutters the screen size gets", () => {
-    expect(fullHeightPage({ xs: true })).toBe("calc(100vh - 80px)");
+    expect(fullHeightPage({ xs: true })).toBe("calc(100vh - 120px)");
   });
 });

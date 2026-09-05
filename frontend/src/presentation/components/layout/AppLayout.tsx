@@ -26,8 +26,9 @@ import {
 import { PushRepository } from "@/infrastructure/repositories";
 import { playNotificationChime } from "@/infrastructure/notificationSound";
 import { PushPermissionPrompt } from "@/presentation/components/cs/PushPermissionPrompt";
+import { AppFooter } from "./AppFooter";
 import { buildNavigationRoutes } from "./navigationRoutes";
-import { HEADER_HEIGHT, layoutPadding } from "./layoutPadding";
+import { FOOTER_HEIGHT, HEADER_HEIGHT, layoutPadding } from "./layoutPadding";
 
 const pushRepository = new PushRepository();
 
@@ -290,6 +291,7 @@ export function AppLayout() {
             },
           }}
           actionsRender={() => []}
+          footerRender={() => <AppFooter />}
           menuFooterRender={() => (
             <div
               style={{
@@ -306,7 +308,7 @@ export function AppLayout() {
           <div
             style={{
               padding: padding.page,
-              minHeight: `calc(100vh - ${HEADER_HEIGHT}px)`,
+              minHeight: `calc(100vh - ${HEADER_HEIGHT + FOOTER_HEIGHT}px)`,
               background: "transparent",
             }}
           >
