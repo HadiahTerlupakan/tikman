@@ -160,7 +160,7 @@ export function OntFilters({
       {/* Search & Status filters */}
       <Space wrap>
         <Input
-          placeholder="Search serial number"
+          placeholder="Search serial, name, or MAC"
           prefix={<SearchOutlined />}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}

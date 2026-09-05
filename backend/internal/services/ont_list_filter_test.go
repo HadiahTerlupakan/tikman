@@ -148,3 +148,70 @@ func TestListFilteredCombinesEveryFilter(t *testing.T) {
 	require.Equal(t, int64(1), total)
 	require.Equal(t, "ZTEGWANTED01", onts[0].SerialNumber)
 }
+
+// macONT seeds one ONT carrying a MAC, in the form the OLT stores: upper case,
+// colon separated.
+func macONT(t *testing.T, db *gorm.DB, oltID uuid.UUID, ontID int, serial, mac string) {
+	t.Helper()
+	require.NoError(t, db.Create(&models.ONT{
+		ID: uuid.New(), OLTID: oltID, PortID: 1, ONTID: ontID,
+		SerialNumber: serial, MACAddress: mac, Status: models.ONTStatusOnline,
+	}).Error)
+}
+
+func TestListFilteredSearchMatchesTheMACAddress(t *testing.T) {
+	// 871 of the 1164 ONTs on this network carry a real MAC, and it is what a
+	// technician has in hand when the serial sticker is inside a sealed box on
+	// a customer's wall.
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+
+	macONT(t, db, oltID, 1, "ZTEGC0DE0001", "70:2E:22:09:1B:75")
+	macONT(t, db, oltID, 2, "ZTEGC0DE0002", "EC:6C:B5:92:ED:7A")
+
+	onts, total, err := ontService.ListFiltered(ONTListFilter{Search: "70:2E:22:09:1B:75", Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Equal(t, "ZTEGC0DE0001", onts[0].SerialNumber)
+}
+
+// A MAC is copied from a router page, a sticker or another system, and each
+// writes the separators differently. Comparing the stored form verbatim found
+// none of those, so both sides are stripped before matching.
+func TestListFilteredSearchMatchesAMACWrittenAnyWay(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+
+	macONT(t, db, oltID, 1, "ZTEGC0DE0001", "70:2E:22:09:1B:75")
+	macONT(t, db, oltID, 2, "ZTEGC0DE0002", "EC:6C:B5:92:ED:7A")
+
+	for _, typed := range []string{"702e22091b75", "70-2E-22-09-1B-75", "1b75", "702E2209"} {
+		onts, total, err := ontService.ListFiltered(ONTListFilter{Search: typed, Limit: 10})
+		require.NoError(t, err, typed)
+		require.Equal(t, int64(1), total, "typed %q", typed)
+		require.Equal(t, "ZTEGC0DE0001", onts[0].SerialNumber, "typed %q", typed)
+	}
+}
+
+// Stripping the separators from the term leaves nothing when the term was only
+// separators, and an empty LIKE pattern matches every row that has a MAC. The
+// whole table coming back for a stray colon is worse than no match at all.
+//
+// Dots and spaces are separators too: network gear writes 702e.2209.1b75, and
+// a MAC pasted out of a spreadsheet arrives with spaces around it.
+func TestListFilteredSearchOfSeparatorsAloneMatchesNothing(t *testing.T) {
+	db := setupTestDB(t)
+	ontService := NewONTService(db)
+	oltID := oltForPositions(t, db, "Cariu", "172.30.30.3")
+
+	macONT(t, db, oltID, 1, "ZTEGC0DE0001", "70:2E:22:09:1B:75")
+	macONT(t, db, oltID, 2, "ZTEGC0DE0002", "EC:6C:B5:92:ED:7A")
+
+	for _, typed := range []string{":", "-", "::--", "..", "  ", ".-: "} {
+		_, total, err := ontService.ListFiltered(ONTListFilter{Search: typed, Limit: 10})
+		require.NoError(t, err, typed)
+		require.Equal(t, int64(0), total, "typed %q", typed)
+	}
+}

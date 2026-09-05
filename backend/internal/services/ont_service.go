@@ -133,6 +133,10 @@ func (s *ONTService) ListFiltered(filter ONTListFilter) ([]models.ONT, int64, er
 	return onts, total, nil
 }
 
+// macSeparators strips the punctuation a MAC is written with, so a term and a
+// stored address compare on their digits alone.
+var macSeparators = strings.NewReplacer(":", "", "-", "", ".", "", " ", "")
+
 func (s *ONTService) applyONTFilter(query *gorm.DB, filter ONTListFilter) *gorm.DB {
 	if filter.OLTID != nil {
 		query = query.Where("olt_id = ?", *filter.OLTID)
@@ -150,7 +154,18 @@ func (s *ONTService) applyONTFilter(query *gorm.DB, filter ONTListFilter) *gorm.
 		// Lowered on both sides rather than using ILIKE: the tests run on SQLite,
 		// which has no ILIKE, and a search that behaved differently there than in
 		// production would be worse than no test.
-		term := "%" + strings.ToLower(filter.Search) + "%"
+		lowered := strings.ToLower(filter.Search)
+		term := "%" + lowered + "%"
+
+		// A MAC is stored colon separated but arrives typed however the router
+		// page, sticker or spreadsheet it was copied from wrote it, so the
+		// separators come off both sides before matching. Skipped when nothing
+		// survives that: an empty pattern would match every ONT that has a MAC.
+		if bare := macSeparators.Replace(lowered); bare != "" {
+			return query.Where(
+				"LOWER(serial_number) LIKE ? OR LOWER(name) LIKE ? OR REPLACE(LOWER(mac_address), ':', '') LIKE ?",
+				term, term, "%"+bare+"%")
+		}
 		query = query.Where("LOWER(serial_number) LIKE ? OR LOWER(name) LIKE ?", term, term)
 	}
 	if filter.StartTime != nil && filter.EndTime != nil {
