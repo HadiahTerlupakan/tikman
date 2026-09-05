@@ -7,7 +7,9 @@ const { Text } = Typography;
 
 interface LinkPreviewCardProps {
   preview: CsLinkPreview;
-  onDismiss: () => void;
+  /** Absent in a sent message: the card is part of what the customer already
+   * received, so there is nothing left to decide. */
+  onDismiss?: () => void;
 }
 
 /**
@@ -88,14 +90,16 @@ export function LinkPreviewCard({ preview, onDismiss }: LinkPreviewCardProps) {
         </Text>
       </div>
 
-      <Button
-        type="text"
-        size="small"
-        icon={<CloseOutlined />}
-        onClick={onDismiss}
-        aria-label="Sembunyikan pratinjau tautan"
-        title="Sembunyikan pratinjau"
-      />
+      {onDismiss && (
+        <Button
+          type="text"
+          size="small"
+          icon={<CloseOutlined />}
+          onClick={onDismiss}
+          aria-label="Sembunyikan pratinjau tautan"
+          title="Sembunyikan pratinjau"
+        />
+      )}
     </div>
   );
 }

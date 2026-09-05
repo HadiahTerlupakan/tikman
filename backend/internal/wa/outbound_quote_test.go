@@ -47,7 +47,7 @@ func TestDrainMarksAQuoteOfOurOwnReplyAsOurs(t *testing.T) {
 
 	ours, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS"))
+	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS", nil))
 
 	_, err = messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "masih dicek ya", nil, &ours.ID)
 	require.NoError(t, err)

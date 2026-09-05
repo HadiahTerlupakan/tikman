@@ -48,7 +48,7 @@ func TestReceiptNamesTheThreadItMoved(t *testing.T) {
 
 	ours, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS"))
+	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS", nil))
 
 	require.NoError(t, receipts.handle(context.Background(), &events.Receipt{
 		MessageIDs: []string{"3EB0OURS"},
@@ -84,7 +84,7 @@ func TestReceiptNamesEveryThreadOnceAcrossABatch(t *testing.T) {
 	} {
 		msg, err := messages.Queue(spec.conversationID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 		require.NoError(t, err)
-		require.NoError(t, messages.MarkSent(msg.ID, spec.waID))
+		require.NoError(t, messages.MarkSent(msg.ID, spec.waID, nil))
 	}
 
 	require.NoError(t, receipts.handle(context.Background(), &events.Receipt{

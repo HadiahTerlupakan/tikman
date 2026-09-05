@@ -12,16 +12,11 @@ import (
 )
 
 // SendText sends one reply and answers with the id WhatsApp gave it.
-func (c *Client) SendText(ctx context.Context, jid, body string, quote *Quote) (string, error) {
+func (c *Client) SendText(ctx context.Context, jid, body string, quote *Quote, preview *linkpreview.Preview) (string, error) {
 	to, err := types.ParseJID(jid)
 	if err != nil {
 		return "", fmt.Errorf("tujuan tidak valid %q: %w", jid, err)
 	}
-
-	// Resolved before the send and never allowed to fail it: linkpreview.Resolve
-	// returns nil for a slow site, a refused address or a page with no
-	// metadata, and the message then goes out exactly as it did before.
-	preview := linkpreview.Resolve(ctx, body)
 
 	resp, err := c.wa.SendMessage(ctx, to, buildTextMessage(body, buildContextInfo(quote, to, c.selfJID()), preview))
 	if err != nil {

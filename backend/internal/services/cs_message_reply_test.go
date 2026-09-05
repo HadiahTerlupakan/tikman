@@ -70,7 +70,7 @@ func TestSaveInboundTiesAQuoteBackToTheMessageItAnswers(t *testing.T) {
 
 	ours, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS"))
+	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS", nil))
 
 	stored, created, err := messages.SaveInbound(InboundMessage{
 		ConversationID: conv.ID, WAMessageID: "3EB0CCC", ReplyToWAID: "3EB0OURS",

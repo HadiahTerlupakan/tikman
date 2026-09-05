@@ -19,6 +19,14 @@ export interface CsMessage {
    * nothing, and also when what it quoted has since been swept by retention —
    * the reply outlives the message it answered. */
   replyTo?: CsQuotedMessage;
+  /** The link card stored with the message. Present on either direction: an
+   * outgoing one is what we fetched to attach, an incoming one is what the
+   * customer's own WhatsApp sent. */
+  previewUrl?: string;
+  previewTitle?: string;
+  previewDescription?: string;
+  /** base64 JPEG. */
+  previewThumbnail?: string;
   waTimestamp: string;
 }
 

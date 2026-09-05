@@ -77,7 +77,7 @@ func TestAnIncomingReplyIsStoredAgainstTheMessageItQuotes(t *testing.T) {
 
 	ours, err := messages.Queue(convID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS"))
+	require.NoError(t, messages.MarkSent(ours.ID, "3EB0OURS", nil))
 
 	evt := customerSays("masih mati juga", &waE2E.ContextInfo{StanzaID: proto.String("3EB0OURS")})
 	require.NoError(t, handler.handle(context.Background(), evt))

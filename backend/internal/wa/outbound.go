@@ -3,6 +3,7 @@ package wa
 import (
 	"context"
 	"fmt"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"path/filepath"
 	"sync"
 	"time"
@@ -81,7 +82,7 @@ func (d *Drainer) Drain(ctx context.Context, limit int) (int, error) {
 			}
 		}
 
-		waID, err := d.send(ctx, msg)
+		waID, preview, err := d.send(ctx, msg)
 		if err != nil {
 			if markErr := d.messages.MarkFailed(msg.ID, err.Error()); markErr != nil {
 				return sent, markErr
@@ -89,7 +90,9 @@ func (d *Drainer) Drain(ctx context.Context, limit int) (int, error) {
 			d.announce(ctx, msg.ConversationID)
 			continue
 		}
-		if err := d.messages.MarkSent(msg.ID, waID); err != nil {
+		// The card is stored in the same update that records the send, so a
+		// row never claims a preview for a message that did not go out.
+		if err := d.messages.MarkSent(msg.ID, waID, preview); err != nil {
 			return sent, err
 		}
 		d.announce(ctx, msg.ConversationID)
@@ -150,21 +153,28 @@ func (d *Drainer) acknowledgeRead(ctx context.Context, conversationID uuid.UUID)
 	_ = d.messages.MarkInboundRead(rows)
 }
 
-func (d *Drainer) send(ctx context.Context, msg models.CSMessage) (string, error) {
+func (d *Drainer) send(ctx context.Context, msg models.CSMessage) (string, *linkpreview.Preview, error) {
 	conv, err := d.conversations.Get(msg.ConversationID)
 	if err != nil {
-		return "", fmt.Errorf("percakapan tidak ditemukan: %w", err)
+		return "", nil, fmt.Errorf("percakapan tidak ditemukan: %w", err)
 	}
 
 	quote := d.quote(msg)
 	if msg.Kind == models.MessageKindText {
-		return d.sender.SendText(ctx, conv.CustomerJID, msg.Body, quote)
+		// Resolved here rather than inside the sender so the card is fetched
+		// once and the row stores exactly what went out. Never allowed to fail
+		// the send: Resolve returns nil for a slow site, a refused address or
+		// a page with nothing worth showing.
+		preview := linkpreview.Resolve(ctx, msg.Body)
+		waID, err := d.sender.SendText(ctx, conv.CustomerJID, msg.Body, quote, preview)
+		return waID, preview, err
 	}
-	return d.sender.SendMedia(
+	waID, err := d.sender.SendMedia(
 		ctx, conv.CustomerJID, msg.Kind,
 		filepath.Join(d.mediaRoot, msg.MediaPath),
 		msg.MediaMime, msg.MediaFilename, msg.Body, quote,
 	)
+	return waID, nil, err
 }
 
 // quote loads the message a reply answers, answering nil when there is nothing

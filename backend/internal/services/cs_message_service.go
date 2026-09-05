@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +44,11 @@ type InboundMessage struct {
 	// it quotes nothing. It is a WhatsApp id rather than one of ours because
 	// that is all the customer's phone sends; SaveInbound turns it into a row.
 	ReplyToWAID string
+
+	// Preview is the link card the customer's own WhatsApp built and sent
+	// with the message. Stored rather than resolved again: it costs no
+	// request, and it is exactly what the customer is looking at.
+	Preview *linkpreview.Preview
 }
 
 // CSMessageService stores the traffic in a thread, in both directions.
@@ -86,14 +92,18 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 
 		waID := in.WAMessageID
 		stored = models.CSMessage{
-			ConversationID: in.ConversationID,
-			WAMessageID:    &waID,
-			Direction:      models.MessageIn,
-			Kind:           in.Kind,
-			Body:           in.Body,
-			Status:         models.MessageDelivered,
-			ReplyToID:      quotedRow(tx, in.ConversationID, in.ReplyToWAID),
-			WATimestamp:    in.At,
+			ConversationID:     in.ConversationID,
+			WAMessageID:        &waID,
+			Direction:          models.MessageIn,
+			Kind:               in.Kind,
+			Body:               in.Body,
+			PreviewURL:         previewURL(in.Preview),
+			PreviewTitle:       previewTitle(in.Preview),
+			PreviewDescription: previewDescription(in.Preview),
+			PreviewThumbnail:   previewThumbnail(in.Preview),
+			Status:             models.MessageDelivered,
+			ReplyToID:          quotedRow(tx, in.ConversationID, in.ReplyToWAID),
+			WATimestamp:        in.At,
 		}
 		applyMedia(&stored, in.Media)
 
@@ -174,12 +184,21 @@ func (s *CSMessageService) ClaimQueued(accountID uuid.UUID, limit int) ([]models
 }
 
 // MarkSent records that WhatsApp accepted a message.
-func (s *CSMessageService) MarkSent(id uuid.UUID, waMessageID string) error {
-	return s.updateMessage(id, map[string]any{
+func (s *CSMessageService) MarkSent(id uuid.UUID, waMessageID string, preview *linkpreview.Preview) error {
+	fields := map[string]any{
 		"status":        models.MessageSent,
 		"wa_message_id": waMessageID,
 		"fail_reason":   "",
-	})
+	}
+	// Written in the same update that records the send, so the thread never
+	// shows a card for a message that did not reach the customer.
+	if preview != nil {
+		fields["preview_url"] = preview.URL
+		fields["preview_title"] = preview.Title
+		fields["preview_description"] = preview.Description
+		fields["preview_thumbnail"] = preview.Thumbnail
+	}
+	return s.updateMessage(id, fields)
 }
 
 // MarkFailed records why a message could not be sent, so the CS reads a reason
@@ -320,4 +339,35 @@ func applyMedia(msg *models.CSMessage, media *MediaFile) {
 	msg.MediaMime = media.Mime
 	msg.MediaFilename = media.Filename
 	msg.MediaSize = media.Size
+}
+
+// The four accessors keep the nil check in one place rather than repeating it
+// at each field of the row being built.
+
+func previewURL(p *linkpreview.Preview) string {
+	if p == nil {
+		return ""
+	}
+	return p.URL
+}
+
+func previewTitle(p *linkpreview.Preview) string {
+	if p == nil {
+		return ""
+	}
+	return p.Title
+}
+
+func previewDescription(p *linkpreview.Preview) string {
+	if p == nil {
+		return ""
+	}
+	return p.Description
+}
+
+func previewThumbnail(p *linkpreview.Preview) []byte {
+	if p == nil {
+		return nil
+	}
+	return p.Thumbnail
 }

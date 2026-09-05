@@ -3,6 +3,7 @@ package wa
 import (
 	"context"
 	"errors"
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"sync"
 	"testing"
 	"time"
@@ -69,7 +70,7 @@ func (f *fakeSender) send(record string, fail bool, quote *Quote) (string, error
 	return "3EB0" + record, nil
 }
 
-func (f *fakeSender) SendText(_ context.Context, _, body string, quote *Quote) (string, error) {
+func (f *fakeSender) SendText(_ context.Context, _, body string, quote *Quote, _ *linkpreview.Preview) (string, error) {
 	return f.send(body, f.failOn != "" && body == f.failOn, quote)
 }
 

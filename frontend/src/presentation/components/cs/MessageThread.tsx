@@ -10,6 +10,7 @@ import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
 import { colors } from "@/shared/theme/colors";
 import { MessageText } from "./MessageText";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 
 const { Text } = Typography;
 
@@ -145,6 +146,17 @@ function MessageBubble({
 
         {message.kind !== "image" && message.kind !== "text" && (
           <MediaAttachment message={message} />
+        )}
+
+        {message.previewTitle && (
+          <LinkPreviewCard
+            preview={{
+              url: message.previewUrl ?? "",
+              title: message.previewTitle,
+              description: message.previewDescription,
+              thumbnail: message.previewThumbnail,
+            }}
+          />
         )}
 
         {message.body && (

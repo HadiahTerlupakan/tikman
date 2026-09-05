@@ -73,6 +73,7 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		ReplyToWAID:    quotedStanzaID(evt.Message),
 		Kind:           att.kind,
 		Body:           body,
+		Preview:        inboundPreview(evt.Message),
 		Media:          media,
 		At:             evt.Info.Timestamp,
 	})

@@ -91,7 +91,7 @@ func TestClaimQueuedReturnsOnlyWhatIsStillWaiting(t *testing.T) {
 	require.NoError(t, err)
 	gone, err := messages.Queue(conv.ID, sender, models.MessageKindText, "terkirim", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, messages.MarkSent(gone.ID, "3EB0SENT"))
+	require.NoError(t, messages.MarkSent(gone.ID, "3EB0SENT", nil))
 
 	claimed, err := messages.ClaimQueued(conv.WAAccountID, 10)
 	require.NoError(t, err)
@@ -118,7 +118,7 @@ func TestApplyReceiptWalksAMessageForwardOnly(t *testing.T) {
 
 	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, messages.MarkSent(msg.ID, "3EB0AAA"))
+	require.NoError(t, messages.MarkSent(msg.ID, "3EB0AAA", nil))
 
 	// A receipt that moves the message forward names its thread, so the caller
 	// knows which browsers to wake; one that changes nothing names none.
