@@ -33,6 +33,14 @@ export interface PresenceRef {
   remove: () => Promise<unknown>;
 }
 
+/** How each claim attempt turned out. Both directions are news: a blip that
+ * loses the node takes the agent out of the rotation, and the reconnect that
+ * re-writes it puts them back, and the inbox has to be able to say so. */
+export interface ClaimReporter {
+  onClaimed: () => void;
+  onFailed: (error: unknown) => void;
+}
+
 /**
  * Arms the disconnect handler, then writes the value.
  *
@@ -60,19 +68,23 @@ export async function writePresence(node: PresenceRef): Promise<void> {
 export function claimWhileConnected(
   node: PresenceRef,
   watchConnected: (onChange: (connected: boolean) => void) => () => void,
-  onFailed: (error: unknown) => void,
+  report: ClaimReporter,
 ): () => Promise<void> {
   let released = false;
 
   const stop = watchConnected((connected) => {
     if (!connected || released) return;
     void writePresence(node)
-      // Unmounting during the write would otherwise leave the node behind:
-      // release() already ran its remove() before this landed.
       .then(async () => {
-        if (released) await node.remove();
+        // Unmounting during the write would otherwise leave the node behind:
+        // release() already ran its remove() before this landed.
+        if (released) {
+          await node.remove();
+          return;
+        }
+        report.onClaimed();
       })
-      .catch(onFailed);
+      .catch(report.onFailed);
   });
 
   return async () => {
@@ -133,7 +145,7 @@ async function mintIdentity(): Promise<string> {
  * Resolves to a no-op when Firebase is not configured, so callers need no
  * branch. */
 export async function claimPresence(
-  onFailed: (error: unknown) => void,
+  report: ClaimReporter,
 ): Promise<() => Promise<void>> {
   if (!isPresenceConfigured) return async () => {};
 
@@ -146,8 +158,8 @@ export async function claimPresence(
       set: (value) => set(node, value),
       remove: () => remove(node),
     },
-    watchConnection,
-    onFailed,
+    (onChange) => watchConnection((link) => onChange(link === "connected")),
+    report,
   );
 }
 
@@ -173,19 +185,24 @@ export async function watchPresence(
   });
 }
 
-/** Subscribes to RTDB's own view of whether this browser is connected.
- * Reports false when Firebase is not configured, which is the truth. */
+/** Whether this browser is hearing about presence at all. `unconfigured` is a
+ * third state rather than a disconnection: a checkout with no Firebase project
+ * is inert, not broken, and must not raise an alarm nobody can act on. */
+export type PresenceLink = "unconfigured" | "connected" | "disconnected";
+
+/** Subscribes to RTDB's own view of whether this browser is connected. */
 export function watchConnection(
-  onChange: (connected: boolean) => void,
+  onChange: (link: PresenceLink) => void,
 ): () => void {
   if (!isPresenceConfigured) {
-    onChange(false);
+    onChange("unconfigured");
     return () => {};
   }
   const node = ref(getDatabase(app()), CONNECTED_PATH);
   return onValue(
     node,
-    (snapshot) => onChange(snapshot.val() === true),
+    (snapshot) =>
+      onChange(snapshot.val() === true ? "connected" : "disconnected"),
     (error) => reportCancelled(CONNECTED_PATH, error),
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   useNavigate,
   useOutletContext,
@@ -7,7 +7,6 @@ import {
 import { Grid, Typography } from "antd";
 import { Empty } from "antd";
 import { useAuthStore } from "@/application/stores";
-import { claimPresence } from "@/infrastructure/firebase/presence";
 import {
   useAssignConversation,
   useConnectWaAccount,
@@ -30,6 +29,7 @@ import {
   usePushNotifications,
   useBroadcast,
 } from "@/application/hooks";
+import type { PresenceStatus } from "@/application/hooks";
 import { UserRole } from "@/domain/entities";
 import type { CsMessage, User, WaAccount } from "@/domain/entities";
 import { PageHeader } from "@/presentation/components/common";
@@ -63,6 +63,25 @@ const panel = {
   borderRadius: 10,
   overflow: "hidden",
 } as const;
+
+// Only the two statuses an agent can act on say anything. A deployment with no
+// Firebase project, and a connection still coming up, are both silent: a banner
+// standing permanently under an empty panel is how the real warnings stop being
+// read.
+const presenceNotice: Partial<
+  Record<PresenceStatus, { text: string; color: string }>
+> = {
+  stale: {
+    text: "Terputus — daftar ini mungkin sudah tidak akurat",
+    color: colors.textMuted,
+  },
+  // The one an agent needs most: the list being a little old costs them
+  // nothing, not being in the rotation costs them the shift.
+  unclaimed: {
+    text: "Belum masuk rotasi — muat ulang halaman agar chat baru masuk",
+    color: colors.warning,
+  },
+};
 
 function holderNameMap(users: User[]): Record<string, string> {
   return Object.fromEntries(users.map((u) => [u.id, u.username]));
@@ -143,31 +162,6 @@ export function CsInboxPage() {
   const holderNames = holderNameMap(usersQuery.data ?? []);
   const broadcast = useBroadcast(accounts, holderNames);
 
-  // Only this page claims presence: someone reading the OLT map is not at
-  // the inbox.
-  useEffect(() => {
-    let release: (() => Promise<void>) | undefined;
-    let cancelled = false;
-
-    const failed = (error: unknown) =>
-      console.warn("Could not claim presence", error);
-
-    claimPresence(failed)
-      .then((r) => {
-        if (cancelled) {
-          void r();
-          return;
-        }
-        release = r;
-      })
-      .catch(failed);
-
-    return () => {
-      cancelled = true;
-      void release?.();
-    };
-  }, []);
-
   const sendMessage = useSendCsMessage();
   const sendMedia = useSendCsMedia();
   const assignConversation = useAssignConversation();
@@ -179,6 +173,8 @@ export function CsInboxPage() {
   const clearConversation = useClearCsConversation();
   const clearAccountMessages = useClearWaAccountMessages();
   const clearInbox = useClearCsInbox();
+
+  const notice = presenceNotice[onlineQuery.status];
 
   const conversations = conversationsQuery.data ?? [];
   const selected = conversations.find((c) => c.id === selectedId);
@@ -397,16 +393,16 @@ export function CsInboxPage() {
                 flexShrink: 0,
               }}
             >
-              {!onlineQuery.connected && (
+              {notice && (
                 <Text
                   style={{
                     display: "block",
                     padding: "8px 14px 0",
-                    color: colors.textMuted,
+                    color: notice.color,
                     fontSize: 11,
                   }}
                 >
-                  Terputus — daftar ini mungkin sudah tidak akurat
+                  {notice.text}
                 </Text>
               )}
               <CsTeamPanel

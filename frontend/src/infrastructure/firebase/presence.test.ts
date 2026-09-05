@@ -25,7 +25,7 @@ function fakeNode(order: string[]): PresenceRef {
   };
 }
 
-const ignoreFailure = () => {};
+const silentReporter = { onClaimed: () => {}, onFailed: () => {} };
 
 describe("writePresence", () => {
   // A socket that dies between the two calls must leave nothing behind. If the
@@ -53,7 +53,7 @@ describe("claimWhileConnected", () => {
         onChange(true);
         return stop;
       },
-      ignoreFailure,
+      silentReporter,
     );
     await vi.waitFor(() => expect(order).toEqual(["armed", "written"]));
     await release();
@@ -77,7 +77,7 @@ describe("claimWhileConnected", () => {
         emit = onChange;
         return () => {};
       },
-      ignoreFailure,
+      silentReporter,
     );
 
     emit(true);
@@ -99,7 +99,7 @@ describe("claimWhileConnected", () => {
         emit = onChange;
         return () => {};
       },
-      ignoreFailure,
+      silentReporter,
     );
     await release();
     emit(true);
@@ -129,7 +129,7 @@ describe("claimWhileConnected", () => {
         onChange(true);
         return () => {};
       },
-      ignoreFailure,
+      silentReporter,
     );
     await release();
     letWriteFinish();
@@ -139,30 +139,34 @@ describe("claimWhileConnected", () => {
     );
   });
 
-  // A refused write is the one failure with no symptom: the node simply is not
-  // there, and the mirror drops the agent from the rotation within fifteen
-  // seconds without anything having been logged.
-  it("reports a refused write rather than swallowing it", async () => {
+  it("reports each attempt so the inbox can say whether it is in the rotation", async () => {
+    const onClaimed = vi.fn();
     const onFailed = vi.fn();
     const failure = new Error("permission_denied");
+    let attempts = 0;
     const node: PresenceRef = {
       onDisconnect: () => ({ remove: async () => {} }),
       set: async () => {
-        throw failure;
+        attempts += 1;
+        if (attempts === 1) throw failure;
       },
       remove: async () => {},
     };
+    let emit: (connected: boolean) => void = () => {};
 
     claimWhileConnected(
       node,
       (onChange) => {
-        onChange(true);
+        emit = onChange;
         return () => {};
       },
-      onFailed,
+      { onClaimed, onFailed },
     );
 
+    emit(true);
     await vi.waitFor(() => expect(onFailed).toHaveBeenCalledWith(failure));
+    emit(true);
+    await vi.waitFor(() => expect(onClaimed).toHaveBeenCalledOnce());
   });
 });
 
