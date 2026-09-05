@@ -180,3 +180,14 @@ func TestSettingListStillRendersAfterAKeyRotation(t *testing.T) {
 	}
 	require.True(t, found)
 }
+
+// Advanced markers refuse to draw without a Cloud map ID, so the map needs it
+// in the browser exactly as it needs the API key.
+func TestBrowserValuesCarryTheMapID(t *testing.T) {
+	service, _ := newSettingService(t)
+	require.NoError(t, service.Set(models.SettingGoogleMapsMapID, "1a2b3c4d5e6f7a8b9c0d1e2f", uuid.New()))
+
+	values, err := service.BrowserValues()
+	require.NoError(t, err)
+	require.Equal(t, "1a2b3c4d5e6f7a8b9c0d1e2f", values[models.SettingGoogleMapsMapID])
+}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SettingRepository } from "@/infrastructure/repositories";
-import { GOOGLE_MAPS_API_KEY } from "@/domain/entities";
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from "@/domain/entities";
 
 const settingRepository = new SettingRepository();
 
@@ -46,8 +46,21 @@ export function useBrowserSettings() {
   });
 }
 
-/** The Maps key, or undefined when none is configured. */
-export function useGoogleMapsKey(): { key?: string; isLoading: boolean } {
+/**
+ * What it takes to draw a Google map here: the key that authorises the script,
+ * and the Cloud map ID the pins belong to. Either being unset is a state the
+ * caller has to handle — without the key nothing loads, and without the map ID
+ * the advanced markers render nothing.
+ */
+export function useGoogleMapsKey(): {
+  key?: string;
+  mapId?: string;
+  isLoading: boolean;
+} {
   const { data, isLoading } = useBrowserSettings();
-  return { key: data?.[GOOGLE_MAPS_API_KEY] || undefined, isLoading };
+  return {
+    key: data?.[GOOGLE_MAPS_API_KEY] || undefined,
+    mapId: data?.[GOOGLE_MAPS_MAP_ID] || undefined,
+    isLoading,
+  };
 }

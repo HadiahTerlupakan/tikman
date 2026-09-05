@@ -24,7 +24,7 @@ import { CableEditor } from "../components/map/CableEditor";
 import { useCableEditing } from "../components/map/useCableEditing";
 
 export default function MapPage() {
-  const { key, isLoading: keyLoading } = useGoogleMapsKey();
+  const { key, mapId, isLoading: keyLoading } = useGoogleMapsKey();
   const { data: olts, isLoading: oltsLoading } = useOlts();
   const { data: odcs } = useOdcs();
   const { data: odps } = useOdps();
@@ -87,6 +87,7 @@ export default function MapPage() {
               )}
               <OltMap
                 apiKey={key}
+                mapId={mapId}
                 olts={olts ?? []}
                 odcs={odcs ?? []}
                 odps={odps ?? []}

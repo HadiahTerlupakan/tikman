@@ -5,22 +5,26 @@ import { describe, expect, it, vi } from "vitest";
 import type { Odc, Odp } from "@/domain/entities";
 import { PlantLayer } from "./PlantLayer";
 
-// The real Marker talks to Google's script, which cannot load under jsdom.
-// Recording the icon keeps the one thing the pin carries — how full the box is
-// — observable, since that is the whole point of drawing it.
+// The real marker talks to Google's script, which cannot load under jsdom.
+// The pin's fill is recorded on the button because how full a box is is the
+// one thing the pin carries, and drawing it is the whole point.
 vi.mock("@vis.gl/react-google-maps", () => ({
-  Marker: ({
+  AdvancedMarker: ({
     title,
-    icon,
+    children,
     onClick,
   }: {
     title: string;
-    icon: string;
+    children: ReactNode;
     onClick: () => void;
   }) => (
-    <button type="button" data-icon={icon} onClick={onClick}>
+    <button type="button" onClick={onClick}>
       {title}
+      {children}
     </button>
+  ),
+  Pin: ({ background }: { background: string }) => (
+    <span data-fill={background} />
   ),
   InfoWindow: ({ children }: { children: ReactNode }) => (
     <div data-testid="info">{children}</div>
@@ -54,7 +58,8 @@ const box = (over: Partial<Odp> = {}): Odp => ({
 });
 
 function colorOf(name: string | RegExp): string {
-  return screen.getByRole("button", { name }).getAttribute("data-icon") ?? "";
+  const pin = screen.getByRole("button", { name }).querySelector("[data-fill]");
+  return pin?.getAttribute("data-fill") ?? "";
 }
 
 describe("PlantLayer", () => {

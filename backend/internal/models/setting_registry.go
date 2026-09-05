@@ -17,6 +17,11 @@ const (
 // SettingGoogleMapsAPIKey drives the site map and address autocomplete.
 const SettingGoogleMapsAPIKey = "google_maps_api_key"
 
+// SettingGoogleMapsMapID names the Cloud map the pins are drawn on. Google's
+// advanced markers render nothing without one, so an installation that leaves
+// it unset gets a map with no plant on it.
+const SettingGoogleMapsMapID = "google_maps_map_id"
+
 // SettingDefinition describes a setting the installation understands.
 type SettingDefinition struct {
 	Name        string
@@ -30,6 +35,12 @@ var settingRegistry = []SettingDefinition{
 		Name:        SettingGoogleMapsAPIKey,
 		Label:       "Google Maps API key",
 		Description: "Enables the site map and address autocomplete. This key is delivered to the browser and cannot be kept secret — restrict it to this site in Google Cloud Console.",
+		Visibility:  VisibilityBrowser,
+	},
+	{
+		Name:        SettingGoogleMapsMapID,
+		Label:       "Google Maps Map ID",
+		Description: "Identifies the map style the pins are drawn on. Create one under Map Management in the same Google Cloud project as the key above, with map type JavaScript and Vector. It is delivered to the browser and is not a secret.",
 		Visibility:  VisibilityBrowser,
 	},
 }

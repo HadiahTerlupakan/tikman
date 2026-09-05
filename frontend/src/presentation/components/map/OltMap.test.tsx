@@ -6,6 +6,7 @@ import { OltModel, OltProtocol, OltStatus, type Olt } from "@/domain/entities";
 import { OltMap } from "./OltMap";
 
 interface RecordedMapProps {
+  mapId?: string;
   defaultCenter?: { lat: number; lng: number };
   defaultZoom?: number;
   defaultBounds?: {
@@ -27,7 +28,13 @@ vi.mock("@vis.gl/react-google-maps", () => ({
     mapProps = props;
     return <div data-testid="map">{children}</div>;
   },
-  Marker: ({ title, onClick }: { title: string; onClick: () => void }) => (
+  AdvancedMarker: ({
+    title,
+    onClick,
+  }: {
+    title: string;
+    onClick: () => void;
+  }) => (
     <button type="button" onClick={onClick}>
       {title}
     </button>
@@ -89,6 +96,20 @@ describe("OltMap", () => {
 
     expect(screen.getByRole("button", { name: "OLT Depok" })).toBeVisible();
     expect(screen.getByRole("button", { name: "OLT Bekasi" })).toBeVisible();
+  });
+
+  it("draws on the Cloud map the installation configured", () => {
+    // Advanced markers render nothing without a map ID, so this is what
+    // decides whether the map carries any pins at all.
+    render(
+      <OltMap
+        apiKey="AIzaTEST"
+        mapId="MAPTEST"
+        olts={[olt({ id: "o1", name: "A", latitude: -6.4, longitude: 106.8 })]}
+      />,
+    );
+
+    expect(mapProps.mapId).toBe("MAPTEST");
   });
 
   it("draws nothing for an OLT with no coordinates", () => {

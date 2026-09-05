@@ -1,13 +1,9 @@
 import { useState } from "react";
 import {
+  AdvancedMarker,
   APIProvider,
   InfoWindow,
   Map,
-  // Marker is the legacy pin on purpose: AdvancedMarker additionally needs a
-  // Google Cloud Map ID, which this installation has not created, and without
-  // one it renders nothing. Do not "modernise" this without creating the Map ID
-  // first.
-  Marker,
 } from "@vis.gl/react-google-maps";
 import { OltStatus, type Odc, type Odp, type Olt } from "@/domain/entities";
 import { mappedOlts, type MappedOlt } from "./oltMapFilters";
@@ -17,6 +13,9 @@ import { withDraft, type CableSegment } from "./cableSegments";
 
 interface OltMapProps {
   apiKey: string;
+  // Without this the advanced markers below draw nothing, so a map with no
+  // pins means the Map ID setting is unset rather than that no OLT is placed.
+  mapId?: string;
   olts: Olt[];
   /** Cabinets and distribution boxes, drawn alongside the OLTs. */
   odcs?: Odc[];
@@ -72,6 +71,7 @@ function framingOf(pins: MappedOlt[]) {
 
 export function OltMap({
   apiKey,
+  mapId,
   olts,
   odcs = [],
   odps = [],
@@ -86,8 +86,9 @@ export function OltMap({
   const pins = mappedOlts(olts);
 
   return (
-    <APIProvider apiKey={apiKey}>
+    <APIProvider apiKey={apiKey} libraries={["marker"]}>
       <Map
+        mapId={mapId}
         style={{ width: "100%", height: 520, borderRadius: 8 }}
         {...framingOf(pins)}
         gestureHandling="greedy"
@@ -100,7 +101,7 @@ export function OltMap({
         }}
       >
         {pins.map((olt) => (
-          <Marker
+          <AdvancedMarker
             key={olt.id}
             position={{ lat: olt.latitude, lng: olt.longitude }}
             title={olt.name}

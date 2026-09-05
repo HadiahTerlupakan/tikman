@@ -15,3 +15,6 @@ export interface SettingStatus {
 export type BrowserSettings = Record<string, string>;
 
 export const GOOGLE_MAPS_API_KEY = "google_maps_api_key";
+
+/** Google's advanced markers draw nothing without the Cloud map they belong to. */
+export const GOOGLE_MAPS_MAP_ID = "google_maps_map_id";

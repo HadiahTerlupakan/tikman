@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { InfoWindow, Marker } from "@vis.gl/react-google-maps";
+import { AdvancedMarker, InfoWindow, Pin } from "@vis.gl/react-google-maps";
 import type { Odc, Odp } from "@/domain/entities";
 import {
   mappedPlant,
@@ -15,18 +15,10 @@ interface PlantLayerProps {
   onSelectOdp?: (odp: Odp) => void;
 }
 
-// An inline SVG rather than google.maps.SymbolPath: the symbol constants only
-// exist once the Maps script has run, and a data URI needs nothing loaded.
-function pinIcon(color: string, letter: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26">
-    <circle cx="13" cy="13" r="11" fill="${color}" stroke="#0a0a0a" stroke-width="2"/>
-    <text x="13" y="17" font-family="sans-serif" font-size="11" font-weight="bold"
-      text-anchor="middle" fill="#0a0a0a">${letter}</text>
-  </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 const ODC_COLOR = "#60a5fa";
+
+// The pin's outline and its letter, dark against every fill the plant uses.
+const PIN_INK = "#0a0a0a";
 
 type Selection =
   | { kind: "odc"; item: Placed<Odc> }
@@ -48,23 +40,37 @@ export function PlantLayer({ odcs, odps, onSelectOdp }: PlantLayerProps) {
   return (
     <>
       {cabinets.map((odc) => (
-        <Marker
+        <AdvancedMarker
           key={odc.id}
           position={{ lat: odc.latitude, lng: odc.longitude }}
           title={odc.code}
-          icon={pinIcon(ODC_COLOR, "C")}
           onClick={() => setSelected({ kind: "odc", item: odc })}
-        />
+        >
+          <Pin
+            background={ODC_COLOR}
+            borderColor={PIN_INK}
+            glyphColor={PIN_INK}
+          >
+            C
+          </Pin>
+        </AdvancedMarker>
       ))}
 
       {boxes.map((odp) => (
-        <Marker
+        <AdvancedMarker
           key={odp.id}
           position={{ lat: odp.latitude, lng: odp.longitude }}
           title={`${odp.code} — ${odpOccupancyLabel(odp)}`}
-          icon={pinIcon(odpPinColor(odp), "P")}
           onClick={() => setSelected({ kind: "odp", item: odp })}
-        />
+        >
+          <Pin
+            background={odpPinColor(odp)}
+            borderColor={PIN_INK}
+            glyphColor={PIN_INK}
+          >
+            P
+          </Pin>
+        </AdvancedMarker>
       ))}
 
       {selected && (
