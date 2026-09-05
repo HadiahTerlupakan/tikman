@@ -22,6 +22,21 @@ func NewAuditService(db *gorm.DB, logger *zap.Logger) *AuditService {
 	}
 }
 
+// marshalAuditValue encodes one side of a change. A value that will not encode
+// costs the entry that half rather than the whole entry: an audit log missing a
+// diff is still evidence that the action happened.
+func (s *AuditService) marshalAuditValue(side string, value map[string]interface{}) datatypes.JSON {
+	if value == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		s.logger.Error("Failed to marshal audit value", zap.String("side", side), zap.Error(err))
+		return nil
+	}
+	return encoded
+}
+
 func (s *AuditService) Log(
 	userID uuid.UUID,
 	action string,
@@ -32,32 +47,13 @@ func (s *AuditService) Log(
 	ipAddress string,
 	userAgent string,
 ) error {
-	var oldJSON, newJSON datatypes.JSON
-	var err error
-
-	if oldValue != nil {
-		oldJSON, err = json.Marshal(oldValue)
-		if err != nil {
-			s.logger.Error("Failed to marshal old value", zap.Error(err))
-			oldJSON = nil
-		}
-	}
-
-	if newValue != nil {
-		newJSON, err = json.Marshal(newValue)
-		if err != nil {
-			s.logger.Error("Failed to marshal new value", zap.Error(err))
-			newJSON = nil
-		}
-	}
-
 	auditLog := &models.AuditLog{
 		UserID:       &userID,
 		Action:       action,
 		ResourceType: resourceType,
 		ResourceID:   &resourceID,
-		OldValue:     oldJSON,
-		NewValue:     newJSON,
+		OldValue:     s.marshalAuditValue("old", oldValue),
+		NewValue:     s.marshalAuditValue("new", newValue),
 		IPAddress:    ipAddress,
 		UserAgent:    userAgent,
 	}

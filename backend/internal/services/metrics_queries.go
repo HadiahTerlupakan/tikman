@@ -123,40 +123,18 @@ func (s *MetricsService) GetLatestMetricsBatch(ontIDs []uuid.UUID) (map[uuid.UUI
 	return metricsMap, nil
 }
 
+// bitsPerMegabit converts the octet-per-second gauges the OLT reports into the
+// Mbps the graphs are drawn in.
+const bitsPerMegabit = 1000000
+
 func (s *MetricsService) GetRealtimeMetrics(ontID uuid.UUID) (*ONTMetricsRow, error) {
-	var ont models.ONT
-	err := s.db.First(&ont, "id = ?", ontID).Error
-	if err != nil {
-		return nil, fmt.Errorf("ONT not found: %w", err)
-	}
-
-	var olt models.OLT
-	err = s.db.First(&olt, "id = ?", ont.OLTID).Error
-	if err != nil {
-		return nil, fmt.Errorf("OLT not found: %w", err)
-	}
-
-	if ont.Slot == nil {
-		return nil, fmt.Errorf("ONT slot not yet discovered by worker")
-	}
-
-	slot := *ont.Slot
-	port := int(ont.PortID)
-	ontIDInt := int(ont.ONTID)
-
-	driver, err := connectivity.DriverFor(olt.Model)
+	olt, loc, driver, err := s.locateONT(ontID)
 	if err != nil {
 		return nil, err
 	}
 
-	snmpMetrics, err := driver.QueryONTMetrics(
-		olt.IPAddress,
-		olt.SNMPCommunity,
-		olt.SNMPPort,
-		slot,
-		port,
-		ontIDInt,
-	)
+	snmpMetrics, err := driver.QueryONTMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort,
+		loc.Slot, loc.Port, loc.ONTID)
 	if err != nil {
 		return nil, fmt.Errorf("SNMP query failed: %w", err)
 	}
@@ -171,24 +149,58 @@ func (s *MetricsService) GetRealtimeMetrics(ontID uuid.UUID) (*ONTMetricsRow, er
 		TxBiasCurrent: snmpMetrics.TxBiasCurrent,
 		Distance:      snmpMetrics.Distance,
 	}
-
-	// Live rate gauges are separate tables; failure here only means rates stay
-	// unset, the rest of the metrics are still returned. A model with no known
-	// rate OIDs reports ErrUnsupported and lands in the same branch.
-	// The lifetime counters come from the same table as the gauges, so they are
-	// read here rather than with the optical metrics, whose index space does not
-	// address them.
-	if rates, err := driver.QueryTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, slot, port, ontIDInt); err == nil {
-		rx := float64(rates.RxOctetBps) * 8 / 1000000
-		tx := float64(rates.TxOctetBps) * 8 / 1000000
-		row.RxRateMbps, row.TxRateMbps = &rx, &tx
-		row.RxBytes, row.TxBytes = rates.RxOctets, rates.TxOctets
-		row.RxPackets, row.TxPackets = rates.RxPackets, rates.TxPackets
-	} else {
-		log.Printf("[Realtime] Rate gauges unavailable for ONT %s: %v", ontID, err)
-	}
+	addTrafficRates(row, driver, olt, loc)
 
 	return row, nil
+}
+
+// locateONT resolves an ONT to the chassis, position and driver a live read
+// needs. An ONT the worker has not placed on a card yet cannot be read: the
+// optical tables are addressed by position, not by serial.
+func (s *MetricsService) locateONT(ontID uuid.UUID) (*models.OLT, connectivity.ONTLocation, connectivity.Driver, error) {
+	var loc connectivity.ONTLocation
+
+	var ont models.ONT
+	if err := s.db.First(&ont, "id = ?", ontID).Error; err != nil {
+		return nil, loc, nil, fmt.Errorf("ONT not found: %w", err)
+	}
+	var olt models.OLT
+	if err := s.db.First(&olt, "id = ?", ont.OLTID).Error; err != nil {
+		return nil, loc, nil, fmt.Errorf("OLT not found: %w", err)
+	}
+	if ont.Slot == nil {
+		return nil, loc, nil, fmt.Errorf("ONT slot not yet discovered by worker")
+	}
+
+	driver, err := connectivity.DriverFor(olt.Model)
+	if err != nil {
+		return nil, loc, nil, err
+	}
+
+	loc = connectivity.ONTLocation{Slot: *ont.Slot, Port: int(ont.PortID), ONTID: int(ont.ONTID)}
+	return &olt, loc, driver, nil
+}
+
+// addTrafficRates fills in the live rate gauges, leaving them unset when the
+// chassis cannot answer: the optical metrics are still worth returning. A
+// model with no known rate OIDs reports ErrUnsupported and lands here too.
+//
+// The lifetime counters come from the same table as the gauges, so they are
+// read here rather than with the optical metrics, whose index space does not
+// address them.
+func addTrafficRates(row *ONTMetricsRow, driver connectivity.Driver, olt *models.OLT, loc connectivity.ONTLocation) {
+	rates, err := driver.QueryTrafficRates(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort,
+		loc.Slot, loc.Port, loc.ONTID)
+	if err != nil {
+		log.Printf("[Realtime] Rate gauges unavailable for ONT %s: %v", row.ONTID, err)
+		return
+	}
+
+	rx := float64(rates.RxOctetBps) * 8 / bitsPerMegabit
+	tx := float64(rates.TxOctetBps) * 8 / bitsPerMegabit
+	row.RxRateMbps, row.TxRateMbps = &rx, &tx
+	row.RxBytes, row.TxBytes = rates.RxOctets, rates.TxOctets
+	row.RxPackets, row.TxPackets = rates.RxPackets, rates.TxPackets
 }
 
 // uuidArray renders identifiers as the array literal Postgres parses for

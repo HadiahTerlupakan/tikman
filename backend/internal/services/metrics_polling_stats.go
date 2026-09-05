@@ -41,21 +41,22 @@ func (s *MetricsService) GetPollingStats() map[string]interface{} {
 }
 
 // GetOLTPollingStats returns polling statistics for a specific OLT
-func (s *MetricsService) GetOLTPollingStats(oltID uuid.UUID) map[string]interface{} {
-	stats := make(map[string]interface{})
+// recentMetricsWindow is how fresh a reading must be to count an ONT as
+// polled. It sits above the ten-minute metrics cycle so a cycle that has just
+// finished does not read as half the ONTs having gone quiet.
+const recentMetricsWindow = 10 * time.Minute
 
-	// Count total ONTs for this OLT
+func (s *MetricsService) GetOLTPollingStats(oltID uuid.UUID) map[string]interface{} {
 	var totalONTs int64
 	s.db.Model(&models.ONT{}).Where("olt_id = ?", oltID).Count(&totalONTs)
 
 	var ontsPolled int64
-	tenMinutesAgo := time.Now().Add(-10 * time.Minute)
 	s.db.Raw(`
 		SELECT COUNT(DISTINCT om.ont_id)
 		FROM ont_metrics om
 		JOIN onts o ON om.ont_id = o.id
 		WHERE o.olt_id = ? AND om.time >= ?
-	`, oltID, tenMinutesAgo).Scan(&ontsPolled)
+	`, oltID, time.Now().Add(-recentMetricsWindow)).Scan(&ontsPolled)
 
 	percentage := float64(0)
 	if totalONTs > 0 {
@@ -63,34 +64,29 @@ func (s *MetricsService) GetOLTPollingStats(oltID uuid.UUID) map[string]interfac
 	}
 
 	var olt models.OLT
-	discovery := map[string]interface{}{"phase": "idle", "total": int64(0), "registered": int64(0), "polled": int64(0)}
-	if err := s.db.First(&olt, "id = ?", oltID).Error; err == nil {
-		discovery = map[string]interface{}{
-			"phase":      olt.DiscoveryPhase,
-			"total":      int64(olt.DiscoveryTotal),
-			"registered": int64(olt.DiscoveryRegistered),
-			"polled":     int64(olt.DiscoveryPolled),
-		}
+	if err := s.db.First(&olt, "id = ?", oltID).Error; err != nil {
+		olt = models.OLT{DiscoveryPhase: "idle"}
 	}
 
-	stats["total_onts"] = totalONTs
-	stats["onts_with_metrics"] = ontsPolled
-	stats["percentage"] = percentage
-	stats["phase"] = discovery["phase"]
-	stats["discovery_total"] = discovery["total"]
-	stats["discovery_registered"] = discovery["registered"]
-	stats["discovery_polled"] = discovery["polled"]
-	stats["discovery_error"] = olt.DiscoveryError
-	if discovery["phase"] == "discovering" || discovery["phase"] == "polling" {
-		if total := discovery["total"].(int64); total > 0 {
-			stats["percentage"] = float64(discovery["registered"].(int64)) / float64(total) * 100
-		}
+	// While a discovery is running the bar shows its progress instead: how many
+	// ONTs have metrics is not what the operator is waiting on.
+	if (olt.DiscoveryPhase == "discovering" || olt.DiscoveryPhase == "polling") && olt.DiscoveryTotal > 0 {
+		percentage = float64(olt.DiscoveryRegistered) / float64(olt.DiscoveryTotal) * 100
 	}
-	stats["last_poll_time"] = time.Now()
-	stats["olt_id"] = oltID.String()
 
 	log.Printf("[OLT Stats] OLT=%s: Total ONTs=%d, Polled=%d (%.1f%%)",
-		oltID.String(), totalONTs, ontsPolled, stats["percentage"].(float64))
+		oltID.String(), totalONTs, ontsPolled, percentage)
 
-	return stats
+	return map[string]interface{}{
+		"total_onts":           totalONTs,
+		"onts_with_metrics":    ontsPolled,
+		"percentage":           percentage,
+		"phase":                olt.DiscoveryPhase,
+		"discovery_total":      int64(olt.DiscoveryTotal),
+		"discovery_registered": int64(olt.DiscoveryRegistered),
+		"discovery_polled":     int64(olt.DiscoveryPolled),
+		"discovery_error":      olt.DiscoveryError,
+		"last_poll_time":       time.Now(),
+		"olt_id":               oltID.String(),
+	}
 }

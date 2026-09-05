@@ -75,7 +75,6 @@ func (s *SnapshotService) CaptureBeforeSnapshot(ont models.ONT) (*ConfigSnapshot
 		ONTID: ont.ONTID,
 	}
 
-	// Load OLT info to get credentials and model
 	var olt models.OLT
 	if err := s.db.First(&olt, "id = ?", ont.OLTID).Error; err != nil {
 		return nil, fmt.Errorf("failed to load OLT %s: %w", ont.OLTID, err)
@@ -86,39 +85,49 @@ func (s *SnapshotService) CaptureBeforeSnapshot(ont models.ONT) (*ConfigSnapshot
 		return nil, fmt.Errorf("resolve driver for model %s: %w", olt.Model, err)
 	}
 
-	// Fetch inventory (identity data: serial, name, device type, IP)
 	inventoryMap, err := driver.Inventory(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, []connectivity.ONTLocation{loc})
 	if err != nil {
 		return nil, fmt.Errorf("inventory fetch failed: %w", err)
 	}
-
 	inventory, ok := inventoryMap[loc]
 	if !ok {
 		return nil, fmt.Errorf("inventory not found for ONT location %+v", loc)
 	}
 
-	// Fetch metrics (software version, optical power, traffic counters)
+	// ErrUnsupported is not a failure: a driver without a metrics table still
+	// yields a usable identity snapshot.
 	metrics, err := driver.QueryONTMetrics(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort, loc.Slot, loc.Port, loc.ONTID)
 	if err != nil && err != connectivity.ErrUnsupported {
 		return nil, fmt.Errorf("metrics query failed: %w", err)
 	}
 
-	// Build raw readings for post-hoc debugging
-	raw := make(map[string]interface{})
-	raw["olt_ip"] = olt.IPAddress
+	snap := &ConfigSnapshot{
+		OntID:       ont.ID,
+		Timestamp:   time.Now(),
+		RawReadings: rawReadings(olt, metrics),
+	}
+	applyVendorSnapshot(snap, olt.Model, ont, inventory, metrics)
+
+	return snap, nil
+}
+
+// rawReadings keeps what the walk actually returned, for reading back after a
+// provision went wrong.
+func rawReadings(olt models.OLT, metrics *connectivity.ONTMetrics) map[string]interface{} {
+	raw := map[string]interface{}{"olt_ip": olt.IPAddress}
 	if metrics != nil {
 		raw["rx_power"] = metrics.RxPower
 		raw["tx_power"] = metrics.TxPower
 	}
+	return raw
+}
 
-	snap := &ConfigSnapshot{
-		OntID:       ont.ID,
-		Timestamp:   time.Now(),
-		RawReadings: raw,
-	}
+// applyVendorSnapshot fills in the half of the snapshot that only makes sense
+// for the chassis it came from.
+func applyVendorSnapshot(snap *ConfigSnapshot, model models.OLTModel, ont models.ONT,
+	inventory connectivity.ONTInventory, metrics *connectivity.ONTMetrics) {
 
-	// Map to vendor-specific structure based on OLT model
-	switch olt.Model {
+	switch model {
 	case models.OLTModelZTEC300, models.OLTModelZTEC320:
 		snap.ZTE = &ZTESnapshot{
 			SerialNumber:    inventory.SerialNumber,
@@ -126,8 +135,8 @@ func (s *SnapshotService) CaptureBeforeSnapshot(ont models.ONT) (*ConfigSnapshot
 			DeviceType:      inventory.DeviceType,
 			HardwareVersion: inventory.HardwareVersion,
 			IPAddr:          inventory.IPAddress,
-			// Bandwidth/VLAN are not exposed via SNMP, so they stay nil
-			// ServiceMode defaults to "bridge" until CLI shows otherwise
+			// Bandwidth/VLAN are not exposed via SNMP, so they stay nil.
+			// ServiceMode defaults to "bridge" until CLI shows otherwise.
 			ServiceMode: "bridge",
 		}
 		if metrics != nil && metrics.SoftwareVersion != "" {
@@ -140,13 +149,11 @@ func (s *SnapshotService) CaptureBeforeSnapshot(ont models.ONT) (*ConfigSnapshot
 			// HSGQ names its ONU ports by PON position: <port>/<onu-id>.
 			// Slot is not part of the HSGQ naming scheme.
 			PortConfig: fmt.Sprintf("gpon-onu-port/%d/%d", ont.PortID, ont.ONTID),
-			// VLAN and profile not stored per-ONU in HSGQ SNMP MIB
+			// VLAN and profile are not stored per-ONU in the HSGQ SNMP MIB.
 			VLANID:    nil,
 			ProfileID: 0,
 		}
 	}
-
-	return snap, nil
 }
 
 // CaptureAfterSnapshot reads back config after provisioning attempt
@@ -159,9 +166,6 @@ func (s *SnapshotService) CaptureAfterSnapshot(ont models.ONT) (*ConfigSnapshot,
 // Nil optional fields are ignored - only non-nil changes trigger drift detection
 // Empty slice means no differences detected (config verified match)
 func (s *SnapshotService) Compare(before, after *ConfigSnapshot) []string {
-	var diffs []string
-
-	// Handle nil cases
 	if before == nil && after == nil {
 		return nil
 	}
@@ -169,55 +173,67 @@ func (s *SnapshotService) Compare(before, after *ConfigSnapshot) []string {
 		return []string{"one snapshot is nil"}
 	}
 
-	// Check ZTE fields
-	if (before.ZTE != nil) != (after.ZTE != nil) {
-		diffs = append(diffs, "zte structure")
-	} else if before.ZTE != nil && after.ZTE != nil {
-		if before.ZTE.SerialNumber != after.ZTE.SerialNumber {
-			diffs = append(diffs, "zte.serial_number")
-		}
-		if before.ZTE.Name != after.ZTE.Name {
-			diffs = append(diffs, "zte.name")
-		}
-		if before.ZTE.DeviceType != after.ZTE.DeviceType {
-			diffs = append(diffs, "zte.device_type")
-		}
-		if before.ZTE.HardwareVersion != after.ZTE.HardwareVersion {
-			diffs = append(diffs, "zte.hardware_version")
-		}
-		if before.ZTE.ServiceMode != after.ZTE.ServiceMode {
-			diffs = append(diffs, "zte.service_mode")
-		}
-		if before.ZTE.IPAddr != after.ZTE.IPAddr {
-			diffs = append(diffs, "zte.ip_addr")
-		}
-		// Compare pointer fields (optional): only if both non-nil AND values differ
-		if needPtrCompare(before.ZTE.Bandwidth, after.ZTE.Bandwidth) {
-			diffs = append(diffs, "zte.bandwidth")
-		}
-		if needPtrCompare(before.ZTE.VLAN, after.ZTE.VLAN) {
-			diffs = append(diffs, "zte.vlan")
+	return append(compareZTE(before.ZTE, after.ZTE), compareHSGQ(before.HSGQ, after.HSGQ)...)
+}
+
+func compareZTE(before, after *ZTESnapshot) []string {
+	if (before != nil) != (after != nil) {
+		return []string{"zte structure"}
+	}
+	if before == nil {
+		return nil
+	}
+
+	var diffs []string
+	fields := []struct {
+		name          string
+		before, after string
+	}{
+		{"zte.serial_number", before.SerialNumber, after.SerialNumber},
+		{"zte.name", before.Name, after.Name},
+		{"zte.device_type", before.DeviceType, after.DeviceType},
+		{"zte.hardware_version", before.HardwareVersion, after.HardwareVersion},
+		{"zte.service_mode", before.ServiceMode, after.ServiceMode},
+		{"zte.ip_addr", before.IPAddr, after.IPAddr},
+	}
+	for _, f := range fields {
+		if f.before != f.after {
+			diffs = append(diffs, f.name)
 		}
 	}
 
-	// Check HSGQ fields
-	if (before.HSGQ != nil) != (after.HSGQ != nil) {
-		diffs = append(diffs, "hsgq structure")
-	} else if before.HSGQ != nil && after.HSGQ != nil {
-		if before.HSGQ.SerialNumber != after.HSGQ.SerialNumber {
-			diffs = append(diffs, "hsgq.serial_number")
-		}
-		if before.HSGQ.PortConfig != after.HSGQ.PortConfig {
-			diffs = append(diffs, "hsgq.port_config")
-		}
-		if needPtrCompare(before.HSGQ.VLANID, after.HSGQ.VLANID) {
-			diffs = append(diffs, "hsgq.vlan_id")
-		}
-		if before.HSGQ.ProfileID != after.HSGQ.ProfileID {
-			diffs = append(diffs, "hsgq.profile_id")
-		}
+	// Optional fields count as changed only when both sides carry a value and
+	// the values differ: a field the walk did not return is not drift.
+	if needPtrCompare(before.Bandwidth, after.Bandwidth) {
+		diffs = append(diffs, "zte.bandwidth")
+	}
+	if needPtrCompare(before.VLAN, after.VLAN) {
+		diffs = append(diffs, "zte.vlan")
+	}
+	return diffs
+}
+
+func compareHSGQ(before, after *HSGQSnapshot) []string {
+	if (before != nil) != (after != nil) {
+		return []string{"hsgq structure"}
+	}
+	if before == nil {
+		return nil
 	}
 
+	var diffs []string
+	if before.SerialNumber != after.SerialNumber {
+		diffs = append(diffs, "hsgq.serial_number")
+	}
+	if before.PortConfig != after.PortConfig {
+		diffs = append(diffs, "hsgq.port_config")
+	}
+	if needPtrCompare(before.VLANID, after.VLANID) {
+		diffs = append(diffs, "hsgq.vlan_id")
+	}
+	if before.ProfileID != after.ProfileID {
+		diffs = append(diffs, "hsgq.profile_id")
+	}
 	return diffs
 }
 

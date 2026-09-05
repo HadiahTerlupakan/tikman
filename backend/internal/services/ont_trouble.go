@@ -65,26 +65,10 @@ type TroubledFilter struct {
 // string, which has only been kept since it was found to matter, so filtering on
 // it would leave most of the window empty. Alarms and their clears arrive in
 // pairs, so the total still measures the churn — it just counts each fault twice.
-func (s *ONTService) TroubledONTs(filter TroubledFilter) ([]TroubledONT, TroubledSummary, error) {
-	window := filter.Window
-	if window > maxTroubledWindow {
-		window = maxTroubledWindow
-	}
-	since := time.Now().Add(-window)
-
-	// The totals ride along as window functions: those see every matching row,
-	// while LIMIT applies afterwards, so one pass answers both the page and the
-	// picture it is a page of.
-	// Named without adjacent capitals on purpose: GORM's naming strategy splits
-	// TotalONTs into total_on_ts, which is the same trap that cost this codebase
-	// three migrations over trap_o_id.
-	var rows []struct {
-		TroubledONT
-		TotalRows        int64
-		TotalDownSeconds int64
-	}
-
-	err := s.db.Raw(`
+// troubledONTsQuery counts traps and outage seconds per ONT inside the window,
+// and carries the page's totals as window functions so one pass answers both
+// the page and the picture it is a page of.
+const troubledONTsQuery = `
 		WITH trap AS (
 			SELECT olt_id, serial_number, count(*) AS trap_count
 			FROM ont_trap_events
@@ -114,7 +98,25 @@ func (s *ONTService) TroubledONTs(filter TroubledFilter) ([]TroubledONT, Trouble
 		  AND (?::text IS NULL OR n.status = ?::text)
 		ORDER BY trap_count DESC, down_minutes DESC
 		LIMIT ?
-	`, since, since, filter.OLTID, filter.OLTID, filter.Status, filter.Status, filter.Limit).Scan(&rows).Error
+	`
+
+func (s *ONTService) TroubledONTs(filter TroubledFilter) ([]TroubledONT, TroubledSummary, error) {
+	window := filter.Window
+	if window > maxTroubledWindow {
+		window = maxTroubledWindow
+	}
+	since := time.Now().Add(-window)
+
+	// Named without adjacent capitals on purpose: GORM's naming strategy splits
+	// TotalONTs into total_on_ts, which is the same trap that cost this codebase
+	// three migrations over trap_o_id.
+	var rows []struct {
+		TroubledONT
+		TotalRows        int64
+		TotalDownSeconds int64
+	}
+
+	err := s.db.Raw(troubledONTsQuery, since, since, filter.OLTID, filter.OLTID, filter.Status, filter.Status, filter.Limit).Scan(&rows).Error
 	if err != nil {
 		return nil, TroubledSummary{}, err
 	}

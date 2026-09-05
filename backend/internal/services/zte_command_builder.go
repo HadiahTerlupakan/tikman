@@ -182,7 +182,7 @@ func validateZTECommandRequest(req models.ZTEGPONRegisterRequest, onuID int) err
 		return fmt.Errorf("card and PON must be positive")
 	}
 	if onuID < minZTEONUID || onuID > maxZTEONUID {
-		return fmt.Errorf("ONU ID must be in range 1-127")
+		return fmt.Errorf("ONU ID must be in range %d-%d", minZTEONUID, maxZTEONUID)
 	}
 	if !zteSerialPattern.MatchString(strings.ToUpper(strings.TrimSpace(req.SerialNumber))) {
 		return fmt.Errorf("serial number must be 12 uppercase alphanumeric characters")
@@ -207,31 +207,41 @@ func validateZTECommandRequest(req models.ZTEGPONRegisterRequest, onuID int) err
 	if req.ServiceType != models.ZTEServiceInternet && req.ServiceType != models.ZTEServiceBridge {
 		return fmt.Errorf("unsupported service type %q", req.ServiceType)
 	}
-	if req.WANMode != models.ZTEWANModeWANIP && req.WANMode != models.ZTEWANModeSetupViaONT {
-		return fmt.Errorf("unsupported WAN mode %q", req.WANMode)
-	}
-	if req.WANMode == models.ZTEWANModeWANIP {
-		switch req.WANIPMode {
-		case models.ZTEWANIPModePPPoE, models.ZTEWANIPModeDHCP, models.ZTEWANIPModeStatic:
-		default:
-			return fmt.Errorf("unsupported WAN-IP mode %q", req.WANIPMode)
-		}
-		if !isZTECommandToken(req.VLANProfile) {
-			return fmt.Errorf("command fields contain unsupported characters")
-		}
-		// The credentials are interpolated straight into a CLI line, so they are
-		// re-checked here even though the request validator already did: this is
-		// the boundary where a metacharacter would reach the OLT.
-		if req.WANIPMode == models.ZTEWANIPModePPPoE &&
-			(!isZTECredential(req.PPPoEUsername) || !isZTECredential(req.PPPoEPassword)) {
-			return fmt.Errorf("command fields contain unsupported characters")
-		}
+	if err := validateZTECommandWAN(req); err != nil {
+		return err
 	}
 	if !req.ServiceEnabled {
 		return fmt.Errorf("service must be enabled")
 	}
-	if req.VLANID < 1 || req.VLANID > 4094 {
-		return fmt.Errorf("VLAN ID must be in range 1-4094")
+	if req.VLANID < minVLANID || req.VLANID > maxVLANID {
+		return fmt.Errorf("VLAN ID must be in range %d-%d", minVLANID, maxVLANID)
+	}
+	return nil
+}
+
+// validateZTECommandWAN checks the WAN half at the boundary where the values
+// are interpolated into a CLI line. Re-checked even though the request
+// validator already did: this is the last point before the commands reach the
+// OLT, and a metacharacter must not get there.
+func validateZTECommandWAN(req models.ZTEGPONRegisterRequest) error {
+	if req.WANMode != models.ZTEWANModeWANIP && req.WANMode != models.ZTEWANModeSetupViaONT {
+		return fmt.Errorf("unsupported WAN mode %q", req.WANMode)
+	}
+	if req.WANMode != models.ZTEWANModeWANIP {
+		return nil
+	}
+
+	switch req.WANIPMode {
+	case models.ZTEWANIPModePPPoE, models.ZTEWANIPModeDHCP, models.ZTEWANIPModeStatic:
+	default:
+		return fmt.Errorf("unsupported WAN-IP mode %q", req.WANIPMode)
+	}
+	if !isZTECommandToken(req.VLANProfile) {
+		return fmt.Errorf("command fields contain unsupported characters")
+	}
+	if req.WANIPMode == models.ZTEWANIPModePPPoE &&
+		(!isZTECredential(req.PPPoEUsername) || !isZTECredential(req.PPPoEPassword)) {
+		return fmt.Errorf("command fields contain unsupported characters")
 	}
 	return nil
 }

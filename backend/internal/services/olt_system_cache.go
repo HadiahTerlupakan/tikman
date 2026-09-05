@@ -17,63 +17,33 @@ import (
 // plain SNMP; a failure keeps whatever was cached before, because an
 // unreachable OLT is no reason to blank a page the operator is looking at.
 func (s *OLTService) refreshSystemCache(olt *models.OLT) {
-	updates := make(map[string]interface{}, 3)
+	updates := make(map[string]interface{}, 5)
 
 	info, err := connectivity.ReadSystemInfo(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	switch {
-	case err != nil:
+	if err != nil {
 		log.Printf("[AutoDiscovery] System info read failed for OLT %s: %v", olt.Name, err)
-	default:
-		if encoded, err := json.Marshal(info); err == nil {
-			updates["system_info"] = datatypes.JSON(encoded)
-		} else {
-			log.Printf("[AutoDiscovery] Cannot encode system info for OLT %s: %v", olt.Name, err)
-		}
+	} else {
+		cacheJSON(updates, "system_info", info, olt.Name)
 	}
 
 	health, err := connectivity.WalkCardHealth(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	switch {
-	case err != nil:
-		log.Printf("[AutoDiscovery] Card health walk failed for OLT %s: %v", olt.Name, err)
-	case len(health) == 0:
-		log.Printf("[AutoDiscovery] Card health walk returned nothing for OLT %s; keeping the cached list", olt.Name)
-	default:
-		if encoded, err := json.Marshal(health); err == nil {
-			updates["card_health"] = datatypes.JSON(encoded)
-		} else {
-			log.Printf("[AutoDiscovery] Cannot encode card health for OLT %s: %v", olt.Name, err)
-		}
+	if keptWalk(err, len(health), "Card health walk", olt.Name) {
+		cacheJSON(updates, "card_health", health, olt.Name)
 	}
 
 	speeds, err := connectivity.WalkTcontProfiles(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	switch {
-	case err != nil:
-		log.Printf("[AutoDiscovery] T-CONT profile walk failed for OLT %s: %v", olt.Name, err)
-	case len(speeds) == 0:
-		log.Printf("[AutoDiscovery] T-CONT profile walk returned nothing for OLT %s; keeping the cached list", olt.Name)
-	default:
+	if keptWalk(err, len(speeds), "T-CONT profile walk", olt.Name) {
 		names := make([]string, 0, len(speeds))
 		for _, profile := range speeds {
 			names = append(names, profile.Name)
 		}
 		addProfileUpdate(updates, "tcont_profiles", names, olt.Name)
-		if encoded, err := json.Marshal(speeds); err == nil {
-			updates["tcont_profile_details"] = datatypes.JSON(encoded)
-		}
+		cacheJSON(updates, "tcont_profile_details", speeds, olt.Name)
 	}
 
 	ports, err := connectivity.WalkPorts(olt.IPAddress, olt.SNMPCommunity, olt.SNMPPort)
-	switch {
-	case err != nil:
-		log.Printf("[AutoDiscovery] Port walk failed for OLT %s: %v", olt.Name, err)
-	case len(ports) == 0:
-		log.Printf("[AutoDiscovery] Port walk returned nothing for OLT %s; keeping the cached list", olt.Name)
-	default:
-		if encoded, err := json.Marshal(ports); err == nil {
-			updates["ports"] = datatypes.JSON(encoded)
-		} else {
-			log.Printf("[AutoDiscovery] Cannot encode ports for OLT %s: %v", olt.Name, err)
-		}
+	if keptWalk(err, len(ports), "Port walk", olt.Name) {
+		cacheJSON(updates, "ports", ports, olt.Name)
 	}
 
 	if len(updates) == 0 {
@@ -87,6 +57,31 @@ func (s *OLTService) refreshSystemCache(olt *models.OLT) {
 	}
 
 	log.Printf("[AutoDiscovery] Cached %d chassis entities and %d ports for OLT %s", len(info.Entities), len(ports), olt.Name)
+}
+
+// keptWalk reports whether a walk returned something worth caching. An empty
+// answer leaves the cached list alone: the OLT dropping a table under load
+// must not read as the cards or ports having gone away.
+func keptWalk(err error, found int, what, oltName string) bool {
+	switch {
+	case err != nil:
+		log.Printf("[AutoDiscovery] %s failed for OLT %s: %v", what, oltName, err)
+		return false
+	case found == 0:
+		log.Printf("[AutoDiscovery] %s returned nothing for OLT %s; keeping the cached list", what, oltName)
+		return false
+	default:
+		return true
+	}
+}
+
+func cacheJSON(updates map[string]interface{}, column string, value interface{}, oltName string) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		log.Printf("[AutoDiscovery] Cannot encode %s for OLT %s: %v", column, oltName, err)
+		return
+	}
+	updates[column] = datatypes.JSON(encoded)
 }
 
 // RefreshSystem re-reads the chassis, ports and card health from the OLT now
@@ -135,38 +130,31 @@ func (s *OLTService) GetSystemSnapshot(oltID uuid.UUID) (OLTSystemSnapshot, erro
 		UpdatedAt:  olt.SystemUpdatedAt,
 	}
 
-	if len(olt.SystemInfo) > 0 {
-		if err := json.Unmarshal(olt.SystemInfo, &snapshot.System); err != nil {
-			return OLTSystemSnapshot{}, fmt.Errorf("cached system info is unreadable: %w", err)
+	cached := []struct {
+		what   string
+		stored datatypes.JSON
+		into   interface{}
+	}{
+		{"system info", olt.SystemInfo, &snapshot.System},
+		{"port list", olt.Ports, &snapshot.Ports},
+		{"card list", olt.Cards, &snapshot.Cards},
+		{"card health", olt.CardHealth, &snapshot.CardHealth},
+		{"ONU type details", olt.ONUTypeDetails, &snapshot.ONUTypes},
+		{"speed profiles", olt.TCONTProfileDetails, &snapshot.Speeds},
+	}
+	for _, entry := range cached {
+		if len(entry.stored) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(entry.stored, entry.into); err != nil {
+			return OLTSystemSnapshot{}, fmt.Errorf("cached %s is unreadable: %w", entry.what, err)
 		}
 	}
+
+	// The chassis list is drawn even when nothing was cached, so it must be an
+	// array rather than a null.
 	if snapshot.System.Entities == nil {
 		snapshot.System.Entities = make([]connectivity.ChassisEntity, 0)
-	}
-	if len(olt.Ports) > 0 {
-		if err := json.Unmarshal(olt.Ports, &snapshot.Ports); err != nil {
-			return OLTSystemSnapshot{}, fmt.Errorf("cached port list is unreadable: %w", err)
-		}
-	}
-	if len(olt.Cards) > 0 {
-		if err := json.Unmarshal(olt.Cards, &snapshot.Cards); err != nil {
-			return OLTSystemSnapshot{}, fmt.Errorf("cached card list is unreadable: %w", err)
-		}
-	}
-	if len(olt.CardHealth) > 0 {
-		if err := json.Unmarshal(olt.CardHealth, &snapshot.CardHealth); err != nil {
-			return OLTSystemSnapshot{}, fmt.Errorf("cached card health is unreadable: %w", err)
-		}
-	}
-	if len(olt.ONUTypeDetails) > 0 {
-		if err := json.Unmarshal(olt.ONUTypeDetails, &snapshot.ONUTypes); err != nil {
-			return OLTSystemSnapshot{}, fmt.Errorf("cached ONU type details are unreadable: %w", err)
-		}
-	}
-	if len(olt.TCONTProfileDetails) > 0 {
-		if err := json.Unmarshal(olt.TCONTProfileDetails, &snapshot.Speeds); err != nil {
-			return OLTSystemSnapshot{}, fmt.Errorf("cached speed profiles are unreadable: %w", err)
-		}
 	}
 
 	return snapshot, nil

@@ -102,19 +102,15 @@ func (s *OntProvisioningService) ProvisionOnt(
 	userID uuid.UUID,
 	config ProvisionConfig,
 ) (*ProvisionResult, error) {
-	// Step 1: Load ONT and validate it exists
 	ont, err := s.loadONT(ontID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load ONT %s: %w", ontID, err)
 	}
-
-	// Step 2: Load OLT for driver resolution
 	olt, err := s.loadOLT(ont.OLTID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load OLT %s: %w", ont.OLTID, err)
 	}
 
-	// Step 3: Build config from template + manual overrides
 	provisionConfig, err := s.buildProvisionConfig(config, ont, olt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build provision config: %w", err)
@@ -122,21 +118,70 @@ func (s *OntProvisioningService) ProvisionOnt(
 	if err := validateManualConfig(config.ManualConfig); err != nil {
 		return nil, fmt.Errorf("invalid manual config: %w", err)
 	}
-	runtimeConfig := provisionConfig
-	persistedConfig := redactManualConfig(provisionConfig)
 
-	// Step 4: Capture BeforeSnapshot (baseline for comparison)
+	// The baseline is captured before anything is sent, because it is what a
+	// rollback restores to.
 	beforeSnap, err := s.snapshotSvc.CaptureBeforeSnapshot(*ont)
 	if err != nil {
 		return nil, fmt.Errorf("failed to capture before snapshot: %w", err)
 	}
 
-	// Step 5: Create provisioning job in PENDING state
+	job, err := s.startJob(ontID, userID, config, provisionConfig, beforeSnap)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := s.executeProvision(ctx, ont, olt, provisionConfig); err != nil {
+		errMsg := redactProvisioningError(err.Error(), provisionConfig)
+		s.abandonJob(job, ont, olt, beforeSnap, errMsg)
+		return nil, fmt.Errorf("provision execution failed: %s", errMsg)
+	}
+
+	if err := s.verifyAgainstSnapshot(job, ont, olt, beforeSnap); err != nil {
+		return nil, err
+	}
+
+	return s.completeJob(job, ont, olt, userID, config.TemplateID, provisionConfig)
+}
+
+// completeJob marks the run successful and returns it as stored, so the caller
+// reports the row the rest of the system will see rather than the one it
+// started with.
+func (s *OntProvisioningService) completeJob(job *models.ProvisioningJob, ont *models.ONT, olt *models.OLT,
+	userID uuid.UUID, templateID *uuid.UUID, provisionConfig map[string]interface{}) (*ProvisionResult, error) {
+
+	if err := s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusSuccess, nil); err != nil {
+		return nil, fmt.Errorf("failed to update job status to success: %w", err)
+	}
+
+	s.logAudit(userID, "provision", "ont", ont.ID, nil, map[string]interface{}{
+		"job_id":   job.ID,
+		"status":   models.ProvisioningStatusSuccess,
+		"ont_id":   ont.ID,
+		"olt_ip":   olt.IPAddress,
+		"template": templateID,
+	})
+
+	latest, err := s.jobService.GetProvisioningJob(job.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload completed job: %w", err)
+	}
+	return &ProvisionResult{Job: latest, Config: provisionConfig}, nil
+}
+
+// startJob records the run before a single command is sent, so a provision
+// that dies mid-flight is still visible as a job rather than as nothing.
+//
+// The stored config is redacted; the runtime one the caller keeps is not.
+func (s *OntProvisioningService) startJob(ontID, userID uuid.UUID, config ProvisionConfig,
+	provisionConfig map[string]interface{}, beforeSnap *ConfigSnapshot) (*models.ProvisioningJob, error) {
+
 	beforeJSON, _ := json.Marshal(beforeSnap)
-	configJSON, err := json.Marshal(persistedConfig)
+	configJSON, err := json.Marshal(redactManualConfig(provisionConfig))
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal provision config: %w", err)
 	}
+
 	job, err := s.jobService.CreateProvisioningJob(
 		ontID,
 		config.TemplateID,
@@ -148,77 +193,54 @@ func (s *OntProvisioningService) ProvisionOnt(
 		return nil, fmt.Errorf("failed to create provisioning job: %w", err)
 	}
 
-	// Step 6: Update status to RUNNING
 	if err := s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusRunning, nil); err != nil {
 		return nil, fmt.Errorf("failed to update job status to running: %w", err)
 	}
+	return job, nil
+}
 
-	// Step 7: Execute provision (send config commands to OLT)
-	_, executeErr := s.executeProvision(ctx, ont, olt, runtimeConfig)
-	if executeErr != nil {
-		// Step 8a: Failure → mark FAILED, trigger rollback
-		errMsg := redactProvisioningError(executeErr.Error(), runtimeConfig)
-		if err := s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusFailed, &errMsg); err != nil {
-			s.logger.Error("failed to mark job as failed", zap.String("job_id", job.ID.String()), zap.Error(err))
-		}
-		// Attempt rollback (will return without side effects if RollbackTo is not implemented)
-		if rbErr := s.rollbackOnt(job, *ont, *olt, beforeSnap); rbErr != nil {
-			s.logger.Error("rollback attempt failed after provision failure", zap.String("job_id", job.ID.String()), zap.Error(rbErr))
-		}
-		return nil, fmt.Errorf("provision execution failed: %s", errMsg)
+// abandonJob marks a run failed and puts the ONT back as it was. Neither step
+// can be allowed to hide the other's failure, so both are logged rather than
+// returned: the caller already has the reason the provision failed.
+func (s *OntProvisioningService) abandonJob(job *models.ProvisioningJob, ont *models.ONT, olt *models.OLT,
+	beforeSnap *ConfigSnapshot, reason string) {
+
+	if err := s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusFailed, &reason); err != nil {
+		s.logger.Error("failed to mark job as failed", zap.String("job_id", job.ID.String()), zap.Error(err))
 	}
+	// Returns without side effects when the driver implements no RollbackTo.
+	if err := s.rollbackOnt(job, *ont, *olt, beforeSnap); err != nil {
+		s.logger.Error("rollback attempt failed", zap.String("job_id", job.ID.String()), zap.Error(err))
+	}
+}
 
-	// Step 8b: Success → verify config match via Compare
+// verifyAgainstSnapshot reads the ONT back and refuses a run whose result does
+// not match what was asked for. A provision that reports success while the
+// chassis holds something else is worse than one that reports failure.
+func (s *OntProvisioningService) verifyAgainstSnapshot(job *models.ProvisioningJob, ont *models.ONT,
+	olt *models.OLT, beforeSnap *ConfigSnapshot) error {
+
 	afterSnap, err := s.snapshotSvc.CaptureAfterSnapshot(*ont)
 	if err != nil {
-		errMsg := fmt.Sprintf("after snapshot failed: %v", err)
-		_ = s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusFailed, &errMsg)
-		_ = s.rollbackOnt(job, *ont, *olt, beforeSnap)
-		return nil, fmt.Errorf("after snapshot failed: %w", err)
+		s.abandonJob(job, ont, olt, beforeSnap, fmt.Sprintf("after snapshot failed: %v", err))
+		return fmt.Errorf("after snapshot failed: %w", err)
 	}
 	if afterSnap == nil {
-		errMsg := "after snapshot is empty"
-		_ = s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusFailed, &errMsg)
-		_ = s.rollbackOnt(job, *ont, *olt, beforeSnap)
-		return nil, fmt.Errorf("after snapshot is empty")
+		s.abandonJob(job, ont, olt, beforeSnap, "after snapshot is empty")
+		return fmt.Errorf("after snapshot is empty")
+	}
+	if beforeSnap == nil {
+		return nil
 	}
 
-	if beforeSnap != nil {
-		diffs := s.snapshotSvc.Compare(beforeSnap, afterSnap)
-		if len(diffs) > 0 {
-			diffJSON, _ := json.Marshal(diffs)
-			errMsg := fmt.Sprintf("config drift detected: %s", string(diffJSON))
-			if err := s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusFailed, &errMsg); err != nil {
-				s.logger.Error("failed to mark job as failed due to drift", zap.String("job_id", job.ID.String()), zap.Error(err))
-			}
-			if rbErr := s.rollbackOnt(job, *ont, *olt, beforeSnap); rbErr != nil {
-				s.logger.Error("rollback attempt failed after drift detection", zap.String("job_id", job.ID.String()), zap.Error(rbErr))
-			}
-			return nil, fmt.Errorf("config drift detected: %v", diffs)
-		}
+	diffs := s.snapshotSvc.Compare(beforeSnap, afterSnap)
+	if len(diffs) == 0 {
+		return nil
 	}
 
-	// Step 9: Mark SUCCESS
-	if err := s.jobService.UpdateStatusProvisioning(job.ID, models.ProvisioningStatusSuccess, nil); err != nil {
-		return nil, fmt.Errorf("failed to update job status to success: %w", err)
-	}
-
-	s.logAudit(userID, "provision", "ont", ontID, nil, map[string]interface{}{
-		"job_id":   job.ID,
-		"status":   models.ProvisioningStatusSuccess,
-		"ont_id":   ont.ID,
-		"olt_ip":   olt.IPAddress,
-		"template": config.TemplateID,
-	})
-
-	latest, err := s.jobService.GetProvisioningJob(job.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to reload completed job: %w", err)
-	}
-	return &ProvisionResult{
-		Job:    latest,
-		Config: provisionConfig,
-	}, nil
+	diffJSON, _ := json.Marshal(diffs)
+	s.abandonJob(job, ont, olt, beforeSnap, fmt.Sprintf("config drift detected: %s", string(diffJSON)))
+	return fmt.Errorf("config drift detected: %v", diffs)
 }
 
 // RollbackOnt restores ONT configuration from stored snapshot.
@@ -293,153 +315,6 @@ func (s *OntProvisioningService) loadOLT(oltID uuid.UUID) (*models.OLT, error) {
 	}
 	return &olt, nil
 }
-
-func (s *OntProvisioningService) buildProvisionConfig(config ProvisionConfig, ont *models.ONT, olt *models.OLT) (map[string]interface{}, error) {
-	result := make(map[string]interface{})
-
-	if config.TemplateID != nil {
-		if s.templates == nil {
-			return nil, fmt.Errorf("config template service is not configured")
-		}
-		template, err := s.templates.GetByID(*config.TemplateID)
-		if err != nil {
-			return nil, fmt.Errorf("load config template: %w", err)
-		}
-		if !templateVendorMatchesOLT(template.Vendor, olt.Model) {
-			return nil, fmt.Errorf("config template vendor does not match OLT model")
-		}
-		var fields map[string]interface{}
-		if err := json.Unmarshal(template.ConfigFields, &fields); err != nil {
-			return nil, fmt.Errorf("decode config template fields: %w", err)
-		}
-		for k, v := range fields {
-			result[k] = v
-		}
-	}
-
-	// Add manual overrides after validating the complete input. The runtime map
-	// remains unredacted so command execution receives the original values.
-	for k, v := range config.ManualConfig {
-		result[k] = v
-	}
-
-	if err := validateManualConfig(result); err != nil {
-		return nil, err
-	}
-
-	// Add implicit ONT/Olt IDs
-	result["ont_id"] = ont.ID
-	result["olt_id"] = olt.ID
-	result["slot"] = ont.Slot
-	result["port"] = ont.PortID
-	result["ontid"] = ont.ONTID
-
-	return result, nil
-}
-
-func templateVendorMatchesOLT(vendor string, model models.OLTModel) bool {
-	switch model {
-	case models.OLTModelZTEC300, models.OLTModelZTEC320:
-		return vendor == models.VendorZTE
-	case models.OLTModelHSGQ:
-		return vendor == models.VendorHSGQ
-	default:
-		return false
-	}
-}
-
-func (s *OntProvisioningService) executeProvision(ctx context.Context, ont *models.ONT, olt *models.OLT, config map[string]interface{}) (*connectivity.CommandResult, error) {
-	// Create a fresh commander for this OLT using the factory
-	commander, err := createCommanderForOLT(s.commanderFactory, *olt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create commander for OLT %s: %w", olt.IPAddress, err)
-	}
-	defer closeCommander(commander)
-
-	// Prepare vendor-specific CLI commands based on OLT model
-	var cmds []string
-
-	switch olt.Model {
-	case models.OLTModelZTEC300, models.OLTModelZTEC320:
-		cmds = s.buildZTECommands(*ont, config)
-	default:
-		cmds = s.buildHSGQCommands(*ont, config)
-	}
-
-	results, err := commander.BatchExecute(ctx, cmds)
-	if err != nil {
-		return nil, fmt.Errorf("command batch execution failed: %w", err)
-	}
-
-	// Check results
-	for i, r := range results {
-		if !r.Success {
-			return nil, fmt.Errorf("command %d failed: %s", i, r.Output)
-		}
-	}
-
-	return results[len(results)-1], nil
-}
-
-func (s *OntProvisioningService) buildZTECommands(ont models.ONT, config map[string]interface{}) []string {
-	cmds := []string{
-		"configure terminal",
-		fmt.Sprintf("interface gpon-onu %d:%d", ont.PortID, ont.ONTID),
-	}
-
-	// Add bandwidth/vlan config if present
-	if bw, ok := config["bandwidth"]; ok {
-		cmds = append(cmds, fmt.Sprintf("ont traffic band-width %s %d", manualTokenString(bw), ont.ONTID))
-	}
-	if vlan, ok := config["vlan"]; ok {
-		cmds = append(cmds, fmt.Sprintf("ont service vlan add %s %d", manualTokenString(vlan), ont.ONTID))
-	}
-	cmds = append(cmds, "commit")
-	return cmds
-}
-
-func (s *OntProvisioningService) buildHSGQCommands(ont models.ONT, config map[string]interface{}) []string {
-	return []string{
-		"configure terminal",
-		fmt.Sprintf("interface gpon-onu-port/%d/%d", ont.PortID, ont.ONTID),
-		"commit",
-	}
-}
-
-func (s *OntProvisioningService) rollbackOnt(job *models.ProvisioningJob, ont models.ONT, olt models.OLT, snap *ConfigSnapshot) error {
-	if s.rollback == nil {
-		return fmt.Errorf("rollback engine not configured")
-	}
-	if rollbacker, ok := interface{}(s.rollback).(oltRollbacker); ok {
-		return rollbacker.RollbackToSnapshotForOLT(context.Background(), olt, ont, snap)
-	}
-	return s.rollback.RollbackToSnapshot(context.Background(), ont, snap)
-}
-
-func createCommanderForOLT(factory CommanderFactory, olt models.OLT) (connectivity.OLTCommander, error) {
-	protocol := olt.PreferredProtocol
-	if protocol == "" {
-		protocol = models.OLTProtocolTelnet
-	}
-	port := olt.TelnetPort
-	if protocol == models.OLTProtocolSSH {
-		port = olt.SSHPort
-	}
-	if protocolFactory, ok := factory.(protocolCommanderFactory); ok {
-		return protocolFactory.ForOLTWithProtocol(olt.Model, olt.IPAddress, protocol, port, olt.Username, olt.Password)
-	}
-	return factory.ForOLT(olt.Model, olt.IPAddress, port, olt.Username, olt.Password)
-}
-
-// closeCommander closes a commander if it implements io.Closer. Fake
-// commanders in tests do not hold connections, so failing the assertion is
-// the correct behavior.
-func closeCommander(commander connectivity.OLTCommander) {
-	if closer, ok := commander.(interface{ Close() error }); ok {
-		_ = closer.Close()
-	}
-}
-
 func (s *OntProvisioningService) logAudit(
 	userID uuid.UUID,
 	action, resourceType string,

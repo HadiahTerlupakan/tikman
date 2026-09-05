@@ -42,27 +42,62 @@ func NewConfigTemplateService(db *gorm.DB, audit *AuditService) *ConfigTemplateS
 // name uniqueness, vendor validity, and JSON marshaling rules. When
 // isDefault is true, it clears the default flag on other templates of the
 // same vendor before persisting the new default.
+// templateNameBounds is what a template name may weigh. Short enough to be
+// unhelpful and long enough to break the picker are both refused.
+const (
+	minTemplateName = 3
+	maxTemplateName = 100
+)
+
+// validateTemplate checks what create and update both require, and returns the
+// trimmed name alongside the encoded fields.
+func validateTemplate(name, vendor string, configFields map[string]interface{}) (string, []byte, error) {
+	if err := validateVendor(vendor); err != nil {
+		return "", nil, err
+	}
+
+	name = strings.TrimSpace(name)
+	if len(name) < minTemplateName || len(name) > maxTemplateName {
+		return "", nil, fmt.Errorf("config template name must be between %d and %d characters, got %d",
+			minTemplateName, maxTemplateName, len(name))
+	}
+
+	configJSON, err := json.Marshal(configFields)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to marshal config fields: %w", err)
+	}
+	return name, configJSON, nil
+}
+
+// storeTemplateError names a duplicate for what it is. The constraint reads
+// differently on SQLite and Postgres, and the caller needs one answer.
+func storeTemplateError(verb string, err error) error {
+	if strings.Contains(err.Error(), "UNIQUE constraint failed") ||
+		strings.Contains(err.Error(), "duplicate key") {
+		return fmt.Errorf("config template name must be unique: %w", err)
+	}
+	return fmt.Errorf("failed to %s config template: %w", verb, err)
+}
+
+// templateAuditValue is the part of a template worth recording in the audit
+// log: the fields another admin would want to see changed.
+func templateAuditValue(name, vendor string, isDefault bool) map[string]interface{} {
+	return map[string]interface{}{
+		"name":       name,
+		"vendor":     vendor,
+		"is_default": isDefault,
+	}
+}
+
 func (s *ConfigTemplateService) Create(
 	name, description, vendor string,
 	configFields map[string]interface{},
 	isDefault bool,
 	userID uuid.UUID,
 ) (*models.ConfigTemplate, error) {
-	// Validate vendor against allowed list
-	if err := validateVendor(vendor); err != nil {
-		return nil, err
-	}
-
-	// Validate name length
-	name = strings.TrimSpace(name)
-	if len(name) < 3 || len(name) > 100 {
-		return nil, fmt.Errorf("config template name must be between 3 and 100 characters, got %d", len(name))
-	}
-
-	// Marshal config fields to JSON
-	configJSON, err := json.Marshal(configFields)
+	name, configJSON, err := validateTemplate(name, vendor, configFields)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config fields: %w", err)
+		return nil, err
 	}
 
 	template := &models.ConfigTemplate{
@@ -81,20 +116,10 @@ func (s *ConfigTemplateService) Create(
 	}
 
 	if err := s.db.Create(template).Error; err != nil {
-		// Handle unique constraint violation on name
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") ||
-			strings.Contains(err.Error(), "duplicate key") {
-			return nil, fmt.Errorf("config template name must be unique: %w", err)
-		}
-		return nil, fmt.Errorf("failed to create config template: %w", err)
+		return nil, storeTemplateError("create", err)
 	}
 
-	// Log the creation
-	s.logAudit(userID, "create", template.ID, nil, map[string]interface{}{
-		"name":       name,
-		"vendor":     vendor,
-		"is_default": isDefault,
-	})
+	s.logAudit(userID, "create", template.ID, nil, templateAuditValue(name, vendor, isDefault))
 
 	return template, nil
 }
@@ -135,38 +160,20 @@ func (s *ConfigTemplateService) Update(
 		return nil, err
 	}
 
-	// Capture old state for audit
-	oldValue := map[string]interface{}{
-		"name":       template.Name,
-		"vendor":     template.Vendor,
-		"is_default": template.IsDefault,
-	}
+	// Read before the write, so the audit entry can say what changed.
+	oldValue := templateAuditValue(template.Name, template.Vendor, template.IsDefault)
 
-	// Validate vendor
-	if err := validateVendor(vendor); err != nil {
+	name, configJSON, err := validateTemplate(name, vendor, configFields)
+	if err != nil {
 		return nil, err
 	}
 
-	// Validate name
-	name = strings.TrimSpace(name)
-	if len(name) < 3 || len(name) > 100 {
-		return nil, fmt.Errorf("config template name must be between 3 and 100 characters, got %d", len(name))
-	}
-
-	// Marshal config fields to JSON
-	configJSON, err := json.Marshal(configFields)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config fields: %w", err)
-	}
-
-	// Clear default on other templates of same vendor if setting this as default
 	if isDefault && !template.IsDefault {
 		if err := s.clearDefaultForVendor(vendor); err != nil {
 			return nil, fmt.Errorf("failed to clear existing default: %w", err)
 		}
 	}
 
-	// Apply updates
 	template.Name = name
 	template.Description = description
 	template.Vendor = vendor
@@ -174,21 +181,10 @@ func (s *ConfigTemplateService) Update(
 	template.IsDefault = isDefault
 
 	if err := s.db.Save(template).Error; err != nil {
-		// Handle unique constraint violation on name
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") ||
-			strings.Contains(err.Error(), "duplicate key") {
-			return nil, fmt.Errorf("config template name must be unique: %w", err)
-		}
-		return nil, fmt.Errorf("failed to update config template: %w", err)
+		return nil, storeTemplateError("update", err)
 	}
 
-	// Log the update
-	newValue := map[string]interface{}{
-		"name":       name,
-		"vendor":     vendor,
-		"is_default": isDefault,
-	}
-	s.logAudit(userID, "update", template.ID, oldValue, newValue)
+	s.logAudit(userID, "update", template.ID, oldValue, templateAuditValue(name, vendor, isDefault))
 
 	return template, nil
 }

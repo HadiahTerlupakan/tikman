@@ -3,8 +3,9 @@ package services
 import (
 	"errors"
 	"fmt"
-	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 	"time"
+
+	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -90,22 +91,7 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 			return fmt.Errorf("look for existing message: %w", lookup)
 		}
 
-		waID := in.WAMessageID
-		stored = models.CSMessage{
-			ConversationID:     in.ConversationID,
-			WAMessageID:        &waID,
-			Direction:          models.MessageIn,
-			Kind:               in.Kind,
-			Body:               in.Body,
-			PreviewURL:         previewURL(in.Preview),
-			PreviewTitle:       previewTitle(in.Preview),
-			PreviewDescription: previewDescription(in.Preview),
-			PreviewThumbnail:   previewThumbnail(in.Preview),
-			Status:             models.MessageDelivered,
-			ReplyToID:          quotedRow(tx, in.ConversationID, in.ReplyToWAID),
-			WATimestamp:        in.At,
-		}
-		applyMedia(&stored, in.Media)
+		stored = inboundRow(tx, in)
 
 		if err := tx.Create(&stored).Error; err != nil {
 			return fmt.Errorf("store inbound message: %w", err)
@@ -303,71 +289,4 @@ func (s *CSMessageService) Search(term string, limit int) ([]models.CSMessage, e
 		return nil, fmt.Errorf("search messages: %w", err)
 	}
 	return rows, nil
-}
-
-// bumpConversation runs on the caller's transaction, never on s.db: it is half
-// of storing a message, and must not be able to commit or fail on its own.
-func bumpConversation(tx *gorm.DB, conversationID uuid.UUID, at time.Time) error {
-	err := tx.Model(&models.CSConversation{}).Where("id = ?", conversationID).
-		Updates(map[string]any{
-			"last_message_at":        at,
-			"last_message_direction": models.MessageIn,
-			"unread_count":           gorm.Expr("unread_count + 1"),
-		}).Error
-	if err != nil {
-		return fmt.Errorf("bump conversation: %w", err)
-	}
-	return nil
-}
-
-func (s *CSMessageService) updateMessage(id uuid.UUID, fields map[string]any) error {
-	res := s.db.Model(&models.CSMessage{}).Where("id = ?", id).Updates(fields)
-	if res.Error != nil {
-		return fmt.Errorf("update message: %w", res.Error)
-	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
-func applyMedia(msg *models.CSMessage, media *MediaFile) {
-	if media == nil {
-		return
-	}
-	msg.MediaPath = media.Path
-	msg.MediaMime = media.Mime
-	msg.MediaFilename = media.Filename
-	msg.MediaSize = media.Size
-}
-
-// The four accessors keep the nil check in one place rather than repeating it
-// at each field of the row being built.
-
-func previewURL(p *linkpreview.Preview) string {
-	if p == nil {
-		return ""
-	}
-	return p.URL
-}
-
-func previewTitle(p *linkpreview.Preview) string {
-	if p == nil {
-		return ""
-	}
-	return p.Title
-}
-
-func previewDescription(p *linkpreview.Preview) string {
-	if p == nil {
-		return ""
-	}
-	return p.Description
-}
-
-func previewThumbnail(p *linkpreview.Preview) []byte {
-	if p == nil {
-		return nil
-	}
-	return p.Thumbnail
 }

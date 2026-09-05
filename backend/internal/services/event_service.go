@@ -82,111 +82,99 @@ type AvailabilityStats struct {
 // CalculateAvailability computes availability metrics for a given time range
 func (s *EventService) CalculateAvailability(ontID uuid.UUID, startTime, endTime time.Time) (*AvailabilityStats, error) {
 	stats := &AvailabilityStats{
-		ONTID:     ontID,
-		StartTime: startTime,
-		EndTime:   endTime,
+		ONTID:        ontID,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		TotalSeconds: int64(endTime.Sub(startTime).Seconds()),
 	}
 
-	// Calculate total time window in seconds
-	stats.TotalSeconds = int64(endTime.Sub(startTime).Seconds())
-
-	// Get all events in the time range
 	events, err := s.GetEventsInTimeRange(ontID, startTime, endTime)
 	if err != nil {
 		return nil, err
 	}
-
 	stats.TotalEvents = len(events)
 
 	if len(events) == 0 {
-		// No events - check current status
-		var ont models.ONT
-		if err := s.db.First(&ont, ontID).Error; err != nil {
-			return nil, err
-		}
-
-		// Assume current status for the entire period
-		if ont.Status == "online" {
-			stats.OnlineSeconds = stats.TotalSeconds
-			stats.AvailabilityPercent = 100.0
-		} else {
-			stats.OfflineSeconds = stats.TotalSeconds
-			stats.AvailabilityPercent = 0.0
-		}
-
-		return stats, nil
+		return s.availabilityFromCurrentStatus(stats)
 	}
 
-	// Process events to calculate online/offline time
-	var onlineDurations []int64
-	var offlineDurations []int64
+	online, offline := accumulateEventDurations(stats, events, endTime)
 
-	for i := 0; i < len(events); i++ {
-		event := events[i]
-
-		// Count event types
-		if event.EventType == models.EventTypeOnline {
-			stats.OnlineEvents++
+	// The window opens before the first event, and that stretch was spent in
+	// whatever state the first event ended.
+	first := events[len(events)-1]
+	if first.EventTime.After(startTime) {
+		before := int64(first.EventTime.Sub(startTime).Seconds())
+		if first.EventType == models.EventTypeOnline {
+			stats.OnlineSeconds += before
 		} else {
-			stats.OfflineEvents++
-		}
-
-		// Calculate duration for this event
-		var eventEnd time.Time
-		if i > 0 {
-			// Next event marks the end of this period
-			eventEnd = events[i-1].EventTime
-		} else {
-			// Last event extends to endTime
-			eventEnd = endTime
-		}
-
-		duration := int64(eventEnd.Sub(event.EventTime).Seconds())
-
-		if event.EventType == models.EventTypeOnline {
-			stats.OnlineSeconds += duration
-			onlineDurations = append(onlineDurations, duration)
-		} else {
-			stats.OfflineSeconds += duration
-			offlineDurations = append(offlineDurations, duration)
+			stats.OfflineSeconds += before
 		}
 	}
 
-	// Handle time before first event (assume same state as first event)
-	firstEventInWindow := events[len(events)-1]
-	if firstEventInWindow.EventTime.After(startTime) {
-		preDuration := int64(firstEventInWindow.EventTime.Sub(startTime).Seconds())
-		if firstEventInWindow.EventType == models.EventTypeOnline {
-			stats.OnlineSeconds += preDuration
-		} else {
-			stats.OfflineSeconds += preDuration
-		}
-	}
-
-	// Calculate availability percentage
 	if stats.TotalSeconds > 0 {
 		stats.AvailabilityPercent = (float64(stats.OnlineSeconds) / float64(stats.TotalSeconds)) * 100.0
 	}
-
-	// Calculate MTBF (Mean Time Between Failures)
-	if len(onlineDurations) > 0 {
-		var totalOnline int64
-		for _, d := range onlineDurations {
-			totalOnline += d
-		}
-		stats.MTBF = float64(totalOnline) / float64(len(onlineDurations))
-	}
-
-	// Calculate MTTR (Mean Time To Repair)
-	if len(offlineDurations) > 0 {
-		var totalOffline int64
-		for _, d := range offlineDurations {
-			totalOffline += d
-		}
-		stats.MTTR = float64(totalOffline) / float64(len(offlineDurations))
-	}
+	stats.MTBF = mean(online)
+	stats.MTTR = mean(offline)
 
 	return stats, nil
+}
+
+// availabilityFromCurrentStatus answers for an ONT that logged nothing in the
+// window: with no transition to place, the state it is in now is the state it
+// was in throughout.
+func (s *EventService) availabilityFromCurrentStatus(stats *AvailabilityStats) (*AvailabilityStats, error) {
+	var ont models.ONT
+	if err := s.db.First(&ont, stats.ONTID).Error; err != nil {
+		return nil, err
+	}
+
+	if ont.Status == "online" {
+		stats.OnlineSeconds = stats.TotalSeconds
+		stats.AvailabilityPercent = 100.0
+	} else {
+		stats.OfflineSeconds = stats.TotalSeconds
+		stats.AvailabilityPercent = 0.0
+	}
+	return stats, nil
+}
+
+// accumulateEventDurations adds up how long each state was held, and returns
+// the individual stretches so the means can be taken. Events arrive newest
+// first, so an event runs until the one before it in the slice.
+func accumulateEventDurations(stats *AvailabilityStats, events []models.ONTEvent, endTime time.Time) (online, offline []int64) {
+	for i, event := range events {
+		end := endTime
+		if i > 0 {
+			end = events[i-1].EventTime
+		}
+		duration := int64(end.Sub(event.EventTime).Seconds())
+
+		if event.EventType == models.EventTypeOnline {
+			stats.OnlineEvents++
+			stats.OnlineSeconds += duration
+			online = append(online, duration)
+		} else {
+			stats.OfflineEvents++
+			stats.OfflineSeconds += duration
+			offline = append(offline, duration)
+		}
+	}
+	return online, offline
+}
+
+// mean is MTBF over the online stretches and MTTR over the offline ones. No
+// stretches means no figure, rather than zero.
+func mean(durations []int64) float64 {
+	if len(durations) == 0 {
+		return 0
+	}
+	var total int64
+	for _, d := range durations {
+		total += d
+	}
+	return float64(total) / float64(len(durations))
 }
 
 // GetLatestEvent retrieves the most recent event for an ONT

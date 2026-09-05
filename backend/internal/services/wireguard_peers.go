@@ -50,6 +50,29 @@ func (s *WireGuardService) SuggestAllowedIPsForSite(siteID uuid.UUID) ([]string,
 // empty, generates the peer's keypair, and reconciles the device. If the
 // device rejects the resulting configuration, the peer row is removed so a
 // later reconcile does not keep retrying it.
+// newPeerRow mints the peer's keypair and assembles its row. The private key
+// is encrypted before it is ever held in the struct that gets stored.
+func (s *WireGuardService) newPeerRow(siteID uuid.UUID, name string, allowedIPs []string, tunnelAddress string) (*models.WireGuardPeer, error) {
+	publicKey, encryptedPrivateKey, err := s.generateEncryptedKeypair()
+	if err != nil {
+		return nil, err
+	}
+
+	peer := &models.WireGuardPeer{
+		SiteID:              siteID,
+		Name:                name,
+		PublicKey:           publicKey,
+		PrivateKey:          encryptedPrivateKey,
+		TunnelAddress:       tunnelAddress,
+		PersistentKeepalive: defaultKeepalive,
+		Enabled:             true,
+	}
+	if err := peer.SetAllowedIPs(allowedIPs); err != nil {
+		return nil, err
+	}
+	return peer, nil
+}
+
 func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs []string, tunnelAddress string) (*models.WireGuardPeer, error) {
 	server, err := s.GetServer()
 	if err != nil {
@@ -73,21 +96,8 @@ func (s *WireGuardService) CreatePeer(siteID uuid.UUID, name string, allowedIPs 
 		return nil, err
 	}
 
-	publicKey, encryptedPrivateKey, err := s.generateEncryptedKeypair()
+	peer, err := s.newPeerRow(siteID, name, allowedIPs, tunnelAddress)
 	if err != nil {
-		return nil, err
-	}
-
-	peer := &models.WireGuardPeer{
-		SiteID:              siteID,
-		Name:                name,
-		PublicKey:           publicKey,
-		PrivateKey:          encryptedPrivateKey,
-		TunnelAddress:       tunnelAddress,
-		PersistentKeepalive: defaultKeepalive,
-		Enabled:             true,
-	}
-	if err := peer.SetAllowedIPs(allowedIPs); err != nil {
 		return nil, err
 	}
 	if err := s.db.Create(peer).Error; err != nil {

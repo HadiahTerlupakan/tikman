@@ -33,12 +33,8 @@ func (s *EventService) LogStatusChanges(changes []StatusChange) error {
 		return nil
 	}
 
-	// Validated before anything is written, so one bad entry cannot leave half
-	// a page recorded.
-	for _, change := range changes {
-		if change.EventType != models.EventTypeOnline && change.EventType != models.EventTypeOffline {
-			return fmt.Errorf("invalid event type: %s", change.EventType)
-		}
+	if err := validateStatusChanges(changes); err != nil {
+		return err
 	}
 
 	ontIDs := make([]uuid.UUID, 0, len(changes))
@@ -61,9 +57,7 @@ func (s *EventService) LogStatusChanges(changes []StatusChange) error {
 		}
 
 		if hasHistory {
-			duration := int64(now.Sub(previous.EventTime).Seconds())
-			if err := s.db.Model(&models.ONTEvent{}).Where("id = ?", previous.ID).
-				Update("duration_seconds", duration).Error; err != nil {
+			if err := s.closeEvent(previous, now); err != nil {
 				return err
 			}
 		}
@@ -80,6 +74,25 @@ func (s *EventService) LogStatusChanges(changes []StatusChange) error {
 		return nil
 	}
 	return s.db.CreateInBatches(&opened, eventInsertBatch).Error
+}
+
+// validateStatusChanges runs before anything is written, so one bad entry
+// cannot leave half a page recorded.
+func validateStatusChanges(changes []StatusChange) error {
+	for _, change := range changes {
+		if change.EventType != models.EventTypeOnline && change.EventType != models.EventTypeOffline {
+			return fmt.Errorf("invalid event type: %s", change.EventType)
+		}
+	}
+	return nil
+}
+
+// closeEvent gives the previous event the duration it turned out to have, now
+// that the state it recorded has ended.
+func (s *EventService) closeEvent(previous models.ONTEvent, now time.Time) error {
+	duration := int64(now.Sub(previous.EventTime).Seconds())
+	return s.db.Model(&models.ONTEvent{}).Where("id = ?", previous.ID).
+		Update("duration_seconds", duration).Error
 }
 
 // latestEventPerONT returns each ONT's most recent event, keyed by ONT.

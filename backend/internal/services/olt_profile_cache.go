@@ -22,6 +22,35 @@ const profileCacheTTL = 30 * time.Minute
 // refreshProfileCache stores the profile names the provisioning form offers.
 // Both lists come from one CLI session, and a failed read keeps whatever was
 // cached before rather than emptying a dropdown the operator still needs.
+// profileUpdates turns one running-config read into the columns to write. A
+// read that failed still yields nothing rather than blanking the cache, and an
+// empty section is skipped for the same reason.
+func (s *OLTService) profileUpdates(olt *models.OLT, snapshot connectivity.ZTEConfigSnapshot, readErr error) map[string]interface{} {
+	updates := make(map[string]interface{}, 4)
+
+	if len(snapshot.VLANProfiles) > 0 {
+		addProfileUpdate(updates, "vlan_profiles", snapshot.VLANProfiles, olt.Name)
+	} else if readErr == nil {
+		log.Printf("[AutoDiscovery] No VLAN profiles in use on OLT %s", olt.Name)
+	}
+	if readErr != nil {
+		return updates
+	}
+
+	if len(snapshot.ONUTypes) > 0 {
+		addProfileUpdate(updates, "onu_types", snapshot.ONUTypes, olt.Name)
+	}
+	if len(snapshot.ONUTypeDetails) > 0 {
+		cacheJSON(updates, "onu_type_details", snapshot.ONUTypeDetails, olt.Name)
+	}
+	if len(snapshot.Cards) > 0 {
+		cacheJSON(updates, "cards", snapshot.Cards, olt.Name)
+	}
+	s.storeONUServices(olt, snapshot.ONUServices)
+
+	return updates
+}
+
 func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 	if s.commanderFactory == nil {
 		return
@@ -39,37 +68,14 @@ func (s *OLTService) refreshProfileCache(olt *models.OLT) {
 		defer func() { _ = closer.Close() }()
 	}
 
-	ctx := context.Background()
-	updates := make(map[string]interface{}, 3)
-
 	// T-CONT profiles are read over SNMP; this session exists only for what the
 	// running config alone carries.
-	snapshot, err := connectivity.ReadZTEConfigSnapshot(ctx, commander)
-	vlan := snapshot.VLANProfiles
-	switch {
-	case err != nil:
+	snapshot, err := connectivity.ReadZTEConfigSnapshot(context.Background(), commander)
+	if err != nil {
 		log.Printf("[AutoDiscovery] Running config read failed for OLT %s: %v", olt.Name, err)
-	case len(vlan) == 0:
-		log.Printf("[AutoDiscovery] No VLAN profiles in use on OLT %s", olt.Name)
-	default:
-		addProfileUpdate(updates, "vlan_profiles", vlan, olt.Name)
 	}
-	if err == nil {
-		if len(snapshot.ONUTypes) > 0 {
-			addProfileUpdate(updates, "onu_types", snapshot.ONUTypes, olt.Name)
-		}
-		if len(snapshot.ONUTypeDetails) > 0 {
-			if encoded, err := json.Marshal(snapshot.ONUTypeDetails); err == nil {
-				updates["onu_type_details"] = datatypes.JSON(encoded)
-			}
-		}
-		if len(snapshot.Cards) > 0 {
-			if encoded, err := json.Marshal(snapshot.Cards); err == nil {
-				updates["cards"] = datatypes.JSON(encoded)
-			}
-		}
-		s.storeONUServices(olt, snapshot.ONUServices)
-	}
+	vlan := snapshot.VLANProfiles
+	updates := s.profileUpdates(olt, snapshot, err)
 
 	if len(updates) == 0 {
 		return

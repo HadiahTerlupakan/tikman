@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/gorm"
 )
 
 // defaultConversationLimit keeps one inbox page bounded; at thousands of chats
@@ -48,6 +49,29 @@ type ConversationFilter struct {
 
 // List draws one page of the inbox, newest first.
 func (s *CSConversationService) List(f ConversationFilter) ([]ConversationSummary, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > defaultConversationLimit {
+		limit = defaultConversationLimit
+	}
+
+	var rows []models.CSConversation
+	err := s.filtered(f).Order("last_message_at DESC").Limit(limit).Offset(f.Offset).Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list conversations: %w", err)
+	}
+
+	summaries := make([]ConversationSummary, len(rows))
+	ids := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		summaries[i] = ConversationSummary{CSConversation: row}
+		ids[i] = row.ID
+	}
+
+	return s.decorate(summaries, ids)
+}
+
+// filtered narrows the inbox to the tab the CS is looking at.
+func (s *CSConversationService) filtered(f ConversationFilter) *gorm.DB {
 	q := s.db.Model(&models.CSConversation{})
 
 	switch {
@@ -70,24 +94,12 @@ func (s *CSConversationService) List(f ConversationFilter) ([]ConversationSummar
 		like := "%" + f.Search + "%"
 		q = q.Where("customer_name LIKE ? OR customer_phone LIKE ?", like, like)
 	}
+	return q
+}
 
-	limit := f.Limit
-	if limit <= 0 || limit > defaultConversationLimit {
-		limit = defaultConversationLimit
-	}
-
-	var rows []models.CSConversation
-	if err := q.Order("last_message_at DESC").Limit(limit).Offset(f.Offset).Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list conversations: %w", err)
-	}
-
-	summaries := make([]ConversationSummary, len(rows))
-	ids := make([]uuid.UUID, len(rows))
-	for i, row := range rows {
-		summaries[i] = ConversationSummary{CSConversation: row}
-		ids[i] = row.ID
-	}
-
+// decorate attaches the newest message and the number's label to each thread,
+// both read for the whole page at once.
+func (s *CSConversationService) decorate(summaries []ConversationSummary, ids []uuid.UUID) ([]ConversationSummary, error) {
 	latest, err := s.lastMessages(ids)
 	if err != nil {
 		return nil, err
