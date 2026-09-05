@@ -31,3 +31,15 @@ export function formatRate(mbps?: number | null): string {
   const kbps = mbps * 1000;
   return `${kbps.toFixed(kbps < 0.01 ? 4 : 2)} Kbps`;
 }
+
+// Speeds are written in the unit that keeps them readable: a 0.4 Mbps link
+// reads better as 400 Kbps, and a 2400 Mbps one as 2.4 Gbps.
+export function formatSpeed(mbps: number): string {
+  if (mbps >= 1000) {
+    return `${(mbps / 1000).toFixed(2)} Gbps`;
+  }
+  if (mbps >= 1) {
+    return `${mbps.toFixed(2)} Mbps`;
+  }
+  return `${(mbps * 1000).toFixed(2)} Kbps`;
+}

@@ -11,8 +11,9 @@ import {
 } from "recharts";
 import { Ont } from "@/domain/entities/Ont";
 import { useOntTrafficTimeSeries } from "@/application/hooks/useOntMetrics";
-import { formatBytes } from "./trafficFormat";
+import { formatBytes, formatSpeed } from "./trafficFormat";
 import { formatRateTick, percentile95, rateScaleFor } from "./trafficStats";
+import { getAxisTicks, getPeriodDomain } from "./trafficAxis";
 
 interface OntTrafficCardProps {
   ont: Ont;
@@ -30,54 +31,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 function StatusTag({ status }: { status: string }) {
   return <Tag color={STATUS_COLORS[status] || "default"}>{status}</Tag>;
-}
-
-function formatSpeed(mbps: number): string {
-  if (mbps >= 1000) {
-    return `${(mbps / 1000).toFixed(2)} Gbps`;
-  }
-  if (mbps >= 1) {
-    return `${mbps.toFixed(2)} Mbps`;
-  }
-  return `${(mbps * 1000).toFixed(2)} Kbps`;
-}
-
-function getPeriodDomain(period: string): [number, number] | undefined {
-  const value = Number(period.slice(0, -1));
-  const unit = period.slice(-1);
-  if (!Number.isFinite(value) || value <= 0) {
-    return undefined;
-  }
-
-  const now = Date.now();
-  if (unit === "h") {
-    return [now - value * 60 * 60 * 1000, now];
-  }
-  if (unit === "d") {
-    return [now - value * 24 * 60 * 60 * 1000, now];
-  }
-  return undefined;
-}
-
-const AXIS_TICK_COUNT = 5;
-
-// Recharts derives ticks from the data points, not from `domain`, so a range with
-// data in only part of it would label just that part and hide how much of the
-// selected window is empty. Spacing ticks across the domain keeps the axis honest.
-function getAxisTicks(
-  domain: [number, number] | undefined,
-): number[] | undefined {
-  if (!domain) {
-    return undefined;
-  }
-  const [start, end] = domain;
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-    return undefined;
-  }
-  const step = (end - start) / (AXIS_TICK_COUNT - 1);
-  return Array.from({ length: AXIS_TICK_COUNT }, (_, i) =>
-    Math.round(start + step * i),
-  );
 }
 
 export function OntTrafficCard({ ont, period, range }: OntTrafficCardProps) {
