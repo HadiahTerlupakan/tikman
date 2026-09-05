@@ -59,13 +59,19 @@ browser (CS Inbox open)
    │  set /cs-presence/{uid}, onDisconnect().remove()
    ▼
 Firebase RTDB  ──────────────┐
-   │  onValue                │  onValue
+   │  onValue                │  GetShallow, polled
    ▼                         ▼
 browser (CsTeamPanel)     api (mirror)
-                             │  SET cs:online:{uid} EX 60, refreshed
+                             │  SET present EX 60, DEL departed
                              ▼
                           Redis  ──►  wa (CSAssignmentService, unchanged)
 ```
+
+The two arrows out of RTDB are not the same mechanism, and the difference is
+forced rather than chosen. The browser SDK has real listeners, so the panel
+updates the instant a node appears or vanishes. **The Go Admin SDK has none**:
+`db.Ref` offers `Get`, `GetShallow`, `Set`, `Delete` and `Transaction` over
+REST and nothing that streams. The mirror therefore polls.
 
 Redis is a projection with exactly one writer, not a second truth. It is never
 read back to decide what RTDB should contain.
@@ -74,11 +80,18 @@ read back to decide what RTDB should contain.
 
 Decided by the operator: **when RTDB is unreachable, assignment stops.**
 
-The mechanism is the refresh, not an error path. The mirror rewrites the Redis
-keys on every RTDB change *and* on a timer well inside the sixty-second TTL. If
-`api` loses RTDB it stops refreshing, the keys expire, `Online()` returns empty,
-and `AssignOne` leaves conversations unassigned for a CS to claim by hand. No
-code detects the outage; the TTL does.
+Two mechanisms, because one is not enough.
+
+**Departure** is handled by deletion. Each poll writes `cs:online:{uid}` for
+every agent in the snapshot and deletes the keys of agents no longer in it.
+Letting a departed agent's key expire on its own instead would leave assignment
+exactly as slow as it is today — the sixty-second TTL is the lag this whole
+migration exists to remove, so the mirror must not lean on it for departures.
+
+**Outage** is handled by the TTL. If `api` loses RTDB it stops both writing and
+deleting; the surviving keys expire within sixty seconds, `Online()` returns
+empty, and `AssignOne` leaves conversations unassigned for a CS to claim by
+hand. No code detects the outage; the TTL does.
 
 The panel is a separate matter and should not be described more kindly than it
 is. `onValue` keeps its last snapshot when the socket drops — the SDK does not
@@ -148,13 +161,19 @@ written, so a socket that dies between the two leaves nothing behind.
 
 ### 5. The mirror (`api`)
 
-A long-lived RTDB listener started in `cmd/api/main.go`, alongside the other
-startup wiring. On each snapshot it writes `cs:online:{uid}` with the existing
-TTL for every present agent. A ticker repeats the write every twenty seconds so
-the keys outlive their TTL only while the mirror is alive.
+A goroutine started in `cmd/api/main.go` alongside the other startup wiring,
+polling `GetShallow` on `/cs-presence` every fifteen seconds. `GetShallow`
+returns the keys without their values, which is all the mirror needs and keeps
+the response one line per agent.
 
-Absent agents are not deleted explicitly — they simply stop being refreshed and
-expire. That keeps the outage path and the departure path the same one path.
+Each pass writes `cs:online:{uid}` with the existing sixty-second TTL for every
+agent in the snapshot, and deletes the keys of agents that were in the previous
+snapshot but not this one.
+
+Fifteen seconds is the honest bound on how stale assignment can be. The panel
+is not bound by it — the browser has a real listener — so what the operator
+sees and what the round-robin acts on can differ for up to that long. Making
+them identical would need a streaming client the Go SDK does not provide.
 
 When Firebase is not configured the mirror does not start, and `cs:online:*` is
 never written by anything. Assignment then leaves everything unassigned, which
@@ -201,9 +220,11 @@ mirror. It is **not** added to `wa`, which is the point of the design.
 - **Custom token endpoint:** mints for the session's own user; refuses roles
   that cannot open the inbox; answers `503` when Firebase is unconfigured.
 - **Mirror:** given a snapshot of agent ids, writes exactly those keys with a
-  TTL; a snapshot that drops an agent stops refreshing that key. Tested against
-  the existing `FakePresence`-style seam and a fake snapshot source, not against
-  a real RTDB.
+  TTL; a snapshot that drops an agent **deletes** that key rather than waiting
+  for it to expire, which is the whole point of the migration; a snapshot that
+  fails to load leaves the existing keys alone, so one failed poll does not
+  empty the rotation. Tested against a fake snapshot source and the existing
+  `FakePresence`, never against a real RTDB.
 - **Assignment:** unchanged, and its existing tests must stay green untouched —
   that is the evidence `wa` was not disturbed.
 - **Browser presence:** `onDisconnect` is registered before the write. Asserted
