@@ -66,6 +66,7 @@ backend/tikman-api
 .claude/settings.json
 .claude/agents/
 .claude/worktrees/
+.worktrees/
 
 # Subagent-driven-development scratch (ledger, briefs, review packages)
 .superpowers/
