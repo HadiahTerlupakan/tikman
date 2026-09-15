@@ -34,6 +34,12 @@ function quoteAuthor(direction: CsMessage["direction"]): string {
   return direction === "out" ? "Anda" : "Pelanggan";
 }
 
+/** A reply with no sender was typed on the phone holding the number: every
+ * reply sent from TikMan carries the CS who wrote it. */
+function sentFromPhone(message: CsMessage): boolean {
+  return message.direction === "out" && !message.senderUserId;
+}
+
 /** Where a quoted message lives in the page, so clicking a quote can jump to
  * it. Ids come from the API, so they are unique across the thread. */
 function bubbleAnchor(messageId: string): string {
@@ -183,6 +189,7 @@ function MessageBubble({
             fontSize: 11,
           }}
         >
+          {sentFromPhone(message) && <span>dari HP</span>}
           <span>{clock(message.waTimestamp)}</span>
           {outgoing && <DeliveryMark status={message.status} />}
         </div>
