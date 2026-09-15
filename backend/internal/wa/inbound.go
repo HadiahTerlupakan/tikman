@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -36,6 +37,9 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 	if !keep {
 		return nil
 	}
+	if evt.Info.IsFromMe {
+		return h.handleFromPhone(ctx, evt, att)
+	}
 
 	conv, err := h.conversations.FindOrCreate(services.IncomingPeer{
 		WAAccountID: h.accountID,
@@ -46,11 +50,23 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 	if err != nil {
 		return err
 	}
+	return h.store(ctx, evt, att, conv.ID, h.messages.SaveInbound)
+}
 
+// saveFunc stores one direction of what WhatsApp delivers: SaveInbound for the
+// customer, SaveFromPhone for the phone holding the number.
+type saveFunc func(services.InboundMessage) (*models.CSMessage, bool, error)
+
+// store fetches what a message carries, saves it, and tells the browsers. Both
+// directions share it, so a failed save or a re-delivered duplicate cleans up
+// its attachment the same way whichever side sent it.
+func (h *inboundHandler) store(
+	ctx context.Context, evt *events.Message, att attachment, conversationID uuid.UUID, save saveFunc,
+) error {
 	body, media := h.fetch(ctx, evt, att)
 
-	msg, created, err := h.messages.SaveInbound(services.InboundMessage{
-		ConversationID: conv.ID,
+	msg, created, err := save(services.InboundMessage{
+		ConversationID: conversationID,
 		WAMessageID:    evt.Info.ID,
 		ReplyToWAID:    quotedStanzaID(evt.Message),
 		Kind:           att.kind,
@@ -60,7 +76,7 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		At:             evt.Info.Timestamp,
 	})
 	if err != nil {
-		// Safe to delete because SaveInbound is one transaction: an error here
+		// Safe to delete because each save is one transaction: an error here
 		// means no row was committed, so nothing names this file.
 		h.discard(evt, media)
 		return err
@@ -74,22 +90,23 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		return nil
 	}
 
-	h.announce(ctx, conv.ID, msg.ID)
+	h.announce(ctx, conversationID, msg.ID)
 	return nil
 }
 
 // attachmentFor decides whether a message belongs in this inbox at all, and
 // what shape it has.
 //
-// This inbox answers customers, not groups, not its own echo, and not
-// channels. The newsletter check cannot be folded into IsGroup: whatsmeow sets
-// that flag only for GroupServer and BroadcastServer, so a channel arrives
-// looking like a one-to-one chat. Nor does IsFromMe catch our own updates
-// coming back — WhatsApp delivers those to the number that posted them with
-// the channel as the sender, and a CS answering that thread would publish
-// their reply to the channel's subscribers.
+// This inbox holds one-to-one chats: a customer's messages, and what the phone
+// holding the number sent them (see handleFromPhone). Groups and channels stay
+// out. The newsletter check cannot be folded into IsGroup: whatsmeow sets that
+// flag only for GroupServer and BroadcastServer, so a channel arrives looking
+// like a one-to-one chat. Nor does IsFromMe catch our own updates coming back —
+// WhatsApp delivers those to the number that posted them with the channel as
+// the sender, and a CS answering that thread would publish their reply to the
+// channel's subscribers.
 func (h *inboundHandler) attachmentFor(evt *events.Message) (attachment, bool) {
-	if evt.Info.IsGroup || evt.Info.IsFromMe || evt.Info.Chat.Server == types.NewsletterServer {
+	if evt.Info.IsGroup || evt.Info.Chat.Server == types.NewsletterServer {
 		return attachment{}, false
 	}
 
