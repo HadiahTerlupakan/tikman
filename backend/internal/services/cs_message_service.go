@@ -43,12 +43,13 @@ type InboundMessage struct {
 
 	// ReplyToWAID is the WhatsApp id of the message this one quotes, empty when
 	// it quotes nothing. It is a WhatsApp id rather than one of ours because
-	// that is all the customer's phone sends; SaveInbound turns it into a row.
+	// that is all the sending WhatsApp client sends; arrivedRow turns it into
+	// a row.
 	ReplyToWAID string
 
-	// Preview is the link card the customer's own WhatsApp built and sent
+	// Preview is the link card the sending WhatsApp client built and sent
 	// with the message. Stored rather than resolved again: it costs no
-	// request, and it is exactly what the customer is looking at.
+	// request, and it is exactly what the sender saw when they sent it.
 	Preview *linkpreview.Preview
 }
 

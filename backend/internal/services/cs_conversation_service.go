@@ -88,7 +88,9 @@ func (s *CSConversationService) FindOrCreate(p IncomingPeer) (*models.CSConversa
 // Lookup only, and deliberately so: it exists for presence, which arrives for
 // customers who are typing rather than for customers who have written. Creating
 // a thread here would fill the inbox with rows holding nothing to answer, one
-// per stranger who opened the chat and thought better of it.
+// per stranger who opened the chat and thought better of it. The same
+// restraint now also serves messages the number's own devices send (see
+// threadForPhoneMessage): those must not open a thread either.
 func (s *CSConversationService) FindByPeer(waAccountID uuid.UUID, jid string) (*models.CSConversation, error) {
 	var conv models.CSConversation
 	err := s.db.Where("wa_account_id = ? AND customer_jid = ?", waAccountID, jid).First(&conv).Error

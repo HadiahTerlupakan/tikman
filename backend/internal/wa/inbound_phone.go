@@ -11,10 +11,11 @@ import (
 // handleFromPhone stores a message the phone holding this number sent to a
 // customer who already has a thread here.
 //
-// Only that phone can produce these: whatsmeow never encrypts a copy of what
-// this process sends for this process's own device, so nothing TikMan sent
-// comes back as IsFromMe. A chat the phone starts with someone who has no
-// thread stays out, so the phone's other chats do not fill the inbox.
+// The number's other devices — its phone, or WhatsApp Web/Desktop linked to
+// it — produce these, never this process: whatsmeow never encrypts a copy of
+// what this process sends for this process's own device, so nothing TikMan
+// sent comes back as IsFromMe. A chat the phone starts with someone who has
+// no thread stays out, so the phone's other chats do not fill the inbox.
 func (h *inboundHandler) handleFromPhone(ctx context.Context, evt *events.Message, att attachment) error {
 	conv, err := h.threadForPhoneMessage(evt)
 	if err != nil {

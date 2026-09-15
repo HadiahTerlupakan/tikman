@@ -84,7 +84,7 @@ func TestAPhoneMessageDeliveredTwiceShowsOnce(t *testing.T) {
 // The number's phone also carries chats that are not customers'. One the phone
 // starts with somebody who has no thread must not open one.
 func TestAPhoneMessageToSomeoneWithNoThreadOpensNothing(t *testing.T) {
-	handler, _, conversations, _ := inboundSetup(t)
+	handler, messages, conversations, convID := inboundSetup(t)
 	before, err := conversations.List(services.ConversationFilter{})
 	require.NoError(t, err)
 
@@ -95,6 +95,9 @@ func TestAPhoneMessageToSomeoneWithNoThreadOpensNothing(t *testing.T) {
 	after, err := conversations.List(services.ConversationFilter{})
 	require.NoError(t, err)
 	assert.Len(t, after, len(before))
+	history, err := messages.History(convID, 10, 0)
+	require.NoError(t, err)
+	assert.Empty(t, history)
 }
 
 // Letting IsFromMe through must not let the phone's groups and channels in with

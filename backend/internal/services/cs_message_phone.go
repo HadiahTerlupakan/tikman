@@ -9,13 +9,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// SaveFromPhone stores a message the phone holding the number sent to a
-// customer, answering false when WhatsApp had already delivered it.
+// SaveFromPhone stores a message the number sent from outside TikMan — its
+// phone, or another device linked to it — to a customer, answering false when
+// WhatsApp had already delivered it.
 //
-// A CS sometimes answers from that phone instead of from TikMan. Left out, the
+// A CS sometimes answers that way instead of from TikMan. Left out, the
 // thread stays in "Belum dibalas" with the customer already answered, and the
-// next CS answers them again. No sender is recorded: the phone is shared, and
-// naming the wrong CS would be worse than naming none.
+// next CS answers them again. No sender is recorded: the number's devices are
+// shared, and naming the wrong CS would be worse than naming none.
 func (s *CSMessageService) SaveFromPhone(in InboundMessage) (*models.CSMessage, bool, error) {
 	return s.saveArrived(in, phoneRow, markAnsweredFromPhone)
 }

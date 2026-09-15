@@ -53,10 +53,10 @@ type CSMessage struct {
 	ConversationID uuid.UUID        `gorm:"type:uuid;not null;index" json:"conversation_id"`
 	WAMessageID    *string          `gorm:"type:varchar(128);index" json:"wa_message_id,omitempty"`
 	Direction      MessageDirection `gorm:"type:varchar(3);not null" json:"direction"`
-	// SenderUserID is nil on an outbound row typed on the phone holding the
-	// number. Every reply TikMan sends carries the CS who wrote it (see
-	// CSMessageService.Queue), and that is the only thing that tells the two
-	// apart.
+	// SenderUserID is nil on an outbound row typed outside TikMan, on the
+	// phone or another device linked to the number. Every reply TikMan sends
+	// carries the CS who wrote it (see CSMessageService.Queue), and that is
+	// the only thing that tells the two apart.
 	SenderUserID  *uuid.UUID    `gorm:"type:uuid;index" json:"sender_user_id,omitempty"`
 	Kind          MessageKind   `gorm:"type:varchar(20);not null" json:"kind"`
 	Body          string        `gorm:"type:text" json:"body"`

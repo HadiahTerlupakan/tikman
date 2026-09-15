@@ -115,9 +115,18 @@ func (h *inboundHandler) attachmentFor(evt *events.Message) (attachment, bool) {
 		// Stickers, locations, contact cards and polls land here alongside the
 		// reactions and protocol messages. A CS who is never told cannot ask
 		// the customer to send it in a form the inbox can hold.
-		h.logger.Info("Ignoring a WhatsApp message this inbox cannot store",
+		fields := []zap.Field{
 			zap.String("wa_message_id", evt.Info.ID),
-			zap.String("shape", messageShape(evt.Message)))
+			zap.String("shape", messageShape(evt.Message)),
+		}
+		if evt.Info.IsFromMe {
+			// The number's own reactions, edits, deletes, stickers and self
+			// protocol messages hit this on every one-to-one chat; nobody is
+			// waiting to be told about those.
+			h.logger.Debug("Ignoring a WhatsApp message this inbox cannot store", fields...)
+			return attachment{}, false
+		}
+		h.logger.Info("Ignoring a WhatsApp message this inbox cannot store", fields...)
 		return attachment{}, false
 	}
 	return att, true
