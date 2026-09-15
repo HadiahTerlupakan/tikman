@@ -53,16 +53,20 @@ type CSMessage struct {
 	ConversationID uuid.UUID        `gorm:"type:uuid;not null;index" json:"conversation_id"`
 	WAMessageID    *string          `gorm:"type:varchar(128);index" json:"wa_message_id,omitempty"`
 	Direction      MessageDirection `gorm:"type:varchar(3);not null" json:"direction"`
-	SenderUserID   *uuid.UUID       `gorm:"type:uuid;index" json:"sender_user_id,omitempty"`
-	Kind           MessageKind      `gorm:"type:varchar(20);not null" json:"kind"`
-	Body           string           `gorm:"type:text" json:"body"`
-	MediaPath      string           `gorm:"type:text" json:"-"`
-	MediaMime      string           `gorm:"type:varchar(100)" json:"media_mime,omitempty"`
-	MediaSize      int64            `json:"media_size,omitempty"`
-	MediaFilename  string           `gorm:"type:varchar(255)" json:"media_filename,omitempty"`
-	Status         MessageStatus    `gorm:"type:varchar(20);not null;index" json:"status"`
-	FailReason     string           `gorm:"type:text" json:"fail_reason,omitempty"`
-	ReplyToID      *uuid.UUID       `gorm:"type:uuid" json:"reply_to_id,omitempty"`
+	// SenderUserID is nil on an outbound row typed on the phone holding the
+	// number. Every reply TikMan sends carries the CS who wrote it (see
+	// CSMessageService.Queue), and that is the only thing that tells the two
+	// apart.
+	SenderUserID  *uuid.UUID    `gorm:"type:uuid;index" json:"sender_user_id,omitempty"`
+	Kind          MessageKind   `gorm:"type:varchar(20);not null" json:"kind"`
+	Body          string        `gorm:"type:text" json:"body"`
+	MediaPath     string        `gorm:"type:text" json:"-"`
+	MediaMime     string        `gorm:"type:varchar(100)" json:"media_mime,omitempty"`
+	MediaSize     int64         `json:"media_size,omitempty"`
+	MediaFilename string        `gorm:"type:varchar(255)" json:"media_filename,omitempty"`
+	Status        MessageStatus `gorm:"type:varchar(20);not null;index" json:"status"`
+	FailReason    string        `gorm:"type:text" json:"fail_reason,omitempty"`
+	ReplyToID     *uuid.UUID    `gorm:"type:uuid" json:"reply_to_id,omitempty"`
 
 	// The link card, stored rather than resolved on display: an outgoing one
 	// is what the wa process already fetched to attach to the message, and an

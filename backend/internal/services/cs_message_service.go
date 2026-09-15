@@ -66,10 +66,21 @@ func NewCSMessageService(db *gorm.DB, conversations *CSConversationService) *CSM
 // SaveInbound stores an incoming message, answering false when this WhatsApp
 // message was already stored. WhatsApp re-delivers events it is unsure about,
 // and the duplicate would otherwise be shown to the CS and counted as unread.
+func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bool, error) {
+	return s.saveArrived(in, inboundRow, bumpConversation)
+}
+
+// saveArrived stores one message WhatsApp delivered, skipping one already
+// stored. row renders it and touch updates its thread; the duplicate check and
+// the transaction are shared so the two directions cannot drift apart on them.
 //
 // The lookup is done here as well as by the partial unique index in migration
 // 41, because SQLite tests never get that index.
-func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bool, error) {
+func (s *CSMessageService) saveArrived(
+	in InboundMessage,
+	row func(*gorm.DB, InboundMessage) models.CSMessage,
+	touch func(*gorm.DB, uuid.UUID, time.Time) error,
+) (*models.CSMessage, bool, error) {
 	var (
 		stored  models.CSMessage
 		created bool
@@ -77,7 +88,7 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 
 	// One transaction, for two reasons. The caller in the wa process deletes the
 	// attachment when this answers with an error, so a message row that survived
-	// a failed conversation bump would have its file deleted out from under it —
+	// a failed thread update would have its file deleted out from under it —
 	// and nothing repairs that, because Sweep tolerates a missing file. And a
 	// message stored behind a stale last_message_at would sit in the inbox
 	// without surfacing. Storing the message and the inbox knowing about it are
@@ -91,12 +102,11 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 			return fmt.Errorf("look for existing message: %w", lookup)
 		}
 
-		stored = inboundRow(tx, in)
-
+		stored = row(tx, in)
 		if err := tx.Create(&stored).Error; err != nil {
-			return fmt.Errorf("store inbound message: %w", err)
+			return fmt.Errorf("store message from whatsapp: %w", err)
 		}
-		if err := bumpConversation(tx, in.ConversationID, in.At); err != nil {
+		if err := touch(tx, in.ConversationID, in.At); err != nil {
 			return err
 		}
 

@@ -13,22 +13,29 @@ import (
 // The column-level edits a stored message goes through, and the link preview
 // fields that ride with it.
 
-// inboundRow renders an arriving message as the row that will hold it. It runs
-// on the caller's transaction because the quoted message it points at must be
-// looked up in the same one.
+// inboundRow renders a customer's message as the row that will hold it.
 func inboundRow(tx *gorm.DB, in InboundMessage) models.CSMessage {
+	return arrivedRow(tx, in, models.MessageIn, models.MessageDelivered)
+}
+
+// arrivedRow renders a message WhatsApp delivered as the row that will hold
+// it. It runs on the caller's transaction because the quoted message it points
+// at must be looked up in the same one.
+func arrivedRow(
+	tx *gorm.DB, in InboundMessage, direction models.MessageDirection, status models.MessageStatus,
+) models.CSMessage {
 	waID := in.WAMessageID
 	row := models.CSMessage{
 		ConversationID:     in.ConversationID,
 		WAMessageID:        &waID,
-		Direction:          models.MessageIn,
+		Direction:          direction,
 		Kind:               in.Kind,
 		Body:               in.Body,
 		PreviewURL:         previewURL(in.Preview),
 		PreviewTitle:       previewTitle(in.Preview),
 		PreviewDescription: previewDescription(in.Preview),
 		PreviewThumbnail:   previewThumbnail(in.Preview),
-		Status:             models.MessageDelivered,
+		Status:             status,
 		ReplyToID:          quotedRow(tx, in.ConversationID, in.ReplyToWAID),
 		WATimestamp:        in.At,
 	}
