@@ -34,7 +34,7 @@ export interface PresenceRef {
 }
 
 /** How each claim attempt turned out. Both directions are news: a blip that
- * loses the node takes the agent out of the rotation, and the reconnect that
+ * loses the node takes the agent off the online list, and the reconnect that
  * re-writes it puts them back, and the inbox has to be able to say so. */
 export interface ClaimReporter {
   onClaimed: () => void;

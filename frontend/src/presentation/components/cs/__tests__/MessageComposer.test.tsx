@@ -15,8 +15,9 @@ const conversation = {
 
 describe("MessageComposer", () => {
   // A greyed-out button with no explanation reads as a broken page. The CS
-  // needs to know it is held by someone, and that taking over is the way in.
-  it("says who holds the thread instead of just disabling the button", () => {
+  // needs to know who is serving the customer, and that taking over is the
+  // way in.
+  it("says who is serving the thread instead of just disabling the button", () => {
     render(
       <MessageComposer
         conversation={{ ...conversation, assignedUserId: "someone-else" }}
@@ -29,9 +30,72 @@ describe("MessageComposer", () => {
       />,
     );
 
-    expect(screen.getByText(/Dipegang Budi CS/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /ambil alih/i })).toBeEnabled();
+    expect(screen.getByText("Sedang dilayani Budi CS")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^ambil alih$/i })).toBeEnabled();
     expect(screen.queryByRole("button", { name: /^kirim$/i })).toBeNull();
+  });
+
+  // Taking a customer from a colleague mid-conversation is the collision the
+  // inbox exists to prevent, so it is never one stray click.
+  it("asks before taking over a thread someone else is serving", async () => {
+    const onTakeOver = vi.fn();
+    render(
+      <MessageComposer
+        conversation={{ ...conversation, assignedUserId: "someone-else" }}
+        currentUserId="me"
+        holderName="Budi CS"
+        onSend={vi.fn()}
+        onTakeOver={onTakeOver}
+        onTypingChange={vi.fn()}
+        onAttach={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /^ambil alih$/i }),
+    );
+    expect(
+      await screen.findByText(
+        "Percakapan ini sedang dilayani Budi CS. Ambil alih?",
+      ),
+    ).toBeInTheDocument();
+    expect(onTakeOver).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /ya, ambil alih/i }),
+    );
+    expect(onTakeOver).toHaveBeenCalledTimes(1);
+  });
+
+  // Opening a thread makes nobody its holder; answering it does. Whoever
+  // replies first is the one serving the customer, and is told so before
+  // they send.
+  it("lets anyone answer a thread nobody holds", () => {
+    render(
+      <MessageComposer
+        conversation={{
+          ...conversation,
+          status: "unassigned",
+          assignedUserId: undefined,
+        }}
+        currentUserId="me"
+        holderName=""
+        onSend={vi.fn()}
+        onTakeOver={vi.fn()}
+        onTypingChange={vi.fn()}
+        onAttach={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /^kirim$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Belum dipegang — balasan Anda akan menjadikan Anda yang melayani percakapan ini.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ambil alih/i })).toBeNull();
   });
 
   it("lets the holder send", () => {

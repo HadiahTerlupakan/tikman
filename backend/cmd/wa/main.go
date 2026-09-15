@@ -28,8 +28,6 @@ const (
 	// drain paces itself between sends, and a long batch would keep a later
 	// announcement waiting behind it.
 	outboxBatch = 20
-	// assignSweep picks up the threads that arrived while nobody was online.
-	assignSweep = 1 * time.Minute
 	// mediaSweep is how often expired attachments are removed from disk.
 	mediaSweep = 24 * time.Hour
 	// avatarSweep is how often profile photos are looked at. Faces change
@@ -98,7 +96,6 @@ func main() {
 
 	conversations := services.NewCSConversationService(db)
 	messages := services.NewCSMessageService(db, conversations)
-	assignment := services.NewCSAssignmentService(db, conversations, services.NewRedisPresence(redisClient))
 	retention := services.NewCSMediaRetention(db, cfg.WAMediaDir, cfg.WAMediaRetentionDays)
 	channels := services.NewCSChannelService(db)
 	broadcastPosts := services.NewCSBroadcastPostService(db)
@@ -110,7 +107,6 @@ func main() {
 		redis:          redisClient,
 		conversations:  conversations,
 		messages:       messages,
-		assignment:     assignment,
 		channels:       channels,
 		broadcastPosts: broadcastPosts,
 		logger:         logger,
@@ -124,7 +120,6 @@ func main() {
 	go controlLoop(ctx, redisClient, live, logger)
 	go drainOnAnnouncement(ctx, redisClient, live, logger)
 	go presenceLoop(ctx, redisClient, live, conversations, logger)
-	go every(ctx, assignSweep, func() { assignWaiting(ctx, assignment, logger) })
 	go func() {
 		// Once at startup as well as on the ticker: a process that is restarted
 		// more often than once a day would otherwise never sweep at all.
@@ -276,17 +271,6 @@ func drainBroadcastOutbox(ctx context.Context, drainer *wa.BroadcastDrainer, log
 	}
 	if sent > 0 {
 		logger.Info("Posted queued announcements", zap.Int("sent", sent))
-	}
-}
-
-func assignWaiting(ctx context.Context, assignment *services.CSAssignmentService, logger *zap.Logger) {
-	assigned, err := assignment.AssignWaiting(ctx)
-	if err != nil {
-		logger.Error("Failed to assign waiting conversations", zap.Error(err))
-		return
-	}
-	if assigned > 0 {
-		logger.Info("Assigned waiting conversations", zap.Int("count", assigned))
 	}
 }
 

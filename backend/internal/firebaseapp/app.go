@@ -1,8 +1,8 @@
 // Package firebaseapp builds the one Firebase app the backend uses.
 //
-// Push, custom tokens and the presence mirror are three clients off a single
-// service account; constructing an app per consumer would open three
-// connections to the same project and give each its own failure mode.
+// Push and custom tokens are two clients off a single service account;
+// constructing an app per consumer would open two connections to the same
+// project and give each its own failure mode.
 package firebaseapp
 
 import (

@@ -38,7 +38,6 @@ type Options struct {
 	Logger        *zap.Logger
 	Conversations *services.CSConversationService
 	Messages      *services.CSMessageService
-	Assignment    *services.CSAssignmentService
 	MediaRoot     string
 }
 
@@ -106,7 +105,6 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		accountID:     opt.AccountID,
 		conversations: opt.Conversations,
 		messages:      opt.Messages,
-		assignment:    opt.Assignment,
 		publisher:     opt.Publisher,
 		media:         mediaStore{root: opt.MediaRoot},
 		logger:        opt.Logger,

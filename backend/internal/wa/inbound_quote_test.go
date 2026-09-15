@@ -18,14 +18,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// nobodyOnline is the rotation with no agents in it, which is what makes
-// AssignOne a no-op — this test is about storage, not about who answers.
-type nobodyOnline struct{}
-
-func (nobodyOnline) MarkOnline(context.Context, uuid.UUID) error { return nil }
-func (nobodyOnline) Online(context.Context) ([]uuid.UUID, error) { return nil, nil }
-func (nobodyOnline) NextTurn(context.Context) (uint64, error)    { return 0, nil }
-
 // inboundSetup builds the handler over a real database. The Redis client points
 // at a port nothing listens on: publishing is a nudge to the browsers and its
 // failure is logged and ignored, so a dead client exercises the same path a
@@ -44,7 +36,6 @@ func inboundSetup(t *testing.T) (*inboundHandler, *services.CSMessageService, *s
 		accountID:     account.ID,
 		conversations: conversations,
 		messages:      messages,
-		assignment:    services.NewCSAssignmentService(db, conversations, nobodyOnline{}),
 		publisher:     NewPublisher(dead),
 		logger:        zap.NewNop(),
 	}, messages, conversations, conv.ID

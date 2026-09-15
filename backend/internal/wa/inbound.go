@@ -23,7 +23,6 @@ type inboundHandler struct {
 	accountID     uuid.UUID
 	conversations *services.CSConversationService
 	messages      *services.CSMessageService
-	assignment    *services.CSAssignmentService
 	publisher     *Publisher
 	media         mediaStore
 	logger        *zap.Logger
@@ -75,7 +74,7 @@ func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error 
 		return nil
 	}
 
-	h.assignAndAnnounce(ctx, conv.ID, msg.ID)
+	h.announce(ctx, conv.ID, msg.ID)
 	return nil
 }
 
@@ -107,16 +106,14 @@ func (h *inboundHandler) attachmentFor(evt *events.Message) (attachment, bool) {
 	return att, true
 }
 
-// assignAndAnnounce hands the thread to a CS and tells the browsers. Neither
-// step decides whether the message was stored, and both have a safety net:
-// AssignWaiting sweeps every minute, and a browser that misses the
-// announcement still sees the message on its next poll.
-func (h *inboundHandler) assignAndAnnounce(ctx context.Context, conversationID, messageID uuid.UUID) {
-	if _, err := h.assignment.AssignOne(ctx, conversationID); err != nil {
-		h.logger.Error("Could not assign an incoming conversation",
-			zap.String("conversation_id", conversationID.String()), zap.Error(err))
-	}
-
+// announce tells the browsers a message arrived. It does not decide whether the
+// message was stored, and a browser that misses it still sees the message on its
+// next poll.
+//
+// Nobody is handed the thread here. Handing it round the agents who had the
+// inbox open made whoever happened to be looking its holder; the first CS to
+// answer is who serves it now (see CSConversationService.ClaimForReply).
+func (h *inboundHandler) announce(ctx context.Context, conversationID, messageID uuid.UUID) {
 	err := h.publisher.Publish(ctx, Event{
 		Type:           EventMessage,
 		ConversationID: conversationID.String(),

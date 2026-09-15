@@ -71,7 +71,8 @@ func (h *CSHandler) sign(userID uuid.UUID, body string) string {
 	return signReply(body, user.Initials)
 }
 
-// Send queues a text reply on a thread the caller holds.
+// Send queues a text reply on a thread the caller holds, or claims one nobody
+// holds (see holdForReply).
 func (h *CSHandler) Send(c *gin.Context) {
 	convID, ok := pathUUID(c, "id", "INVALID_CONVERSATION_ID")
 	if !ok {
@@ -83,13 +84,11 @@ func (h *CSHandler) Send(c *gin.Context) {
 	}
 
 	userID, _ := middleware.GetUserID(c)
-	if err := h.conversations.EnsureHolder(convID, userID); err != nil {
-		h.refuseNotHolder(c, convID, err, "SEND_FAILED")
-		return
-	}
-
 	quoted, ok := h.quoteTarget(c, convID, req.ReplyToID, "SEND_FAILED")
 	if !ok {
+		return
+	}
+	if !h.holdForReply(c, convID, userID, "SEND_FAILED") {
 		return
 	}
 
@@ -104,9 +103,10 @@ func (h *CSHandler) Send(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": msg})
 }
 
-// SendMedia queues an attachment on a thread the caller holds. The file is
-// stored under mediaRoot before the message row is written, the same way a
-// media message arriving from WhatsApp is stored before its row.
+// SendMedia queues an attachment on a thread the caller holds, or claims one
+// nobody holds. The file is stored under mediaRoot before the message row is
+// written, the same way a media message arriving from WhatsApp is stored
+// before its row.
 func (h *CSHandler) SendMedia(c *gin.Context) {
 	convID, ok := pathUUID(c, "id", "INVALID_CONVERSATION_ID")
 	if !ok {
@@ -114,11 +114,6 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 	}
 
 	userID, _ := middleware.GetUserID(c)
-	if err := h.conversations.EnsureHolder(convID, userID); err != nil {
-		h.refuseNotHolder(c, convID, err, "SEND_MEDIA_FAILED")
-		return
-	}
-
 	quoted, ok := h.quoteTarget(c, convID, c.Query("reply_to_id"), "SEND_MEDIA_FAILED")
 	if !ok {
 		return
@@ -126,6 +121,10 @@ func (h *CSHandler) SendMedia(c *gin.Context) {
 
 	media, mime, ok := h.acceptUpload(c)
 	if !ok {
+		return
+	}
+	if !h.holdForReply(c, convID, userID, "SEND_MEDIA_FAILED") {
+		h.removeOrphanedUpload(media.Path)
 		return
 	}
 
@@ -212,14 +211,39 @@ func (h *CSHandler) refuseNotHolder(c *gin.Context, convID uuid.UUID, err error,
 		return
 	}
 
+	// The name the inbox shows, so a CS who lost the race to answer knows who
+	// won it.
 	holder := "orang lain"
 	if conv, gerr := h.conversations.Get(convID); gerr == nil && conv.AssignedUserID != nil {
-		holder = conv.AssignedUserID.String()
+		if user, uerr := h.users.GetByID(*conv.AssignedUserID); uerr == nil {
+			holder = user.Username
+		}
 	}
 	c.JSON(http.StatusConflict, ErrorResponse{
-		Error: fmt.Sprintf("percakapan ini sedang dipegang oleh %s", holder),
+		Error: fmt.Sprintf("Percakapan ini sedang dilayani %s", holder),
 		Code:  "NOT_HOLDER",
 	})
+}
+
+// holdForReply lets the sender answer: it claims a thread nobody holds, or
+// confirms they already hold it, and answers the request itself on a refusal.
+// Opening a thread never assigns it; answering is what makes a CS the one who
+// serves the customer. A claim is audited and announced like any other
+// handover, so the other agents' screens stop offering the thread.
+func (h *CSHandler) holdForReply(c *gin.Context, convID, userID uuid.UUID, code string) bool {
+	claimed, err := h.conversations.ClaimForReply(convID, userID)
+	if err != nil {
+		h.refuseNotHolder(c, convID, err, code)
+		return false
+	}
+	if claimed {
+		h.auditHandover(c, convID, nil, userID)
+		h.announceEvent(c.Request.Context(), wa.Event{
+			Type:           wa.EventAssignment,
+			ConversationID: convID.String(),
+		})
+	}
+	return true
 }
 
 // announce tells other CS browsers about a new reply and wakes the wa process

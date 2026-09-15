@@ -139,7 +139,7 @@ describe("claimWhileConnected", () => {
     );
   });
 
-  it("reports each attempt so the inbox can say whether it is in the rotation", async () => {
+  it("reports each attempt so the inbox can say whether it is listed online", async () => {
     const onClaimed = vi.fn();
     const onFailed = vi.fn();
     const failure = new Error("permission_denied");

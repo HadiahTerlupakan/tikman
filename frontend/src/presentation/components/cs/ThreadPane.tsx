@@ -10,6 +10,7 @@ import {
   chatBackdropImage,
   chatBackdropSize,
 } from "@/shared/theme/chatBackdrop";
+import { mayReply } from "./holding";
 import { MessageComposer } from "./MessageComposer";
 import { MessageThread } from "./MessageThread";
 import { ThreadHeader } from "./ThreadHeader";
@@ -52,9 +53,10 @@ interface ThreadPaneProps {
 
 /**
  * One conversation being worked: who it is with, what was said, and the box to
- * answer in. Everything here is gated on holding the thread — a CS who does
- * not hold it reads freely but is offered no way to reply, because the API
- * would refuse the send and there is nothing they could do about it.
+ * answer in. Replying is gated on mayReply — a CS reads any thread freely, but
+ * is offered a reply only on their own or one nobody holds, because the API
+ * would refuse any other send and there is nothing they could do about it.
+ * Handing the thread on stays with its holder.
  */
 export function ThreadPane({
   conversation,
@@ -140,7 +142,9 @@ export function ThreadPane({
             <MessageThread
               messages={messages}
               onRetry={onSend}
-              onReply={isHolder ? onReply : undefined}
+              onReply={
+                mayReply(conversation, currentUserId) ? onReply : undefined
+              }
               onDelete={canPurge ? onDeleteMessage : undefined}
             />
           )}

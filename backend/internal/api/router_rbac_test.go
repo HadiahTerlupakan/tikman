@@ -39,7 +39,7 @@ func rbacTestRouter(t *testing.T) (*gin.Engine, *auth.Store) {
 		AllowedOrigins: "http://localhost:3000",
 	}
 
-	router, _, _, _ := Setup(gin.New(), cfg, db, store, zap.NewNop(),
+	router, _, _ := Setup(gin.New(), cfg, db, store, zap.NewNop(),
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 	return router, store
 }

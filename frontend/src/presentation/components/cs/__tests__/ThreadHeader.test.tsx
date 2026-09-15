@@ -81,11 +81,11 @@ describe("ThreadHeader when the row is narrow", () => {
   };
 
   // At 375px the row had 318px for a back button, an avatar, the identity,
-  // a "Dipegang <name>" tag and a clear button. Only the identity flexes, so
+  // a "Dilayani <name>" tag and a clear button. Only the identity flexes, so
   // it was squeezed to 19px and antd's word-break shattered the number into a
   // 141px-tall column of two-digit fragments. The tag is what gives way: the
-  // composer directly below already says "Dipegang <name> — ambil alih dulu
-  // untuk membalas" whenever the reader is not the holder.
+  // composer directly below already says "Sedang dilayani <name>" whenever the
+  // reader is not the holder.
   it("drops the holder tag, which the composer below already states", () => {
     render(
       <ThreadHeader
@@ -96,7 +96,7 @@ describe("ThreadHeader when the row is narrow", () => {
       />,
     );
 
-    expect(screen.queryByText(/Dipegang/)).toBeNull();
+    expect(screen.queryByText(/Dilayani/)).toBeNull();
     expect(screen.getByText("6282126568833")).toBeInTheDocument();
   });
 
@@ -109,7 +109,7 @@ describe("ThreadHeader when the row is narrow", () => {
       />,
     );
 
-    expect(screen.getByText(/Dipegang Fayadh/)).toBeInTheDocument();
+    expect(screen.getByText(/Dilayani Fayadh/)).toBeInTheDocument();
   });
 
   // jsdom lays nothing out, so the guard itself is what can be asserted: a

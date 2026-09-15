@@ -140,9 +140,9 @@ export function ThreadHeader({
       ) : unheld ? (
         <Tag color="warning">Belum dipegang</Tag>
       ) : isHolder ? (
-        <Tag color="success">Anda yang pegang</Tag>
+        <Tag color="success">Anda yang melayani</Tag>
       ) : (
-        <Tag>Dipegang {holderName ?? "CS lain"}</Tag>
+        <Tag>Dilayani {holderName ?? "CS lain"}</Tag>
       )}
 
       {onClear && (

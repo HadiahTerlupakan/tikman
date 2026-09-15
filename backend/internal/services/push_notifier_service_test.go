@@ -16,7 +16,7 @@ import (
 )
 
 // FakePushSender records what it was asked to send instead of reaching a
-// real Firebase project, the same role FakePresence plays for Presence.
+// real Firebase project.
 type FakePushSender struct {
 	FIDs    []string
 	Title   string

@@ -13,19 +13,18 @@ import {
  * a live one — because none of them is something an agent can act on, and a
  * permanent banner is how a real warning stops being read. The other two are
  * the cases that cost something: a list frozen at its last snapshot, and an
- * agent the round-robin cannot reach.
+ * agent the rest of the team cannot see online.
  */
 export type PresenceStatus = "ok" | "stale" | "unclaimed";
 
 /**
  * The agents holding the inbox open, straight off the Realtime Database, plus
- * whether this browser is still hearing about them and still in the rotation
- * itself.
+ * whether this browser is still hearing about them and still listed itself.
  *
  * Claiming lives here rather than in the page because the claim and the panel
  * are one subscription's two ends: they share the sign-in, and the failure of
  * either is what `status` reports. Only the CS Inbox calls this hook, which is
- * what keeps someone reading the OLT map out of the rotation.
+ * what keeps someone reading the OLT map off the online list.
  *
  * Not React Query: there is nothing to fetch and nothing to invalidate. The
  * subscription pushes, and a query cache in front of it would only add a copy
@@ -97,8 +96,8 @@ export function useOnlineAgents(): { data: string[]; status: PresenceStatus } {
   return {
     data: ids,
     // A claim that is not standing outranks a stale list: the list being a
-    // little old costs the agent nothing, being out of the rotation costs them
-    // the shift.
+    // little old costs the agent nothing, being missing from it tells the team
+    // nobody is on this seat.
     status: unclaimed ? "unclaimed" : stale ? "stale" : "ok",
   };
 }

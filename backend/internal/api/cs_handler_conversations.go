@@ -26,7 +26,6 @@ type CSHandler struct {
 	channels      *services.CSChannelService
 	broadcasts    *services.CSBroadcastPostService
 	purge         *services.CSPurgeService
-	assignment    *services.CSAssignmentService
 	audit         *services.AuditService
 	onts          *services.ONTService
 	users         *services.UserService
@@ -45,7 +44,6 @@ func NewCSHandler(
 	channels *services.CSChannelService,
 	broadcasts *services.CSBroadcastPostService,
 	purge *services.CSPurgeService,
-	assignment *services.CSAssignmentService,
 	audit *services.AuditService,
 	onts *services.ONTService,
 	users *services.UserService,
@@ -62,7 +60,6 @@ func NewCSHandler(
 		channels:      channels,
 		broadcasts:    broadcasts,
 		purge:         purge,
-		assignment:    assignment,
 		audit:         audit,
 		onts:          onts,
 		users:         users,

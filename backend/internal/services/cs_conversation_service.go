@@ -13,7 +13,8 @@ import (
 )
 
 // ErrNotHolder is returned when someone tries to answer a conversation another
-// CS is holding. Round-robin decides who answers; this is what enforces it.
+// CS is holding. The first reply or a takeover decides who answers; this is
+// what enforces it.
 var ErrNotHolder = errors.New("percakapan sedang dipegang orang lain")
 
 // maxStoredPhone is the customer_phone column's width. An identifier we could
@@ -178,6 +179,27 @@ func (s *CSConversationService) EnsureHolder(conversationID, userID uuid.UUID) e
 		return ErrNotHolder
 	}
 	return nil
+}
+
+// ClaimForReply makes the CS answering a thread nobody holds its holder, and
+// otherwise checks that they already hold it. It answers whether this call made
+// the claim, so the caller audits and announces the handover exactly once.
+//
+// The status test lives in the UPDATE itself: two first replies checking
+// beforehand would both read "unassigned" and both go out. Postgres re-checks
+// the WHERE once the first has committed, so the second claims nothing and is
+// refused as not the holder.
+func (s *CSConversationService) ClaimForReply(conversationID, userID uuid.UUID) (bool, error) {
+	res := s.db.Model(&models.CSConversation{}).
+		Where("id = ? AND status = ?", conversationID, models.ConversationUnassigned).
+		Updates(map[string]any{"assigned_user_id": userID, "status": models.ConversationOpen})
+	if res.Error != nil {
+		return false, fmt.Errorf("claim conversation: %w", res.Error)
+	}
+	if res.RowsAffected > 0 {
+		return true, nil
+	}
+	return false, s.EnsureHolder(conversationID, userID)
 }
 
 // touchTx is Touch inside a caller's transaction, so that a message and the

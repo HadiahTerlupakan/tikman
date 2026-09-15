@@ -51,10 +51,10 @@ const presenceNotice: Partial<
     text: "Terputus — daftar ini mungkin sudah tidak akurat",
     color: colors.textMuted,
   },
-  // The one an agent needs most: the list being a little old costs them
-  // nothing, not being in the rotation costs them the shift.
+  // The list being a little old costs an agent nothing; not being listed at
+  // all tells the rest of the team nobody is on this seat.
   unclaimed: {
-    text: "Belum masuk rotasi — muat ulang halaman agar chat baru masuk",
+    text: "Anda belum tampil online untuk tim — muat ulang halaman",
     color: colors.warning,
   },
 };

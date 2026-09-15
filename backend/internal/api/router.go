@@ -26,7 +26,7 @@ const (
 	loginRequestsPerMinute = 10
 )
 
-func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener, *services.RedisPresence) {
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener) {
 	router := ginEngine
 
 	router.Use(corsMiddleware(cfg.AllowedOrigins))
@@ -34,7 +34,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 
 	router.GET("/health", NewHealthHandler(db, authStore).Check)
 
-	h, pushNotifier, pushListener, csPresence := newHandlers(cfg, db, authStore, logger, wgService, firebaseApp)
+	h, pushNotifier, pushListener := newHandlers(cfg, db, authStore, logger, wgService, firebaseApp)
 
 	api := router.Group("/api/v1")
 	authenticated := middleware.AuthMiddleware(authStore, logger)
@@ -46,7 +46,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	h.registerOperationsRoutes(api, authenticated)
 	h.registerVPNRoutes(api, authenticated)
 
-	return router, pushNotifier, pushListener, csPresence
+	return router, pushNotifier, pushListener
 }
 
 // registerAccountRoutes covers who is signed in and what the installation is

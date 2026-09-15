@@ -69,8 +69,6 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	accounts := services.NewCSAccountService(db)
 	channels := services.NewCSChannelService(db)
 	channelPosts := services.NewCSBroadcastPostService(db)
-	presence := services.NewFakePresence()
-	assignment := services.NewCSAssignmentService(db, conversations, presence)
 	logger := zap.NewNop()
 	audit := services.NewAuditService(db, logger)
 	onts := services.NewONTService(db)
@@ -84,7 +82,7 @@ func setupCSHandler(t *testing.T) *csHandlerEnv {
 	mediaRoot := t.TempDir()
 	handler := NewCSHandler(
 		conversations, messages, quickReplies, accounts, channels, channelPosts,
-		services.NewCSPurgeService(db, mediaRoot), assignment,
+		services.NewCSPurgeService(db, mediaRoot),
 		audit, onts, services.NewUserService(db), publisher, redisClient, logger,
 		mediaRoot,
 	)
@@ -191,7 +189,9 @@ func (e *csHandlerEnv) ont(t *testing.T, phone string) *models.ONT {
 }
 
 // A CS may read the whole inbox — the team seeing each other is what stops two
-// of them answering the same customer — but may only send on a thread they hold.
+// of them answering the same customer — but may not send on a thread someone
+// else holds. The refusal names that someone by the name the inbox shows, so a
+// CS who lost the race to answer knows who won it.
 func TestSendIsRefusedOnSomeoneElsesThread(t *testing.T) {
 	env := setupCSHandler(t)
 
@@ -205,7 +205,12 @@ func TestSendIsRefusedOnSomeoneElsesThread(t *testing.T) {
 	env.asUser(env.cs, models.UserRoleCS).ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusConflict, rec.Code)
-	assert.Contains(t, rec.Body.String(), "dipegang")
+	assert.Contains(t, rec.Body.String(), "NOT_HOLDER")
+	assert.Contains(t, rec.Body.String(), "sedang dilayani Rina Astuti")
+
+	var stored int64
+	require.NoError(t, env.db.Model(&models.CSMessage{}).Count(&stored).Error)
+	assert.Zero(t, stored, "a refused reply must leave no message behind")
 }
 
 func TestSendQueuesAMessageOnMyOwnThread(t *testing.T) {

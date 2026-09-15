@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ClipboardEvent } from "react";
-import { Alert, Button, Input, Space, Upload, message } from "antd";
+import { Button, Input, Typography, Upload, message } from "antd";
 import {
   CloseOutlined,
   PaperClipOutlined,
@@ -14,11 +14,14 @@ import type {
   CsQuickReply,
 } from "@/domain/entities";
 import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
+import { mayReply } from "./holding";
 import { PendingAttachment } from "./PendingAttachment";
 import { QuickReplyPicker } from "./QuickReplyPicker";
 import { QuotedBlock } from "./QuotedBlock";
+import { TakeOverNotice } from "./TakeOverNotice";
 
 const { TextArea } = Input;
+const { Text } = Typography;
 
 /** How often the "typing…" line is refreshed while a CS keeps writing. A CS
  * types faster than WhatsApp needs to hear about it, and the line looks
@@ -55,10 +58,9 @@ interface MessageComposerProps {
 }
 
 /**
- * A greyed-out send button with no reason reads as a broken page. When
- * someone else holds the thread, this says who — and offers the way in:
- * taking over is allowed and audited, not a dead end a CS has to ask around
- * about.
+ * The reply box, for a thread this CS may answer: their own, or one nobody
+ * holds yet — where the first reply is what makes them its holder. Anyone else
+ * is shown who is serving the customer instead (see TakeOverNotice).
  */
 export function MessageComposer({
   conversation,
@@ -76,7 +78,6 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const linkPreview = useLinkPreview(text);
-  const isHolder = conversation.assignedUserId === currentUserId;
   // The attachment waiting to be sent, kept with the thread it was added in:
   // shown in any other, it would go to the wrong customer.
   const [pending, setPending] = useState<{
@@ -137,28 +138,13 @@ export function MessageComposer({
     [],
   );
 
-  if (!isHolder) {
+  if (!mayReply(conversation, currentUserId)) {
     return (
-      <Space
-        direction="vertical"
-        style={{
-          width: "100%",
-          padding: "10px 12px",
-          borderTop: `1px solid ${colors.border}`,
-          background: colors.surface,
-        }}
-      >
-        <Alert
-          type="info"
-          showIcon
-          message={
-            conversation.assignedUserId
-              ? `Dipegang ${holderName} — ambil alih dulu untuk membalas`
-              : "Belum dipegang siapa pun — ambil alih untuk membalas"
-          }
-        />
-        <Button onClick={onTakeOver}>Ambil alih</Button>
-      </Space>
+      <TakeOverNotice
+        conversation={conversation}
+        holderName={holderName}
+        onTakeOver={onTakeOver}
+      />
     );
   }
 
@@ -202,6 +188,16 @@ export function MessageComposer({
         background: colors.surface,
       }}
     >
+      {conversation.status === "unassigned" && (
+        <Text
+          type="secondary"
+          style={{ display: "block", fontSize: 12, marginBottom: 6 }}
+        >
+          Belum dipegang — balasan Anda akan menjadikan Anda yang melayani
+          percakapan ini.
+        </Text>
+      )}
+
       {replyTo && (
         <div
           style={{

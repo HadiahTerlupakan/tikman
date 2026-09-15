@@ -24,7 +24,6 @@ type sessionDeps struct {
 	redis          *redis.Client
 	conversations  *services.CSConversationService
 	messages       *services.CSMessageService
-	assignment     *services.CSAssignmentService
 	channels       *services.CSChannelService
 	broadcastPosts *services.CSBroadcastPostService
 	logger         *zap.Logger
@@ -136,7 +135,6 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 		Logger:        s.deps.logger.With(zap.String("wa_account", account.Label)),
 		Conversations: s.deps.conversations,
 		Messages:      s.deps.messages,
-		Assignment:    s.deps.assignment,
 		MediaRoot:     s.deps.cfg.WAMediaDir,
 	})
 	if err != nil {
