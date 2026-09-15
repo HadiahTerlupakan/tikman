@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ThreadPane } from "../ThreadPane";
 import type { CsConversation, CsMessage } from "@/domain/entities";
@@ -133,8 +133,12 @@ describe("the conversation log", () => {
     log.scrollTop = 200;
     fireEvent.scroll(log);
 
-    await userEvent.type(screen.getByPlaceholderText("Tulis balasan"), "halo");
+    const box = screen.getByPlaceholderText("Tulis balasan");
+    await userEvent.type(box, "halo");
     await userEvent.click(screen.getByRole("button", { name: /^kirim$/i }));
+    // The composer clears itself once the send resolves; waiting for that
+    // keeps its state update inside the test.
+    await waitFor(() => expect(box).toHaveValue(""));
 
     expect(log.scrollTop).toBe(size.content);
   });
