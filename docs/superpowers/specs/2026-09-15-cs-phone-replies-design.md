@@ -63,6 +63,17 @@ chat pribadi atau urusan lain dari HP nomor CS ikut masuk ke inbox. Akibatnya,
 pesan pembuka yang dikirim CS dari HP ke pelanggan baru tidak terlihat di TikMan;
 thread muncul saat pelanggan membalas.
 
+Perangkat lain yang tertaut ke nomor itu, seperti WhatsApp Web atau Desktop,
+menghasilkan pesan `IsFromMe` yang sama, jadi balasan dari sana juga berlabel
+"dari HP".
+
+**Asumsi:** nomor CS tidak memakai pesan otomatis WhatsApp Business (sambutan,
+sedang tidak di tempat, atau balasan AI). Ini dikonfirmasi user pada 2026-09-16.
+Pesan otomatis dikirim oleh akun dan tiba sebagai `IsFromMe` tanpa penanda apa
+pun dari whatsmeow. Kalau fitur itu diaktifkan, pesan otomatis akan dianggap
+balasan dan mengeluarkan thread dari "Belum dibalas" sebelum ada orang yang
+menjawab. Desain ini harus ditinjau ulang sebelum fitur itu diaktifkan.
+
 ## Komponen
 
 ### 1. Pemilahan di `internal/wa/inbound.go`

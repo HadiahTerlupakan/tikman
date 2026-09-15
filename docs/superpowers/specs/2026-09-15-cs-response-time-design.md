@@ -58,6 +58,11 @@ yang dibaca, tanpa isi pesan.
   mana satu giliran berakhir dan giliran berikutnya dimulai, jadi diterapkan
   saat pencatatan.
 - **Dimulai dari nol.** Riwayat sebelum deploy tidak diisi ulang.
+- **Tanpa pesan otomatis WhatsApp Business**, dikonfirmasi user pada
+  2026-09-16. Balasan `phone` dianggap balasan manusia. Kalau pesan sambutan,
+  sedang tidak di tempat, atau balasan AI diaktifkan, pesan itu akan tercatat
+  sebagai giliran `phone` berdurasi hampir 0 menit dan menaikkan angka tim, jadi
+  desain ini harus ditinjau ulang lebih dulu.
 
 ## Aturan hitung
 
