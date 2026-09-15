@@ -14,6 +14,7 @@ import { MessageComposer } from "./MessageComposer";
 import { MessageThread } from "./MessageThread";
 import { ThreadHeader } from "./ThreadHeader";
 import { TransferPicker } from "./TransferPicker";
+import { useStickToBottom } from "./useStickToBottom";
 
 interface ThreadPaneProps {
   /** Absent until a CS picks a thread out of the inbox. */
@@ -82,6 +83,8 @@ export function ThreadPane({
   customerTyping,
   onTypingChange,
 }: ThreadPaneProps) {
+  const log = useStickToBottom(conversation?.id, messages, loading);
+
   if (!conversation) {
     return (
       <div
@@ -117,6 +120,10 @@ export function ThreadPane({
       />
 
       <div
+        ref={log.containerRef}
+        onScroll={log.onScroll}
+        role="log"
+        aria-label="Riwayat percakapan"
         style={{
           flex: 1,
           overflowY: "auto",
@@ -126,16 +133,18 @@ export function ThreadPane({
           backgroundSize: chatBackdropSize,
         }}
       >
-        {loading ? (
-          <Spin />
-        ) : (
-          <MessageThread
-            messages={messages}
-            onRetry={onSend}
-            onReply={isHolder ? onReply : undefined}
-            onDelete={canPurge ? onDeleteMessage : undefined}
-          />
-        )}
+        <div ref={log.contentRef}>
+          {loading ? (
+            <Spin />
+          ) : (
+            <MessageThread
+              messages={messages}
+              onRetry={onSend}
+              onReply={isHolder ? onReply : undefined}
+              onDelete={canPurge ? onDeleteMessage : undefined}
+            />
+          )}
+        </div>
       </div>
 
       {isHolder && (
@@ -163,9 +172,15 @@ export function ThreadPane({
             ? holderNames[conversation.assignedUserId] ?? "pengguna lain"
             : ""
         }
-        onSend={onSend}
+        onSend={(body) => {
+          log.stick();
+          return onSend(body);
+        }}
         onTakeOver={onTakeOver}
-        onAttach={onAttach}
+        onAttach={(file, caption) => {
+          log.stick();
+          return onAttach(file, caption);
+        }}
         quickReplies={quickReplies}
         sending={sending}
         attaching={attaching}
