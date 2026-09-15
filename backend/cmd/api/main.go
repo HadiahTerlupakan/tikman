@@ -29,6 +29,10 @@ import (
 // so a peer that drops is noticed within one cycle.
 const wireguardStatusInterval = 30 * time.Second
 
+// workerAlertInterval matches the worker's one-minute heartbeat: checking more
+// often cannot see a change sooner.
+const workerAlertInterval = time.Minute
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -130,6 +134,9 @@ func main() {
 		pushNotifier.SetSender(pushClient)
 		go pushListener.Run(context.Background())
 		log.Info("Push notification listener started")
+		workerAlerts := services.NewWorkerAlertService(db, pushClient, services.NewPushService(db), log)
+		go workerAlerts.Run(context.Background(), workerAlertInterval)
+		log.Info("Worker heartbeat alerts started")
 	} else {
 		log.Info("FIREBASE_SERVICE_ACCOUNT_JSON_B64 not set — push notifications disabled")
 	}

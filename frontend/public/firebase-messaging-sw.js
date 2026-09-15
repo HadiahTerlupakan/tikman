@@ -38,14 +38,18 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  // A push that names a page (the worker alert names the dashboard) opens it;
+  // customer messages name none and keep landing in the inbox.
+  const target = event.notification.data?.url || "/cs";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      // The path, not a substring: every page's URL contains "/".
       for (const client of windowClients) {
-        if (client.url.includes("/cs") && "focus" in client) {
+        if (new URL(client.url).pathname === target && "focus" in client) {
           return client.focus();
         }
       }
-      return clients.openWindow("/cs");
+      return clients.openWindow(target);
     }),
   );
 });

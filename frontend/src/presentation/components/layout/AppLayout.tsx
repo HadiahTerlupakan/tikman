@@ -122,11 +122,11 @@ export function AppLayout() {
         console.warn("Could not listen for push registration", error),
       );
 
-    listenForForegroundMessages((title, body) => {
+    listenForForegroundMessages((title, body, url) => {
       // The OS tone belongs to notifications it renders itself; one shown from
       // an open tab is silent unless the page makes a sound of its own.
       void playNotificationChime();
-      void showLocalNotification(title, body).catch((error) =>
+      void showLocalNotification(title, body, url).catch((error) =>
         console.warn("Could not show a foreground notification", error),
       );
     })

@@ -132,9 +132,15 @@ export async function requestPushPermission(): Promise<PushPermission> {
 export async function showLocalNotification(
   title: string,
   body: string,
+  url?: string,
 ): Promise<void> {
   const registration = await navigator.serviceWorker.ready;
-  await registration.showNotification(title, { body });
+  // The service worker's click handler reads the url from here, the same
+  // place a background push carries it.
+  await registration.showNotification(title, {
+    body,
+    data: url ? { url } : undefined,
+  });
 }
 
 /** Listens for pushes that arrive while a tab is focused. The payload is
@@ -143,11 +149,15 @@ export async function showLocalNotification(
  * Firebase is not configured, so a caller can always treat the return value as
  * safe to call in a cleanup function. */
 export async function listenForForegroundMessages(
-  onIncoming: (title: string, body: string) => void,
+  onIncoming: (title: string, body: string, url?: string) => void,
 ): Promise<() => void> {
   const instance = await messaging();
   if (!instance) return () => {};
   return onMessage(instance, (payload) => {
-    onIncoming(payload.data?.title ?? "", payload.data?.body ?? "");
+    onIncoming(
+      payload.data?.title ?? "",
+      payload.data?.body ?? "",
+      payload.data?.url,
+    );
   });
 }
