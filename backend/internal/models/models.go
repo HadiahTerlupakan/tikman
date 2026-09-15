@@ -29,5 +29,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&WAChannel{},
 		&WABroadcastPost{},
 		&PushSubscription{},
+		&CSWait{},
 	)
 }
