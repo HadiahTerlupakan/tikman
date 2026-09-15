@@ -154,7 +154,12 @@ which is why the Jenkins Preflight stage checks for it.
 `worker` and `trapd` both share this network namespace via
 `network_mode: service:api`, so they hold `api`'s interfaces and port bindings:
 recreating `api` while they run fails, and stopping them first is what the
-deploy order in `Jenkinsfile` is about. Port UDP 51820 must be opened in the VPS
+deploy order in `Jenkinsfile` is about. At boot Docker restarts containers
+without honouring `depends_on`, and a `worker` or `trapd` restarted while `api`
+is itself restarting cannot join its namespace and is never retried — after the
+reboot of 2026-09-12 that left polling and traps down for two days. That is why
+`database.Connect` waits up to two minutes for Postgres instead of exiting on the
+first refusal. Port UDP 51820 must be opened in the VPS
 provider's firewall, because the site initiating the connection won't be able to
 handshake without it.
 
