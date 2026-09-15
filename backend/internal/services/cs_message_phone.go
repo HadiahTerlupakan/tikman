@@ -18,7 +18,19 @@ import (
 // next CS answers them again. No sender is recorded: the number's devices are
 // shared, and naming the wrong CS would be worse than naming none.
 func (s *CSMessageService) SaveFromPhone(in InboundMessage) (*models.CSMessage, bool, error) {
-	return s.saveArrived(in, phoneRow, markAnsweredFromPhone)
+	return s.saveArrived(in, phoneRow, s.phoneMessageStored)
+}
+
+// phoneMessageStored brings the thread up to date and records the wait this
+// answer ended, under the same savepoint rule as a customer's message.
+func (s *CSMessageService) phoneMessageStored(tx *gorm.DB, msg *models.CSMessage) error {
+	if err := markAnsweredFromPhone(tx, msg.ConversationID, msg.WATimestamp); err != nil {
+		return err
+	}
+	s.conversations.waits.record(tx, msg.ConversationID, "phone reply", func(tx *gorm.DB) error {
+		return answeredFromPhone(tx, msg)
+	})
+	return nil
 }
 
 // phoneRow renders a phone message as an outbound row with no sender, which is

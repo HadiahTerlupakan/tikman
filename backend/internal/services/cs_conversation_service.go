@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/utils"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -25,12 +26,21 @@ const maxStoredPhone = 20
 // CSConversationService owns a customer's thread: who they are, which ONT is
 // theirs, who is holding the thread, and when it is done.
 type CSConversationService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	waits csWaits
 }
 
 // NewCSConversationService constructs a CSConversationService.
 func NewCSConversationService(db *gorm.DB) *CSConversationService {
-	return &CSConversationService{db: db}
+	return &CSConversationService{db: db, waits: csWaits{logger: zap.NewNop()}}
+}
+
+// SetWaitLogger names where a failure to record a CS wait is reported. cmd/api
+// and cmd/wa set it once after construction, the way SetSender is wired on
+// PushNotifierService; until then those failures are dropped, which is what
+// tests want.
+func (s *CSConversationService) SetWaitLogger(logger *zap.Logger) {
+	s.waits.logger = logger
 }
 
 // IncomingPeer is a customer as WhatsApp describes them.

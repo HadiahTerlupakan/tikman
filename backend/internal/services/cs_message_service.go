@@ -68,7 +68,20 @@ func NewCSMessageService(db *gorm.DB, conversations *CSConversationService) *CSM
 // message was already stored. WhatsApp re-delivers events it is unsure about,
 // and the duplicate would otherwise be shown to the CS and counted as unread.
 func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bool, error) {
-	return s.saveArrived(in, inboundRow, bumpConversation)
+	return s.saveArrived(in, inboundRow, s.customerMessageStored)
+}
+
+// customerMessageStored brings the thread up to date and records that the
+// customer is waiting. The wait is bookkeeping: it rides a savepoint, so a
+// failure there costs the figure and not the message.
+func (s *CSMessageService) customerMessageStored(tx *gorm.DB, msg *models.CSMessage) error {
+	if err := bumpConversation(tx, msg.ConversationID, msg.WATimestamp); err != nil {
+		return err
+	}
+	s.conversations.waits.record(tx, msg.ConversationID, "customer message", func(tx *gorm.DB) error {
+		return customerWrote(tx, msg)
+	})
+	return nil
 }
 
 // saveArrived stores one message WhatsApp delivered, skipping one already
@@ -80,7 +93,7 @@ func (s *CSMessageService) SaveInbound(in InboundMessage) (*models.CSMessage, bo
 func (s *CSMessageService) saveArrived(
 	in InboundMessage,
 	row func(*gorm.DB, InboundMessage) models.CSMessage,
-	touch func(*gorm.DB, uuid.UUID, time.Time) error,
+	touch func(*gorm.DB, *models.CSMessage) error,
 ) (*models.CSMessage, bool, error) {
 	var (
 		stored  models.CSMessage
@@ -107,7 +120,7 @@ func (s *CSMessageService) saveArrived(
 		if err := tx.Create(&stored).Error; err != nil {
 			return fmt.Errorf("store message from whatsapp: %w", err)
 		}
-		if err := touch(tx, in.ConversationID, in.At); err != nil {
+		if err := touch(tx, &stored); err != nil {
 			return err
 		}
 

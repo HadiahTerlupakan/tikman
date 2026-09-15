@@ -95,6 +95,7 @@ func main() {
 	}
 
 	conversations := services.NewCSConversationService(db)
+	conversations.SetWaitLogger(logger)
 	messages := services.NewCSMessageService(db, conversations)
 	retention := services.NewCSMediaRetention(db, cfg.WAMediaDir, cfg.WAMediaRetentionDays)
 	channels := services.NewCSChannelService(db)
