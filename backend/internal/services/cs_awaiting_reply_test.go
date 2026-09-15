@@ -26,7 +26,7 @@ func thread(t *testing.T, s *CSConversationService, acc models.WAAccount, phone 
 	return conv
 }
 
-func customerWrote(t *testing.T, m *CSMessageService, convID uuid.UUID, waID string) {
+func storeCustomerMessage(t *testing.T, m *CSMessageService, convID uuid.UUID, waID string) {
 	t.Helper()
 	_, _, err := m.SaveInbound(InboundMessage{
 		ConversationID: convID, WAMessageID: waID,
@@ -42,8 +42,8 @@ func TestAwaitingReplyIsEveryThreadTheCustomerSpokeLastIn(t *testing.T) {
 
 	unanswered := thread(t, conversations, acc, "628111222333")
 	answered := thread(t, conversations, acc, "628222333444")
-	customerWrote(t, messages, unanswered.ID, "3EB0A")
-	customerWrote(t, messages, answered.ID, "3EB0B")
+	storeCustomerMessage(t, messages, unanswered.ID, "3EB0A")
+	storeCustomerMessage(t, messages, answered.ID, "3EB0B")
 	_, err := messages.Queue(answered.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
 
@@ -60,7 +60,7 @@ func TestAwaitingReplyKeepsAThreadThatIsAlreadyHeld(t *testing.T) {
 	messages, conversations, acc := awaitingSetup(t)
 
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 	require.NoError(t, conversations.Assign(conv.ID, uuid.New()))
 
 	waiting, err := conversations.List(ConversationFilter{AwaitingReply: true})
@@ -74,7 +74,7 @@ func TestAwaitingReplyCatchesACustomerWritingAfterTheThreadWasClosed(t *testing.
 	messages, conversations, acc := awaitingSetup(t)
 
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, conversations.Close(conv.ID))
@@ -93,7 +93,7 @@ func TestAwaitingReplyCatchesACustomerWritingAfterTheThreadWasClosed(t *testing.
 		Phone: "628111222333", Name: "Pelanggan",
 	})
 	require.NoError(t, err)
-	customerWrote(t, messages, reopened.ID, "3EB0B")
+	storeCustomerMessage(t, messages, reopened.ID, "3EB0B")
 
 	waiting, err = conversations.List(ConversationFilter{AwaitingReply: true})
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestAwaitingReplyClearsAsSoonAsAReplyIsQueued(t *testing.T) {
 	messages, conversations, acc := awaitingSetup(t)
 
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 
 	msg, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestAwaitingReplyClearsAsSoonAsAReplyIsQueued(t *testing.T) {
 func TestAwaitingReplyDropsAThreadOnceItIsClosed(t *testing.T) {
 	messages, conversations, acc := awaitingSetup(t)
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 
 	require.NoError(t, conversations.Close(conv.ID))
 

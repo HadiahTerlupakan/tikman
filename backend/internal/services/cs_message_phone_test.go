@@ -38,7 +38,7 @@ func TestAPhoneReplyIsStoredAsOutboundWithNoSender(t *testing.T) {
 func TestAPhoneReplyTakesTheThreadOutOfAwaitingReply(t *testing.T) {
 	messages, conversations, acc := awaitingSetup(t)
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 
 	_, _, err := messages.SaveFromPhone(phoneMessage(conv.ID, "3EB0PHONE", time.Now()))
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestAPhoneReplyTakesTheThreadOutOfAwaitingReply(t *testing.T) {
 func TestALatePhoneReplyLeavesANewerCustomerMessageWaiting(t *testing.T) {
 	messages, conversations, acc := awaitingSetup(t)
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 
 	earlier := time.Now().Add(-time.Minute)
 	_, _, err := messages.SaveFromPhone(phoneMessage(conv.ID, "3EB0PHONE", earlier))
@@ -76,7 +76,7 @@ func TestALatePhoneReplyLeavesANewerCustomerMessageWaiting(t *testing.T) {
 func TestAPhoneReplyLeavesTheHolderAndAClosedThreadAlone(t *testing.T) {
 	messages, conversations, acc := awaitingSetup(t)
 	conv := thread(t, conversations, acc, "628111222333")
-	customerWrote(t, messages, conv.ID, "3EB0A")
+	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 	holder := uuid.New()
 	require.NoError(t, conversations.Assign(conv.ID, holder))
 	require.NoError(t, conversations.Close(conv.ID))
