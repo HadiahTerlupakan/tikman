@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { Alert, Button, Input, Space, Upload, message } from "antd";
 import {
   CloseOutlined,
@@ -14,6 +14,7 @@ import type {
   CsQuickReply,
 } from "@/domain/entities";
 import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
+import { PendingAttachment } from "./PendingAttachment";
 import { QuickReplyPicker } from "./QuickReplyPicker";
 import { QuotedBlock } from "./QuotedBlock";
 
@@ -76,6 +77,14 @@ export function MessageComposer({
   const [text, setText] = useState("");
   const linkPreview = useLinkPreview(text);
   const isHolder = conversation.assignedUserId === currentUserId;
+  // The attachment waiting to be sent, kept with the thread it was added in:
+  // shown in any other, it would go to the wrong customer.
+  const [pending, setPending] = useState<{
+    file: File;
+    conversationId: string;
+  } | null>(null);
+  const staged =
+    pending?.conversationId === conversation.id ? pending.file : null;
 
   // Which thread the customer currently sees a line on, null when none does.
   const typingFor = useRef<string | null>(null);
@@ -153,29 +162,36 @@ export function MessageComposer({
     );
   }
 
+  // With an attachment waiting, the box is its caption and sending sends both.
   const handleSend = async () => {
     const body = text.trim();
-    if (!body) return;
+    if (!staged && !body) return;
     signalTyping(false);
-    if (await onSend(body)) {
+    const sent = staged ? await onAttach(staged, body) : await onSend(body);
+    if (sent) {
       setText("");
+      setPending(null);
     }
   };
 
-  // beforeUpload always answers false: antd would otherwise post the file
-  // itself, and this endpoint needs the session cookie and the caption that
-  // is sitting in the box.
-  const handleAttach = async (file: File) => {
+  // Picked or pasted, a file waits for a look before it leaves, the way
+  // WhatsApp shows one: sending the moment a file was picked left no chance to
+  // take back the wrong one, and a paste lands even more easily by mistake.
+  const stage = (file: File) => {
     const rejection = attachmentRejection(file);
     if (rejection) {
       message.error(rejection);
-      return false;
+      return;
     }
-    signalTyping(false);
-    if (await onAttach(file, text.trim())) {
-      setText("");
-    }
-    return false;
+    setPending({ file, conversationId: conversation.id });
+  };
+
+  // Only a paste that carries a file is taken over; text is left to the box.
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = event.clipboardData.files[0];
+    if (!file) return;
+    event.preventDefault();
+    stage(file);
   };
 
   return (
@@ -225,12 +241,21 @@ export function MessageComposer({
         />
       )}
 
+      {staged && (
+        <PendingAttachment file={staged} onCancel={() => setPending(null)} />
+      )}
+
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
         <QuickReplyPicker quickReplies={quickReplies} onPick={setText} />
+        {/* beforeUpload answers false: antd would otherwise post the file
+            itself, and this endpoint needs the session cookie and a caption. */}
         <Upload
           accept={CS_MEDIA_ACCEPT}
           showUploadList={false}
-          beforeUpload={handleAttach}
+          beforeUpload={(file) => {
+            stage(file);
+            return false;
+          }}
         >
           <Button
             type="text"
@@ -247,6 +272,7 @@ export function MessageComposer({
             signalTyping(e.target.value.trim().length > 0);
           }}
           onBlur={() => signalTyping(false)}
+          onPaste={handlePaste}
           onPressEnter={(e) => {
             if (!e.shiftKey) {
               e.preventDefault();
@@ -263,8 +289,8 @@ export function MessageComposer({
           shape="circle"
           icon={<SendOutlined />}
           onClick={handleSend}
-          loading={sending}
-          disabled={!text.trim()}
+          loading={sending || attaching}
+          disabled={!text.trim() && !staged}
           aria-label="Kirim"
           title="Kirim"
         />
