@@ -948,11 +948,11 @@ Jalankan `git` sebagai `radpro`, jangan pakai `sudo`: git dengan sudo meninggalk
 ```bash
 ssh radpro 'C="sudo docker compose --env-file /opt/tikman/.env -f docker-compose.yml -f docker-compose.vps.yml"; cd /opt/tikman/src \
   && $C build wa frontend \
-  && $C up -d --force-recreate wa \
+  && $C up -d --no-deps --force-recreate wa \
   && $C up -d --no-deps --force-recreate frontend'
 ```
 
-Selalu pakai `--env-file` dan kedua file compose. Tanpa `--env-file`, redis gagal start dan seluruh stack ikut mati. `api`, `worker`, dan `trapd` tidak disentuh.
+Selalu pakai `--env-file` dan kedua file compose, dan `--no-deps` menjaga Compose agar tidak ikut membuat ulang `api`, `postgres`, dan `redis`, yang menjadi dependensi `wa`. Tanpa `--env-file`, redis gagal start dan seluruh stack ikut mati. `api`, `worker`, dan `trapd` tidak disentuh.
 
 - [ ] **Step 4: Verifikasi**
 
