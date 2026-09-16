@@ -222,8 +222,7 @@ teknisi:
 - **`GET /cs/performance/waits?from=&to=&user_id=&limit=&offset=`** menjawab
   daftar giliran yang selesai dalam periode, per halaman dengan pola
   `limit`/`offset` yang sudah dipakai rute lain (`paginationParams` yang sudah
-  ada: default 20, maksimum 100). Tiap
-  giliran memuat:
+  ada: default 20, maksimum 100). Tiap giliran memuat:
   - thread, nama dan nomor pelanggan, atau tanda bahwa thread sudah dihapus;
   - `started_at`, `customer_sent_at`, `ended_at`, `end_reason`, dan pelakunya;
   - menit untuk tim, menit yang dihitung untuk CS, dan tanda tertunda sistem.
