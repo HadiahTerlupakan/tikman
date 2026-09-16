@@ -3,7 +3,6 @@ package services
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
 )
@@ -22,5 +21,18 @@ func validateRegisterODP(db *gorm.DB, req models.ZTEGPONRegisterRequest) error {
 	if req.ODPPort == nil {
 		return fmt.Errorf("%w: an ODP was given without a port", ErrValidation)
 	}
-	return ValidateODPPort(db, *req.ODPID, *req.ODPPort, uuid.Nil)
+
+	// The plant model moved: a drop lands in a mapping node of type odp, not in
+	// the old odps table. Naming anything else is a mistake worth refusing here
+	// rather than discovering at the pole.
+	var node models.MappingNode
+	if err := db.Where("id = ? AND type = ?", *req.ODPID, models.NodeODP).
+		First(&node).Error; err != nil {
+		return fmt.Errorf("%w: no distribution box with that id", ErrValidation)
+	}
+	if node.Capacity > 0 && *req.ODPPort > node.Capacity {
+		return fmt.Errorf("%w: port %d is past the %d this box has",
+			ErrValidation, *req.ODPPort, node.Capacity)
+	}
+	return nil
 }

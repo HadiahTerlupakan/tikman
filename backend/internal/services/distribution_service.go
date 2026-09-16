@@ -201,19 +201,23 @@ func (s *DistributionService) AssignONT(ontID, odpID uuid.UUID, port int) error 
 }
 
 // ValidateODPPort refuses a port that the box does not have, or that another
-// subscriber already occupies. Pass uuid.Nil as excluding when the ONT does not
-// exist yet, as it does not while an ONU is being registered.
+// subscriber already occupies. excluding is the ONT allowed to already hold the
+// port — the subscriber being re-patched, not a stranger; pass uuid.Nil when no
+// ONT should be excluded.
 //
 // A racing pair of assignments can still both pass this; the composite unique
 // index on (odp_id, odp_port) is the final arbiter.
 func ValidateODPPort(db *gorm.DB, odpID uuid.UUID, port int, excluding uuid.UUID) error {
-	var odp models.ODP
-	if err := db.First(&odp, "id = ?", odpID).Error; err != nil {
-		return err
+	// The plant model moved: a drop lands in a mapping node of type odp, not in
+	// the old odps table. See validateRegisterODP for the same rule applied to
+	// a fresh registration.
+	var node models.MappingNode
+	if err := db.Where("id = ? AND type = ?", odpID, models.NodeODP).First(&node).Error; err != nil {
+		return fmt.Errorf("%w: no distribution box with that id", ErrValidation)
 	}
-	if port < 1 || port > odp.PortCount {
+	if node.Capacity > 0 && port > node.Capacity {
 		return fmt.Errorf("%w: %s has %d ports, so port %d does not exist",
-			ErrValidation, odp.Code, odp.PortCount, port)
+			ErrValidation, node.Name, node.Capacity, port)
 	}
 
 	var holder models.ONT
