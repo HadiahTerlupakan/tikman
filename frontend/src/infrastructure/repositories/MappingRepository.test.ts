@@ -17,6 +17,7 @@ describe("MappingRepository", () => {
 
     const nodes = await new MappingRepository().listNodes();
 
+    expect(apiClient.get).toHaveBeenCalledWith("/api/v1/mapping/nodes");
     expect(nodes).toHaveLength(1);
     expect(nodes[0].nodeId).toBe("ODP-01");
   });
@@ -35,5 +36,7 @@ describe("MappingRepository", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: {} } as never);
 
     await expect(new MappingRepository().listEdges()).resolves.toEqual([]);
+
+    expect(apiClient.get).toHaveBeenCalledWith("/api/v1/mapping/edges");
   });
 });
