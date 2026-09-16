@@ -43,7 +43,7 @@ Dua tabel baru, menggantikan peran `odcs`, `odc_feeds`, dan `odps`.
 | `capacity` | jumlah slot keluar; dipakai memvalidasi penyambungan |
 | `splitter` | rasio splitter, mis. `1:8` |
 | `pppoe` | username PPPoE pelanggan (untuk node `ont`) |
-| `serialnumber` | serial ONT |
+| `serial_number` | serial ONT |
 | `notes` | catatan bebas |
 | `created_at`, `updated_at` | |
 
