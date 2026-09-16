@@ -65,6 +65,7 @@ function MessageBubble({
   onDelete?: (message: CsMessage) => void;
 }) {
   const outgoing = message.direction === "out";
+  const bare = message.kind === "sticker";
   const [hovered, setHovered] = useState(false);
 
   // A quoted message that is on the page can be jumped to. One swept by
@@ -102,14 +103,21 @@ function MessageBubble({
       <div
         style={{
           maxWidth: "68%",
-          minWidth: 96,
-          padding: "7px 10px 5px",
-          background: outgoing ? "rgba(62, 207, 142, 0.14)" : "#27272a",
+          // A sticker is drawn straight onto the conversation, the way WhatsApp
+          // draws it: the grey rectangle a bubble paints fights the artwork's
+          // own transparent edges.
+          minWidth: bare ? undefined : 96,
+          padding: bare ? 0 : "7px 10px 5px",
+          background: bare
+            ? "transparent"
+            : outgoing
+              ? "rgba(62, 207, 142, 0.14)"
+              : "#27272a",
           // One square corner on the speaker's side is the shape a chat has;
           // four equal corners read as a card, not a message.
-          borderRadius: 10,
-          borderBottomRightRadius: outgoing ? 2 : 10,
-          borderBottomLeftRadius: outgoing ? 10 : 2,
+          borderRadius: bare ? 0 : 10,
+          borderBottomRightRadius: bare ? 0 : outgoing ? 2 : 10,
+          borderBottomLeftRadius: bare ? 0 : outgoing ? 10 : 2,
         }}
       >
         {message.replyTo && (

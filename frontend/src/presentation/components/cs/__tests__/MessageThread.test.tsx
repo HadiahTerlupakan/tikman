@@ -204,6 +204,26 @@ describe("MessageThread", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  // WhatsApp draws a sticker straight onto the conversation. In a bubble the
+  // grey rectangle fights the sticker's own transparent edges.
+  it("lets a sticker sit on the conversation rather than in a bubble", () => {
+    render(
+      <MessageThread
+        messages={[
+          message({ kind: "sticker", body: "", mediaMime: "image/webp" }),
+          message({ id: "m2", kind: "text", body: "halo" }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    const sticker = screen.getByRole("img", { name: "stiker" }).parentElement!;
+    expect(sticker).toHaveStyle({ background: "transparent" });
+    expect(screen.getByText("halo").parentElement).toHaveStyle({
+      background: "#27272a",
+    });
+  });
+
   // An avatar sticker is a vector animation, not a picture. Drawn in an img it
   // was a broken-image icon, which reads as the inbox being broken rather than
   // as a shape it cannot draw.
