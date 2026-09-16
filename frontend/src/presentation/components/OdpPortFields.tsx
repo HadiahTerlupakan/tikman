@@ -53,9 +53,16 @@ export function OdpPortFields({
           // Clearing the box has to clear the port with it: the server refuses
           // one half of the pairing, and a stale port would be that half.
           onChange={() => form.setFieldValue("odpPort", undefined)}
+          // Only the box and its stated capacity — never usedPorts. Nothing
+          // populates that count for a mapping node (see toOdp in
+          // DistributionRepository), so showing it read as a confident "N
+          // free" that was really always the full capacity.
           options={(odps ?? []).map((odp) => ({
             value: odp.id,
-            label: `${odp.code} · ${odp.portCount - odp.usedPorts} port kosong`,
+            label:
+              odp.portCount > 0
+                ? `${odp.code} · kapasitas ${odp.portCount}`
+                : odp.code,
           }))}
         />
       </Form.Item>

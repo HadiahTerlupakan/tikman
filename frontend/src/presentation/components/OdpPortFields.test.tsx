@@ -87,4 +87,18 @@ describe("OdpPortFields", () => {
       screen.queryByRole("combobox", { name: "Port" }),
     ).not.toBeInTheDocument();
   });
+
+  // usedPorts on the mock is 1, so a fabricated "free port" count would read
+  // "3 port kosong" here — a plausible number nothing actually computed.
+  // Only the stated capacity may reach the label.
+  it("shows the box's capacity, never a fabricated free-port count", async () => {
+    renderFields();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "ODP" }));
+
+    expect(
+      await screen.findByTitle("ODP-CARIU-01 · kapasitas 4"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/port kosong/)).not.toBeInTheDocument();
+  });
 });

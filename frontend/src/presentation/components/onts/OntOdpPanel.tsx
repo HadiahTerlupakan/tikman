@@ -70,9 +70,16 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
           placeholder="Pilih ODP"
           value={odpId}
           onChange={setOdpId}
+          // Only the box and its stated capacity — never usedPorts, which
+          // nothing populates for a mapping node (see toOdp in
+          // DistributionRepository) and would read as a real occupancy count
+          // when it is always zero.
           options={(odps ?? []).map((odp) => ({
             value: odp.id,
-            label: `${odp.code} (${odp.usedPorts}/${odp.portCount})`,
+            label:
+              odp.portCount > 0
+                ? `${odp.code} (kapasitas ${odp.portCount})`
+                : odp.code,
           }))}
         />
         <Select
