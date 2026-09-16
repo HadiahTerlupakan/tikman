@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"gorm.io/gorm"
 )
 
 // MappingHandler serves the network map.
@@ -19,13 +20,19 @@ func NewMappingHandler(mapping *services.MappingService) *MappingHandler {
 
 // mappingError turns a service error into the answer a technician sees. A full
 // box and a repeated id are both 409: the request was understood and refused.
+// Only a wrapped gorm.ErrRecordNotFound is a 404 — CreateNode has no
+// legitimate not-found path, so anything else here is a real failure, and
+// reporting it as a missing node would send someone hunting for the wrong
+// thing.
 func mappingError(c *gin.Context, err error, notFoundCode string) {
 	switch {
 	case errors.Is(err, services.ErrNodeExists), errors.Is(err, services.ErrEdgeExists),
 		errors.Is(err, services.ErrSlotsFull):
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "MAPPING_CONFLICT"})
-	default:
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error(), Code: notFoundCode})
+	default:
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error(), Code: "MAPPING_FAILED"})
 	}
 }
 
