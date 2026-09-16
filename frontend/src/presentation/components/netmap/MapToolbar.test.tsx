@@ -47,18 +47,21 @@ describe("MapToolbar", () => {
 
   // While a box is being placed the other kinds are noise; what is needed is a
   // way out.
-  it("offers a way to cancel once placing has started", () => {
+  it("offers a way to cancel once placing has started", async () => {
+    const onCancel = vi.fn();
     render(
       <MapToolbar
         placing="odp"
         onPlace={noop}
         onDrawCable={noop}
-        onCancel={noop}
+        onCancel={onCancel}
         view="map"
         onView={noop}
       />,
     );
 
-    expect(screen.getByRole("button", { name: /Batal/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Batal/ }));
+
+    expect(onCancel).toHaveBeenCalled();
   });
 });

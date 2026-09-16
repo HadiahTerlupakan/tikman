@@ -13,7 +13,10 @@ interface MapToolbarProps {
   onView: (view: MapView) => void;
 }
 
-const PLACEABLE: NodeType[] = ["server", "odc", "odp", "ont"];
+// Read off NODE_LABELS (a Record<NodeType, string>) rather than listed by
+// hand: a fifth NodeType would fail that Record's own type check at compile
+// time, so this can't go stale the way a separately hand-written array could.
+const PLACEABLE = Object.keys(NODE_LABELS) as NodeType[];
 
 /**
  * Controls above the map: what to place next, or how to get out of placing.

@@ -54,7 +54,45 @@ describe("NodeFormModal", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("asks an ONT for what only an ONT has", () => {
+  // A regression that scrambled a field, or forgot the string-to-number
+  // conversion on the coordinates, would still pass every other test here.
+  it("submits a complete new node, with numeric coordinates", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <NodeFormModal
+        open
+        type="odp"
+        position={{ lat: -6.21, lng: 106.81 }}
+        onCancel={() => {}}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText("Nama"), "ODP Baru");
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const submitted = onSubmit.mock.calls[0][0];
+    expect(submitted).toMatchObject({
+      type: "odp",
+      name: "ODP Baru",
+      latitude: -6.21,
+      longitude: 106.81,
+      capacity: 0,
+      splitter: "",
+      pppoe: "",
+      serialNumber: "",
+      notes: "",
+    });
+    // The form holds these as text so the read-only inputs can display them;
+    // "-6.21" == -6.21 loosely, which would hide a lost Number() conversion.
+    expect(typeof submitted.latitude).toBe("number");
+    expect(typeof submitted.longitude).toBe("number");
+    expect(typeof submitted.nodeId).toBe("string");
+    expect(submitted.nodeId.length).toBeGreaterThan(0);
+  });
+
+  it("asks an ONT for what only an ONT has, and nothing else", () => {
     render(
       <NodeFormModal
         open
@@ -67,6 +105,23 @@ describe("NodeFormModal", () => {
 
     expect(screen.getByLabelText("PPPoE")).toBeInTheDocument();
     expect(screen.getByLabelText("Serial")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Jumlah slot")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Rasio splitter")).not.toBeInTheDocument();
+  });
+
+  it("keeps ONT-only fields off a non-ONT form", () => {
+    render(
+      <NodeFormModal
+        open
+        type="odp"
+        position={{ lat: -6.21, lng: 106.81 }}
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(screen.queryByLabelText("PPPoE")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Serial")).not.toBeInTheDocument();
   });
 
   // Mode ubah: every field starts from the node being edited, not from the
@@ -114,6 +169,64 @@ describe("NodeFormModal", () => {
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ nodeId: "ODP-CONTOH-01" }),
+    );
+  });
+
+  it("submits the complete edited node unchanged, when nothing was retyped", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <NodeFormModal
+        open
+        type="odp"
+        position={{ lat: 0, lng: 0 }}
+        initial={existingOdp}
+        onCancel={() => {}}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: undefined,
+      nodeId: "ODP-CONTOH-01",
+      type: "odp",
+      name: "ODP Contoh Lama",
+      latitude: -6.21,
+      longitude: 106.81,
+      capacity: 8,
+      splitter: "1:8",
+      pppoe: "",
+      serialNumber: "",
+      notes: "Dekat gapura",
+    });
+  });
+
+  // The toolbar's `type` is only ever a guess at what is being placed next;
+  // for a node that already exists, that node's own type is the fact of the
+  // matter. Losing it would also silently gate away — and zero out — the
+  // ODP-only fields this test pins.
+  it("keeps the node's own type, capacity and splitter when they disagree with the placement type", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <NodeFormModal
+        open
+        type="ont"
+        position={{ lat: 0, lng: 0 }}
+        initial={existingOdp}
+        onCancel={() => {}}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "odp",
+        capacity: 8,
+        splitter: "1:8",
+      }),
     );
   });
 });

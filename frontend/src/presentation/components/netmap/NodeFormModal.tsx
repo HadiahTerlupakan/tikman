@@ -60,6 +60,12 @@ export function NodeFormModal({
   onSubmit,
 }: NodeFormModalProps) {
   const [form] = Form.useForm<NodeFormValues>();
+  // `initial` already wins over every prop derived from the map/toolbar state
+  // for name and position; `type` must follow the same rule. Trusting the
+  // placement `type` for an existing node of a different type doesn't just
+  // mislabel it — it gates the wrong Form.Items into existence, so the node's
+  // real capacity/splitter (or PPPoE/serial) never mount and are lost on save.
+  const effectiveType = initial?.type ?? type;
 
   useEffect(() => {
     form.setFieldsValue(initialValues(initial, position));
@@ -74,12 +80,12 @@ export function NodeFormModal({
         // and orphan every cable that points at the old id.
         const nodeId = initial
           ? initial.nodeId
-          : values.nodeId || `${type.toUpperCase()}-${Date.now()}`;
+          : values.nodeId || `${effectiveType.toUpperCase()}-${Date.now()}`;
 
         onSubmit({
           id: initial?.id,
           nodeId,
-          type,
+          type: effectiveType,
           name: values.name,
           latitude: Number(values.latitude),
           longitude: Number(values.longitude),
@@ -122,7 +128,7 @@ export function NodeFormModal({
             }
           />
         </Form.Item>
-        {type !== "ont" && (
+        {effectiveType !== "ont" && (
           <>
             <Form.Item name="capacity" label="Jumlah slot">
               <InputNumber min={0} style={{ width: "100%" }} />
@@ -132,7 +138,7 @@ export function NodeFormModal({
             </Form.Item>
           </>
         )}
-        {type === "ont" && (
+        {effectiveType === "ont" && (
           <>
             <Form.Item name="pppoe" label="PPPoE">
               <Input />
