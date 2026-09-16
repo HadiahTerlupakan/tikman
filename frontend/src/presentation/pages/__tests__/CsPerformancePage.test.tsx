@@ -18,6 +18,7 @@ const fixtures = vi.hoisted(() => {
 
   return {
     queries: [] as unknown[],
+    summaryPeriods: [] as { from: string; to: string }[],
     summary: {
       targetMinutes: 15,
       team: {
@@ -84,7 +85,10 @@ const fixtures = vi.hoisted(() => {
 });
 
 vi.mock("@/application/hooks/useCsPerformance", () => ({
-  useCsPerformanceSummary: () => ({ data: fixtures.summary, isLoading: false }),
+  useCsPerformanceSummary: (period: { from: string; to: string }) => {
+    fixtures.summaryPeriods.push(period);
+    return { data: fixtures.summary, isLoading: false };
+  },
   useCsPerformanceWaits: (query?: unknown) => {
     fixtures.queries.push(query);
     return { data: query ? fixtures.waits : undefined, isLoading: false };
@@ -98,6 +102,7 @@ vi.mock("../../components/cs/performance/DailyPerformanceChart", () => ({
 }));
 
 import { CsPerformancePage } from "../CsPerformancePage";
+import { formatPeriod } from "../../components/cs/performance/performanceFormat";
 
 function draw() {
   return render(
@@ -109,6 +114,9 @@ function draw() {
 
 const lastQuery = () =>
   fixtures.queries[fixtures.queries.length - 1] as Record<string, unknown>;
+
+const lastSummaryPeriod = () =>
+  fixtures.summaryPeriods[fixtures.summaryPeriods.length - 1];
 
 describe("the CS performance page", () => {
   it("shows the team's figures and who is waiting now", () => {
@@ -159,11 +167,32 @@ describe("the CS performance page", () => {
 
     // The trigger button carries the same label as the whole-team drawer's
     // title, and the drawer overlays the page rather than replacing it, so an
-    // unscoped query would match both. Scoping to the dialog is what
-    // disambiguates a title from the button that opened it.
+    // unscoped query would match both. Naming the dialog by its accessible
+    // name is what disambiguates a title from the button that opened it.
     expect(
-      within(screen.getByRole("dialog")).getByText("Daftar giliran"),
+      screen.getByRole("dialog", { name: "Daftar giliran" }),
     ).toBeInTheDocument();
     expect(lastQuery().userId).toBeUndefined();
+  });
+
+  it("names the period on screen, and asks a new one when a preset is picked", async () => {
+    draw();
+
+    const initialPeriod = lastSummaryPeriod();
+    // "Hari ini" is a single day: from and to are the same date.
+    expect(initialPeriod.from).toBe(initialPeriod.to);
+    expect(screen.getByText(formatPeriod(initialPeriod))).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("7 hari"));
+
+    const weekPeriod = lastSummaryPeriod();
+    expect(weekPeriod).not.toEqual(initialPeriod);
+    expect(weekPeriod.from).not.toBe(weekPeriod.to);
+    // The label follows the period the page actually asked for, not the one
+    // it started with — this is the seam Fix 1 closed.
+    expect(screen.getByText(formatPeriod(weekPeriod))).toBeInTheDocument();
+    expect(
+      screen.queryByText(formatPeriod(initialPeriod)),
+    ).not.toBeInTheDocument();
   });
 });

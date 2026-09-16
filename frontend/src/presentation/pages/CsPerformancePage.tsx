@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DatePicker, Segmented, Space, Spin } from "antd";
+import { DatePicker, Segmented, Space, Spin, Typography } from "antd";
 import { useCsPerformanceSummary } from "@/application/hooks/useCsPerformance";
 import type { PerformancePeriod } from "@/domain/entities";
 import { PageHeader } from "../components/common/PageHeader";
@@ -11,8 +11,15 @@ import {
   presetPeriod,
   type PeriodPreset,
 } from "../components/cs/performance/performancePeriod";
+import { formatPeriod } from "../components/cs/performance/performanceFormat";
 
 const { RangePicker } = DatePicker;
+const { Text } = Typography;
+
+// Matches AgentPerformanceTable's own fallback for the same missing-user
+// case, so a deleted CS is not named one way in the table and another in the
+// drawer title it opens.
+const DELETED_USER_LABEL = "Pengguna terhapus";
 
 type PeriodChoice = PeriodPreset | "pilih-tanggal";
 
@@ -72,6 +79,10 @@ export function CsPerformancePage() {
             }}
           />
         )}
+        {/* Always shown, not only while picking a custom range: without it,
+            switching periods leaves the previous period's figures on screen
+            with nothing saying which dates they are for. */}
+        <Text type="secondary">{formatPeriod(period)}</Text>
       </Space>
       {!summary && isLoading && <Spin />}
       {summary && (
@@ -86,7 +97,7 @@ export function CsPerformancePage() {
             loading={isLoading}
             onSelect={(agent) =>
               setWaitList({
-                title: `Giliran ${agent.username}`,
+                title: `Giliran ${agent.username || DELETED_USER_LABEL}`,
                 userId: agent.userId,
               })
             }

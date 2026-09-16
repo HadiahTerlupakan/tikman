@@ -69,14 +69,18 @@ export function WaitListDrawer({
       render: (_, wait) => formatMinutes(wait.countedMinutes),
     },
     {
-      title: "",
+      title: "Catatan",
       render: (_, wait) =>
         wait.systemDelayed ? <Tag color="warning">Tertunda sistem</Tag> : null,
     },
   ];
 
   return (
-    <Drawer open title={title} width={960} onClose={onClose}>
+    // antd's Drawer panel carries role="dialog" but wires no aria-labelledby
+    // to its visible title, so a screen reader (and an accessible-name-based
+    // query) would otherwise hear only "dialog" — aria-label gives it the
+    // same name a sighted user reads.
+    <Drawer open title={title} aria-label={title} width={960} onClose={onClose}>
       <Table
         rowKey="id"
         size="small"

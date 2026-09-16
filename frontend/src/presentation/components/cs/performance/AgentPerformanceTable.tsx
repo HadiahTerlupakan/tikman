@@ -1,7 +1,16 @@
-import { Card, Table } from "antd";
+import { Card, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { AgentPerformance } from "@/domain/entities";
 import { formatMinutes, formatPercent } from "./performanceFormat";
+
+const { Text } = Typography;
+
+// The team tiles above measure the customer's real wait; this table measures
+// each CS from the moment they became active on it (the anti-blame rule), and
+// phone replies have no sender to attribute a row to. Without this line nothing
+// says the two sets of numbers are not the same measurement.
+const AGENT_TABLE_CAVEAT =
+  "Angka per CS dihitung sejak CS itu mulai aktif, bukan sejak pelanggan menulis, jadi tidak bisa dibandingkan langsung dengan angka tim di atas. Balasan dari HP tidak punya pengirim, jadi hanya masuk angka tim.";
 
 interface AgentPerformanceTableProps {
   agents: AgentPerformance[];
@@ -43,6 +52,9 @@ export function AgentPerformanceTable({
 
   return (
     <Card title="Per CS">
+      <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+        {AGENT_TABLE_CAVEAT}
+      </Text>
       <Table
         rowKey="userId"
         size="small"

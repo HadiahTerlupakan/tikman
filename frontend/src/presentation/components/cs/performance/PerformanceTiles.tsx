@@ -1,9 +1,25 @@
-import { Button, Card, Col, Row, Space, Statistic, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Col,
+  Row,
+  Space,
+  Statistic,
+  Tooltip,
+  Typography,
+} from "antd";
 import { Link } from "react-router-dom";
 import type { PerformanceSummary } from "@/domain/entities";
 import { formatMinutes, formatPercent } from "./performanceFormat";
 
 const { Text } = Typography;
+
+// The drawer tags every delayed wait regardless of how it ended; this tile
+// counts only the ones that were answered. Someone opening the drawer to
+// check this count will see more tags than the tile claims unless this says
+// why.
+const SYSTEM_DELAYED_HINT =
+  "Hanya giliran yang sudah dibalas. Di daftar giliran, tanda ini juga muncul pada giliran yang ditutup tanpa balasan.";
 
 interface PerformanceTilesProps {
   summary: PerformanceSummary;
@@ -49,7 +65,9 @@ export function PerformanceTiles({
           Ditutup tanpa balasan: {team.closedWithoutReply}
         </Text>
         <Text type="secondary">Ditinggal: {team.abandoned}</Text>
-        <Text type="secondary">Tertunda sistem: {team.systemDelayed}</Text>
+        <Tooltip title={SYSTEM_DELAYED_HINT}>
+          <Text type="secondary">Tertunda sistem: {team.systemDelayed}</Text>
+        </Tooltip>
         <Link to="/cs?view=belum-dibalas">
           Sedang menunggu: {waiting.count} pelanggan
           {waiting.longestMinutes !== null &&

@@ -3,6 +3,7 @@ import {
   END_REASON_LABELS,
   formatMinutes,
   formatPercent,
+  formatPeriod,
 } from "./performanceFormat";
 
 describe("formatMinutes", () => {
@@ -40,5 +41,19 @@ describe("END_REASON_LABELS", () => {
     expect(END_REASON_LABELS.phone).toBe("Dibalas dari HP");
     expect(END_REASON_LABELS.closed).toBe("Ditutup tanpa balasan");
     expect(END_REASON_LABELS.abandoned).toBe("Ditinggal");
+  });
+});
+
+describe("formatPeriod", () => {
+  it("names a single day once, not as a same-day range", () => {
+    expect(formatPeriod({ from: "2026-09-16", to: "2026-09-16" })).toBe(
+      "16 Sep 2026",
+    );
+  });
+
+  it("names a range with both ends", () => {
+    expect(formatPeriod({ from: "2026-09-01", to: "2026-09-16" })).toBe(
+      "1 Sep 2026 – 16 Sep 2026",
+    );
   });
 });
