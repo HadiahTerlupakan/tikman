@@ -94,9 +94,10 @@ func TestDiscoveryStaysOpenToTechnicians(t *testing.T) {
 	}
 }
 
-// mappingWrites are the six routes that place, move or remove something on
-// the map; a read-only role must not reach any of them. Unlike discoveryWrites
-// these are not all POST, so each entry carries its own method.
+// mappingWrites are the routes that place, move or remove something on the
+// map, including where an ONT's drop is patched in; a read-only role must not
+// reach any of them. Unlike discoveryWrites these are not all POST, so each
+// entry carries its own method.
 var mappingWrites = []struct {
 	method string
 	path   string
@@ -107,6 +108,8 @@ var mappingWrites = []struct {
 	{http.MethodPost, "/api/v1/mapping/edges"},
 	{http.MethodPut, "/api/v1/mapping/edges/E-1"},
 	{http.MethodDelete, "/api/v1/mapping/edges/E-1"},
+	{http.MethodPut, "/api/v1/onts/11111111-1111-1111-1111-111111111111/odp"},
+	{http.MethodDelete, "/api/v1/onts/11111111-1111-1111-1111-111111111111/odp"},
 }
 
 func TestMappingWritesAreClosedToReadOnlyRoles(t *testing.T) {

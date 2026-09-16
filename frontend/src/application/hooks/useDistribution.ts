@@ -12,7 +12,7 @@ export function useOdcs() {
   });
 }
 
-/** Every distribution box, with the ports already taken on it. */
+/** Every distribution box on the map (a mapping node of type odp). */
 export function useOdps() {
   return useQuery({
     queryKey: ["odps"],

@@ -97,6 +97,19 @@ func ontListFilter(c *gin.Context) (services.ONTListFilter, bool) {
 		filter.OLTID = &id
 	}
 
+	if odpIDStr := c.Query("odp_id"); odpIDStr != "" {
+		id, err := uuid.Parse(odpIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Code:    "INVALID_ODP_ID",
+				Error:   "Invalid ODP ID format",
+				Details: map[string]string{"odp_id": odpIDStr},
+			})
+			return filter, false
+		}
+		filter.ODPID = &id
+	}
+
 	if statusStr := c.Query("status"); statusStr != "" {
 		status := models.ONTStatus(statusStr)
 		filter.Status = &status

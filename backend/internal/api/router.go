@@ -169,6 +169,9 @@ func (h *handlers) registerONTRoutes(api *gin.RouterGroup, authenticated gin.Han
 
 		onts.POST("/:id/provision", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.provisionHandler.ProvisionOnt)
 		onts.GET("/:id/provision-jobs", h.provisionHandler.ListProvisionJobsByONT)
+
+		onts.PUT("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.ontHandler.AssignOdp)
+		onts.DELETE("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.ontHandler.UnassignOdp)
 	}
 
 }

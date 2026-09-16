@@ -75,7 +75,9 @@ export const API_ENDPOINTS = {
   ODCS: "/api/v1/odcs",
   ODC_FEEDS: (id: string) => `/api/v1/odcs/${id}/feeds`,
   ODPS: "/api/v1/odps",
-  ODP_SUBSCRIBERS: (id: string) => `/api/v1/odps/${id}/subscribers`,
+  // ODP_SUBSCRIBERS is gone: subscribersOn() now reads ONTS filtered by
+  // odp_id, since /odps/:id/subscribers was deleted with the rest of the
+  // distribution package.
   ONT_ODP: (id: string) => `/api/v1/onts/${id}/odp`,
   ODC_FEED_LIST: "/api/v1/odc-feeds",
   ODC_FEED_ROUTE: (id: string) => `/api/v1/odc-feeds/${id}/route`,

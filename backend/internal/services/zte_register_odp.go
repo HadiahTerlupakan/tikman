@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
 )
@@ -21,21 +22,29 @@ func validateRegisterODP(db *gorm.DB, req models.ZTEGPONRegisterRequest) error {
 	if req.ODPPort == nil {
 		return fmt.Errorf("%w: an ODP was given without a port", ErrValidation)
 	}
+	return validateODPPortPlacement(db, *req.ODPID, *req.ODPPort)
+}
 
+// validateODPPortPlacement is the one rule for whether a port on a
+// distribution box is a legal place to land an ONT's drop. Registration
+// (validateRegisterODP, above) and AssignONTToODP (ont_odp_assign.go) both
+// write ODPID/ODPPort onto an ONT, and both call this rather than each
+// carrying their own copy of the rule, so the two paths cannot drift apart.
+func validateODPPortPlacement(db *gorm.DB, odpID uuid.UUID, port int) error {
 	// The plant model moved: a drop lands in a mapping node of type odp, not in
 	// the old odps table. Naming anything else is a mistake worth refusing here
 	// rather than discovering at the pole.
 	var node models.MappingNode
-	if err := db.Where("id = ? AND type = ?", *req.ODPID, models.NodeODP).
+	if err := db.Where("id = ? AND type = ?", odpID, models.NodeODP).
 		First(&node).Error; err != nil {
 		return fmt.Errorf("%w: no distribution box with that id", ErrValidation)
 	}
-	if *req.ODPPort < 1 {
-		return fmt.Errorf("%w: port %d is not a valid port number", ErrValidation, *req.ODPPort)
+	if port < 1 {
+		return fmt.Errorf("%w: port %d is not a valid port number", ErrValidation, port)
 	}
-	if node.Capacity > 0 && *req.ODPPort > node.Capacity {
+	if node.Capacity > 0 && port > node.Capacity {
 		return fmt.Errorf("%w: port %d is past the %d this box has",
-			ErrValidation, *req.ODPPort, node.Capacity)
+			ErrValidation, port, node.Capacity)
 	}
 	return nil
 }
