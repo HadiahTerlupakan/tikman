@@ -49,7 +49,7 @@ type MappingNode struct {
 	// pp_po_e from this field, which nobody writing SQL against this table
 	// later would guess.
 	PPPoE        string    `gorm:"type:varchar(64);column:pppoe" json:"pppoe"`
-	SerialNumber string    `gorm:"type:varchar(64)" json:"serialnumber"`
+	SerialNumber string    `gorm:"type:varchar(64)" json:"serial_number"`
 	Notes        string    `gorm:"type:text" json:"notes"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

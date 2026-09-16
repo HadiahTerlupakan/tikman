@@ -53,13 +53,14 @@ func TestUpdatingANodeKeepsItsIdentity(t *testing.T) {
 
 	updated, err := s.UpdateNode("ODP-01", models.MappingNode{
 		Name: "Nama Baru", Type: models.NodeODP,
-		Latitude: -6.3, Longitude: 106.9, Capacity: 16,
+		Latitude: -6.3, Longitude: 106.9, Capacity: 16, PPPoE: "pelanggan-baru",
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "ODP-01", updated.NodeID)
 	assert.Equal(t, "Nama Baru", updated.Name)
 	assert.Equal(t, 16, updated.Capacity)
+	assert.Equal(t, "pelanggan-baru", updated.PPPoE)
 }
 
 func TestListingReturnsEveryNodePlaced(t *testing.T) {
