@@ -787,7 +787,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `services.NewMappingService`, semua metodenya, `services.ErrNodeExists`, `services.ErrEdgeExists`, `services.ErrSlotsFull` (Task 2, 3); `mapCSError` tidak dipakai — gunakan `ErrorResponse` dari `dto.go`; `middleware.RequireRole`.
-- Produces: `func NewMappingHandler(mapping *services.MappingService) *MappingHandler`; rute `GET/POST /api/v1/mapping/nodes`, `GET/PUT/DELETE /api/v1/mapping/nodes/:node_id`, `GET/POST /api/v1/mapping/edges`, `PUT/DELETE /api/v1/mapping/edges/:edge_id`.
+- Produces: `func NewMappingHandler(mapping *services.MappingService) *MappingHandler`; rute `GET/POST /api/v1/mapping/nodes`, `PUT/DELETE /api/v1/mapping/nodes/:node_id`, `GET/POST /api/v1/mapping/edges`, `PUT/DELETE /api/v1/mapping/edges/:edge_id`.
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
