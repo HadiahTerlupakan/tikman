@@ -8,6 +8,7 @@ const kindLabels: Record<CsLastMessage["kind"], string> = {
   document: "Dokumen",
   audio: "Pesan suara",
   video: "Video",
+  sticker: "Stiker",
 };
 
 /** The one-line summary under a customer's name, in the inbox list and in the

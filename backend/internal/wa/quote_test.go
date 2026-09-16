@@ -70,6 +70,18 @@ func TestQuotedPhotoIsRebuiltAsAPhoto(t *testing.T) {
 	assert.Empty(t, quoted.GetConversation())
 }
 
+// A sticker has no caption, so rebuilding it as text quotes an empty bubble
+// and the customer cannot tell which message the CS answered.
+func TestQuotedStickerIsRebuiltAsASticker(t *testing.T) {
+	ctx := buildContextInfo(&Quote{
+		StanzaID: "3EB0FFF", Kind: models.MessageKindSticker,
+	}, customer, ourself)
+
+	quoted := ctx.GetQuotedMessage()
+	require.NotNil(t, quoted.GetStickerMessage())
+	assert.Empty(t, quoted.GetConversation())
+}
+
 // A customer's reply arrives quoting a stanza id, and it hangs off whichever
 // shape they replied with — a photo reply carries it on the photo.
 func TestQuotedStanzaIDIsFoundOnEveryShapeThisInboxStores(t *testing.T) {

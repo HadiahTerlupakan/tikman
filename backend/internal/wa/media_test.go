@@ -170,6 +170,23 @@ func TestDescribeSkipsWhatNobodyReads(t *testing.T) {
 	}
 }
 
+// A customer who answers with a sticker has said something. Before this the
+// inbox dropped the whole event, so no thread was created and nobody was told.
+func TestDescribeReadsASticker(t *testing.T) {
+	att, ok := describe(&waE2E.Message{StickerMessage: &waE2E.StickerMessage{
+		Mimetype: proto.String("image/webp"),
+	}})
+	if !ok || att.kind != models.MessageKindSticker || att.download == nil {
+		t.Fatalf("sticker = %+v, ok=%v", att, ok)
+	}
+	if att.mime != "image/webp" {
+		t.Fatalf("mime = %q, want image/webp", att.mime)
+	}
+	if att.caption != "" {
+		t.Fatalf("caption = %q, want empty: a sticker carries no text", att.caption)
+	}
+}
+
 // A message we cannot store must be nameable in the log, or a CS never learns
 // the customer sent anything.
 func TestMessageShapeNamesWhatArrived(t *testing.T) {

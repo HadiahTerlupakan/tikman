@@ -24,6 +24,7 @@ const (
 	MessageKindDocument MessageKind = "document"
 	MessageKindAudio    MessageKind = "audio"
 	MessageKindVideo    MessageKind = "video"
+	MessageKindSticker  MessageKind = "sticker"
 )
 
 // MessageStatus is how far an outbound message has travelled. Inbound messages

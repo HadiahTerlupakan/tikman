@@ -115,6 +115,22 @@ export function MediaAttachment({ message }: { message: CsMessage }) {
     );
   }
 
+  // A sticker is square and carries its own transparency, so it takes neither
+  // the photo's crop nor the document's link: contain, not cover, or the
+  // artwork loses its edges.
+  // An avatar sticker is a vector animation rather than a picture, so it falls
+  // through to the file below: a broken-image icon reads as the inbox being
+  // broken, not as a shape it cannot draw.
+  if (message.kind === "sticker" && message.mediaMime?.startsWith("image/")) {
+    return (
+      <img
+        src={src}
+        alt="stiker"
+        style={{ ...spacing, width: 140, height: 140, objectFit: "contain" }}
+      />
+    );
+  }
+
   // A document has nothing to render in place, so it gets the one thing that
   // is useful: its name, and a way to open it.
   return (

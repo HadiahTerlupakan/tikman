@@ -188,6 +188,44 @@ describe("MessageThread", () => {
     expect(audio).toHaveAttribute("controls");
   });
 
+  // A sticker is a small square that carries its own transparency. Routed
+  // through the document branch it arrived as a download link with no name.
+  it("draws a sticker as a picture, not as a file to download", () => {
+    render(
+      <MessageThread
+        messages={[
+          message({ kind: "sticker", body: "", mediaMime: "image/webp" }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "stiker" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  // An avatar sticker is a vector animation, not a picture. Drawn in an img it
+  // was a broken-image icon, which reads as the inbox being broken rather than
+  // as a shape it cannot draw.
+  it("offers an avatar sticker as a file rather than a broken picture", () => {
+    render(
+      <MessageThread
+        messages={[
+          message({
+            kind: "sticker",
+            body: "",
+            mediaMime: "application/was",
+            mediaFilename: "avatar.was",
+          }),
+        ]}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("img", { name: "stiker" })).toBeNull();
+    expect(screen.getByRole("link")).toBeInTheDocument();
+  });
+
   // A document cannot be shown in place, so it gets the one useful thing: its
   // name, and a way to open it.
   it("offers a document by name", () => {

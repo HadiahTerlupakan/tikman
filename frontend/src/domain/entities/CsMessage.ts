@@ -1,5 +1,11 @@
 export type MessageDirection = "in" | "out";
-export type MessageKind = "text" | "image" | "document" | "audio" | "video";
+export type MessageKind =
+  | "text"
+  | "image"
+  | "document"
+  | "audio"
+  | "video"
+  | "sticker";
 export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed";
 
 /** One WhatsApp message in a thread. */

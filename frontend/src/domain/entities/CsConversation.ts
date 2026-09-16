@@ -3,7 +3,7 @@ export type ConversationStatus = "unassigned" | "open" | "closed";
 /** The line the inbox list shows under a customer's name. */
 export interface CsLastMessage {
   body: string;
-  kind: "text" | "image" | "document" | "audio" | "video";
+  kind: "text" | "image" | "document" | "audio" | "video" | "sticker";
   direction: "in" | "out";
   at: string;
 }

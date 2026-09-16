@@ -85,6 +85,9 @@ func describe(msg *waE2E.Message) (attachment, bool) {
 			kind: models.MessageKindDocument, caption: m.GetCaption(),
 			mime: m.GetMimetype(), filename: m.GetFileName(), download: m,
 		}, true
+	case msg.GetStickerMessage() != nil:
+		m := msg.GetStickerMessage()
+		return attachment{kind: models.MessageKindSticker, mime: m.GetMimetype(), download: m}, true
 	}
 	if text := textBody(msg); text != "" {
 		return attachment{kind: models.MessageKindText, caption: text}, true
@@ -93,8 +96,8 @@ func describe(msg *waE2E.Message) (attachment, bool) {
 }
 
 // messageShape names the fields a WhatsApp message actually carries, so one we
-// cannot store — a sticker, a location, a contact card, a poll — is logged as
-// itself instead of vanishing.
+// cannot store — a location, a contact card, a poll — is logged as itself
+// instead of vanishing.
 func messageShape(msg *waE2E.Message) string {
 	var names []string
 	msg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, _ protoreflect.Value) bool {

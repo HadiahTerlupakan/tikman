@@ -88,6 +88,8 @@ func quotedMessageFor(q *Quote) *waE2E.Message {
 		return &waE2E.Message{AudioMessage: &waE2E.AudioMessage{}}
 	case models.MessageKindDocument:
 		return &waE2E.Message{DocumentMessage: &waE2E.DocumentMessage{Caption: proto.String(q.Body)}}
+	case models.MessageKindSticker:
+		return &waE2E.Message{StickerMessage: &waE2E.StickerMessage{}}
 	default:
 		return &waE2E.Message{Conversation: proto.String(q.Body)}
 	}
