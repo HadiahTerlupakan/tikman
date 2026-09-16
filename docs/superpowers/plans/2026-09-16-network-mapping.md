@@ -1610,6 +1610,62 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
+### Task 7b: Pulihkan penugasan ONT ke ODP di model baru
+
+Task 6 menghapus rute `PUT`/`DELETE /onts/:id/odp` bersama paket distribusi.
+Tiga permukaan UI yang masih hidup memakainya, dan tidak satu pun tercantum di
+daftar hapus tugas mana pun: pemilih ODP saat provisioning ZTE, tab ODP di modal
+detail ONT, dan modal ODP di halaman daftar ONT. Spec menjanjikan hubungan
+ONT-ke-ODP tetap ada, jadi kemampuannya dipulihkan di atas `mapping_nodes`,
+bukan dibuang.
+
+**Files:**
+- Modify: `backend/internal/services/ont_service.go` (medan `ODPID` pada `ONTListFilter`)
+- Modify: `backend/internal/api/ont_handler.go` (query `odp_id`; rute assign/unassign)
+- Modify: `backend/internal/api/router.go` (dua rute `onts.PUT/DELETE("/:id/odp")`)
+- Create: `backend/internal/services/ont_odp_assign.go`
+- Test: `backend/internal/services/ont_odp_assign_test.go`
+- Modify: `frontend/src/application/hooks/useDistribution.ts` (arahkan ke API baru)
+- Modify: `frontend/src/infrastructure/repositories/DistributionRepository.ts`
+- Test: `frontend/src/application/hooks/__tests__/useDistribution.test.ts`
+
+**Interfaces:**
+- Consumes: `services.MappingService`, `models.MappingNode`, `models.NodeODP` (Task 1-3); `useMapping` (Task 7).
+- Produces: `AssignONTToODP(ontID, odpNodeID uuid.UUID, port int) error`, `UnassignONTFromODP(ontID uuid.UUID) error`; query `odp_id` pada `GET /api/v1/onts`.
+
+**Aturan yang harus dipertahankan:**
+- ODP tujuan wajib baris `mapping_nodes` bertipe `odp` — sama seperti
+  `validateRegisterODP` di `zte_register_odp.go`, yang sudah melakukan persis ini.
+- `port < 1` ditolak, dan `port > capacity` ditolak bila `capacity > 0`.
+  `capacity` 0 berarti tanpa batas, konsisten dengan `checkSlots`.
+- Indeks unik `uq_onts_odp_port` tetap penentu akhir bila dua penugasan berlomba.
+- `ODPID` dan `ODPPort` diisi berdua atau dikosongkan berdua; separuh ditolak.
+
+**Langkah:**
+
+- [ ] **Step 1: Tulis tes yang gagal** untuk `AssignONTToODP` — ODP tak dikenal
+  ditolak, node bertipe `odc` ditolak, port 0 ditolak, port melebihi kapasitas
+  ditolak, kapasitas 0 menerima port berapa pun, dan port yang sudah dipakai ONT
+  lain ditolak oleh indeks unik.
+- [ ] **Step 2: Jalankan, pastikan gagal** dengan `undefined: AssignONTToODP`.
+- [ ] **Step 3: Tulis layanannya.** Validasi memakai pola `validateRegisterODP`;
+  jangan menyalin badannya, panggil atau ekstrak bersama agar satu aturan tidak
+  hidup di dua tempat.
+- [ ] **Step 4: Tambahkan `ODPID *uuid.UUID` ke `ONTListFilter`** dan bacaannya
+  dari `c.Query("odp_id")`, mengikuti `slot`/`port_id` yang sudah ada.
+- [ ] **Step 5: Pasang kembali dua rutenya** di `router.go` dengan gerbang
+  `RequireRole(Admin, Technician)` seperti sebelumnya, dan tambahkan barisnya ke
+  `mappingWrites` di `router_rbac_test.go` bila rutenya ikut dijaga gerbang itu.
+- [ ] **Step 6: Arahkan frontend.** `useOdps` mengambil dari daftar node peta
+  yang bertipe `odp`; `useOdpSubscribers` memakai `GET /onts?odp_id=...`.
+  `apiClient` **tidak** mengubah query param menjadi snake_case — tulis
+  `odp_id` apa adanya.
+- [ ] **Step 7: Jalankan tes** ketiga permukaan UI (`OdpPortFields`,
+  `OntOdpPanel`, `OntOdpModal`) dan pastikan tidak ada yang memanggil rute lama.
+- [ ] **Step 8: Commit.**
+
+---
+
 ### Task 8: Jarak jalur dan label
 
 **Files:**
