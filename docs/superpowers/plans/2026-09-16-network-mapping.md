@@ -2794,6 +2794,14 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ### Task 12: Hapus peta lama dan verifikasi menyeluruh
 
+**Tambahan dari review Task 6:** hapus juga
+`backend/internal/services/route_length.go` dan tesnya. `RouteMeters` dibuat
+untuk `SetODPRoute` pada model plant lama; Task 6 menghapus satu-satunya
+pemanggilnya, jadi sekarang mati. Panjang kabel di model baru dihitung di
+`cableMath.ts` (Task 8) dan disimpan apa adanya oleh backend, jadi tidak ada
+yang akan memakainya lagi. `models.RoutePoint` ikut dihapus bila setelah itu
+tidak ada pemakai lain.
+
 **Files:**
 - Delete: seluruh `frontend/src/presentation/components/map/`
 - Modify: `frontend/src/presentation/pages/MapPage.tsx` (dihapus), `routes/index.tsx`, `navigationRoutes.tsx`
