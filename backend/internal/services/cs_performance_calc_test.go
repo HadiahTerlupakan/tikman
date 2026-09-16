@@ -37,6 +37,8 @@ func TestSummarizeMinutesCountsTheTargetInclusively(t *testing.T) {
 	assert.Equal(t, 3, stats.Count)
 	require.NotNil(t, stats.MedianMinutes)
 	assert.InDelta(t, 15.0, *stats.MedianMinutes, 1e-9)
+	require.NotNil(t, stats.P90Minutes)
+	assert.InDelta(t, 15.4, *stats.P90Minutes, 1e-9)
 	require.NotNil(t, stats.WithinTargetPct)
 	assert.InDelta(t, 200.0/3, *stats.WithinTargetPct, 1e-9, "15 minutes exactly is on time")
 }
