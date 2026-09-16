@@ -245,7 +245,9 @@ fungsi murni di service, terpisah dari query, supaya bisa diuji tanpa database.
 
 ### Tampilan
 
-Halaman **"Kinerja CS"** di `/cs/performance`. Menunya tampil untuk semua peran
+Halaman **"Kinerja CS"** di `/cs-performance`. Bukan `/cs/performance`:
+ProLayout mencocokkan path menu berdasarkan awalannya, jadi halaman di bawah
+`/cs` membuat "CS Inbox" ikut tersorot. Menunya tampil untuk semua peran
 yang boleh membuka CS Inbox (`buildNavigationRoutes`).
 
 ```

@@ -19,10 +19,15 @@ import VpnPage from "../pages/VpnPage";
 import SettingsPage from "../pages/SettingsPage";
 import NotFoundPage from "../pages/NotFound";
 
-// Graphs is the only route that pulls in recharts, so it loads on demand to keep
-// the charting library out of the initial bundle.
+// Graphs and Kinerja CS are the routes that pull in recharts, so they load on
+// demand to keep the charting library out of the initial bundle.
 const GraphsPage = lazy(() =>
   import("../pages/GraphsPage").then((m) => ({ default: m.GraphsPage })),
+);
+const CsPerformancePage = lazy(() =>
+  import("../pages/CsPerformancePage").then((m) => ({
+    default: m.CsPerformancePage,
+  })),
 );
 
 export const router = createBrowserRouter([
@@ -80,6 +85,20 @@ export const router = createBrowserRouter([
           {
             path: "cs",
             element: <CsInboxPage />,
+          },
+          {
+            path: "cs-performance",
+            element: (
+              <Suspense
+                fallback={
+                  <div style={{ padding: 24, textAlign: "center" }}>
+                    <Spin />
+                  </div>
+                }
+              >
+                <CsPerformancePage />
+              </Suspense>
+            ),
           },
           {
             path: "vpn",

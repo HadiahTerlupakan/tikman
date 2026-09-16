@@ -39,6 +39,13 @@ describe("buildNavigationRoutes", () => {
     expect(paths(UserRole.VIEWER)).not.toContain("/cs");
   });
 
+  it("lists Kinerja CS for everyone who can open the inbox", () => {
+    expect(paths(UserRole.CS)).toContain("/cs-performance");
+    expect(paths(UserRole.TECHNICIAN)).toContain("/cs-performance");
+    expect(paths(UserRole.ADMIN)).toContain("/cs-performance");
+    expect(paths(UserRole.VIEWER)).not.toContain("/cs-performance");
+  });
+
   it("gives every entry a path and a name", () => {
     for (const route of buildNavigationRoutes(UserRole.ADMIN)) {
       expect(route.path).toMatch(/^\//);
