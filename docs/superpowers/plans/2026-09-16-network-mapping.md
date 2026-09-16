@@ -1398,7 +1398,7 @@ describe("MappingRepository", () => {
 
     await new MappingRepository().deleteNode("ODP-01");
 
-    expect(apiClient.delete).toHaveBeenCalledWith("/mapping/nodes/ODP-01");
+    expect(apiClient.delete).toHaveBeenCalledWith("/api/v1/mapping/nodes/ODP-01");
   });
 
   it("returns an empty list rather than undefined when there is no map yet", async () => {
@@ -1470,10 +1470,10 @@ Tambahkan `export * from "./Mapping";` ke `frontend/src/domain/entities/index.ts
 Di `frontend/src/infrastructure/http/endpoints.ts`, tambahkan:
 
 ```ts
-  MAPPING_NODES: "/mapping/nodes",
-  MAPPING_NODE: (nodeId: string) => `/mapping/nodes/${nodeId}`,
-  MAPPING_EDGES: "/mapping/edges",
-  MAPPING_EDGE: (edgeId: string) => `/mapping/edges/${edgeId}`,
+  MAPPING_NODES: "/api/v1/mapping/nodes",
+  MAPPING_NODE: (nodeId: string) => `/api/v1/mapping/nodes/${nodeId}`,
+  MAPPING_EDGES: "/api/v1/mapping/edges",
+  MAPPING_EDGE: (edgeId: string) => `/api/v1/mapping/edges/${edgeId}`,
 ```
 
 Buat `frontend/src/infrastructure/repositories/MappingRepository.ts`:
