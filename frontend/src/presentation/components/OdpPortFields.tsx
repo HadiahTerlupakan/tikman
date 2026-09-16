@@ -1,4 +1,4 @@
-import { Form, Select } from "antd";
+import { Form, InputNumber, Select } from "antd";
 import {
   useOdpSubscribers,
   useOdps,
@@ -71,20 +71,38 @@ export function OdpPortFields({
           name="odpPort"
           label="Port"
           rules={[{ required: true, message: "Pilih portnya" }]}
+          // Capacity 0 means unlimited, so there is no fixed list of ports to
+          // offer as a dropdown — the extra names who already holds one,
+          // since that comes from useOdpSubscribers and is real.
+          extra={
+            chosen.portCount <= 0 && taken.size > 0
+              ? `Sudah dipakai: ${Array.from(taken.entries())
+                  .map(([port, serial]) => `${port} (${serial})`)
+                  .join(", ")}`
+              : undefined
+          }
         >
-          <Select
-            placeholder="Pilih port"
-            options={Array.from(
-              { length: chosen.portCount },
-              (_, index) => index + 1,
-            ).map((port) => ({
-              value: port,
-              label: taken.has(port)
-                ? `Port ${port} · dipakai ${taken.get(port)}`
-                : `Port ${port}`,
-              disabled: taken.has(port),
-            }))}
-          />
+          {chosen.portCount > 0 ? (
+            <Select
+              placeholder="Pilih port"
+              options={Array.from(
+                { length: chosen.portCount },
+                (_, index) => index + 1,
+              ).map((port) => ({
+                value: port,
+                label: taken.has(port)
+                  ? `Port ${port} · dipakai ${taken.get(port)}`
+                  : `Port ${port}`,
+                disabled: taken.has(port),
+              }))}
+            />
+          ) : (
+            <InputNumber
+              min={1}
+              style={{ width: "100%" }}
+              placeholder="Nomor port"
+            />
+          )}
         </Form.Item>
       )}
     </>

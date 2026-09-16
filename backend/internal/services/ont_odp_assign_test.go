@@ -106,6 +106,18 @@ func TestAssignONTToODPRecordsThePlacement(t *testing.T) {
 	assert.Equal(t, 2, *updated.ODPPort)
 }
 
+// Updates does not treat zero rows affected as an error on its own, so
+// without this check a stray ONT id would report success while writing
+// nothing — the box and port are real, the ONT is not.
+func TestAssignONTToODPRefusesAnUnknownONT(t *testing.T) {
+	ontService, mappingService, _ := setupODPAssignFixture(t)
+	node := createTestODPNode(t, mappingService, "ODP-ASSIGN-08", 4)
+
+	err := ontService.AssignONTToODP(uuid.New(), node.ID, 1)
+
+	require.Error(t, err)
+}
+
 // The unique index on (odp_id, odp_port) is the final arbiter when two
 // assignments race for the same port, not a read-then-write check in
 // AssignONTToODP.
