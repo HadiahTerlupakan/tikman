@@ -42,6 +42,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	h.registerAccountRoutes(api, authenticated)
 	h.registerPlantRoutes(api, authenticated)
 	h.registerONTRoutes(api, authenticated)
+	h.registerMappingRoutes(api, authenticated)
 	h.registerCSRoutes(api, authenticated)
 	h.registerOperationsRoutes(api, authenticated)
 	h.registerVPNRoutes(api, authenticated)
@@ -183,6 +184,28 @@ func (h *handlers) registerONTRoutes(api *gin.RouterGroup, authenticated gin.Han
 		odcs.POST("/:id/feeds", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.AddODCFeed)
 	}
 
+}
+
+// registerMappingRoutes covers the free-form network map: the boxes and
+// cables field staff place and draw, in place of a fixed ODC/ODP plant table.
+// Viewing is open to anyone authenticated, same as the plant routes above;
+// only placing, drawing or removing something is gated to those who touch
+// the field.
+func (h *handlers) registerMappingRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
+	mapping := api.Group("/mapping")
+	mapping.Use(authenticated)
+	{
+		mapping.GET("/nodes", h.mappingHandler.ListNodes)
+		mapping.GET("/edges", h.mappingHandler.ListEdges)
+
+		editor := middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician)
+		mapping.POST("/nodes", editor, h.mappingHandler.CreateNode)
+		mapping.PUT("/nodes/:node_id", editor, h.mappingHandler.UpdateNode)
+		mapping.DELETE("/nodes/:node_id", editor, h.mappingHandler.DeleteNode)
+		mapping.POST("/edges", editor, h.mappingHandler.CreateEdge)
+		mapping.PUT("/edges/:edge_id", editor, h.mappingHandler.UpdateEdge)
+		mapping.DELETE("/edges/:edge_id", editor, h.mappingHandler.DeleteEdge)
+	}
 }
 
 // registerCSRoutes covers the WhatsApp inbox and the pushes that announce it.
