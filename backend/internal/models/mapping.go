@@ -37,15 +37,18 @@ const (
 // a position are required: a technician standing at a pole should be able to
 // record it in two taps and fill the rest in later.
 type MappingNode struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	NodeID       string    `gorm:"type:varchar(64);not null;uniqueIndex" json:"node_id"`
-	Type         NodeType  `gorm:"type:varchar(16);not null" json:"type"`
-	Name         string    `gorm:"type:varchar(120);not null" json:"name"`
-	Latitude     float64   `gorm:"not null" json:"latitude"`
-	Longitude    float64   `gorm:"not null" json:"longitude"`
-	Capacity     int       `json:"capacity"`
-	Splitter     string    `gorm:"type:varchar(16)" json:"splitter"`
-	PPPoE        string    `gorm:"type:varchar(64)" json:"pppoe"`
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	NodeID    string    `gorm:"type:varchar(64);not null;uniqueIndex" json:"node_id"`
+	Type      NodeType  `gorm:"type:varchar(16);not null" json:"type"`
+	Name      string    `gorm:"type:varchar(120);not null" json:"name"`
+	Latitude  float64   `gorm:"not null" json:"latitude"`
+	Longitude float64   `gorm:"not null" json:"longitude"`
+	Capacity  int       `json:"capacity"`
+	Splitter  string    `gorm:"type:varchar(16)" json:"splitter"`
+	// Explicit column name: GORM's naming strategy would otherwise derive
+	// pp_po_e from this field, which nobody writing SQL against this table
+	// later would guess.
+	PPPoE        string    `gorm:"type:varchar(64);column:pppoe" json:"pppoe"`
 	SerialNumber string    `gorm:"type:varchar(64)" json:"serialnumber"`
 	Notes        string    `gorm:"type:text" json:"notes"`
 	CreatedAt    time.Time `json:"created_at"`

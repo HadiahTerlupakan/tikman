@@ -60,10 +60,7 @@ func (s *MappingService) UpdateNode(nodeID string, in models.MappingNode) (*mode
 		"type": in.Type, "name": in.Name,
 		"latitude": in.Latitude, "longitude": in.Longitude,
 		"capacity": in.Capacity, "splitter": in.Splitter,
-		// GORM's naming strategy maps the PPPoE field to pp_po_e (verified
-		// against the schema AutoMigrate actually creates); "pppoe" is not a
-		// column that exists.
-		"pp_po_e": in.PPPoE, "serial_number": in.SerialNumber, "notes": in.Notes,
+		"pppoe": in.PPPoE, "serial_number": in.SerialNumber, "notes": in.Notes,
 	}
 	if err := s.db.Model(node).Updates(fields).Error; err != nil {
 		return nil, fmt.Errorf("update node %s: %w", nodeID, err)
