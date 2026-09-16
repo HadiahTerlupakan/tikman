@@ -8,6 +8,7 @@ import {
 describe("formatMinutes", () => {
   it("says nothing was measured rather than showing zero", () => {
     expect(formatMinutes(null)).toBe("—");
+    expect(formatMinutes(undefined)).toBe("—");
   });
 
   it("keeps one decimal under an hour", () => {
@@ -28,6 +29,8 @@ describe("formatPercent", () => {
 
   it("says nothing was measured rather than showing zero", () => {
     expect(formatPercent(null)).toBe("—");
+    expect(formatPercent(undefined)).toBe("—");
+    expect(formatPercent(0)).toBe("0%");
   });
 });
 
