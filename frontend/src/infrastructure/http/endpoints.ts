@@ -112,4 +112,10 @@ export const API_ENDPOINTS = {
   CS_BROADCASTS_MEDIA: "/api/v1/cs/broadcasts/media",
   CS_PERFORMANCE_SUMMARY: "/api/v1/cs/performance/summary",
   CS_PERFORMANCE_WAITS: "/api/v1/cs/performance/waits",
+
+  // Network map: free-form nodes and the fiber runs between them
+  MAPPING_NODES: "/api/v1/mapping/nodes",
+  MAPPING_NODE: (nodeId: string) => `/api/v1/mapping/nodes/${nodeId}`,
+  MAPPING_EDGES: "/api/v1/mapping/edges",
+  MAPPING_EDGE: (edgeId: string) => `/api/v1/mapping/edges/${edgeId}`,
 } as const;
