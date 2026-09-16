@@ -2818,6 +2818,33 @@ tanpa ketiganya, keduanya tidak akan pernah dipanggil sama sekali.
 
 ---
 
+**Dua syarat spec yang hilang, ditemukan sebelum tugas ini jalan.**
+
+1. **Jenis kabel harus dipilih, bukan dipatok.** Contoh kode di tugas ini menulis
+   `fiberType: "distribution"` mati. Spec berbunyi "klik node tujuan → **pilih
+   jenis kabel** → simpan". Ada tujuh jenis, dan enam di antaranya tak akan
+   pernah bisa digambar — termasuk kaskade `odp_to_odp` dan `odc_to_odc`, yang
+   justru punya aturan kapasitas tersendiri di Task 3. Aturan itu jadi tidak
+   terjangkau dari antarmuka.
+
+   Setelah node tujuan diklik, munculkan modal kecil berisi `Select` dari
+   `FIBER_LABELS` (boleh berisi `distribution` sebagai nilai awal), lalu simpan
+   dengan jenis yang dipilih. Tes: memilih `odp_to_odp` menyimpan kabel dengan
+   `fiber_type` itu, bukan `distribution`.
+
+2. **Batalkan satu titik.** `useCableDraw` sudah menyediakan `undoPoint`, tapi
+   halaman ini tidak pernah memanggilnya. Spec: "Satu klik yang salah dibatalkan
+   satu titik, bukan seluruh jalur." Tambahkan tombol `Batal titik` di toolbar
+   selama menggambar, memanggil `cable.undoPoint()`. Tes: setelah tiga titik dan
+   satu kali batal, jalur yang tersimpan berisi dua titik pertama.
+
+Catatan, bukan perbaikan: `edgeId` dibentuk `${from}--${target}`, jadi kabel
+kedua antara pasangan node yang sama akan ditolak 409. Itu perilaku yang bisa
+diterima — id-nya terbaca manusia, dan menolak lebih baik daripada menimpa —
+tapi pesannya harus bisa dimengerti operator, bukan "edge id already exists".
+
+---
+
 ### Task 12: Hapus peta lama dan verifikasi menyeluruh
 
 **Tambahan dari review Task 6:** hapus juga
