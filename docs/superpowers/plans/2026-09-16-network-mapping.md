@@ -1853,7 +1853,14 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `NODE_LABELS`, `NODE_COLORS` (Task 8); `MappingNode`, `NodeType` (Task 7).
-- Produces: `<MapToolbar placing={...} onPlace={(type: NodeType) => void} onDrawCable={() => void} onCancel={() => void} view={...} onView={...} />`; `<NodeFormModal open type position onCancel onSubmit={(node: MappingNode) => void} />`.
+- Produces: `<MapToolbar placing={...} onPlace={(type: NodeType) => void} onDrawCable={() => void} onCancel={() => void} view={...} onView={...} />`; `<NodeFormModal open type position initial onCancel onSubmit={(node: MappingNode) => void} />`.
+
+**Mode ubah.** `initial?: MappingNode` bersifat opsional. Bila diisi, seluruh
+medan formulir terisi dari node itu, judul modal berbunyi `Ubah node` alih-alih
+`Tambah node`, dan `node_id` ditampilkan tapi tidak bisa diubah — ia identitas
+yang ditunjuk kabel. Bila kosong, formulir bekerja seperti biasa untuk node
+baru. Tes: formulir yang diberi `initial` menampilkan nama lamanya, dan
+`node_id`-nya tidak bisa disunting.
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
@@ -2455,6 +2462,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Create: `frontend/src/presentation/components/netmap/CountCards.tsx`
 - Create: `frontend/src/presentation/components/netmap/NodeList.tsx`
+- Create: `frontend/src/presentation/components/netmap/EdgeList.tsx`
+- Test: `frontend/src/presentation/components/netmap/EdgeList.test.tsx`
 - Create: `frontend/src/presentation/pages/NetworkMapPage.tsx`
 - Modify: `frontend/src/presentation/routes/index.tsx`
 - Modify: `frontend/src/presentation/components/layout/navigationRoutes.tsx`
@@ -2789,6 +2798,23 @@ git commit -m "feat(map): a map that counts what is on it
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+
+---
+
+**Kekurangan terhadap spec, ditemukan sebelum tugas ini jalan.** Spec menulis:
+"Daftar menampilkan node **dan kabel** dalam tabel, bisa **disunting dan
+dihapus** dari sana." Rencana semula hanya membuat daftar node dengan tombol
+hapus. Tiga hal ini wajib ada:
+
+1. **`EdgeList.tsx`** — tabel kabel: `edge_id`, node asal, node tujuan, jenis
+   kabel lewat `FIBER_LABELS`, panjang lewat `formatMeters`, dan tombol `Hapus`
+   yang memanggil `useDeleteEdge`. Bentuknya mengikuti `NodeList.tsx`.
+2. **Tombol `Ubah` di `NodeList`** — membuka `NodeFormModal` dengan `initial`
+   berisi node itu, dan menyimpannya lewat `useUpdateNode`.
+3. Halaman menampilkan kedua tabel pada tampilan `Daftar`.
+
+`useUpdateNode` dan `useDeleteEdge` sudah ada sejak Task 7 justru untuk ini;
+tanpa ketiganya, keduanya tidak akan pernah dipanggil sama sekali.
 
 ---
 
