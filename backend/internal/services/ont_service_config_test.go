@@ -38,14 +38,14 @@ func seedONTWithService(t *testing.T, service connectivity.ZTEONUService, passwo
 // round trip through storage.
 func TestONTService_GetServiceConfigDecryptsThePassword(t *testing.T) {
 	service, ontID := seedONTWithService(t,
-		connectivity.ZTEONUService{VLANID: 214, PPPoEUsername: "258179206252"}, "12345")
+		connectivity.ZTEONUService{VLANID: 214, PPPoEUsername: "100200300400"}, "12345")
 
 	got, _, err := service.GetServiceConfig(ontID)
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, 214, got.VLANID)
-	assert.Equal(t, "258179206252", got.PPPoEUsername)
+	assert.Equal(t, "100200300400", got.PPPoEUsername)
 	assert.Equal(t, "12345", got.PPPoEPassword)
 }
 
@@ -54,7 +54,7 @@ func TestONTService_GetServiceConfigDecryptsThePassword(t *testing.T) {
 func TestONTService_ServiceConfigJSONHasNoReadablePassword(t *testing.T) {
 	db := setupTestDB(t)
 	encoded, err := json.Marshal(connectivity.ZTEONUService{
-		PPPoEUsername: "258179206252", PPPoEPassword: "12345",
+		PPPoEUsername: "100200300400", PPPoEPassword: "12345",
 	})
 	require.NoError(t, err)
 

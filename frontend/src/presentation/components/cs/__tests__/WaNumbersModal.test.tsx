@@ -19,7 +19,7 @@ function open(props: Partial<Parameters<typeof WaNumbersModal>[0]> = {}) {
       open
       onClose={vi.fn()}
       accounts={[
-        account("1", "CS Utama", "connected", "6281399977707@s.whatsapp.net"),
+        account("1", "CS Utama", "connected", "6288811122233@s.whatsapp.net"),
         account("2", "CS Teknis", "disconnected"),
       ]}
       stream={{}}

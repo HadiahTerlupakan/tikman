@@ -75,8 +75,8 @@ describe("ThreadHeader on a narrow screen", () => {
 describe("ThreadHeader when the row is narrow", () => {
   const heldByOther = {
     ...conversation,
-    customerName: "Muharam Nurwahid Sanjaya",
-    customerPhone: "6282126568833",
+    customerName: "Bambang Suryadi Nugraha",
+    customerPhone: "6285544433322",
     assignedUserId: "someone-else",
   };
 
@@ -90,26 +90,26 @@ describe("ThreadHeader when the row is narrow", () => {
     render(
       <ThreadHeader
         conversation={heldByOther}
-        holderName="Fayadh"
+        holderName="Dewi"
         isHolder={false}
         onBack={() => {}}
       />,
     );
 
     expect(screen.queryByText(/Dilayani/)).toBeNull();
-    expect(screen.getByText("6282126568833")).toBeInTheDocument();
+    expect(screen.getByText("6285544433322")).toBeInTheDocument();
   });
 
   it("keeps the tag where all three columns are visible", () => {
     render(
       <ThreadHeader
         conversation={heldByOther}
-        holderName="Fayadh"
+        holderName="Dewi"
         isHolder={false}
       />,
     );
 
-    expect(screen.getByText(/Dilayani Fayadh/)).toBeInTheDocument();
+    expect(screen.getByText(/Dilayani Dewi/)).toBeInTheDocument();
   });
 
   // jsdom lays nothing out, so the guard itself is what can be asserted: a
@@ -119,13 +119,13 @@ describe("ThreadHeader when the row is narrow", () => {
     render(
       <ThreadHeader
         conversation={heldByOther}
-        holderName="Fayadh"
+        holderName="Dewi"
         isHolder={false}
         onBack={() => {}}
       />,
     );
 
-    expect(screen.getByText("6282126568833")).toHaveStyle({
+    expect(screen.getByText("6285544433322")).toHaveStyle({
       whiteSpace: "nowrap",
     });
   });

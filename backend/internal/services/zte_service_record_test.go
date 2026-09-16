@@ -68,13 +68,13 @@ func TestRecordZTEServiceStoresNameAndDescription(t *testing.T) {
 	require.NoError(t, db.Create(&ont).Error)
 
 	req := registerRequest()
-	req.Name = "258179206252-Saraswati"
+	req.Name = "100200300400-Melati"
 	req.Description = "Blok C no 14"
 	require.NoError(t, recordZTEService(db, []byte(testEncryptionKey), ont, req))
 
 	var stored models.ONT
 	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
-	assert.Equal(t, "258179206252-Saraswati", stored.Name)
+	assert.Equal(t, "100200300400-Melati", stored.Name)
 	assert.Equal(t, "Blok C no 14", stored.Description)
 }
 
@@ -83,7 +83,7 @@ func TestRecordZTEServiceKeepsExistingIdentityWhenUnset(t *testing.T) {
 	db := setupTestDB(t)
 	ont := models.ONT{
 		ID: uuid.New(), OLTID: uuid.New(), PortID: 1, ONTID: 15,
-		SerialNumber: "HWTCB403E8A0", Name: "258179206252-Saraswati", Description: "Blok C no 14",
+		SerialNumber: "HWTCB403E8A0", Name: "100200300400-Melati", Description: "Blok C no 14",
 	}
 	require.NoError(t, db.Create(&ont).Error)
 
@@ -91,6 +91,6 @@ func TestRecordZTEServiceKeepsExistingIdentityWhenUnset(t *testing.T) {
 
 	var stored models.ONT
 	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
-	assert.Equal(t, "258179206252-Saraswati", stored.Name)
+	assert.Equal(t, "100200300400-Melati", stored.Name)
 	assert.Equal(t, "Blok C no 14", stored.Description)
 }

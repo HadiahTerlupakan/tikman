@@ -146,7 +146,7 @@ describe("ZteProvisionModal", () => {
         wanMode: "wan_ip",
         wanIpMode: "pppoe",
         vlanProfile: "PPPOE-214",
-        pppoeUsername: "258179206252",
+        pppoeUsername: "100200300400",
         pppoePassword: "12345",
         useVeip: true,
       },
@@ -166,7 +166,7 @@ describe("ZteProvisionModal", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
     expect(screen.getByLabelText(/PPPoE username/i)).toHaveValue(
-      "258179206252",
+      "100200300400",
     );
     // Without this the operator would need a password the OLT already has, and
     // a reconfigure that omitted it would break the subscriber's session.
@@ -186,7 +186,7 @@ describe("ZteProvisionModal", () => {
         wanMode: "wan_ip",
         wanIpMode: "pppoe",
         vlanProfile: "PPPOE-214",
-        pppoeUsername: "258179206252",
+        pppoeUsername: "100200300400",
         pppoePassword: "12345",
         useVeip: true,
       },

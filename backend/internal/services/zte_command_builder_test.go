@@ -16,7 +16,7 @@ func TestBuildZTEGPONRegisterCommands(t *testing.T) {
 		PON:             1,
 		SerialNumber:    "HWTCB403E8A0",
 		ONUType:         "HG8245H5",
-		Name:            "258179206252-Saraswati",
+		Name:            "100200300400-Melati",
 		ServiceEnabled:  true,
 		VLANMode:        "tag",
 		ServiceType:     "internet",
@@ -42,7 +42,7 @@ func TestBuildZTEGPONRegisterCommands(t *testing.T) {
 		"onu 7 type HG8245H5 sn HWTCB403E8A0",
 		"exit",
 		"interface gpon-onu_1/3/1:7",
-		"name 258179206252-Saraswati",
+		"name 100200300400-Melati",
 		"tcont 1 name internet profile 100M",
 		"gemport 1 name internet tcont 1",
 		"service-port 1 vport 1 user-vlan 100 vlan 100",
@@ -236,7 +236,7 @@ func validZTECommandRequest() models.ZTEGPONRegisterRequest {
 // stored description to survive a cycle.
 func TestBuildZTEGPONRegisterCommandsSendsDescription(t *testing.T) {
 	req := validZTECommandRequest()
-	req.Name = "258179206252-Saraswati"
+	req.Name = "100200300400-Melati"
 	req.Description = "Blok C no 14"
 
 	commands, err := BuildZTEGPONRegisterCommands(req, 7)
@@ -244,7 +244,7 @@ func TestBuildZTEGPONRegisterCommandsSendsDescription(t *testing.T) {
 
 	// Directly after the name and inside the ONU interface, which is where the
 	// C300's own running config keeps it.
-	nameAt := indexOfCommand(t, commands, "name 258179206252-Saraswati")
+	nameAt := indexOfCommand(t, commands, "name 100200300400-Melati")
 	require.Equal(t, "interface gpon-onu_1/3/1:7", commands[nameAt-1])
 	require.Equal(t, "description Blok C no 14", commands[nameAt+1])
 }

@@ -13,7 +13,7 @@ const onuRunningConfig = `interface gpon-olt_1/3/1
   onu 15 type HG8245H5 sn HWTCB403E8A0
 !
 interface gpon-onu_1/3/1:1
-  name 258179206252-Saraswati
+  name 100200300400-Melati
   tcont 1 name VLAN0214-PPP profile default
   tcont 2 name INET profile 1G
   gemport 1 tcont 1
@@ -27,7 +27,7 @@ interface gpon-onu_1/3/1:2
 !
 pon-onu-mng gpon-onu_1/3/1:1
   service ServiceName gemport 2 vlan 214
-  wan-ip 2 mode pppoe username 258179206252 password 12345 vlan-profile PPPOE-21
+  wan-ip 2 mode pppoe username 100200300400 password 12345 vlan-profile PPPOE-21
 4 host 2
 !
 `
@@ -46,7 +46,7 @@ func TestParseZTEONUServicesReadsTheProvisionedService(t *testing.T) {
 		// Resolved through gemport 2 -> tcont 2, not the first T-CONT on the ONU.
 		TCONTProfile: "1G",
 		WANMode:      "wan_ip", WANIPMode: "pppoe",
-		VLANProfile: "PPPOE-214", PPPoEUsername: "258179206252",
+		VLANProfile: "PPPOE-214", PPPoEUsername: "100200300400",
 		PPPoEPassword: "12345",
 	}
 	if got != want {

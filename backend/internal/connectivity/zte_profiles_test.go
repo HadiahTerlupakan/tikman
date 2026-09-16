@@ -30,7 +30,7 @@ func (c *scriptedCommander) BatchExecute(context.Context, []string) ([]*CommandR
 // password field is why the raw config must never leave the reader.
 const runningConfigExtract = `
 pon-onu-mng gpon-onu_1/3/1:1
-  wan-ip 1 mode pppoe username 258179206252 password secret vlan-profile PPPOE-21
+  wan-ip 1 mode pppoe username 100200300400 password secret vlan-profile PPPOE-21
 pon-onu-mng gpon-onu_1/3/1:2
   wan-ip 1 mode pppoe username 258170473762 password secret vlan-profile PPPOE-21
 pon-onu-mng gpon-onu_1/3/2:1
@@ -46,7 +46,7 @@ pon-onu-mng gpon-onu_1/3/2:2
 var wrappedRunningConfig = strings.Join([]string{
 	"pon-onu-mng gpon-onu_1/3/1:1",
 	"  service ServiceName gemport 2 vlan 214",
-	"  wan-ip 2 mode pppoe username 258179206252 password 12345 vlan-profile PPPOE-21",
+	"  wan-ip 2 mode pppoe username 100200300400 password 12345 vlan-profile PPPOE-21",
 	"4 host 2",
 	"pon-onu-mng gpon-onu_1/3/1:10",
 	"  wan-ip 1 mode pppoe username 2581692447 password 12345 vlan-profile PPPOE-214 h",

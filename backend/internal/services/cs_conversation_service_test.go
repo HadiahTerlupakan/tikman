@@ -155,12 +155,12 @@ func TestFindOrCreateKeepsAThreadWhoseNumberCannotBeNormalised(t *testing.T) {
 
 	conv, err := svc.FindOrCreate(IncomingPeer{
 		WAAccountID: account.ID,
-		JID:         "213911014010978@lid",
-		Phone:       "213911014010978",
+		JID:         "111222333444555@lid",
+		Phone:       "111222333444555",
 		Name:        "Pelanggan",
 	})
 	require.NoError(t, err, "an unreadable number must not cost the message")
-	assert.Equal(t, "213911014010978", conv.CustomerPhone,
+	assert.Equal(t, "111222333444555", conv.CustomerPhone,
 		"kept as-is, because an unreadable identifier still says who wrote")
 	assert.Nil(t, conv.ONTID, "and it matches no subscriber, which is correct")
 }

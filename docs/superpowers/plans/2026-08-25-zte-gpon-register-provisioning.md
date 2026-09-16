@@ -170,7 +170,7 @@ want := []string{
     "onu 7 type HG8245H5 sn HWTCB403E8A0",
     "exit",
     "interface gpon-onu_1/3/1:7",
-    "name 258179206252-Saraswati",
+    "name 100200300400-Melati",
     "tcont 1 name internet profile-name 100M",
     "gemport 1 name internet tcont 1",
     "service-port 1 vport 1 user-vlan 100 vlan 100",

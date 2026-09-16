@@ -186,7 +186,7 @@ func (h *inboundHandler) fetch(ctx context.Context, evt *events.Message, att att
 // like a number and is not one. When it does, Sender holds the LID and
 // SenderAlt holds the phone number; addressed the old way, Sender is the
 // number and SenderAlt is empty. Reading Sender unconditionally is how a real
-// customer arrived as "213911014010978" and was thrown away for not looking
+// customer arrived as "111222333444555" and was thrown away for not looking
 // Indonesian.
 func senderPhone(src types.MessageSource) string {
 	if src.Sender.Server == types.DefaultUserServer {

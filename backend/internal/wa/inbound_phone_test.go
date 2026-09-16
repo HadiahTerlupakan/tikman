@@ -19,7 +19,7 @@ import (
 var customerNumber = types.JID{User: "628111", Server: types.DefaultUserServer}
 
 // customerLID is the same customer as WhatsApp's privacy identifier names them.
-var customerLID = types.JID{User: "213911014010978", Server: types.HiddenUserServer}
+var customerLID = types.JID{User: "111222333444555", Server: types.HiddenUserServer}
 
 // phoneSends builds what whatsmeow hands over when the phone holding the number
 // sends a message: IsFromMe, the recipient as the chat, and the recipient's
