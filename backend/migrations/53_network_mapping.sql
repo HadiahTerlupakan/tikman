@@ -24,16 +24,50 @@ CREATE INDEX IF NOT EXISTS idx_mapping_nodes_type ON mapping_nodes (type);
 
 -- Pindahkan ODC dan ODP lama. Keduanya hanya berisi satu baris di produksi,
 -- tapi memindahkannya berarti tidak ada yang hilang di instalasi mana pun.
+--
+-- code tidak unik — tidak ada constraint-nya di tag model, di migration 39/40,
+-- ataupun di CreateODC/CreateODP — jadi dua baris berkode sama menabrak
+-- uniqueIndex pada node_id dan menggagalkan migrasi ini, yang lewat
+-- RunSQLMigrations menggagalkan startup API sendiri (log.Fatal di
+-- cmd/api/main.go). row_number() memberi baris pertama id yang bersih dan
+-- hanya baris yang benar-benar tabrakan yang mendapat akhiran dari id-nya
+-- sendiri. Postgres menolak window function langsung di WHERE, jadi id yang
+-- sudah didisambiguasi dihitung sekali di CTE lalu dipakai ulang di SELECT
+-- maupun di WHERE NOT EXISTS — guard replay yang sama seperti sebelumnya,
+-- kini dicocokkan terhadap id akhir yang benar-benar disimpan.
+--
+-- Baris tanpa koordinat memakai (0,0) karena kolomnya NOT NULL, tapi (0,0)
+-- ada di lepas pantai Afrika sementara seluruh plant ISP ini ada di 95-141
+-- derajat bujur timur — baris begini pasti salah, dan notes diberi tanda
+-- supaya kelihatan di daftar alih-alih diam-diam terlihat seperti posisi asli.
+WITH odc_ids AS (
+    SELECT o.*,
+           'ODC-' || o.code || CASE
+               WHEN row_number() OVER (PARTITION BY o.code ORDER BY o.created_at, o.id) > 1
+               THEN '-' || left(o.id::text, 8) ELSE '' END AS mapped_node_id
+    FROM odcs o
+)
 INSERT INTO mapping_nodes (id, node_id, type, name, latitude, longitude, capacity, notes, created_at, updated_at)
-SELECT gen_random_uuid(), 'ODC-' || o.code, 'odc', o.code,
-       COALESCE(o.latitude, 0), COALESCE(o.longitude, 0), 0,
-       COALESCE(o.notes, ''), o.created_at, o.updated_at
-FROM odcs o
-WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.node_id = 'ODC-' || o.code);
+SELECT gen_random_uuid(), mapped_node_id, 'odc', code,
+       COALESCE(latitude, 0), COALESCE(longitude, 0), 0,
+       CASE WHEN latitude IS NULL OR longitude IS NULL
+            THEN '[koordinat belum diisi] ' ELSE '' END || COALESCE(notes, ''),
+       created_at, updated_at
+FROM odc_ids
+WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.node_id = odc_ids.mapped_node_id);
 
+WITH odp_ids AS (
+    SELECT p.*,
+           'ODP-' || p.code || CASE
+               WHEN row_number() OVER (PARTITION BY p.code ORDER BY p.created_at, p.id) > 1
+               THEN '-' || left(p.id::text, 8) ELSE '' END AS mapped_node_id
+    FROM odps p
+)
 INSERT INTO mapping_nodes (id, node_id, type, name, latitude, longitude, capacity, notes, created_at, updated_at)
-SELECT gen_random_uuid(), 'ODP-' || p.code, 'odp', p.code,
-       COALESCE(p.latitude, 0), COALESCE(p.longitude, 0), COALESCE(p.port_count, 0),
-       COALESCE(p.notes, ''), p.created_at, p.updated_at
-FROM odps p
-WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.node_id = 'ODP-' || p.code);
+SELECT gen_random_uuid(), mapped_node_id, 'odp', code,
+       COALESCE(latitude, 0), COALESCE(longitude, 0), COALESCE(port_count, 0),
+       CASE WHEN latitude IS NULL OR longitude IS NULL
+            THEN '[koordinat belum diisi] ' ELSE '' END || COALESCE(notes, ''),
+       created_at, updated_at
+FROM odp_ids
+WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.node_id = odp_ids.mapped_node_id);

@@ -43,6 +43,23 @@ var (
 	migrationDB   *gorm.DB
 )
 
+// testPostgresDSN returns the DSN every schema in this package builds against,
+// skipping locally or failing under CI when it is unset. A second caller
+// (the mapping backfill tests, which need their own schema rather than the
+// shared one below) is why this is its own function rather than inlined.
+func testPostgresDSN(t *testing.T) string {
+	t.Helper()
+
+	dsn := os.Getenv("TEST_POSTGRES_DSN")
+	if dsn == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("TEST_POSTGRES_DSN is unset under CI; the migrations are then never applied anywhere before production")
+		}
+		t.Skip("set TEST_POSTGRES_DSN to apply the migrations against Postgres")
+	}
+	return dsn
+}
+
 // freshPostgres builds the schema the way startup does — AutoMigrate first,
 // then the versioned SQL — in an empty schema of its own, once per run.
 //
@@ -53,14 +70,7 @@ var (
 func freshPostgres(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dsn := os.Getenv("TEST_POSTGRES_DSN")
-	if dsn == "" {
-		if os.Getenv("CI") != "" {
-			t.Fatal("TEST_POSTGRES_DSN is unset under CI; the migrations are then never applied anywhere before production")
-		}
-		t.Skip("set TEST_POSTGRES_DSN to apply the migrations against Postgres")
-	}
-
+	dsn := testPostgresDSN(t)
 	migrationOnce.Do(func() { migrationDB = buildMigrationSchema(t, dsn) })
 	require.NotNil(t, migrationDB, "the schema failed to build")
 	return migrationDB
