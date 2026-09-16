@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/gorm"
 )
 
 func plantNode(t *testing.T, s *MappingService, id string, kind models.NodeType, capacity int) {
@@ -120,4 +121,16 @@ func TestANotesOnlyEditOfACableOnAFullODCSucceeds(t *testing.T) {
 	})
 
 	require.NoError(t, err, "a notes-only edit must not be blocked by its own slot")
+}
+
+// A delete that finds nothing is how a second editor learns the cable is
+// already gone — the API layer branches on this exact sentinel to answer 404.
+// If this ever silently returned nil, the UI would report a successful delete
+// of a cable that was never there.
+func TestDeletingACableThatIsNotThereSaysSo(t *testing.T) {
+	s := mappingSetup(t)
+
+	err := s.DeleteEdge("E-TIDAK-ADA")
+
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }

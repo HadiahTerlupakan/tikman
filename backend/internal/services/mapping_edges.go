@@ -44,6 +44,12 @@ func (s *MappingService) checkSlots(in models.MappingEdge, excludeID string) err
 		return fmt.Errorf("source %s: %w", in.Source, err)
 	}
 	if source.Capacity <= 0 {
+		// Skips the target lookup below too, so a cable off an unlimited box is
+		// never checked for a dangling target. Tolerated by design, not an
+		// oversight: migrations/53_network_mapping.sql keeps no foreign key
+		// from edge to node, because a cable is drawn before its ends are
+		// named, and that same migration backfills every legacy ODC with
+		// capacity 0 — so in production this lenient path is the normal one.
 		return nil
 	}
 	target, err := s.GetNode(in.Target)
