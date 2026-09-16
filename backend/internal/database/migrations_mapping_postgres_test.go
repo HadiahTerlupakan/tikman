@@ -175,3 +175,37 @@ func TestBackfillMarksAnODCWithNoCoordinates(t *testing.T) {
 	assert.True(t, strings.HasPrefix(node.Notes, "[koordinat belum diisi] "), node.Notes)
 	assert.Contains(t, node.Notes, "catatan lama")
 }
+
+// Fix for the backfill minting a fresh id via gen_random_uuid(): onts.odp_id
+// already holds the old odps.id, nothing in this migration touches the onts
+// table, and Task 6 drops odps outright. A fresh id would sever every
+// subscriber's ODP assignment with no table left to recover it from.
+func TestBackfillPreservesTheODPIDThatAnONTAlreadyReferences(t *testing.T) {
+	db := freshPostgresBeforeMapping(t)
+	_, olt := plantFixture(t, db)
+	slot, port := 1, 1
+	odp := models.ODP{
+		Code: "ODP-" + uuid.NewString()[:8], PortCount: 8,
+		OLTID: &olt.ID, Slot: &slot, PortID: &port,
+	}
+	require.NoError(t, db.Create(&odp).Error)
+
+	ontSlot, dropPort := 1, 3
+	ont := models.ONT{
+		OLTID: olt.ID, Slot: &ontSlot, PortID: 1, ONTID: 1,
+		SerialNumber: "TESTONT" + uuid.NewString()[:5], Status: models.ONTStatusOnline,
+		ODPID: &odp.ID, ODPPort: &dropPort,
+	}
+	require.NoError(t, db.Create(&ont).Error)
+
+	require.NoError(t, RunSQLMigrations(db, "../../migrations"))
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
+	require.NotNil(t, stored.ODPID, "the backfill must not touch onts.odp_id")
+
+	var node models.MappingNode
+	err := db.Where("id = ?", *stored.ODPID).First(&node).Error
+	require.NoError(t, err, "onts.odp_id must resolve against mapping_nodes after the backfill")
+	assert.Equal(t, models.NodeODP, node.Type)
+}

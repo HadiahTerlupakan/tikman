@@ -40,6 +40,15 @@ CREATE INDEX IF NOT EXISTS idx_mapping_nodes_type ON mapping_nodes (type);
 -- ada di lepas pantai Afrika sementara seluruh plant ISP ini ada di 95-141
 -- derajat bujur timur — baris begini pasti salah, dan notes diberi tanda
 -- supaya kelihatan di daftar alih-alih diam-diam terlihat seperti posisi asli.
+--
+-- id dipertahankan dari odcs/odps sendiri, bukan gen_random_uuid(): onts.odp_id
+-- masih menyimpan odps.id lama, migrasi ini tidak menyentuh tabel onts sama
+-- sekali, dan odps akan di-drop di task berikutnya. id baru berarti setiap ONT
+-- yang sudah punya odp_id kehilangan pasangannya secara diam-diam begitu odps
+-- hilang, tanpa tabel tersisa untuk memulihkannya. odcs.id dan odps.id adalah
+-- dua ruang UUID terpisah yang bertemu di satu primary key mapping_nodes.id;
+-- tabrakan di antara keduanya nyaris mustahil dan akan menggagalkan INSERT
+-- dengan keras, bukan merusak data diam-diam.
 WITH odc_ids AS (
     SELECT o.*,
            'ODC-' || o.code || CASE
@@ -48,7 +57,7 @@ WITH odc_ids AS (
     FROM odcs o
 )
 INSERT INTO mapping_nodes (id, node_id, type, name, latitude, longitude, capacity, notes, created_at, updated_at)
-SELECT gen_random_uuid(), mapped_node_id, 'odc', code,
+SELECT id, mapped_node_id, 'odc', code,
        COALESCE(latitude, 0), COALESCE(longitude, 0), 0,
        CASE WHEN latitude IS NULL OR longitude IS NULL
             THEN '[koordinat belum diisi] ' ELSE '' END || COALESCE(notes, ''),
@@ -64,7 +73,7 @@ WITH odp_ids AS (
     FROM odps p
 )
 INSERT INTO mapping_nodes (id, node_id, type, name, latitude, longitude, capacity, notes, created_at, updated_at)
-SELECT gen_random_uuid(), mapped_node_id, 'odp', code,
+SELECT id, mapped_node_id, 'odp', code,
        COALESCE(latitude, 0), COALESCE(longitude, 0), COALESCE(port_count, 0),
        CASE WHEN latitude IS NULL OR longitude IS NULL
             THEN '[koordinat belum diisi] ' ELSE '' END || COALESCE(notes, ''),
