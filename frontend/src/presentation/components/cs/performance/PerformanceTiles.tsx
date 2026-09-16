@@ -14,12 +14,11 @@ import { formatMinutes, formatPercent } from "./performanceFormat";
 
 const { Text } = Typography;
 
-// The drawer tags every delayed wait regardless of how it ended; this tile
-// counts only the ones that were answered. Someone opening the drawer to
-// check this count will see more tags than the tile claims unless this says
-// why.
+// This count spans every ending, so it overlaps the two counts beside it. Say
+// so, or the three look like they should add up to the answered ones and do
+// not.
 const SYSTEM_DELAYED_HINT =
-  "Hanya giliran yang sudah dibalas. Di daftar giliran, tanda ini juga muncul pada giliran yang ditutup tanpa balasan.";
+  "Dihitung apa pun akhirnya, jadi satu giliran bisa masuk ke angka ini sekaligus ke “Ditutup tanpa balasan” atau “Ditinggal”. Waktunya tidak pernah masuk angka tim.";
 
 interface PerformanceTilesProps {
   summary: PerformanceSummary;

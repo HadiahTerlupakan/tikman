@@ -262,3 +262,19 @@ func TestTheWaitListPages(t *testing.T) {
 	assert.EqualValues(t, 3, list.Total)
 	assert.Len(t, list.Items, 1)
 }
+
+// A WhatsApp backlog burst lands days late and trips the 24-hour silence rule
+// in volume. Those waits have to show as the system's fault as well, or the
+// report reads as customers giving up on a team that never had their messages.
+func TestALateArrivalIsTheSystemsFaultWhateverItsEnding(t *testing.T) {
+	f := newReportFixture(t)
+	f.plant(planted{started: sept(10, 6, 0), sent: sept(10, 5, 0), ended: sept(10, 7, 0), reason: models.WaitAbandoned})
+	f.plant(planted{started: sept(10, 8, 0), sent: sept(10, 7, 0), ended: sept(10, 9, 0), reason: models.WaitClosed, by: &f.budi})
+
+	summary, err := f.svc.Summary(reportRangeFor(t, "2026-09-10", "2026-09-10"), nil, sept(10, 12, 0))
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, summary.Team.SystemDelayed, "both arrived an hour late")
+	assert.Equal(t, 1, summary.Team.Abandoned, "still counted where it ended")
+	assert.Equal(t, 1, summary.Team.ClosedWithoutReply)
+}

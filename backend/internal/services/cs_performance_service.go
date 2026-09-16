@@ -109,11 +109,18 @@ func teamRow(waits []models.CSWait) TeamPerformance {
 	var row TeamPerformance
 	var minutes []float64
 	for _, w := range waits {
-		switch {
-		case answered(w) && systemDelayed(w):
+		// Counted whatever the ending, so it overlaps the two counts below. A
+		// WhatsApp backlog lands days late and abandons waits in volume; if only
+		// answered ones were counted here, that day would read as customers
+		// giving up on a team that never had their messages.
+		if systemDelayed(w) {
 			row.SystemDelayed++
+		}
+		switch {
 		case answered(w):
-			minutes = append(minutes, teamMinutes(w))
+			if !systemDelayed(w) {
+				minutes = append(minutes, teamMinutes(w))
+			}
 		case *w.EndReason == models.WaitClosed:
 			row.ClosedWithoutReply++
 		default:
