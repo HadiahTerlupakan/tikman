@@ -110,4 +110,6 @@ export const API_ENDPOINTS = {
   CS_WA_CHANNELS_REFRESH: "/api/v1/cs/wa-channels/refresh",
   CS_BROADCASTS: "/api/v1/cs/broadcasts",
   CS_BROADCASTS_MEDIA: "/api/v1/cs/broadcasts/media",
+  CS_PERFORMANCE_SUMMARY: "/api/v1/cs/performance/summary",
+  CS_PERFORMANCE_WAITS: "/api/v1/cs/performance/waits",
 } as const;

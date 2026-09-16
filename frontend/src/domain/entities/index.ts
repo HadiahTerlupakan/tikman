@@ -16,5 +16,6 @@ export * from "./PonHealth";
 export * from "./Distribution";
 export * from "./CsConversation";
 export * from "./CsMessage";
+export * from "./CsPerformance";
 export * from "./WaAccount";
 export * from "./WaChannel";
