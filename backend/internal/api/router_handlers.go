@@ -36,6 +36,7 @@ type handlers struct {
 	distributionHandler    *DistributionHandler
 	firebaseTokenHandler   *FirebaseTokenHandler
 	csHandler              *CSHandler
+	csPerformanceHandler   *CSPerformanceHandler
 	pushHandler            *PushHandler
 	provisionHandler       *ProvisionHandler
 	zteProvisionHandler    *ZTEProvisionHandler
@@ -80,6 +81,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		distributionHandler:    NewDistributionHandler(services.NewDistributionService(db)),
 		firebaseTokenHandler:   NewFirebaseTokenHandler(firebaseApp, logger),
 		csHandler:              cs.handler,
+		csPerformanceHandler:   cs.performance,
 		pushHandler:            cs.push,
 		provisionHandler:       provisionHandler,
 		zteProvisionHandler:    zteProvisionHandler,
@@ -89,10 +91,11 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 // csStack is the CS inbox's half of the wiring: its handlers, and the two
 // pieces cmd/api drives itself once Setup returns.
 type csStack struct {
-	handler  *CSHandler
-	push     *PushHandler
-	notifier *services.PushNotifierService
-	listener *PushEventListener
+	handler     *CSHandler
+	performance *CSPerformanceHandler
+	push        *PushHandler
+	notifier    *services.PushNotifierService
+	listener    *PushEventListener
 }
 
 func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditService *services.AuditService,
@@ -120,6 +123,8 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 		logger, cfg.WAMediaDir,
 	)
 
+	performanceHandler := NewCSPerformanceHandler(services.NewCSPerformanceService(db))
+
 	pushService := services.NewPushService(db)
 	pushHandler := NewPushHandler(pushService)
 	// nil Sender for now: cmd/api is the one place that knows whether a real
@@ -128,7 +133,7 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 	pushNotifier := services.NewPushNotifierService(nil, pushService, csConversationService, csMessageService)
 	pushListener := NewPushEventListener(csRedisClient, pushNotifier, logger)
 
-	return csStack{handler: csHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener}
+	return csStack{handler: csHandler, performance: performanceHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener}
 }
 
 func newProvisioningHandlers(cfg *config.Config, db *gorm.DB, logger *zap.Logger,

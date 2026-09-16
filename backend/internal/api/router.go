@@ -213,6 +213,8 @@ func (h *handlers) registerCSRoutes(api *gin.RouterGroup, authenticated gin.Hand
 		cs.DELETE("/messages", middleware.RequireRole(models.UserRoleAdmin), h.csHandler.ClearInbox)
 		cs.GET("/stream", h.csHandler.Stream)
 		cs.GET("/link-preview", h.csHandler.LinkPreview)
+		cs.GET("/performance/summary", h.csPerformanceHandler.Summary)
+		cs.GET("/performance/waits", h.csPerformanceHandler.Waits)
 
 	}
 
