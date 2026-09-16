@@ -30,6 +30,9 @@ func validateRegisterODP(db *gorm.DB, req models.ZTEGPONRegisterRequest) error {
 		First(&node).Error; err != nil {
 		return fmt.Errorf("%w: no distribution box with that id", ErrValidation)
 	}
+	if *req.ODPPort < 1 {
+		return fmt.Errorf("%w: port %d is not a valid port number", ErrValidation, *req.ODPPort)
+	}
 	if node.Capacity > 0 && *req.ODPPort > node.Capacity {
 		return fmt.Errorf("%w: port %d is past the %d this box has",
 			ErrValidation, *req.ODPPort, node.Capacity)
