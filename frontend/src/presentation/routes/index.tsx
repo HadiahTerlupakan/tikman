@@ -7,7 +7,6 @@ import LoginPage from "../pages/Login";
 import DashboardPage from "../pages/Dashboard";
 import UsersPage from "../pages/Users";
 import SitesPage from "../pages/Sites";
-import MapPage from "../pages/MapPage";
 import OltsPage from "../pages/Olts";
 import OltConfigurationPage from "../pages/OltConfigurationPage";
 import OntsPage from "../pages/OntListPage";
@@ -58,10 +57,6 @@ export const router = createBrowserRouter([
           {
             path: "sites",
             element: <SitesPage />,
-          },
-          {
-            path: "map",
-            element: <MapPage />,
           },
           {
             path: "olts",

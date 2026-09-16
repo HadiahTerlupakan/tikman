@@ -10,7 +10,6 @@ import {
   FileTextOutlined,
   CloudServerOutlined,
   SettingOutlined,
-  GlobalOutlined,
   MessageOutlined,
   LineChartOutlined,
   NodeIndexOutlined,
@@ -31,7 +30,6 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
   return [
     { path: "/", name: "Dashboard", icon: <DashboardOutlined /> },
     { path: "/sites", name: "Sites", icon: <EnvironmentOutlined /> },
-    { path: "/map", name: "Map", icon: <GlobalOutlined /> },
     {
       path: "/network-map",
       name: "Peta Jaringan",

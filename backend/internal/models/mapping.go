@@ -87,11 +87,3 @@ func (e *MappingEdge) BeforeCreate(*gorm.DB) error {
 }
 
 func (MappingEdge) TableName() string { return "mapping_edges" }
-
-// RoutePoint is one vertex of a cable's traced path. Kept here rather than
-// inline in MappingEdge because services.RouteMeters (route_length.go) takes
-// a slice of these independently of how an edge stores its own waypoints.
-type RoutePoint struct {
-	Lat float64 `json:"lat"`
-	Lng float64 `json:"lng"`
-}
