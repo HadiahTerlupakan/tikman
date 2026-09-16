@@ -187,7 +187,7 @@ type MappingNode struct {
 	Capacity     int       `json:"capacity"`
 	Splitter     string    `gorm:"type:varchar(16)" json:"splitter"`
 	PPPoE        string    `gorm:"type:varchar(64)" json:"pppoe"`
-	SerialNumber string    `gorm:"type:varchar(64)" json:"serialnumber"`
+	SerialNumber string    `gorm:"type:varchar(64)" json:"serial_number"`
 	Notes        string    `gorm:"type:text" json:"notes"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -939,7 +939,7 @@ type nodeRequest struct {
 	Capacity     int             `json:"capacity"`
 	Splitter     string          `json:"splitter"`
 	PPPoE        string          `json:"pppoe"`
-	SerialNumber string          `json:"serialnumber"`
+	SerialNumber string          `json:"serial_number"`
 	Notes        string          `json:"notes"`
 }
 
@@ -1441,7 +1441,7 @@ export interface MappingNode {
   capacity: number;
   splitter: string;
   pppoe: string;
-  serialnumber: string;
+  serialNumber: string;
   notes: string;
 }
 
@@ -2045,7 +2045,7 @@ export function NodeFormModal({
       capacity: values.capacity ?? 0,
       splitter: values.splitter ?? "",
       pppoe: values.pppoe ?? "",
-      serialnumber: values.serialnumber ?? "",
+      serialNumber: values.serialNumber ?? "",
       notes: values.notes ?? "",
     });
   };
@@ -2086,7 +2086,7 @@ export function NodeFormModal({
             <Form.Item name="pppoe" label="PPPoE">
               <Input />
             </Form.Item>
-            <Form.Item name="serialnumber" label="Serial">
+            <Form.Item name="serialNumber" label="Serial">
               <Input />
             </Form.Item>
           </>
