@@ -157,10 +157,19 @@ func (s *CSConversationService) Assign(conversationID, holderID uuid.UUID) error
 	})
 }
 
-// Close marks a conversation finished. The holder stays on the row, so the
-// history still says who dealt with it.
-func (s *CSConversationService) Close(conversationID uuid.UUID) error {
-	return s.update(conversationID, map[string]any{"status": models.ConversationClosed})
+// Close marks a conversation finished and ends the customer's wait, if there is
+// one, as closed by closedBy. The holder stays on the row, so the history still
+// says who dealt with it.
+func (s *CSConversationService) Close(conversationID, closedBy uuid.UUID) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := updateConversation(tx, conversationID, map[string]any{"status": models.ConversationClosed}); err != nil {
+			return err
+		}
+		s.waits.record(tx, conversationID, "close", func(tx *gorm.DB) error {
+			return closedWithoutReply(tx, conversationID, closedBy, time.Now())
+		})
+		return nil
+	})
 }
 
 // LinkONT ties a thread to a subscriber's ONT, or unties it when ontID is nil.

@@ -72,7 +72,7 @@ func TestClaimForReplyDoesNotTakeAClosedThread(t *testing.T) {
 	conversations, conv, budi, rina := claimSetup(t)
 	_, err := conversations.ClaimForReply(conv.ID, budi)
 	require.NoError(t, err)
-	require.NoError(t, conversations.Close(conv.ID))
+	require.NoError(t, conversations.Close(conv.ID, uuid.New()))
 
 	_, err = conversations.ClaimForReply(conv.ID, rina)
 

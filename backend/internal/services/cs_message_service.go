@@ -159,7 +159,13 @@ func (s *CSMessageService) Queue(
 		if err := tx.Create(&msg).Error; err != nil {
 			return fmt.Errorf("queue message: %w", err)
 		}
-		return s.conversations.touchTx(tx, conversationID, msg.WATimestamp)
+		if err := s.conversations.touchTx(tx, conversationID, msg.WATimestamp); err != nil {
+			return err
+		}
+		s.conversations.waits.record(tx, conversationID, "reply", func(tx *gorm.DB) error {
+			return replied(tx, &msg)
+		})
+		return nil
 	})
 	if err != nil {
 		return nil, err

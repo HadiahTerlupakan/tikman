@@ -106,6 +106,7 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 		Password: cfg.RedisPassword,
 	})
 	csConversationService := services.NewCSConversationService(db)
+	csConversationService.SetWaitLogger(logger)
 	csMessageService := services.NewCSMessageService(db, csConversationService)
 	csQuickReplyService := services.NewCSQuickReplyService(db)
 	csAccountService := services.NewCSAccountService(db)

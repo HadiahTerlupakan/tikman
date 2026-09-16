@@ -103,7 +103,7 @@ func TestReleaseMigrationFreesOnlyThreadsTheRotationGaveOutOnPostgres(t *testing
 	_, err = messages.Queue(answeredByAnother, rina, models.MessageKindText, "halo", nil, nil)
 	require.NoError(t, err)
 	closed := held("62815", budi)
-	require.NoError(t, conversations.Close(closed))
+	require.NoError(t, conversations.Close(closed, uuid.New()))
 
 	migration, err := os.ReadFile(releaseMigration)
 	require.NoError(t, err)

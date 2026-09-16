@@ -77,7 +77,7 @@ func TestAwaitingReplyCatchesACustomerWritingAfterTheThreadWasClosed(t *testing.
 	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 	_, err := messages.Queue(conv.ID, uuid.New(), models.MessageKindText, "sudah kami cek", nil, nil)
 	require.NoError(t, err)
-	require.NoError(t, conversations.Close(conv.ID))
+	require.NoError(t, conversations.Close(conv.ID, uuid.New()))
 
 	waiting, err := conversations.List(ConversationFilter{AwaitingReply: true})
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestAwaitingReplyDropsAThreadOnceItIsClosed(t *testing.T) {
 	conv := thread(t, conversations, acc, "628111222333")
 	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 
-	require.NoError(t, conversations.Close(conv.ID))
+	require.NoError(t, conversations.Close(conv.ID, uuid.New()))
 
 	waiting, err := conversations.List(ConversationFilter{AwaitingReply: true})
 	require.NoError(t, err)

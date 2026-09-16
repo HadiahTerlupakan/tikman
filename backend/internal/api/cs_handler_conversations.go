@@ -203,7 +203,8 @@ func (h *CSHandler) SetStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.conversations.Close(convID); err != nil {
+	userID, _ := middleware.GetUserID(c)
+	if err := h.conversations.Close(convID, userID); err != nil {
 		mapCSError(c, err, "SET_STATUS_FAILED")
 		return
 	}

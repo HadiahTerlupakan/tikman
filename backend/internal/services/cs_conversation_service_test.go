@@ -85,7 +85,7 @@ func TestFindOrCreateReopensAClosedThreadAndDropsItsFormerHolder(t *testing.T) {
 
 	holder := uuid.New()
 	require.NoError(t, svc.Assign(conv.ID, holder))
-	require.NoError(t, svc.Close(conv.ID))
+	require.NoError(t, svc.Close(conv.ID, uuid.New()))
 
 	reopened, err := svc.FindOrCreate(peer(account.ID))
 	require.NoError(t, err)

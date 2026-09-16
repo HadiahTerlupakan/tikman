@@ -79,7 +79,7 @@ func TestAPhoneReplyLeavesTheHolderAndAClosedThreadAlone(t *testing.T) {
 	storeCustomerMessage(t, messages, conv.ID, "3EB0A")
 	holder := uuid.New()
 	require.NoError(t, conversations.Assign(conv.ID, holder))
-	require.NoError(t, conversations.Close(conv.ID))
+	require.NoError(t, conversations.Close(conv.ID, uuid.New()))
 
 	_, _, err := messages.SaveFromPhone(phoneMessage(conv.ID, "3EB0PHONE", time.Now()))
 	require.NoError(t, err)
