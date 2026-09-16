@@ -17,8 +17,10 @@ import {
   useMappingNodes,
   useUpdateNode,
 } from "@/application/hooks";
+import { ApiError } from "@/infrastructure/http";
 import { PageHeader } from "../components/common";
 import { CableTypeModal } from "../components/netmap/CableTypeModal";
+import { metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
 import { EdgeList } from "../components/netmap/EdgeList";
 import { MapCanvas } from "../components/netmap/MapCanvas";
@@ -42,6 +44,35 @@ interface PendingCable {
   target: string;
   waypoints: Waypoint[];
   distance: number;
+}
+
+// `useCableDraw.points` holds only the corners tapped between two nodes —
+// never the nodes' own positions — so a cable with no corners at all (the
+// ordinary drop from an ODP to a house) traces zero of them. The length that
+// gets saved has to walk the same source -> corners -> target path
+// MapCanvas.edgePath draws, not just the corners.
+function cablePath(
+  nodes: MappingNode[],
+  source: string,
+  target: string,
+  waypoints: Waypoint[],
+): Waypoint[] {
+  const point = (nodeId: string): Waypoint[] => {
+    const node = nodes.find((n) => n.nodeId === nodeId);
+    return node ? [{ lat: node.latitude, lng: node.longitude }] : [];
+  };
+  return [...point(source), ...waypoints, ...point(target)];
+}
+
+// A capacity rule on an odp_to_odp/odc_to_odc cascade must reach the operator
+// as itself; only the id collision this cable's own `source--target` naming
+// produces should read as "already exists".
+function isConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.statusCode === 409;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Gagal menyimpan kabel";
 }
 
 export function NetworkMapPage() {
@@ -90,8 +121,10 @@ export function NetworkMapPage() {
       return;
     }
     const source = cable.from;
-    const distance = Math.round(cable.meters);
     const waypoints = cable.finish();
+    const distance = Math.round(
+      metersAlong(cablePath(nodes, source, nodeId, waypoints)),
+    );
     setPendingCable({ source, target: nodeId, waypoints, distance });
   };
 
@@ -125,10 +158,16 @@ export function NetworkMapPage() {
       });
       message.success("Kabel tersimpan");
       setPlacing(undefined);
-    } catch {
+    } catch (error) {
       // The id is `source--target`, so a second cable between the same pair
-      // is a 409 the operator needs in plain words, not the raw API error.
-      message.error("Sudah ada kabel antara kedua node ini");
+      // is a 409 the operator needs in plain words. Anything else — a
+      // capacity rule on an odp_to_odp/odc_to_odc cascade, a network error —
+      // must surface as itself, not be misreported as a duplicate.
+      message.error(
+        isConflict(error)
+          ? "Sudah ada kabel antara kedua node ini"
+          : errorMessage(error),
+      );
     } finally {
       setPendingCable(undefined);
     }

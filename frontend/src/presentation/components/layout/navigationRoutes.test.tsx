@@ -54,8 +54,12 @@ describe("buildNavigationRoutes", () => {
   });
 
   it("offers the network map to the roles that may see plant", () => {
-    const routes = buildNavigationRoutes(UserRole.TECHNICIAN);
-    const names = JSON.stringify(routes);
-    expect(names).toContain("Peta Jaringan");
+    // Checking the name and path are on the *same* entry, not just that both
+    // strings appear somewhere in the menu — a route renamed to "Peta
+    // Jaringan" at the wrong path would otherwise still pass.
+    const route = buildNavigationRoutes(UserRole.TECHNICIAN).find(
+      (r) => r.name === "Peta Jaringan",
+    );
+    expect(route?.path).toBe("/network-map");
   });
 });

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Waypoint } from "@/domain/entities";
+import { ApiError } from "@/infrastructure/http";
 import { NetworkMapPage } from "../NetworkMapPage";
 
 const { nodes, edges } = vi.hoisted(() => ({
@@ -98,6 +99,20 @@ vi.mock("../../components/netmap/MapCanvas", () => ({
   },
 }));
 
+const messageSuccess = vi.hoisted(() => vi.fn());
+const messageError = vi.hoisted(() => vi.fn());
+
+// Only `message` is replaced; every other antd export (Table, Modal, Select,
+// Segmented, ...) stays real, exactly like OltTable.test.tsx's use of this
+// pattern to assert on which toast a mutation's outcome actually produced.
+vi.mock("antd", async () => {
+  const antd = await vi.importActual<typeof import("antd")>("antd");
+  return {
+    ...antd,
+    message: { success: messageSuccess, error: messageError },
+  };
+});
+
 describe("NetworkMapPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -158,6 +173,22 @@ describe("NetworkMapPage", () => {
     expect(deleteNodeMutateAsync).not.toHaveBeenCalled();
   });
 
+  // The mirror of the cable-deletion test above: a copy-paste of the wrong
+  // hook between NodeList's and EdgeList's onDelete would pass everything
+  // else and only show up here.
+  it("deletes a node from the Daftar view via useDeleteNode, not useDeleteEdge", async () => {
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByText("Daftar"));
+    const nodeRow = screen.getByText("ODC Satu").closest("tr")!;
+    await userEvent.click(
+      within(nodeRow).getByRole("button", { name: "Hapus" }),
+    );
+
+    expect(deleteNodeMutateAsync).toHaveBeenCalledWith("ODC-01");
+    expect(deleteEdgeMutateAsync).not.toHaveBeenCalled();
+  });
+
   // The bug this task exists to fix: an earlier sample saved every cable as
   // "distribution" regardless of what the operator picked.
   it("saves the cable with the fiber type chosen in the modal, not the default", async () => {
@@ -212,6 +243,88 @@ describe("NetworkMapPage", () => {
           { lat: -6.002, lng: 106.002 },
         ],
       }),
+    );
+  });
+
+  // useCableDraw.points holds only the tapped corners, never the two nodes'
+  // own positions — the ordinary drop cable (node straight to node, no
+  // corners) traces zero of them. Measuring `points` alone therefore saves a
+  // length of 0 for the single most common cable in the network.
+  it("saves a nonzero length for a straight cable with no corners", async () => {
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Tarik kabel/ }));
+    act(() => canvasProps.onNodeClick("ODC-01"));
+    act(() => canvasProps.onNodeClick("ODP-01"));
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    const [[saved]] = createEdgeMutateAsync.mock.calls;
+    expect(saved.distance).toBeGreaterThan(0);
+  });
+
+  it("records a longer length when the cable detours through a corner than the straight line between its ends", async () => {
+    render(<NetworkMapPage />);
+
+    // Baseline: the same two nodes, traced with no corner at all.
+    await userEvent.click(screen.getByRole("button", { name: /Tarik kabel/ }));
+    act(() => canvasProps.onNodeClick("ODC-01"));
+    act(() => canvasProps.onNodeClick("ODP-01"));
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    const straightDistance = createEdgeMutateAsync.mock.calls[0][0].distance;
+
+    // Same pair, this time detouring through a corner well off the direct line.
+    await userEvent.click(screen.getByRole("button", { name: /Tarik kabel/ }));
+    act(() => canvasProps.onNodeClick("ODC-01"));
+    act(() => canvasProps.onDrop({ lat: -6.15, lng: 106.9 }));
+    act(() => canvasProps.onNodeClick("ODP-01"));
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    const detourDistance = createEdgeMutateAsync.mock.calls[1][0].distance;
+
+    expect(detourDistance).toBeGreaterThan(straightDistance);
+  });
+
+  it("tells the operator plainly that the cable already exists on a 409", async () => {
+    createEdgeMutateAsync.mockRejectedValueOnce(
+      new ApiError(409, "EDGE_EXISTS"),
+    );
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Tarik kabel/ }));
+    act(() => canvasProps.onNodeClick("ODC-01"));
+    act(() => canvasProps.onNodeClick("ODP-01"));
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() =>
+      expect(messageError).toHaveBeenCalledWith(
+        "Sudah ada kabel antara kedua node ini",
+      ),
+    );
+  });
+
+  // The rule set requirement 1 exists to make reachable (odp_to_odp /
+  // odc_to_odc capacity) would be misreported as a duplicate cable if every
+  // failure showed the same "already exists" text.
+  it("surfaces the backend's own message for a failure that is not a duplicate id", async () => {
+    createEdgeMutateAsync.mockRejectedValueOnce(
+      new ApiError(
+        422,
+        "CAPACITY_EXCEEDED",
+        undefined,
+        "Kapasitas splitter penuh",
+      ),
+    );
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Tarik kabel/ }));
+    act(() => canvasProps.onNodeClick("ODC-01"));
+    act(() => canvasProps.onNodeClick("ODP-01"));
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() =>
+      expect(messageError).toHaveBeenCalledWith("Kapasitas splitter penuh"),
+    );
+    expect(messageError).not.toHaveBeenCalledWith(
+      "Sudah ada kabel antara kedua node ini",
     );
   });
 });
