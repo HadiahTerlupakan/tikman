@@ -126,9 +126,26 @@ data lain di sistem ini.
 
 ## Nasib model lama
 
-`odcs`, `odc_feeds`, dan `odps` berisi satu ODC, satu ODP, dan nol feed. Isinya
-dipindahkan ke `mapping_nodes` saat migrasi, lalu tabel dan halaman lamanya
-dihapus. Tidak ada data produksi yang hilang.
+`odcs`, `odc_feeds`, dan `odps` berisi satu ODC, satu ODP, dan nol feed. Tapi
+ODP bukan hanya entitas peta: `models.ONT` punya `ODPID` dan `ODPPort` dengan
+indeks unik `uq_onts_odp_port`, registrasi GPON ZTE menanyakan keduanya
+(`zte_register_odp.go`), dan ada rute `PUT`/`DELETE /onts/:id/odp` untuk
+menugaskan ONT ke sebuah port ODP.
+
+Di produksi, **nol dari 1.179 ONT punya ODP**. Jadi jalur itu ada di kode tapi
+tidak pernah dipakai, sama seperti petanya.
+
+Keputusannya: ODP lama diganti, bukan didampingi. Dua konsep "ODP" yang hidup
+berdampingan akan membingungkan siapa pun yang membaca sistem ini nanti.
+
+- `ONT.ODPID` menunjuk ke baris `mapping_nodes` bertipe `odp`; `ONT.ODPPort`
+  dan indeks uniknya tetap, sehingga dua ONT tetap tidak bisa berbagi port.
+- Registrasi GPON ZTE tetap bekerja — validasinya hanya berganti tabel rujukan.
+- `odcs`, `odc_feeds`, dan `odps` dihapus setelah satu ODC dan satu ODP-nya
+  dipindahkan ke `mapping_nodes`.
+- Halaman peta lama beserta komponennya dihapus, digantikan yang baru.
+
+Tidak ada data produksi yang hilang.
 
 ## Pengujian
 
