@@ -208,8 +208,8 @@ func (s *CSPerformanceService) agentRows(waits []models.CSWait, counted map[uuid
 		}
 		if *w.EndReason == models.WaitClosed {
 			closed[agent]++
-		} else if !systemDelayed(w) {
-			minutes[agent] = append(minutes[agent], counted[w.ID])
+		} else if charged, ok := counted[w.ID]; ok && !systemDelayed(w) {
+			minutes[agent] = append(minutes[agent], charged)
 		}
 	}
 	return s.namedAgentRows(minutes, closed)

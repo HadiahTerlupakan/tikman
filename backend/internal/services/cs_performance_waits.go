@@ -51,7 +51,7 @@ func (s *CSPerformanceService) Waits(r ReportRange, endedBy *uuid.UUID, limit, o
 	}
 	var page []models.CSWait
 	err := s.db.Model(&models.CSWait{}).Scopes(within).
-		Order("ended_at DESC").Limit(limit).Offset(offset).Find(&page).Error
+		Order("ended_at DESC, id DESC").Limit(limit).Offset(offset).Find(&page).Error
 	if err != nil {
 		return nil, fmt.Errorf("load a page of waits: %w", err)
 	}
