@@ -166,21 +166,29 @@ describe("MapCanvas", () => {
     expect(onNodeClick).toHaveBeenCalledWith("ODP-07");
   });
 
-  it("renders the cable whose ends are both named, and leaves the rest of the map standing when another edge's target has vanished", () => {
+  it("renders every cable whose ends are named, and does not stop at the one in between whose target has vanished", () => {
     renderCanvas({
       nodes: [
         node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 }),
         node({ nodeId: "ODP-01", latitude: -6.21, longitude: 106.81 }),
+        node({ nodeId: "ONT-09", latitude: -6.22, longitude: 106.82 }),
       ],
+      // The dangling edge sits between two valid ones on purpose: `.map()`
+      // has no early exit today, but a future rewrite to a loop that returns
+      // or breaks on the first unresolved edge would still pass a fixture
+      // where the only valid edge comes first. Putting a valid edge after
+      // the ghost is what would catch that.
       edges: [
         edge({ edgeId: "E1", source: "ODC-01", target: "ODP-01" }),
         edge({ edgeId: "E2", source: "ODC-01", target: "GHOST-404" }),
+        edge({ edgeId: "E3", source: "ODP-01", target: "ONT-09" }),
       ],
     });
 
-    expect(screen.getAllByTestId("polyline")).toHaveLength(1);
+    expect(screen.getAllByTestId("polyline")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "ODC-01" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ODP-01" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ONT-09" })).toBeInTheDocument();
   });
 
   it("drops a point at the tapped coordinate only while something is being placed", () => {
