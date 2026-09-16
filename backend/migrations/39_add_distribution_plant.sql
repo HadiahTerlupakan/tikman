@@ -1,9 +1,63 @@
 -- ODC and ODP: the passive plant between a PON port and a subscriber's drop.
 --
--- AutoMigrate creates these tables from the model tags and runs before this
--- file, so what is left here is everything a GORM tag cannot say: the rule that
--- an ODP has exactly one parent, and the foreign keys that stop a cabinet or a
--- port from being deleted out from under the boxes hanging off it.
+-- AutoMigrate used to create these tables from the model tags and run before
+-- this file, so what was left here was everything a GORM tag cannot say: the
+-- rule that an ODP has exactly one parent, and the foreign keys that stop a
+-- cabinet or a port from being deleted out from under the boxes hanging off
+-- it.
+--
+-- Task 6 deleted models.ODC/ODCFeed/ODP along with the service built on them,
+-- so AutoMigrate no longer creates odcs/odc_feeds/odps at all. Every real
+-- database already has them from when it did — schema_migrations marks this
+-- version applied there, so the guards below never run again on it. They
+-- exist for a schema built from nothing, which is exactly what the test
+-- suite's freshPostgres and freshPostgresBeforeMapping do: without a table to
+-- add these constraints to, migration 53's backfill would have nothing to
+-- read from and migration 54 would have nothing to drop.
+CREATE TABLE IF NOT EXISTS odcs (
+    id uuid PRIMARY KEY,
+    site_id uuid NOT NULL,
+    code varchar(64) NOT NULL,
+    latitude double precision,
+    longitude double precision,
+    address text,
+    notes text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS odc_feeds (
+    id uuid PRIMARY KEY,
+    odc_id uuid NOT NULL,
+    olt_id uuid NOT NULL,
+    slot integer NOT NULL,
+    port_id integer NOT NULL,
+    splitter_outputs integer NOT NULL,
+    notes text,
+    route jsonb,
+    route_meters double precision NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uq_odc_feeds_pon UNIQUE (olt_id, slot, port_id)
+);
+
+CREATE TABLE IF NOT EXISTS odps (
+    id uuid PRIMARY KEY,
+    code varchar(64) NOT NULL,
+    port_count integer NOT NULL,
+    latitude double precision,
+    longitude double precision,
+    address text,
+    notes text,
+    route jsonb,
+    route_meters double precision NOT NULL DEFAULT 0,
+    odc_id uuid,
+    olt_id uuid,
+    slot integer,
+    port_id integer,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 -- An ODP hangs off a cabinet or off a PON port, never both and never neither.
 -- Networks grow both ways — some feeders reach a cabinet first, some ports go

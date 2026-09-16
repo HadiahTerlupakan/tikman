@@ -144,7 +144,7 @@ func (h *handlers) registerPlantRoutes(api *gin.RouterGroup, authenticated gin.H
 }
 
 // registerONTRoutes covers the subscriber side: the ONTs themselves and the
-// cabinets their drops land in.
+// provisioning actions run against them.
 func (h *handlers) registerONTRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
 	onts := api.Group("/onts")
 	onts.Use(authenticated)
@@ -167,30 +167,16 @@ func (h *handlers) registerONTRoutes(api *gin.RouterGroup, authenticated gin.Han
 		onts.POST("/:id/gpon/configure", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.zteProvisionHandler.ConfigureExisting)
 		onts.POST("/:id/gpon/preview", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.zteProvisionHandler.PreviewConfigure)
 
-		// Which distribution box a drop lands in is field knowledge, so a
-		// technician records it; only an admin may remove plant.
-		onts.PUT("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.AssignONT)
-		onts.DELETE("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.UnassignONT)
-
 		onts.POST("/:id/provision", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.provisionHandler.ProvisionOnt)
 		onts.GET("/:id/provision-jobs", h.provisionHandler.ListProvisionJobsByONT)
-	}
-
-	odcs := api.Group("/odcs")
-	odcs.Use(authenticated)
-	{
-		odcs.GET("", h.distributionHandler.ListODCs)
-		odcs.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.CreateODC)
-		odcs.POST("/:id/feeds", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.AddODCFeed)
 	}
 
 }
 
 // registerMappingRoutes covers the free-form network map: the boxes and
 // cables field staff place and draw, in place of a fixed ODC/ODP plant table.
-// Viewing is open to anyone authenticated, same as the plant routes above;
-// only placing, drawing or removing something is gated to those who touch
-// the field.
+// Viewing is open to anyone authenticated; only placing, drawing or removing
+// something is gated to those who touch the field.
 func (h *handlers) registerMappingRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
 	mapping := api.Group("/mapping")
 	mapping.Use(authenticated)
@@ -279,25 +265,8 @@ func (h *handlers) registerCSAdminRoutes(cs *gin.RouterGroup) {
 
 }
 
-// registerOperationsRoutes covers the plant records between an OLT and a
-// subscriber, and the templates a provision is built from.
+// registerOperationsRoutes covers the templates a provision is built from.
 func (h *handlers) registerOperationsRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
-	odcFeeds := api.Group("/odc-feeds")
-	odcFeeds.Use(authenticated)
-	{
-		odcFeeds.GET("", h.distributionHandler.ListODCFeeds)
-		odcFeeds.PUT("/:id/route", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.SetODCFeedRoute)
-	}
-
-	odps := api.Group("/odps")
-	odps.Use(authenticated)
-	{
-		odps.GET("", h.distributionHandler.ListODPs)
-		odps.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.CreateODP)
-		odps.GET("/:id/subscribers", h.distributionHandler.SubscribersOnODP)
-		odps.PUT("/:id/route", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.SetODPRoute)
-	}
-
 	configTemplates := api.Group("/config-templates")
 	configTemplates.Use(authenticated)
 	{

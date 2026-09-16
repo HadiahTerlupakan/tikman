@@ -33,7 +33,6 @@ type handlers struct {
 	seedHandler            *SeedHandler
 	configTemplateHandler  *ConfigTemplateHandler
 	wireguardHandler       *WireGuardHandler
-	distributionHandler    *DistributionHandler
 	firebaseTokenHandler   *FirebaseTokenHandler
 	csHandler              *CSHandler
 	csPerformanceHandler   *CSPerformanceHandler
@@ -79,7 +78,6 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		seedHandler:            NewSeedHandler(db, cfg.EncryptionKey),
 		configTemplateHandler:  NewConfigTemplateHandler(configTemplateService),
 		wireguardHandler:       NewWireGuardHandler(wgService, auditService),
-		distributionHandler:    NewDistributionHandler(services.NewDistributionService(db)),
 		firebaseTokenHandler:   NewFirebaseTokenHandler(firebaseApp, logger),
 		csHandler:              cs.handler,
 		csPerformanceHandler:   cs.performance,

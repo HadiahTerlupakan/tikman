@@ -126,11 +126,18 @@ func applyMigrationsBefore(db *gorm.DB, dir, stopVersion string) error {
 // schema's foreign key requires (fk_odcs_site). code deliberately carries no
 // uniqueness constraint of its own, which is exactly what these tests rely on
 // being able to violate.
+//
+// Raw SQL, not models.ODC{}: Task 6 deleted that struct along with the
+// service built on it, so odcs/odps only exist as tables a pre-migration-54
+// schema still carries, not as Go types.
 func odcFixture(t *testing.T, db *gorm.DB, code, notes string) {
 	t.Helper()
 	site := models.Site{Name: "Site " + uuid.NewString()[:8]}
 	require.NoError(t, db.Create(&site).Error)
-	require.NoError(t, db.Create(&models.ODC{SiteID: site.ID, Code: code, Notes: notes}).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO odcs (id, site_id, code, notes) VALUES (?, ?, ?, ?)`,
+		uuid.New(), site.ID, code, notes,
+	).Error)
 }
 
 // Fix for the backfill assuming ODC.Code is unique: nothing enforces that in
@@ -184,17 +191,17 @@ func TestBackfillPreservesTheODPIDThatAnONTAlreadyReferences(t *testing.T) {
 	db := freshPostgresBeforeMapping(t)
 	_, olt := plantFixture(t, db)
 	slot, port := 1, 1
-	odp := models.ODP{
-		Code: "ODP-" + uuid.NewString()[:8], PortCount: 8,
-		OLTID: &olt.ID, Slot: &slot, PortID: &port,
-	}
-	require.NoError(t, db.Create(&odp).Error)
+	odpID := uuid.New()
+	require.NoError(t, db.Exec(
+		`INSERT INTO odps (id, code, port_count, olt_id, slot, port_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		odpID, "ODP-"+uuid.NewString()[:8], 8, olt.ID, slot, port,
+	).Error)
 
 	ontSlot, dropPort := 1, 3
 	ont := models.ONT{
 		OLTID: olt.ID, Slot: &ontSlot, PortID: 1, ONTID: 1,
 		SerialNumber: "TESTONT" + uuid.NewString()[:5], Status: models.ONTStatusOnline,
-		ODPID: &odp.ID, ODPPort: &dropPort,
+		ODPID: &odpID, ODPPort: &dropPort,
 	}
 	require.NoError(t, db.Create(&ont).Error)
 
@@ -207,5 +214,51 @@ func TestBackfillPreservesTheODPIDThatAnONTAlreadyReferences(t *testing.T) {
 	var node models.MappingNode
 	err := db.Where("id = ?", *stored.ODPID).First(&node).Error
 	require.NoError(t, err, "onts.odp_id must resolve against mapping_nodes after the backfill")
+	assert.Equal(t, models.NodeODP, node.Type)
+}
+
+// Migration 54 drops odcs/odc_feeds/odps once migration 53 has moved their
+// content into mapping_nodes. onts is not dropped alongside them, so the one
+// way this fails is fk_onts_odp (migration 39) still pointing at odps —
+// caught once, by hand, before the fix: dropping odps without first releasing
+// that constraint fails with "cannot drop table odps because other objects
+// depend on it", which is exactly the failure a real deploy would hit if the
+// ALTER TABLE ... DROP CONSTRAINT line above the DROP TABLEs were ever lost.
+func TestDroppingTheOldPlantLeavesTheONTResolvableAgainstMappingNodes(t *testing.T) {
+	db := freshPostgresBeforeMapping(t)
+	_, olt := plantFixture(t, db)
+	slot, port := 1, 1
+	odpID := uuid.New()
+	require.NoError(t, db.Exec(
+		`INSERT INTO odps (id, code, port_count, olt_id, slot, port_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		odpID, "ODP-"+uuid.NewString()[:8], 8, olt.ID, slot, port,
+	).Error)
+
+	ontSlot, dropPort := 1, 3
+	ont := models.ONT{
+		OLTID: olt.ID, Slot: &ontSlot, PortID: 1, ONTID: 1,
+		SerialNumber: "TESTONT" + uuid.NewString()[:5], Status: models.ONTStatusOnline,
+		ODPID: &odpID, ODPPort: &dropPort,
+	}
+	require.NoError(t, db.Create(&ont).Error)
+
+	// freshPostgresBeforeMapping already applied everything older than 53, so
+	// this call is 53 (the backfill) and 54 (the drop) running back to back —
+	// the same order a real deploy applies them in.
+	require.NoError(t, RunSQLMigrations(db, "../../migrations"))
+
+	var remaining int64
+	require.NoError(t, db.Raw(`SELECT count(*) FROM information_schema.tables
+		WHERE table_schema = ? AND table_name IN ('odcs', 'odps', 'odc_feeds')`,
+		mappingBackfillSchema).Scan(&remaining).Error)
+	assert.Zero(t, remaining, "migration 54 must drop all three plant tables")
+
+	var stored models.ONT
+	require.NoError(t, db.First(&stored, "id = ?", ont.ID).Error)
+	require.NotNil(t, stored.ODPID, "dropping odps must not touch onts.odp_id")
+
+	var node models.MappingNode
+	err := db.Where("id = ?", *stored.ODPID).First(&node).Error
+	require.NoError(t, err, "onts.odp_id must still resolve against mapping_nodes once odps is gone")
 	assert.Equal(t, models.NodeODP, node.Type)
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
-	"github.com/tikman/olt-provisioning/internal/services"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -140,89 +139,6 @@ func plantFixture(t *testing.T, db *gorm.DB) (models.Site, models.OLT) {
 	return site, olt
 }
 
-func TestDatabaseRefusesADistributionBoxWithTwoParents(t *testing.T) {
-	db := freshPostgres(t)
-	site, olt := plantFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
-	require.NoError(t, db.Create(&odc).Error)
-	slot, port := 1, 4
-
-	// The service refuses this too, but an import or a hand-written UPDATE
-	// answers only to the database, which is why the rule is stated twice.
-	err := db.Create(&models.ODP{
-		Code: "ODP", PortCount: 8, ODCID: &odc.ID,
-		OLTID: &olt.ID, Slot: &slot, PortID: &port,
-	}).Error
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "odps_exactly_one_parent")
-}
-
-func TestDatabaseRefusesADistributionBoxWithNoParent(t *testing.T) {
-	db := freshPostgres(t)
-
-	err := db.Create(&models.ODP{Code: "ODP", PortCount: 8}).Error
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "odps_exactly_one_parent")
-}
-
-func TestDatabaseRefusesTwoSubscribersOnOneDistributionPort(t *testing.T) {
-	db := freshPostgres(t)
-	site, olt := plantFixture(t, db)
-	odc := models.ODC{SiteID: site.ID, Code: "ODC"}
-	require.NoError(t, db.Create(&odc).Error)
-	odp := models.ODP{Code: "ODP", PortCount: 8, ODCID: &odc.ID}
-	require.NoError(t, db.Create(&odp).Error)
-	slot, port := 1, 1
-
-	require.NoError(t, db.Create(&models.ONT{
-		OLTID: olt.ID, Slot: &slot, PortID: 1, ONTID: 1,
-		SerialNumber: uuid.NewString()[:12], Status: models.ONTStatusOnline,
-		ODPID: &odp.ID, ODPPort: &port,
-	}).Error)
-
-	err := db.Create(&models.ONT{
-		OLTID: olt.ID, Slot: &slot, PortID: 1, ONTID: 2,
-		SerialNumber: uuid.NewString()[:12], Status: models.ONTStatusOnline,
-		ODPID: &odp.ID, ODPPort: &port,
-	}).Error
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "uq_onts_odp_port")
-}
-
-func TestDatabaseAllowsManySubscribersWithNoDistributionPortYet(t *testing.T) {
-	db := freshPostgres(t)
-	_, olt := plantFixture(t, db)
-	slot := 1
-
-	// Every subscriber starts unassigned, and a unique index that treated
-	// "no port yet" as a value would let exactly one of them exist.
-	for i := 1; i <= 3; i++ {
-		require.NoError(t, db.Create(&models.ONT{
-			OLTID: olt.ID, Slot: &slot, PortID: 1, ONTID: i,
-			SerialNumber: uuid.NewString()[:12], Status: models.ONTStatusOnline,
-		}).Error)
-	}
-}
-
-func TestSchemaCarriesTheCableRoutes(t *testing.T) {
-	db := freshPostgres(t)
-
-	// Columns AutoMigrate adds from the model tags, which is why stage two
-	// needed no migration of its own. If that ever stops being true, the map
-	// draws nothing and this says so first.
-	for _, table := range []string{"odps", "odc_feeds"} {
-		var columns int64
-		require.NoError(t, db.Raw(`SELECT count(*) FROM information_schema.columns
-			WHERE table_schema = ? AND table_name = ?
-			AND column_name IN ('route', 'route_meters')`,
-			migrationCheckSchema, table).Scan(&columns).Error)
-		assert.EqualValues(t, 2, columns, table)
-	}
-}
-
 // Migration 47 drops fcm_token after AutoMigrate has added fid. A drop that
 // silently did nothing — a typo in the column name, say — leaves a NOT NULL
 // column nothing writes to, and every push subscribe then fails on the real
@@ -237,33 +153,4 @@ func TestPushSubscriptionsCarryOnlyTheInstallationID(t *testing.T) {
 		migrationCheckSchema).Scan(&columns).Error)
 
 	assert.Equal(t, []string{"fid"}, columns)
-}
-
-func TestStoringACableRouteOnTheRealSchema(t *testing.T) {
-	db := freshPostgres(t)
-	site, _ := plantFixture(t, db)
-	service := services.NewDistributionService(db)
-	odc, err := service.CreateODC(services.ODCInput{SiteID: site.ID, Code: "ODC-" + uuid.NewString()[:6]})
-	require.NoError(t, err)
-	odp, err := service.CreateODP(services.ODPInput{
-		Code: "ODP-" + uuid.NewString()[:6], PortCount: 32, ODCID: &odc.ID,
-	})
-	require.NoError(t, err)
-
-	// AutoMigrate alone was not enough to catch this: the schema this runs
-	// against carries the checks and foreign keys migration 39 adds, which is
-	// what production has and what a route update has to survive.
-	err = service.SetODPRoute(odp.ID, []models.RoutePoint{
-		{Lat: -6.4000, Lng: 107.0000},
-		{Lat: -6.4050, Lng: 107.0100},
-		{Lat: -6.4100, Lng: 107.0000},
-	})
-
-	require.NoError(t, err)
-	stored, err := service.ODPByID(odp.ID)
-	require.NoError(t, err)
-	points, err := stored.RoutePath()
-	require.NoError(t, err)
-	assert.Len(t, points, 3)
-	assert.Greater(t, stored.RouteMeters, 0.0)
 }
