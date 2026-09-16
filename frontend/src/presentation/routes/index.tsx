@@ -29,6 +29,11 @@ const CsPerformancePage = lazy(() =>
     default: m.CsPerformancePage,
   })),
 );
+const NetworkMapPage = lazy(() =>
+  import("../pages/NetworkMapPage").then((m) => ({
+    default: m.NetworkMapPage,
+  })),
+);
 
 export const router = createBrowserRouter([
   {
@@ -119,6 +124,20 @@ export const router = createBrowserRouter([
                 }
               >
                 <GraphsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: "network-map",
+            element: (
+              <Suspense
+                fallback={
+                  <div style={{ padding: 24, textAlign: "center" }}>
+                    <Spin />
+                  </div>
+                }
+              >
+                <NetworkMapPage />
               </Suspense>
             ),
           },

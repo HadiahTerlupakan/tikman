@@ -52,4 +52,10 @@ describe("buildNavigationRoutes", () => {
       expect(route.name.length).toBeGreaterThan(0);
     }
   });
+
+  it("offers the network map to the roles that may see plant", () => {
+    const routes = buildNavigationRoutes(UserRole.TECHNICIAN);
+    const names = JSON.stringify(routes);
+    expect(names).toContain("Peta Jaringan");
+  });
 });

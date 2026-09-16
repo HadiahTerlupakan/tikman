@@ -13,6 +13,7 @@ import {
   GlobalOutlined,
   MessageOutlined,
   LineChartOutlined,
+  NodeIndexOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { UserRole } from "@/domain/entities";
@@ -31,6 +32,11 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     { path: "/", name: "Dashboard", icon: <DashboardOutlined /> },
     { path: "/sites", name: "Sites", icon: <EnvironmentOutlined /> },
     { path: "/map", name: "Map", icon: <GlobalOutlined /> },
+    {
+      path: "/network-map",
+      name: "Peta Jaringan",
+      icon: <NodeIndexOutlined />,
+    },
     { path: "/olts", name: "OLTs", icon: <ApiOutlined /> },
     { path: "/onts", name: "ONT Monitoring", icon: <MonitorOutlined /> },
     {
