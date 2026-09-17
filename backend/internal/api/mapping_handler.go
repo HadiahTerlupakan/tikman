@@ -20,15 +20,20 @@ func NewMappingHandler(mapping *services.MappingService) *MappingHandler {
 
 // mappingError turns a service error into the answer a technician sees. A full
 // box and a repeated id are both 409: the request was understood and refused.
-// Only a wrapped gorm.ErrRecordNotFound is a 404 — CreateNode has no
-// legitimate not-found path, so anything else here is a real failure, and
-// reporting it as a missing node would send someone hunting for the wrong
-// thing.
+// Each sentinel still gets its own code — a full ODC and a duplicate cable look
+// nothing alike to an operator, and collapsing them to one code left the
+// frontend unable to tell "free a slot" from "this already exists". Only a
+// wrapped gorm.ErrRecordNotFound is a 404 — CreateNode has no legitimate
+// not-found path, so anything else here is a real failure, and reporting it as
+// a missing node would send someone hunting for the wrong thing.
 func mappingError(c *gin.Context, err error, notFoundCode string) {
 	switch {
-	case errors.Is(err, services.ErrNodeExists), errors.Is(err, services.ErrEdgeExists),
-		errors.Is(err, services.ErrSlotsFull):
-		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "MAPPING_CONFLICT"})
+	case errors.Is(err, services.ErrNodeExists):
+		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_EXISTS"})
+	case errors.Is(err, services.ErrEdgeExists):
+		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "EDGE_EXISTS"})
+	case errors.Is(err, services.ErrSlotsFull):
+		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "SLOTS_FULL"})
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error(), Code: notFoundCode})
 	default:

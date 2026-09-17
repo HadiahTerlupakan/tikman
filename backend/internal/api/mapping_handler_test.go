@@ -67,6 +67,17 @@ func deleteRequest(t *testing.T, r *gin.Engine, path string) *httptest.ResponseR
 	return rec
 }
 
+// responseCode reads the machine-readable code a handler answered with, the
+// field the frontend actually branches on rather than the free-text message.
+func responseCode(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	return body.Code
+}
+
 // seedNode places a minimal, valid node directly through the service, for
 // tests whose focus is an edge rather than the nodes it connects.
 func seedNode(t *testing.T, svc *services.MappingService, nodeID string, typ models.NodeType) {
@@ -117,9 +128,14 @@ func TestARepeatedNodeIDAnswers409(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusConflict, rec.Code)
+	// A repeated node_id and a full cabinet are both 409s; the frontend tells
+	// them apart by this code alone, so it must not collapse to one shared value.
+	assert.Equal(t, "NODE_EXISTS", responseCode(t, rec))
 }
 
-// The refusal has to reach the technician, not just the log.
+// The refusal has to reach the technician, not just the log — and it has to be
+// distinguishable by code from a duplicate edge, since both answer 409 and the
+// frontend branches on the code rather than the free-text message.
 func TestAFullCabinetAnswers409WithItsNumbers(t *testing.T) {
 	r, svc := mappingRouter(t)
 	_, err := svc.CreateNode(models.MappingNode{
@@ -142,7 +158,27 @@ func TestAFullCabinetAnswers409WithItsNumbers(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusConflict, rec.Code)
+	assert.Equal(t, "SLOTS_FULL", responseCode(t, rec))
 	assert.Contains(t, rec.Body.String(), "1/1")
+}
+
+// A duplicate cable and a full cabinet must not read the same to an operator:
+// one means "nothing to do", the other means "free a slot first".
+func TestADuplicateEdgeAnswers409WithEdgeExists(t *testing.T) {
+	r, svc := mappingRouter(t)
+	seedNode(t, svc, "ODC-01", models.NodeODC)
+	seedNode(t, svc, "ODP-01", models.NodeODP)
+	first := postJSON(t, r, "/api/v1/mapping/edges", gin.H{
+		"edge_id": "E-1", "source": "ODC-01", "target": "ODP-01", "fiber_type": "distribution",
+	})
+	require.Equal(t, http.StatusCreated, first.Code)
+
+	rec := postJSON(t, r, "/api/v1/mapping/edges", gin.H{
+		"edge_id": "E-1", "source": "ODC-01", "target": "ODP-01", "fiber_type": "distribution",
+	})
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	assert.Equal(t, "EDGE_EXISTS", responseCode(t, rec))
 }
 
 func TestUpdatingAnEdgeAnswersWithWhatChanged(t *testing.T) {

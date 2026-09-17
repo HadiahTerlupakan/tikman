@@ -12,8 +12,11 @@ import (
 var (
 	// ErrEdgeExists marks a cable id that is already drawn.
 	ErrEdgeExists = errors.New("edge id already exists")
-	// ErrSlotsFull marks a box asked to hold more than it has ports for.
-	ErrSlotsFull = errors.New("slots are full")
+	// ErrSlotsFull marks a box asked to hold more than it has ports for. Its
+	// text is Indonesian, unlike validateODPPortPlacement's — this one is not
+	// shared with the ZTE registration path and reaches the operator directly
+	// through the network map's conflict alert.
+	ErrSlotsFull = errors.New("slot penuh")
 )
 
 // CreateEdge draws one cable. A cabinet or box with a stated capacity refuses
@@ -75,7 +78,7 @@ func (s *MappingService) checkSlots(in models.MappingEdge, excludeID string) err
 		return fmt.Errorf("count slots on %s: %w", in.Source, err)
 	}
 	if used >= int64(source.Capacity) {
-		return fmt.Errorf("%w: %q is full (%d/%d)", ErrSlotsFull, in.Source, used, source.Capacity)
+		return fmt.Errorf("%w: %q sudah penuh (%d/%d)", ErrSlotsFull, in.Source, used, source.Capacity)
 	}
 	return nil
 }
