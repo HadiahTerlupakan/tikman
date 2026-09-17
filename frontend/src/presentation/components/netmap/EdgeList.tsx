@@ -1,4 +1,4 @@
-import { Button, Space, Table } from "antd";
+import { Button, Popconfirm, Space, Table } from "antd";
 import type { MappingEdge } from "@/domain/entities";
 import { formatMeters } from "./cableMath";
 import { FIBER_LABELS } from "./mappingLabels";
@@ -37,9 +37,16 @@ export function EdgeList({ edges, onEdit, onDelete }: EdgeListProps) {
               <Button size="small" onClick={() => onEdit(edge)}>
                 Ubah
               </Button>
-              <Button danger size="small" onClick={() => onDelete(edge.edgeId)}>
-                Hapus
-              </Button>
+              <Popconfirm
+                title="Hapus kabel ini?"
+                onConfirm={() => onDelete(edge.edgeId)}
+                okText="Ya"
+                cancelText="Tidak"
+              >
+                <Button danger size="small">
+                  Hapus
+                </Button>
+              </Popconfirm>
             </Space>
           ),
         },

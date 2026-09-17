@@ -67,11 +67,21 @@ function cablePath(
   return [...point(source), ...waypoints, ...point(target)];
 }
 
-// A capacity rule on an odp_to_odp/odc_to_odc cascade must reach the operator
-// as itself; only the id collision this cable's own `source--target` naming
-// produces should read as "already exists".
-function isConflict(error: unknown): boolean {
-  return error instanceof ApiError && error.statusCode === 409;
+// A capacity rule on an odp_to_odp/odc_to_odc cascade is also a 409, and must
+// reach the operator as itself; only the id collision this cable's own
+// `source--target` naming produces should read as "already exists". Branching
+// on the code the backend now sends (not the shared status) is what tells
+// them apart.
+function isEdgeExists(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "EDGE_EXISTS";
+}
+
+function isNodeExists(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "NODE_EXISTS";
+}
+
+function isNodeInUse(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "NODE_IN_USE";
 }
 
 function errorMessage(error: unknown): string {
@@ -142,8 +152,38 @@ export function NetworkMapPage() {
       }
       setFormTarget(undefined);
       setPlacing(undefined);
+    } catch (error) {
+      // Mirrors saveCable: a duplicate id is its own plain-language message,
+      // not indistinguishable from a network error.
+      message.error(
+        isNodeExists(error)
+          ? "Kode node sudah dipakai, gunakan kode lain"
+          : "Gagal menyimpan node",
+      );
+    }
+  };
+
+  // No Popconfirm or catch existed here before: one misclick in a 20-row
+  // table removed a node outright, orphaning every cable drawn to it, and a
+  // failed delete left the row sitting there with no explanation.
+  const removeNode = async (nodeId: string) => {
+    try {
+      await deleteNode.mutateAsync(nodeId);
+    } catch (error) {
+      // DeleteNode refuses with 409 NODE_IN_USE while an ONT still points at
+      // this node, naming how many — that has to reach the operator as
+      // itself, not the generic fallback.
+      message.error(
+        isNodeInUse(error) ? errorMessage(error) : "Gagal menghapus node",
+      );
+    }
+  };
+
+  const removeEdge = async (edgeId: string) => {
+    try {
+      await deleteEdge.mutateAsync(edgeId);
     } catch {
-      message.error("Gagal menyimpan node");
+      message.error("Gagal menghapus kabel");
     }
   };
 
@@ -169,7 +209,7 @@ export function NetworkMapPage() {
       // capacity rule on an odp_to_odp/odc_to_odc cascade, a network error —
       // must surface as itself, not be misreported as a duplicate.
       message.error(
-        isConflict(error)
+        isEdgeExists(error)
           ? "Sudah ada kabel antara kedua node ini"
           : errorMessage(error),
       );
@@ -250,16 +290,8 @@ export function NetworkMapPage() {
         )
       ) : (
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
-          <NodeList
-            nodes={nodes}
-            onEdit={editNode}
-            onDelete={(nodeId) => deleteNode.mutateAsync(nodeId)}
-          />
-          <EdgeList
-            edges={edges}
-            onEdit={editEdge}
-            onDelete={(edgeId) => deleteEdge.mutateAsync(edgeId)}
-          />
+          <NodeList nodes={nodes} onEdit={editNode} onDelete={removeNode} />
+          <EdgeList edges={edges} onEdit={editEdge} onDelete={removeEdge} />
         </Space>
       )}
       <CountCards nodes={nodes} />

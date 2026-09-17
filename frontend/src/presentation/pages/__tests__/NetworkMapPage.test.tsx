@@ -165,8 +165,8 @@ describe("NetworkMapPage", () => {
     expect(createNodeMutateAsync).not.toHaveBeenCalled();
   });
 
-  // The mirror of the node-edit test above, and of the two delete-wiring
-  // guards below: a copy-paste of useUpdateNode into the cable row's Ubah
+  // The mirror of the node-edit test above (and of NetworkMapPage.delete's
+  // wiring guards): a copy-paste of useUpdateNode into the cable row's Ubah
   // button — the closest, most likely mistake, since editNode/saveNode
   // already exist as the template — would pass everything else and only
   // show up here.
@@ -186,35 +186,6 @@ describe("NetworkMapPage", () => {
       expect.objectContaining({ edgeId: "ODC-01--ODP-01" }),
     );
     expect(updateNodeMutateAsync).not.toHaveBeenCalled();
-  });
-
-  it("deletes a cable from the Daftar view via useDeleteEdge, not useDeleteNode", async () => {
-    render(<NetworkMapPage />);
-
-    await userEvent.click(screen.getByText("Daftar"));
-    const edgeRow = screen.getByText("ODC-01--ODP-01").closest("tr")!;
-    await userEvent.click(
-      within(edgeRow).getByRole("button", { name: "Hapus" }),
-    );
-
-    expect(deleteEdgeMutateAsync).toHaveBeenCalledWith("ODC-01--ODP-01");
-    expect(deleteNodeMutateAsync).not.toHaveBeenCalled();
-  });
-
-  // The mirror of the cable-deletion test above: a copy-paste of the wrong
-  // hook between NodeList's and EdgeList's onDelete would pass everything
-  // else and only show up here.
-  it("deletes a node from the Daftar view via useDeleteNode, not useDeleteEdge", async () => {
-    render(<NetworkMapPage />);
-
-    await userEvent.click(screen.getByText("Daftar"));
-    const nodeRow = screen.getByText("ODC Satu").closest("tr")!;
-    await userEvent.click(
-      within(nodeRow).getByRole("button", { name: "Hapus" }),
-    );
-
-    expect(deleteNodeMutateAsync).toHaveBeenCalledWith("ODC-01");
-    expect(deleteEdgeMutateAsync).not.toHaveBeenCalled();
   });
 
   // The bug this task exists to fix: an earlier sample saved every cable as
@@ -329,16 +300,19 @@ describe("NetworkMapPage", () => {
     );
   });
 
-  // The rule set requirement 1 exists to make reachable (odp_to_odp /
-  // odc_to_odc capacity) would be misreported as a duplicate cable if every
-  // failure showed the same "already exists" text.
+  // The capacity rule requirement 1 exists to make reachable (odp_to_odp /
+  // odc_to_odc) would be misreported as a duplicate cable if every 409 showed
+  // the same "already exists" text. SLOTS_FULL — not a fabricated 422 code —
+  // is what the backend actually sends for this (mapping_handler.go); a
+  // fixture using any other status or code would pass without ever
+  // exercising the branch it claims to guard.
   it("surfaces the backend's own message for a failure that is not a duplicate id", async () => {
     createEdgeMutateAsync.mockRejectedValueOnce(
       new ApiError(
-        422,
-        "CAPACITY_EXCEEDED",
+        409,
+        "SLOTS_FULL",
         undefined,
-        "Kapasitas splitter penuh",
+        'slot penuh: "ODC-01" sudah penuh (8/8)',
       ),
     );
     render(<NetworkMapPage />);
@@ -349,10 +323,33 @@ describe("NetworkMapPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
 
     await waitFor(() =>
-      expect(messageError).toHaveBeenCalledWith("Kapasitas splitter penuh"),
+      expect(messageError).toHaveBeenCalledWith(
+        'slot penuh: "ODC-01" sudah penuh (8/8)',
+      ),
     );
     expect(messageError).not.toHaveBeenCalledWith(
       "Sudah ada kabel antara kedua node ini",
+    );
+  });
+
+  // saveCable already tells a duplicate id from every other failure; saveNode
+  // reported both alike as "Gagal menyimpan node", which sent an operator who
+  // just needed a different code hunting for a network problem instead.
+  it("tells the operator a node's code is already taken, not a generic save failure", async () => {
+    createNodeMutateAsync.mockRejectedValueOnce(
+      new ApiError(409, "NODE_EXISTS"),
+    );
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "+ ODP" }));
+    act(() => canvasProps.onDrop({ lat: -6.001, lng: 106.001 }));
+    await userEvent.type(screen.getByLabelText("Nama"), "ODP Baru");
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() =>
+      expect(messageError).toHaveBeenCalledWith(
+        "Kode node sudah dipakai, gunakan kode lain",
+      ),
     );
   });
 });

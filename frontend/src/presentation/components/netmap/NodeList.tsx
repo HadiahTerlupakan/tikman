@@ -1,4 +1,4 @@
-import { Button, Space, Table } from "antd";
+import { Button, Popconfirm, Space, Table } from "antd";
 import type { MappingNode } from "@/domain/entities";
 import { NODE_LABELS } from "./mappingLabels";
 
@@ -31,9 +31,16 @@ export function NodeList({ nodes, onEdit, onDelete }: NodeListProps) {
               <Button size="small" onClick={() => onEdit(node)}>
                 Ubah
               </Button>
-              <Button danger size="small" onClick={() => onDelete(node.nodeId)}>
-                Hapus
-              </Button>
+              <Popconfirm
+                title="Hapus node ini?"
+                onConfirm={() => onDelete(node.nodeId)}
+                okText="Ya"
+                cancelText="Tidak"
+              >
+                <Button danger size="small">
+                  Hapus
+                </Button>
+              </Popconfirm>
             </Space>
           ),
         },

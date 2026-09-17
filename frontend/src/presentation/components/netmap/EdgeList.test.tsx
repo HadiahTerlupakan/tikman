@@ -30,11 +30,14 @@ describe("EdgeList", () => {
     expect(screen.queryByText("1500")).not.toBeInTheDocument();
   });
 
-  it("asks the caller to delete the cable that was clicked, by its edge id", async () => {
+  it("asks the caller to delete the cable that was clicked, only after confirming", async () => {
     const onDelete = vi.fn();
     render(<EdgeList edges={[edge]} onDelete={onDelete} onEdit={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Hapus" }));
+    expect(onDelete).not.toHaveBeenCalled();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ya" }));
 
     expect(onDelete).toHaveBeenCalledWith("ODC-01--ODP-01");
   });
