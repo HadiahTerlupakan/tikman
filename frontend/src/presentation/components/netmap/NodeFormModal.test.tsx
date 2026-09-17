@@ -19,6 +19,36 @@ const existingOdp: MappingNode = {
   notes: "Dekat gapura",
 };
 
+// Neither field makes sense for its own type, but the model carries all four
+// on every node regardless — a value that snuck in some other way (a manual
+// DB edit, a future feature) must survive an edit of a field this form never
+// shows for that type.
+const existingOntWithStrayFields: MappingNode = {
+  nodeId: "ONT-CONTOH-01",
+  type: "ont",
+  name: "ONT Contoh",
+  latitude: -6.21,
+  longitude: 106.81,
+  capacity: 4,
+  splitter: "1:8",
+  pppoe: "pelanggan@pppoe",
+  serialNumber: "ZTEGC0000099",
+  notes: "",
+};
+
+const existingOdpWithStrayFields: MappingNode = {
+  nodeId: "ODP-CONTOH-02",
+  type: "odp",
+  name: "ODP Contoh Dua",
+  latitude: -6.21,
+  longitude: 106.81,
+  capacity: 8,
+  splitter: "1:8",
+  pppoe: "nyasar@pppoe",
+  serialNumber: "SERIAL-NYASAR",
+  notes: "",
+};
+
 describe("NodeFormModal", () => {
   // The position comes from the tap on the map, so the technician never types
   // a coordinate.
@@ -226,6 +256,53 @@ describe("NodeFormModal", () => {
         type: "odp",
         capacity: 8,
         splitter: "1:8",
+      }),
+    );
+  });
+
+  // effectiveType gates capacity/splitter off an ONT's form and pppoe/serial
+  // off every other type's — values that field never rendered still went
+  // through the submit ?? default and were zeroed, even when nothing was
+  // retyped.
+  it("keeps an ONT's own capacity and splitter when editing, though the form never shows them", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <NodeFormModal
+        open
+        type="ont"
+        position={{ lat: 0, lng: 0 }}
+        initial={existingOntWithStrayFields}
+        onCancel={() => {}}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ capacity: 4, splitter: "1:8" }),
+    );
+  });
+
+  it("keeps a non-ONT node's own PPPoE and serial when editing, though the form never shows them", async () => {
+    const onSubmit = vi.fn();
+    render(
+      <NodeFormModal
+        open
+        type="odp"
+        position={{ lat: 0, lng: 0 }}
+        initial={existingOdpWithStrayFields}
+        onCancel={() => {}}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pppoe: "nyasar@pppoe",
+        serialNumber: "SERIAL-NYASAR",
       }),
     );
   });
