@@ -49,9 +49,16 @@ CREATE INDEX IF NOT EXISTS idx_mapping_nodes_type ON mapping_nodes (type);
 -- dua ruang UUID terpisah yang bertemu di satu primary key mapping_nodes.id;
 -- tabrakan di antara keduanya nyaris mustahil dan akan menggagalkan INSERT
 -- dengan keras, bukan merusak data diam-diam.
+-- odcs.code is itself varchar(64), so 'ODC-' || code alone can already exceed
+-- mapping_nodes.node_id's varchar(64) before any collision suffix is added.
+-- left(..., 64 - 9) reserves room for that suffix ('-' plus 8 hex characters)
+-- so the final value never overflows. Truncating the prefix+code instead of
+-- the finished string matters: truncating after appending the suffix would,
+-- for a long enough code, cut the suffix off rather than the code, defeating
+-- the very thing it disambiguates.
 WITH odc_ids AS (
     SELECT o.*,
-           'ODC-' || o.code || CASE
+           left('ODC-' || o.code, 64 - 9) || CASE
                WHEN row_number() OVER (PARTITION BY o.code ORDER BY o.created_at, o.id) > 1
                THEN '-' || left(o.id::text, 8) ELSE '' END AS mapped_node_id
     FROM odcs o
@@ -65,9 +72,10 @@ SELECT id, mapped_node_id, 'odc', code,
 FROM odc_ids
 WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.node_id = odc_ids.mapped_node_id);
 
+-- Same overflow guard as odc_ids above, applied to the ODP prefix.
 WITH odp_ids AS (
     SELECT p.*,
-           'ODP-' || p.code || CASE
+           left('ODP-' || p.code, 64 - 9) || CASE
                WHEN row_number() OVER (PARTITION BY p.code ORDER BY p.created_at, p.id) > 1
                THEN '-' || left(p.id::text, 8) ELSE '' END AS mapped_node_id
     FROM odps p

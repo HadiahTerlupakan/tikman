@@ -164,6 +164,33 @@ func TestBackfillGivesCollidingODCCodesDistinctNodeIDs(t *testing.T) {
 	}
 }
 
+// Fix for a code long enough that 'ODC-' + code, plus a collision suffix,
+// overflows mapping_nodes.node_id varchar(64): the INSERT then fails, taking
+// migration 53 and cmd/api's startup down with it. code is exactly 64 —
+// odcs.code's own limit, so this is the longest code that can actually reach
+// the backfill — which alone is already past 'ODC-'.length + 64 > 64. Two
+// colliding codes, not one, because a fix that truncates the finished string
+// instead of reserving room for the suffix would cut the suffix off entirely
+// here — both rows would truncate to the same 64 characters and collide with
+// each other on the very index this backfill exists to satisfy.
+func TestBackfillTruncatesCollidingOverlongODCCodesToDistinctNodeIDs(t *testing.T) {
+	db := freshPostgresBeforeMapping(t)
+	code := strings.Repeat("X", 64)
+	odcFixture(t, db, code, "")
+	odcFixture(t, db, code, "")
+
+	require.NoError(t, RunSQLMigrations(db, "../../migrations"))
+
+	var nodes []models.MappingNode
+	require.NoError(t, db.Where("type = ? AND name = ?", string(models.NodeODC), code).
+		Order("node_id").Find(&nodes).Error)
+	require.Len(t, nodes, 2, "both colliding ODCs must land in mapping_nodes")
+	for _, n := range nodes {
+		assert.LessOrEqualf(t, len(n.NodeID), 64, "node_id %q must fit varchar(64)", n.NodeID)
+	}
+	assert.NotEqual(t, nodes[0].NodeID, nodes[1].NodeID, "the disambiguating suffix must survive truncation")
+}
+
 // Fix for the backfill placing an unsurveyed box at (0,0): this ISP's plant
 // sits between 95 and 141 degrees east, so a row landing at (0,0) is
 // certainly wrong and must say so in notes rather than look indistinguishable
