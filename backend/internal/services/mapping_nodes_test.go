@@ -3,6 +3,7 @@ package services
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -82,4 +83,56 @@ func TestDeletingANodeThatIsNotThereSaysSo(t *testing.T) {
 	err := s.DeleteNode("ODP-TIDAK-ADA")
 
 	require.Error(t, err)
+}
+
+// An ONT is a real subscriber's service record, not a sketch: deleting the box
+// under it would leave odp_id pointing at nothing while still holding the
+// subscriber's slot in uq_onts_odp_port.
+func TestDeletingANodeWithAnONTAttachedIsRefused(t *testing.T) {
+	db := setupTestDB(t)
+	mappingService := NewMappingService(db)
+	ontService := NewONTService(db)
+	olt := createTestOLT(t, db, uuid.New())
+	node, err := mappingService.CreateNode(odpNode("ODP-DELETE-01", "ODP Terpakai"))
+	require.NoError(t, err)
+	ont := createTestONT(t, ontService, olt.ID, "ZTEGCDELETE01", 1, 1)
+	require.NoError(t, ontService.AssignONTToODP(ont.ID, node.ID, 1))
+
+	err = mappingService.DeleteNode(node.NodeID)
+
+	require.ErrorIs(t, err, ErrNodeInUse)
+	assert.Contains(t, err.Error(), "1", "the refusal has to say how many ONTs are in the way")
+}
+
+func TestDeletingANodeWithNoONTsSucceeds(t *testing.T) {
+	s := mappingSetup(t)
+	_, err := s.CreateNode(odpNode("ODP-DELETE-02", "ODP Kosong"))
+	require.NoError(t, err)
+
+	err = s.DeleteNode("ODP-DELETE-02")
+
+	require.NoError(t, err)
+}
+
+// Migration 53 keeps no foreign key from edge to node on purpose: a cable is
+// drawn before its ends are named. A node with only a cable pointing at it
+// must still be deletable, or that design decision would be undone here.
+func TestDeletingANodeWithOnlyCablesAttachedSucceeds(t *testing.T) {
+	s := mappingSetup(t)
+	_, err := s.CreateNode(models.MappingNode{
+		NodeID: "ODC-DELETE-01", Type: models.NodeODC, Name: "ODC",
+		Latitude: -6.2, Longitude: 106.8,
+	})
+	require.NoError(t, err)
+	_, err = s.CreateNode(odpNode("ODP-DELETE-03", "ODP"))
+	require.NoError(t, err)
+	_, err = s.CreateEdge(models.MappingEdge{
+		EdgeID: "E-DELETE-01", Source: "ODC-DELETE-01", Target: "ODP-DELETE-03",
+		FiberType: models.FiberDistribution,
+	})
+	require.NoError(t, err)
+
+	err = s.DeleteNode("ODP-DELETE-03")
+
+	require.NoError(t, err)
 }

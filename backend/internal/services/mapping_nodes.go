@@ -12,6 +12,11 @@ import (
 // ErrNodeExists marks a node id that is already on the map.
 var ErrNodeExists = errors.New("node id already exists")
 
+// ErrNodeInUse marks a node one or more ONTs still hold their drop on. See
+// DeleteNode for why this is refused rather than left to dangle the way an
+// edge is allowed to.
+var ErrNodeInUse = errors.New("node masih dipakai")
+
 // MappingService holds the network map: the boxes and the cables between them.
 type MappingService struct {
 	db *gorm.DB
@@ -68,7 +73,25 @@ func (s *MappingService) UpdateNode(nodeID string, in models.MappingNode) (*mode
 	return s.GetNode(nodeID)
 }
 
+// DeleteNode removes one box from the map. Refused while an ONT still names it
+// as its ODP — deliberately asymmetric with edges, where a dangling pointer is
+// tolerated by design (migrations/53_network_mapping.sql: a cable is drawn
+// before its ends are named). An ONT is a real subscriber's service record,
+// not a sketch; deleting the node under it would leave odp_id pointing at
+// nothing while the assignment still held its slot in uq_onts_odp_port.
 func (s *MappingService) DeleteNode(nodeID string) error {
+	node, err := s.GetNode(nodeID)
+	if err != nil {
+		return err
+	}
+	var inUse int64
+	if err := s.db.Model(&models.ONT{}).Where("odp_id = ?", node.ID).Count(&inUse).Error; err != nil {
+		return fmt.Errorf("count ONTs on node %s: %w", nodeID, err)
+	}
+	if inUse > 0 {
+		return fmt.Errorf("%w: %d ONT masih terhubung ke %s", ErrNodeInUse, inUse, nodeID)
+	}
+
 	res := s.db.Where("node_id = ?", nodeID).Delete(&models.MappingNode{})
 	if res.Error != nil {
 		return fmt.Errorf("delete node %s: %w", nodeID, res.Error)
