@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MappingEdge } from "@/domain/entities";
 import { MappingRepository } from "./MappingRepository";
 
 vi.mock("../http/apiClient", () => ({
@@ -38,5 +39,27 @@ describe("MappingRepository", () => {
     await expect(new MappingRepository().listEdges()).resolves.toEqual([]);
 
     expect(apiClient.get).toHaveBeenCalledWith("/api/v1/mapping/edges");
+  });
+
+  it("addresses a cable by its edge id when updating", async () => {
+    const edge: MappingEdge = {
+      edgeId: "ODC-01--ODP-01",
+      source: "ODC-01",
+      target: "ODP-01",
+      fiberType: "distribution",
+      distance: 120,
+      waypoints: [],
+      notes: "",
+    };
+    vi.mocked(apiClient.put).mockResolvedValue({
+      data: { data: edge },
+    } as never);
+
+    await new MappingRepository().updateEdge("ODC-01--ODP-01", edge);
+
+    expect(apiClient.put).toHaveBeenCalledWith(
+      "/api/v1/mapping/edges/ODC-01--ODP-01",
+      edge,
+    );
   });
 });

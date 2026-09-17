@@ -19,7 +19,7 @@ describe("EdgeList", () => {
   // pass a test that only checked the row existed; pinning the Indonesian
   // label and the formatted length catches exactly that.
   it("shows the cable in Indonesian, not as raw stored values", () => {
-    render(<EdgeList edges={[edge]} onDelete={vi.fn()} />);
+    render(<EdgeList edges={[edge]} onDelete={vi.fn()} onEdit={vi.fn()} />);
 
     expect(screen.getByText("ODC-01--ODP-01")).toBeInTheDocument();
     expect(screen.getByText("ODC-01")).toBeInTheDocument();
@@ -32,10 +32,19 @@ describe("EdgeList", () => {
 
   it("asks the caller to delete the cable that was clicked, by its edge id", async () => {
     const onDelete = vi.fn();
-    render(<EdgeList edges={[edge]} onDelete={onDelete} />);
+    render(<EdgeList edges={[edge]} onDelete={onDelete} onEdit={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Hapus" }));
 
     expect(onDelete).toHaveBeenCalledWith("ODC-01--ODP-01");
+  });
+
+  it("asks the caller to edit the cable that was clicked, with its full data", async () => {
+    const onEdit = vi.fn();
+    render(<EdgeList edges={[edge]} onDelete={vi.fn()} onEdit={onEdit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Ubah" }));
+
+    expect(onEdit).toHaveBeenCalledWith(edge);
   });
 });

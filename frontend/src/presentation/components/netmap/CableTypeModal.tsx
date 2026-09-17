@@ -1,18 +1,13 @@
 import { Modal, Select } from "antd";
 import { useState } from "react";
 import type { FiberType } from "@/domain/entities";
-import { FIBER_LABELS } from "./mappingLabels";
+import { FIBER_OPTIONS } from "./mappingLabels";
 
 interface CableTypeModalProps {
   open: boolean;
   onCancel: () => void;
   onSubmit: (fiberType: FiberType) => void;
 }
-
-const OPTIONS = (Object.keys(FIBER_LABELS) as FiberType[]).map((value) => ({
-  value,
-  label: FIBER_LABELS[value],
-}));
 
 /**
  * Which of the seven fiber types a just-traced cable is. All seven stay
@@ -41,7 +36,7 @@ export function CableTypeModal({
         style={{ width: "100%" }}
         value={fiberType}
         onChange={setFiberType}
-        options={OPTIONS}
+        options={FIBER_OPTIONS}
       />
     </Modal>
   );

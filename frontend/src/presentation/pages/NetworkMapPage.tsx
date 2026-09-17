@@ -3,6 +3,7 @@ import { Alert, Button, Skeleton, Space, message } from "antd";
 import { Link } from "react-router-dom";
 import type {
   FiberType,
+  MappingEdge,
   MappingNode,
   NodeType,
   Waypoint,
@@ -15,6 +16,7 @@ import {
   useGoogleMapsKey,
   useMappingEdges,
   useMappingNodes,
+  useUpdateEdge,
   useUpdateNode,
 } from "@/application/hooks";
 import { ApiError } from "@/infrastructure/http";
@@ -22,6 +24,7 @@ import { PageHeader } from "../components/common";
 import { CableTypeModal } from "../components/netmap/CableTypeModal";
 import { metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
+import { EdgeFormModal } from "../components/netmap/EdgeFormModal";
 import { EdgeList } from "../components/netmap/EdgeList";
 import { MapCanvas } from "../components/netmap/MapCanvas";
 import { MapToolbar, type MapView } from "../components/netmap/MapToolbar";
@@ -82,6 +85,7 @@ export function NetworkMapPage() {
   const updateNode = useUpdateNode();
   const deleteNode = useDeleteNode();
   const createEdge = useCreateEdge();
+  const updateEdge = useUpdateEdge();
   const deleteEdge = useDeleteEdge();
   const { key, mapId, isLoading: keyLoading } = useGoogleMapsKey();
   const cable = useCableDraw();
@@ -90,6 +94,7 @@ export function NetworkMapPage() {
   const [placing, setPlacing] = useState<NodeType | "cable">();
   const [formTarget, setFormTarget] = useState<NodeFormTarget>();
   const [pendingCable, setPendingCable] = useState<PendingCable>();
+  const [editingEdge, setEditingEdge] = useState<MappingEdge>();
 
   const stopPlacing = () => {
     setPlacing(undefined);
@@ -183,6 +188,23 @@ export function NetworkMapPage() {
     });
   };
 
+  const editEdge = (edge: MappingEdge) => {
+    setEditingEdge(edge);
+  };
+
+  // Unlike saveCable, the modal stays open on failure: there is no
+  // in-progress trace to abandon here, just an existing cable the operator
+  // can adjust and retry — the same choice saveNode makes for an existing
+  // node.
+  const saveEdge = async (edge: MappingEdge) => {
+    try {
+      await updateEdge.mutateAsync({ edgeId: edge.edgeId, edge });
+      setEditingEdge(undefined);
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
   return (
     <Space direction="vertical" style={{ width: "100%" }} size="middle">
       <PageHeader title="Peta Jaringan" />
@@ -235,6 +257,7 @@ export function NetworkMapPage() {
           />
           <EdgeList
             edges={edges}
+            onEdit={editEdge}
             onDelete={(edgeId) => deleteEdge.mutateAsync(edgeId)}
           />
         </Space>
@@ -255,6 +278,14 @@ export function NetworkMapPage() {
           open
           onCancel={() => setPendingCable(undefined)}
           onSubmit={saveCable}
+        />
+      )}
+      {editingEdge && (
+        <EdgeFormModal
+          open
+          initial={editingEdge}
+          onCancel={() => setEditingEdge(undefined)}
+          onSubmit={saveEdge}
         />
       )}
     </Space>

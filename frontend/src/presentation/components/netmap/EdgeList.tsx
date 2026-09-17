@@ -1,14 +1,15 @@
-import { Button, Table } from "antd";
+import { Button, Space, Table } from "antd";
 import type { MappingEdge } from "@/domain/entities";
 import { formatMeters } from "./cableMath";
 import { FIBER_LABELS } from "./mappingLabels";
 
 interface EdgeListProps {
   edges: MappingEdge[];
+  onEdit: (edge: MappingEdge) => void;
   onDelete: (edgeId: string) => void;
 }
 
-export function EdgeList({ edges, onDelete }: EdgeListProps) {
+export function EdgeList({ edges, onEdit, onDelete }: EdgeListProps) {
   return (
     <Table
       rowKey="edgeId"
@@ -32,9 +33,14 @@ export function EdgeList({ edges, onDelete }: EdgeListProps) {
         {
           title: "",
           render: (_: unknown, edge: MappingEdge) => (
-            <Button danger size="small" onClick={() => onDelete(edge.edgeId)}>
-              Hapus
-            </Button>
+            <Space size="small">
+              <Button size="small" onClick={() => onEdit(edge)}>
+                Ubah
+              </Button>
+              <Button danger size="small" onClick={() => onDelete(edge.edgeId)}>
+                Hapus
+              </Button>
+            </Space>
           ),
         },
       ]}

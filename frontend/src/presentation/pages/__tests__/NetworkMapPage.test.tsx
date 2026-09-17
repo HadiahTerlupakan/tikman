@@ -49,6 +49,7 @@ const createNodeMutateAsync = vi.hoisted(() => vi.fn());
 const updateNodeMutateAsync = vi.hoisted(() => vi.fn());
 const deleteNodeMutateAsync = vi.hoisted(() => vi.fn());
 const createEdgeMutateAsync = vi.hoisted(() => vi.fn());
+const updateEdgeMutateAsync = vi.hoisted(() => vi.fn());
 const deleteEdgeMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("@/application/hooks", () => ({
@@ -68,6 +69,10 @@ vi.mock("@/application/hooks", () => ({
   }),
   useCreateEdge: () => ({
     mutateAsync: createEdgeMutateAsync,
+    isPending: false,
+  }),
+  useUpdateEdge: () => ({
+    mutateAsync: updateEdgeMutateAsync,
     isPending: false,
   }),
   useDeleteEdge: () => ({
@@ -158,6 +163,29 @@ describe("NetworkMapPage", () => {
       expect.objectContaining({ nodeId: "ODC-01" }),
     );
     expect(createNodeMutateAsync).not.toHaveBeenCalled();
+  });
+
+  // The mirror of the node-edit test above, and of the two delete-wiring
+  // guards below: a copy-paste of useUpdateNode into the cable row's Ubah
+  // button — the closest, most likely mistake, since editNode/saveNode
+  // already exist as the template — would pass everything else and only
+  // show up here.
+  it("edits a cable through Ubah, saving via useUpdateEdge rather than useUpdateNode", async () => {
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByText("Daftar"));
+    const edgeRow = screen.getByText("ODC-01--ODP-01").closest("tr")!;
+    await userEvent.click(
+      within(edgeRow).getByRole("button", { name: "Ubah" }),
+    );
+    expect(screen.getByText("Ubah kabel")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    expect(updateEdgeMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ edgeId: "ODC-01--ODP-01" }),
+    );
+    expect(updateNodeMutateAsync).not.toHaveBeenCalled();
   });
 
   it("deletes a cable from the Daftar view via useDeleteEdge, not useDeleteNode", async () => {

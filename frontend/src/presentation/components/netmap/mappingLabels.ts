@@ -24,3 +24,10 @@ export const FIBER_LABELS: Record<FiberType, string> = {
   odc_to_odc: "ODC ke ODC",
   odc_to_odc_ratio: "ODC ke ODC (splitter)",
 };
+
+// Shared by CableTypeModal (picking a type for a freshly traced cable) and
+// EdgeFormModal (changing an existing one's type) — one derivation, so the
+// two pickers cannot drift to a different order or a different label.
+export const FIBER_OPTIONS = (Object.keys(FIBER_LABELS) as FiberType[]).map(
+  (value) => ({ value, label: FIBER_LABELS[value] }),
+);

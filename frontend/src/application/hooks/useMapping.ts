@@ -47,6 +47,15 @@ export function useCreateEdge() {
   });
 }
 
+export function useUpdateEdge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ edgeId, edge }: { edgeId: string; edge: MappingEdge }) =>
+      repo.updateEdge(edgeId, edge),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EDGES }),
+  });
+}
+
 export function useDeleteEdge() {
   const qc = useQueryClient();
   return useMutation({
