@@ -7,7 +7,7 @@ import { OdpPortFields } from "./OdpPortFields";
 
 const odp = {
   id: "odp-1",
-  code: "ODP-CARIU-01",
+  code: "ODP-01",
   portCount: 4,
   usedPorts: 1,
   address: "",
@@ -66,7 +66,7 @@ function renderFields(currentOntId?: string) {
 
 async function chooseTheBox() {
   await userEvent.click(screen.getByRole("combobox", { name: "ODP" }));
-  await userEvent.click(await screen.findByTitle(/ODP-CARIU-01/));
+  await userEvent.click(await screen.findByTitle(/ODP-01/));
   await userEvent.click(screen.getByRole("combobox", { name: "Port" }));
 }
 
@@ -119,7 +119,7 @@ describe("OdpPortFields", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "ODP" }));
 
     expect(
-      await screen.findByTitle("ODP-CARIU-01 · kapasitas 4"),
+      await screen.findByTitle("ODP-01 · kapasitas 4"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/port kosong/)).not.toBeInTheDocument();
   });
