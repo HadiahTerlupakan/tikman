@@ -10,6 +10,7 @@ import type {
   NodeType,
   Waypoint,
 } from "@/domain/entities";
+import { edgePath } from "./cableMath";
 import { NODE_COLORS } from "./mappingLabels";
 
 // Where the map opens when there is nothing on it yet.
@@ -27,6 +28,10 @@ interface MapCanvasProps {
   edges: MappingEdge[];
   /** The corners traced so far for the cable being drawn right now, if any. */
   draft: Waypoint[];
+  /** The node the cable being traced started from, so the in-progress line
+   * can begin there instead of at its first corner — the same start point
+   * edgePath gives a saved cable. */
+  fromNodeId?: string;
   /** What a map click means: place this kind of box, trace a cable, or nothing. */
   placing: NodeType | "cable" | undefined;
   apiKey: string;
@@ -44,34 +49,6 @@ function opening(nodes: MappingNode[]) {
     defaultCenter: { lat: nodes[0].latitude, lng: nodes[0].longitude },
     defaultZoom: NODE_ZOOM,
   };
-}
-
-/**
- * The full drawn length of one cable: its named ends plus the corners traced
- * between them. An edge stores only the corners — `useCableDraw` never records
- * the node it started or finished on — so even a straight drop with no corners
- * at all needs both ends resolved before it is a path at all.
- *
- * Migration 53 keeps no foreign key from edge to node on purpose: a cable can
- * be drawn before its ends are named, and deleting a node here leaves its
- * cables behind rather than cascading them away. `undefined` here means only
- * "skip this one edge" — never a thrown error that would blank the rest of
- * the map.
- */
-export function edgePath(
-  edge: MappingEdge,
-  nodesById: Map<string, MappingNode>,
-): Waypoint[] | undefined {
-  const source = nodesById.get(edge.source);
-  const target = nodesById.get(edge.target);
-  if (!source || !target) {
-    return undefined;
-  }
-  return [
-    { lat: source.latitude, lng: source.longitude },
-    ...(edge.waypoints ?? []),
-    { lat: target.latitude, lng: target.longitude },
-  ];
 }
 
 function NodeMarkers({
@@ -111,16 +88,26 @@ function CableLines({
   nodes,
   edges,
   draft,
+  fromNodeId,
 }: {
   nodes: MappingNode[];
   edges: MappingEdge[];
   draft: Waypoint[];
+  fromNodeId?: string;
 }) {
   // `Map` above is the imported map component, not the global constructor —
   // `globalThis` reaches past that shadowing to the real one.
   const nodesById = new globalThis.Map(
     nodes.map((node) => [node.nodeId, node]),
   );
+
+  // The saved path always starts at the source node (edgePath does the same
+  // walk); the line still being traced has to match that, or a technician
+  // sights it against the wrong start point while pulling fibre.
+  const fromNode = fromNodeId ? nodesById.get(fromNodeId) : undefined;
+  const draftPath = fromNode
+    ? [{ lat: fromNode.latitude, lng: fromNode.longitude }, ...draft]
+    : draft;
 
   return (
     <>
@@ -138,8 +125,8 @@ function CableLines({
           />
         );
       })}
-      {draft.length > 1 && (
-        <Polyline path={draft} strokeColor={DRAFT_COLOR} strokeWeight={3} />
+      {draftPath.length > 1 && (
+        <Polyline path={draftPath} strokeColor={DRAFT_COLOR} strokeWeight={3} />
       )}
     </>
   );
@@ -156,6 +143,7 @@ export function MapCanvas({
   nodes,
   edges,
   draft,
+  fromNodeId,
   placing,
   apiKey,
   mapId,
@@ -180,7 +168,12 @@ export function MapCanvas({
         }}
       >
         <NodeMarkers nodes={nodes} onNodeClick={onNodeClick} />
-        <CableLines nodes={nodes} edges={edges} draft={draft} />
+        <CableLines
+          nodes={nodes}
+          edges={edges}
+          draft={draft}
+          fromNodeId={fromNodeId}
+        />
       </Map>
     </APIProvider>
   );

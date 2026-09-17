@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
-import { MapCanvas, edgePath } from "./MapCanvas";
+import { MapCanvas } from "./MapCanvas";
 
 interface RecordedMapProps {
   onClick?: (event: {
@@ -94,55 +94,6 @@ function renderCanvas(
   };
 }
 
-describe("edgePath", () => {
-  const source = node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 });
-  const target = node({
-    nodeId: "ODP-01",
-    latitude: -6.21,
-    longitude: 106.81,
-  });
-  const nodesById = new Map([
-    [source.nodeId, source],
-    [target.nodeId, target],
-  ]);
-
-  it("spans from the source, through every traced corner, to the target", () => {
-    const path = edgePath(
-      edge({
-        edgeId: "E1",
-        source: "ODC-01",
-        target: "ODP-01",
-        waypoints: [{ lat: -6.205, lng: 106.805 }],
-      }),
-      nodesById,
-    );
-
-    expect(path).toEqual([
-      { lat: -6.2, lng: 106.8 },
-      { lat: -6.205, lng: 106.805 },
-      { lat: -6.21, lng: 106.81 },
-    ]);
-  });
-
-  it("is skipped when the target has not been named yet", () => {
-    const path = edgePath(
-      edge({ edgeId: "E2", source: "ODC-01", target: "GHOST-404" }),
-      nodesById,
-    );
-
-    expect(path).toBeUndefined();
-  });
-
-  it("is skipped when the source has been removed from the map", () => {
-    const path = edgePath(
-      edge({ edgeId: "E3", source: "GHOST-404", target: "ODP-01" }),
-      nodesById,
-    );
-
-    expect(path).toBeUndefined();
-  });
-});
-
 describe("MapCanvas", () => {
   beforeEach(() => {
     mapProps = {};
@@ -219,5 +170,22 @@ describe("MapCanvas", () => {
     });
 
     expect(screen.getAllByTestId("polyline")).toHaveLength(1);
+  });
+
+  // useCableDraw.points holds only the tapped corners, never the node the
+  // trace started from — drawing `draft` alone put the green line's start at
+  // the first corner while the saved cable (edgePath) always starts at the
+  // source node. Left alone, that is the opposite of what gets saved.
+  it("starts the in-progress line at the source node, not its first tapped corner", () => {
+    renderCanvas({
+      nodes: [node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 })],
+      fromNodeId: "ODC-01",
+      draft: [
+        { lat: -6.21, lng: 106.81 },
+        { lat: -6.22, lng: 106.82 },
+      ],
+    });
+
+    expect(screen.getByTestId("polyline")).toHaveAttribute("data-points", "3");
   });
 });

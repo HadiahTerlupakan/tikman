@@ -22,7 +22,7 @@ import {
 import { ApiError } from "@/infrastructure/http";
 import { PageHeader } from "../components/common";
 import { CableTypeModal } from "../components/netmap/CableTypeModal";
-import { metersAlong } from "../components/netmap/cableMath";
+import { edgePath, metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
 import { EdgeFormModal } from "../components/netmap/EdgeFormModal";
 import { EdgeList } from "../components/netmap/EdgeList";
@@ -52,19 +52,18 @@ interface PendingCable {
 // `useCableDraw.points` holds only the corners tapped between two nodes —
 // never the nodes' own positions — so a cable with no corners at all (the
 // ordinary drop from an ODP to a house) traces zero of them. The length that
-// gets saved has to walk the same source -> corners -> target path
-// MapCanvas.edgePath draws, not just the corners.
+// gets saved has to walk the same source -> corners -> target path a saved
+// cable is drawn with (cableMath.edgePath), not just the corners — measuring
+// with a second, separate implementation is exactly how the branch shipped a
+// straight cable that measured 0 metres.
 function cablePath(
   nodes: MappingNode[],
   source: string,
   target: string,
   waypoints: Waypoint[],
 ): Waypoint[] {
-  const point = (nodeId: string): Waypoint[] => {
-    const node = nodes.find((n) => n.nodeId === nodeId);
-    return node ? [{ lat: node.latitude, lng: node.longitude }] : [];
-  };
-  return [...point(source), ...waypoints, ...point(target)];
+  const nodesById = new Map(nodes.map((node) => [node.nodeId, node]));
+  return edgePath({ source, target, waypoints }, nodesById) ?? [];
 }
 
 // A capacity rule on an odp_to_odp/odc_to_odc cascade is also a 409, and must
@@ -281,6 +280,7 @@ export function NetworkMapPage() {
             nodes={nodes}
             edges={edges}
             draft={cable.points}
+            fromNodeId={cable.from}
             placing={placing}
             apiKey={key}
             mapId={mapId}
