@@ -33,13 +33,13 @@ type handlers struct {
 	seedHandler            *SeedHandler
 	configTemplateHandler  *ConfigTemplateHandler
 	wireguardHandler       *WireGuardHandler
-	distributionHandler    *DistributionHandler
 	firebaseTokenHandler   *FirebaseTokenHandler
 	csHandler              *CSHandler
 	csPerformanceHandler   *CSPerformanceHandler
 	pushHandler            *PushHandler
 	provisionHandler       *ProvisionHandler
 	zteProvisionHandler    *ZTEProvisionHandler
+	mappingHandler         *MappingHandler
 }
 
 // newHandlers builds the services and handlers one API process needs, and
@@ -78,13 +78,13 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		seedHandler:            NewSeedHandler(db, cfg.EncryptionKey),
 		configTemplateHandler:  NewConfigTemplateHandler(configTemplateService),
 		wireguardHandler:       NewWireGuardHandler(wgService, auditService),
-		distributionHandler:    NewDistributionHandler(services.NewDistributionService(db)),
 		firebaseTokenHandler:   NewFirebaseTokenHandler(firebaseApp, logger),
 		csHandler:              cs.handler,
 		csPerformanceHandler:   cs.performance,
 		pushHandler:            cs.push,
 		provisionHandler:       provisionHandler,
 		zteProvisionHandler:    zteProvisionHandler,
+		mappingHandler:         NewMappingHandler(services.NewMappingService(db)),
 	}, cs.notifier, cs.listener
 }
 

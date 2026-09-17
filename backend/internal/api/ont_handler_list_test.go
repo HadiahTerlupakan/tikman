@@ -50,6 +50,14 @@ func addONT(t *testing.T, db *gorm.DB, oltID uuid.UUID, slot *int, port, ontID i
 	}).Error)
 }
 
+func addONTWithODP(t *testing.T, db *gorm.DB, oltID, odpID uuid.UUID, port, ontID int, serial string) {
+	t.Helper()
+	require.NoError(t, db.Create(&models.ONT{
+		ID: uuid.New(), OLTID: oltID, PortID: port, ONTID: ontID,
+		SerialNumber: serial, Status: models.ONTStatusOnline, ODPID: &odpID,
+	}).Error)
+}
+
 func listONTs(t *testing.T, handler *ONTHandler, query string) map[string]any {
 	t.Helper()
 
@@ -102,6 +110,23 @@ func TestListTotalDescribesTheWholeMatchNotThePage(t *testing.T) {
 
 	assert.Equal(t, float64(25), body["total"])
 	assert.Len(t, body["data"].([]any), 10)
+}
+
+// The subscriber list an ODP tab opens narrows by odp_id, the parameter the
+// frontend is required to spell in snake_case by hand since apiClient does
+// not decamelize query strings.
+func TestListNarrowsByODPID(t *testing.T) {
+	db, handler, oltID := setupONTListHandler(t)
+	odpA, odpB := uuid.New(), uuid.New()
+	addONTWithODP(t, db, oltID, odpA, 1, 1, "SNODPA01")
+	addONTWithODP(t, db, oltID, odpB, 1, 2, "SNODPB01")
+
+	body := listONTs(t, handler, "odp_id="+odpA.String())
+
+	assert.Equal(t, float64(1), body["total"])
+	rows := body["data"].([]any)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "SNODPA01", rows[0].(map[string]any)["serial_number"])
 }
 
 func TestListIgnoresAnUnparseableNarrowingParameter(t *testing.T) {

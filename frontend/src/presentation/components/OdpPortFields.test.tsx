@@ -7,9 +7,22 @@ import { OdpPortFields } from "./OdpPortFields";
 
 const odp = {
   id: "odp-1",
-  code: "ODP-CARIU-01",
+  code: "ODP-01",
   portCount: 4,
   usedPorts: 1,
+  address: "",
+  notes: "",
+  routeMeters: 0,
+} as Odp;
+
+// A freshly-placed box: the new map page makes capacity optional when
+// creating a node, so this — not a box with a stated size — is the ODP an
+// operator in the field is most likely to open first.
+const odpUnlimited = {
+  id: "odp-2",
+  code: "ODP-UNLIMITED",
+  portCount: 0,
+  usedPorts: 0,
   address: "",
   notes: "",
   routeMeters: 0,
@@ -20,10 +33,19 @@ const subscribers: Ont[] = [
   { id: "ont-self", serialNumber: "ZTEGC0000002", odpPort: 3 } as Ont,
 ];
 
+const unlimitedSubscribers: Ont[] = [
+  { id: "ont-77", serialNumber: "ZTEGC0000077", odpPort: 5 } as Ont,
+];
+
 vi.mock("@/application/hooks/useDistribution", () => ({
-  useOdps: () => ({ data: [odp], isLoading: false }),
+  useOdps: () => ({ data: [odp, odpUnlimited], isLoading: false }),
   useOdpSubscribers: (odpId?: string) => ({
-    data: odpId === "odp-1" ? subscribers : undefined,
+    data:
+      odpId === "odp-1"
+        ? subscribers
+        : odpId === "odp-2"
+          ? unlimitedSubscribers
+          : undefined,
   }),
 }));
 
@@ -44,7 +66,7 @@ function renderFields(currentOntId?: string) {
 
 async function chooseTheBox() {
   await userEvent.click(screen.getByRole("combobox", { name: "ODP" }));
-  await userEvent.click(await screen.findByTitle(/ODP-CARIU-01/));
+  await userEvent.click(await screen.findByTitle(/ODP-01/));
   await userEvent.click(screen.getByRole("combobox", { name: "Port" }));
 }
 
@@ -86,5 +108,47 @@ describe("OdpPortFields", () => {
     expect(
       screen.queryByRole("combobox", { name: "Port" }),
     ).not.toBeInTheDocument();
+  });
+
+  // usedPorts on the mock is 1, so a fabricated "free port" count would read
+  // "3 port kosong" here — a plausible number nothing actually computed.
+  // Only the stated capacity may reach the label.
+  it("shows the box's capacity, never a fabricated free-port count", async () => {
+    renderFields();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "ODP" }));
+
+    expect(
+      await screen.findByTitle("ODP-01 · kapasitas 4"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/port kosong/)).not.toBeInTheDocument();
+  });
+
+  it("offers exactly as many ports as a box with a stated capacity", async () => {
+    renderFields();
+
+    await chooseTheBox();
+
+    expect(screen.getAllByRole("option")).toHaveLength(4);
+  });
+
+  // A box placed on the map with no capacity filled in yet still has to be
+  // usable: "capacity 0 means unlimited" is this feature's convention
+  // everywhere, so there is no fixed list of ports to offer.
+  it("lets a port be entered by number when the box has no stated capacity", async () => {
+    renderFields();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "ODP" }));
+    await userEvent.click(await screen.findByTitle("ODP-UNLIMITED"));
+
+    expect(
+      screen.queryByRole("combobox", { name: "Port" }),
+    ).not.toBeInTheDocument();
+    // The occupant of port 5 is real (useOdpSubscribers), unlike usedPorts.
+    expect(await screen.findByText(/5 \(ZTEGC0000077\)/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText("Nomor port"), "12");
+
+    expect(screen.getByTestId("chosen")).toHaveTextContent("12");
   });
 });

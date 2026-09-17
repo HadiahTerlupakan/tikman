@@ -85,6 +85,16 @@ pipeline {
                         exit 1
                     }
 
+                    # The network map carries the same risk the VPN and CS modules
+                    # once did: a menu entry that renders while every call behind
+                    # it 404s. Same guard, same reason.
+                    $COMPOSE exec -T api wget -O /dev/null \
+                        http://localhost:8080/api/v1/mapping/nodes 2>&1 | grep -q '401' || {
+                        echo "The mapping route did not answer 401. This build looks"
+                        echo "like it predates the network map."
+                        exit 1
+                    }
+
                     # wa holds the WhatsApp session and is the one service whose
                     # absence is invisible from the UI until a CS hits send.
                     $COMPOSE ps --status running --services | grep -qx wa || {
@@ -93,7 +103,7 @@ pipeline {
                         exit 1
                     }
 
-                    echo "API healthy; VPN and CS routes are registered; wa is running."
+                    echo "API healthy; VPN, CS and mapping routes are registered; wa is running."
                 '''
             }
         }

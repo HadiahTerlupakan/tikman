@@ -25,3 +25,4 @@ export * from "./useWaAccounts";
 export * from "./useWaChannels";
 export * from "./useBroadcast";
 export * from "./usePushNotifications";
+export * from "./useMapping";

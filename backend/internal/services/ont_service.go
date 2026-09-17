@@ -89,6 +89,9 @@ type ONTListFilter struct {
 	// multi-card chassis, where port 1 exists once per card.
 	Slot   *int
 	PortID *int
+	// ODPID narrows to the ONTs patched into one distribution box, for the
+	// subscriber list the ODP tab shows when it opens a box.
+	ODPID *uuid.UUID
 	// Search matches the serial or the subscriber name. The serial is what is
 	// printed on the box; the name is what an operator is given on the phone.
 	Search             string
@@ -148,6 +151,9 @@ func (s *ONTService) applyONTFilter(query *gorm.DB, filter ONTListFilter) *gorm.
 	}
 	if filter.PortID != nil {
 		query = query.Where("port_id = ?", *filter.PortID)
+	}
+	if filter.ODPID != nil {
+		query = query.Where("odp_id = ?", *filter.ODPID)
 	}
 	if filter.Search != "" {
 		// Lowered on both sides rather than using ILIKE: the tests run on SQLite,

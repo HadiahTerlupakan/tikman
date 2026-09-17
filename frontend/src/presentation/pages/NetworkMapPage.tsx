@@ -1,0 +1,325 @@
+import { useState } from "react";
+import { Alert, Button, Skeleton, Space, message } from "antd";
+import { Link } from "react-router-dom";
+import type {
+  FiberType,
+  MappingEdge,
+  MappingNode,
+  NodeType,
+  Waypoint,
+} from "@/domain/entities";
+import {
+  useCreateEdge,
+  useCreateNode,
+  useDeleteEdge,
+  useDeleteNode,
+  useGoogleMapsKey,
+  useMappingEdges,
+  useMappingNodes,
+  useUpdateEdge,
+  useUpdateNode,
+} from "@/application/hooks";
+import { ApiError } from "@/infrastructure/http";
+import { PageHeader } from "../components/common";
+import { CableTypeModal } from "../components/netmap/CableTypeModal";
+import { edgePath, metersAlong } from "../components/netmap/cableMath";
+import { CountCards } from "../components/netmap/CountCards";
+import { EdgeFormModal } from "../components/netmap/EdgeFormModal";
+import { EdgeList } from "../components/netmap/EdgeList";
+import { MapCanvas } from "../components/netmap/MapCanvas";
+import { MapToolbar, type MapView } from "../components/netmap/MapToolbar";
+import { NodeFormModal } from "../components/netmap/NodeFormModal";
+import { NodeList } from "../components/netmap/NodeList";
+import { useCableDraw } from "../components/netmap/useCableDraw";
+
+// What the node form is doing right now: adding a freshly tapped point.
+// `initial` is set later (editing) once the list view can open it.
+interface NodeFormTarget {
+  type: NodeType;
+  position: Waypoint;
+  initial?: MappingNode;
+}
+
+// A cable with both ends named and its path traced, waiting only on which of
+// the seven fiber types it is before it can be saved.
+interface PendingCable {
+  source: string;
+  target: string;
+  waypoints: Waypoint[];
+  distance: number;
+}
+
+// `useCableDraw.points` holds only the corners tapped between two nodes —
+// never the nodes' own positions — so a cable with no corners at all (the
+// ordinary drop from an ODP to a house) traces zero of them. The length that
+// gets saved has to walk the same source -> corners -> target path a saved
+// cable is drawn with (cableMath.edgePath), not just the corners — measuring
+// with a second, separate implementation is exactly how the branch shipped a
+// straight cable that measured 0 metres.
+function cablePath(
+  nodes: MappingNode[],
+  source: string,
+  target: string,
+  waypoints: Waypoint[],
+): Waypoint[] {
+  const nodesById = new Map(nodes.map((node) => [node.nodeId, node]));
+  return edgePath({ source, target, waypoints }, nodesById) ?? [];
+}
+
+// A capacity rule on an odp_to_odp/odc_to_odc cascade is also a 409, and must
+// reach the operator as itself; only the id collision this cable's own
+// `source--target` naming produces should read as "already exists". Branching
+// on the code the backend now sends (not the shared status) is what tells
+// them apart.
+function isEdgeExists(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "EDGE_EXISTS";
+}
+
+function isNodeExists(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "NODE_EXISTS";
+}
+
+function isNodeInUse(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "NODE_IN_USE";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Gagal menyimpan kabel";
+}
+
+export function NetworkMapPage() {
+  const { data: nodes = [] } = useMappingNodes();
+  const { data: edges = [] } = useMappingEdges();
+  const createNode = useCreateNode();
+  const updateNode = useUpdateNode();
+  const deleteNode = useDeleteNode();
+  const createEdge = useCreateEdge();
+  const updateEdge = useUpdateEdge();
+  const deleteEdge = useDeleteEdge();
+  const { key, mapId, isLoading: keyLoading } = useGoogleMapsKey();
+  const cable = useCableDraw();
+
+  const [view, setView] = useState<MapView>("map");
+  const [placing, setPlacing] = useState<NodeType | "cable">();
+  const [formTarget, setFormTarget] = useState<NodeFormTarget>();
+  const [pendingCable, setPendingCable] = useState<PendingCable>();
+  const [editingEdge, setEditingEdge] = useState<MappingEdge>();
+
+  const stopPlacing = () => {
+    setPlacing(undefined);
+    setFormTarget(undefined);
+    setPendingCable(undefined);
+    cable.cancel();
+  };
+
+  // A tap on the map means "put a node here" while placing a node, and "one
+  // more corner" while a cable is being traced.
+  const tapped = (point: Waypoint) => {
+    if (placing === "cable") {
+      cable.addPoint(point);
+      return;
+    }
+    if (placing) {
+      setFormTarget({ type: placing, position: point });
+    }
+  };
+
+  // The first node tapped starts the cable; the second ends it and asks which
+  // of the seven fiber types it is before anything is saved.
+  const nodeTapped = (nodeId: string) => {
+    if (placing !== "cable") {
+      return;
+    }
+    if (!cable.from) {
+      cable.start(nodeId);
+      return;
+    }
+    const source = cable.from;
+    const waypoints = cable.finish();
+    const distance = Math.round(
+      metersAlong(cablePath(nodes, source, nodeId, waypoints)),
+    );
+    setPendingCable({ source, target: nodeId, waypoints, distance });
+  };
+
+  const saveNode = async (node: MappingNode) => {
+    try {
+      if (formTarget?.initial) {
+        await updateNode.mutateAsync({ nodeId: node.nodeId, node });
+      } else {
+        await createNode.mutateAsync(node);
+      }
+      setFormTarget(undefined);
+      setPlacing(undefined);
+    } catch (error) {
+      // Mirrors saveCable: a duplicate id is its own plain-language message,
+      // not indistinguishable from a network error.
+      message.error(
+        isNodeExists(error)
+          ? "Kode node sudah dipakai, gunakan kode lain"
+          : "Gagal menyimpan node",
+      );
+    }
+  };
+
+  // No Popconfirm or catch existed here before: one misclick in a 20-row
+  // table removed a node outright, orphaning every cable drawn to it, and a
+  // failed delete left the row sitting there with no explanation.
+  const removeNode = async (nodeId: string) => {
+    try {
+      await deleteNode.mutateAsync(nodeId);
+    } catch (error) {
+      // DeleteNode refuses with 409 NODE_IN_USE while an ONT still points at
+      // this node, naming how many — that has to reach the operator as
+      // itself, not the generic fallback.
+      message.error(
+        isNodeInUse(error) ? errorMessage(error) : "Gagal menghapus node",
+      );
+    }
+  };
+
+  const removeEdge = async (edgeId: string) => {
+    try {
+      await deleteEdge.mutateAsync(edgeId);
+    } catch {
+      message.error("Gagal menghapus kabel");
+    }
+  };
+
+  const saveCable = async (fiberType: FiberType) => {
+    if (!pendingCable) {
+      return;
+    }
+    try {
+      await createEdge.mutateAsync({
+        edgeId: `${pendingCable.source}--${pendingCable.target}`,
+        source: pendingCable.source,
+        target: pendingCable.target,
+        fiberType,
+        distance: pendingCable.distance,
+        waypoints: pendingCable.waypoints,
+        notes: "",
+      });
+      message.success("Kabel tersimpan");
+      setPlacing(undefined);
+    } catch (error) {
+      // The id is `source--target`, so a second cable between the same pair
+      // is a 409 the operator needs in plain words. Anything else — a
+      // capacity rule on an odp_to_odp/odc_to_odc cascade, a network error —
+      // must surface as itself, not be misreported as a duplicate.
+      message.error(
+        isEdgeExists(error)
+          ? "Sudah ada kabel antara kedua node ini"
+          : errorMessage(error),
+      );
+    } finally {
+      setPendingCable(undefined);
+    }
+  };
+
+  // Editing opens the same form as placing a new node, seeded from the node's
+  // own position instead of a map tap.
+  const editNode = (node: MappingNode) => {
+    setFormTarget({
+      type: node.type,
+      position: { lat: node.latitude, lng: node.longitude },
+      initial: node,
+    });
+  };
+
+  const editEdge = (edge: MappingEdge) => {
+    setEditingEdge(edge);
+  };
+
+  // Unlike saveCable, the modal stays open on failure: there is no
+  // in-progress trace to abandon here, just an existing cable the operator
+  // can adjust and retry — the same choice saveNode makes for an existing
+  // node.
+  const saveEdge = async (edge: MappingEdge) => {
+    try {
+      await updateEdge.mutateAsync({ edgeId: edge.edgeId, edge });
+      setEditingEdge(undefined);
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
+  return (
+    <Space direction="vertical" style={{ width: "100%" }} size="middle">
+      <PageHeader title="Peta Jaringan" />
+      <MapToolbar
+        placing={placing}
+        onPlace={setPlacing}
+        onDrawCable={() => setPlacing("cable")}
+        onCancel={stopPlacing}
+        view={view}
+        onView={setView}
+      />
+      {placing === "cable" && (
+        <Button onClick={cable.undoPoint} disabled={cable.points.length === 0}>
+          Batal titik
+        </Button>
+      )}
+      {view === "map" ? (
+        keyLoading ? (
+          <Skeleton active paragraph={{ rows: 8 }} title={false} />
+        ) : !key ? (
+          <Alert
+            type="info"
+            showIcon
+            message="Kunci API Google Maps belum diatur"
+            description={
+              <span>
+                Peta tidak bisa digambar tanpa kunci. Tambahkan di{" "}
+                <Link to="/settings">Pengaturan</Link>.
+              </span>
+            }
+          />
+        ) : (
+          <MapCanvas
+            nodes={nodes}
+            edges={edges}
+            draft={cable.points}
+            fromNodeId={cable.from}
+            placing={placing}
+            apiKey={key}
+            mapId={mapId}
+            onDrop={tapped}
+            onNodeClick={nodeTapped}
+          />
+        )
+      ) : (
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          <NodeList nodes={nodes} onEdit={editNode} onDelete={removeNode} />
+          <EdgeList edges={edges} onEdit={editEdge} onDelete={removeEdge} />
+        </Space>
+      )}
+      <CountCards nodes={nodes} />
+      {formTarget && (
+        <NodeFormModal
+          open
+          type={formTarget.type}
+          position={formTarget.position}
+          initial={formTarget.initial}
+          onCancel={() => setFormTarget(undefined)}
+          onSubmit={saveNode}
+        />
+      )}
+      {pendingCable && (
+        <CableTypeModal
+          open
+          onCancel={() => setPendingCable(undefined)}
+          onSubmit={saveCable}
+        />
+      )}
+      {editingEdge && (
+        <EdgeFormModal
+          open
+          initial={editingEdge}
+          onCancel={() => setEditingEdge(undefined)}
+          onSubmit={saveEdge}
+        />
+      )}
+    </Space>
+  );
+}

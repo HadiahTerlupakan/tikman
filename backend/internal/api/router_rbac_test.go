@@ -44,13 +44,15 @@ func rbacTestRouter(t *testing.T) (*gin.Engine, *auth.Store) {
 	return router, store
 }
 
-func postAs(t *testing.T, router *gin.Engine, store *auth.Store, role models.UserRole, path string) int {
+// requestAs holds the given role and fires a bodyless request of the given
+// method at path, answering with the status code the route chain produced.
+func requestAs(t *testing.T, router *gin.Engine, store *auth.Store, role models.UserRole, method, path string) int {
 	t.Helper()
 
 	token, err := store.Create(uuid.New(), role)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, path, nil)
+	req := httptest.NewRequest(method, path, nil)
 	req.AddCookie(&http.Cookie{Name: "session_token", Value: token})
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -70,7 +72,7 @@ func TestDiscoveryIsClosedToReadOnlyRoles(t *testing.T) {
 				router, store := rbacTestRouter(t)
 				path := fmt.Sprintf("/api/v1/olts/%s/%s", uuid.New(), action)
 
-				assert.Equal(t, http.StatusForbidden, postAs(t, router, store, role, path))
+				assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, role, http.MethodPost, path))
 			})
 		}
 	}
@@ -87,7 +89,53 @@ func TestDiscoveryStaysOpenToTechnicians(t *testing.T) {
 			// The OLT does not exist, so the handler answers 404 or 500. What
 			// matters is that the route was entered at all.
 			assert.NotEqual(t, http.StatusForbidden,
-				postAs(t, router, store, models.UserRoleTechnician, path))
+				requestAs(t, router, store, models.UserRoleTechnician, http.MethodPost, path))
+		})
+	}
+}
+
+// mappingWrites are the routes that place, move or remove something on the
+// map, including where an ONT's drop is patched in; a read-only role must not
+// reach any of them. Unlike discoveryWrites these are not all POST, so each
+// entry carries its own method.
+var mappingWrites = []struct {
+	method string
+	path   string
+}{
+	{http.MethodPost, "/api/v1/mapping/nodes"},
+	{http.MethodPut, "/api/v1/mapping/nodes/ODP-01"},
+	{http.MethodDelete, "/api/v1/mapping/nodes/ODP-01"},
+	{http.MethodPost, "/api/v1/mapping/edges"},
+	{http.MethodPut, "/api/v1/mapping/edges/E-1"},
+	{http.MethodDelete, "/api/v1/mapping/edges/E-1"},
+	{http.MethodPut, "/api/v1/onts/11111111-1111-1111-1111-111111111111/odp"},
+	{http.MethodDelete, "/api/v1/onts/11111111-1111-1111-1111-111111111111/odp"},
+}
+
+func TestMappingWritesAreClosedToReadOnlyRoles(t *testing.T) {
+	for _, role := range []models.UserRole{models.UserRoleViewer, models.UserRoleCS} {
+		for _, w := range mappingWrites {
+			t.Run(fmt.Sprintf("%s/%s %s", role, w.method, w.path), func(t *testing.T) {
+				router, store := rbacTestRouter(t)
+
+				assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, role, w.method, w.path))
+			})
+		}
+	}
+}
+
+// The same routes must stay open to the role that does field work, or closing
+// them to a viewer would have cost technicians the map entirely.
+func TestMappingWritesStayOpenToTechnicians(t *testing.T) {
+	for _, w := range mappingWrites {
+		t.Run(fmt.Sprintf("%s %s", w.method, w.path), func(t *testing.T) {
+			router, store := rbacTestRouter(t)
+
+			// The node/edge does not exist and the POSTs carry no body, so the
+			// handler answers 400 or 404. What matters is that the role was
+			// let past the gate at all.
+			assert.NotEqual(t, http.StatusForbidden,
+				requestAs(t, router, store, models.UserRoleTechnician, w.method, w.path))
 		})
 	}
 }

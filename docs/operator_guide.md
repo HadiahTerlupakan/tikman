@@ -240,16 +240,15 @@ Karena itu perlu dua nama yang berbeda:
   Memakai nama yang di-proxy akan menunjuk ke server Cloudflare, dan tidak ada
   satu pun site yang bisa terhubung.
 
-## Peta OLT
+## Peta Jaringan
 
-Peta menampilkan pin untuk setiap **OLT** yang memiliki koordinat. OLT tanpa
-koordinat ditampilkan dalam daftar di samping peta, sehingga peta yang singkat
-tidak akan disalahartikan sebagai lengkap.
-
-Koordinat menempel pada OLT, bukan pada site, karena site di sini biasanya
-menamai wilayah — Depok, Bekasi — sementara perangkatnya berada di satu
-bangunan tertentu di dalam wilayah itu. Site tetap bisa diberi koordinat di
-halaman Sites, tapi peta tidak menggambarnya.
+Peta jaringan (`/network-map`) menggambar seluruh infrastruktur di atas citra
+satelit — server/OLT, ODC, ODP, dan ONT sebagai pin berwarna beda per jenis,
+disambungkan dengan jalur kabel yang ditelusuri titik demi titik. Halaman ini
+menggantikan peta OLT yang lama sepenuhnya; **OLT tidak lagi punya halaman peta
+sendiri**. Sebuah OLT muncul di sini sebagai node bertipe **server**, ditempatkan
+manual sama seperti ODC/ODP/ONT — bukan digambar otomatis dari data OLT yang
+tersimpan di halaman OLTs.
 
 ### Setup awal
 
@@ -276,15 +275,51 @@ Langkah 4 tidak opsional. Key dikirimkan ke setiap browser yang membuka peta
 dan dapat dibaca dari developer tools; pembatasan adalah satu-satunya hal yang
 mencegah orang lain menghabiskan kuota Anda.
 
-### Memberi OLT koordinat
+### Menempatkan node
 
-Edit OLT dan mulai ketik di field **Address** — saran muncul setelah key
-disimpan, dan memilih salah satu akan mengisi koordinat secara otomatis.
+Dari tampilan **Peta**, pilih salah satu dari empat tombol jenis node
+(Server/OLT, ODC, ODP, ONT) lalu klik di peta untuk menempatkannya di titik
+itu. Form yang terbuka meminta nama, dan untuk ODC/ODP jumlah slot serta rasio
+splitter — kapasitas boleh dikosongkan (berarti tidak terbatas; ODP tanpa
+kapasitas tetap bisa dipasangi ONT di port berapa pun, backend menerimanya).
 
-Untuk lokasi yang tidak dikenal Google — POP di gang, tower di lapangan —
-ketik latitude dan longitude langsung. Kedua field harus diisi atau keduanya
-kosong; salah satu saja akan ditolak, karena akan menempatkan pin di tempat
-yang bukan lokasi OLT.
+Posisi terisi otomatis dari titik yang diklik dan, secara bawaan, hanya-baca.
+Untuk mengoreksi posisi — baik sedang menempatkan node baru maupun mengedit
+node yang sudah ada lewat Daftar — centang **"Isi koordinat manual"**:
+latitude dan longitude menjadi bisa diketik, dan diperiksa terhadap rentang
+sah (latitude -90 s.d. 90, longitude -180 s.d. 180) sebelum bisa disimpan.
+Ini satu-satunya cara memindahkan node yang salah tempat; menghapus dan
+menempatkan ulang akan melepaskan setiap kabel yang sudah tersambung ke sana.
 
-Pin yang salah bisa dihapus: kosongkan kedua field lalu simpan. Ini berlaku
-untuk OLT maupun site.
+### Menelusuri kabel
+
+Tombol **Tarik kabel** mengunci mode menyambung. Klik satu node sebagai
+sumber, lalu — bila rute kabel di lapangan berbelok — klik titik-titik
+belokan di peta, dan tutup dengan klik pada node tujuan. Satu klik titik yang
+salah dibatalkan satu titik dengan tombol **Batal titik**, bukan seluruh
+jalur yang sudah ditelusuri.
+
+Setelah node tujuan diklik, pilih salah satu dari tujuh jenis serat (feeder,
+distribusi, drop, ODP ke ODP, ODP ke ODP splitter, ODC ke ODC, ODC ke ODC
+splitter) sebelum kabel tersimpan. Panjangnya dihitung dari jalur yang
+benar-benar ditelusuri — sumber, tiap belokan, tujuan — bukan garis lurus
+antar kedua ujungnya.
+
+ODP ke ODP dan ODC ke ODC punya aturan kapasitas sendiri: menyambung kabel ke
+kotak yang slotnya sudah penuh ditolak dan pesannya menyebutkan kapasitasnya,
+mis. `"ODC-X" sudah penuh (8/8)` — beda dari pesan "kabel sudah ada", yang
+berarti pasangan node yang sama sudah pernah disambung sebelumnya.
+
+### Kartu jumlah dan Daftar
+
+Di bawah peta ada kartu ringkas yang menghitung tiap jenis node (Server/OLT,
+ODC, ODP, ONT) — cara cepat memastikan sebuah sesi pemetaan lapangan benar-
+benar tersimpan.
+
+Tampilan **Daftar** menyajikan node dan kabel sebagai dua tabel terpisah.
+Tiap baris punya tombol **Ubah**, yang membuka form yang sama dengan
+penempatan tapi terisi data tersimpan, dan **Hapus**, yang meminta
+konfirmasi sebelum benar-benar menghapus. Menghapus node yang masih ditunjuk
+oleh satu atau lebih ONT ditolak, dengan pesan yang menyebutkan berapa ONT
+yang masih memakainya — node itu harus dilepaskan dari ONT-ONT tersebut
+lebih dulu.

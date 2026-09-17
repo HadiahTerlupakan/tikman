@@ -42,6 +42,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	h.registerAccountRoutes(api, authenticated)
 	h.registerPlantRoutes(api, authenticated)
 	h.registerONTRoutes(api, authenticated)
+	h.registerMappingRoutes(api, authenticated)
 	h.registerCSRoutes(api, authenticated)
 	h.registerOperationsRoutes(api, authenticated)
 	h.registerVPNRoutes(api, authenticated)
@@ -143,7 +144,7 @@ func (h *handlers) registerPlantRoutes(api *gin.RouterGroup, authenticated gin.H
 }
 
 // registerONTRoutes covers the subscriber side: the ONTs themselves and the
-// cabinets their drops land in.
+// provisioning actions run against them.
 func (h *handlers) registerONTRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
 	onts := api.Group("/onts")
 	onts.Use(authenticated)
@@ -166,23 +167,34 @@ func (h *handlers) registerONTRoutes(api *gin.RouterGroup, authenticated gin.Han
 		onts.POST("/:id/gpon/configure", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.zteProvisionHandler.ConfigureExisting)
 		onts.POST("/:id/gpon/preview", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.zteProvisionHandler.PreviewConfigure)
 
-		// Which distribution box a drop lands in is field knowledge, so a
-		// technician records it; only an admin may remove plant.
-		onts.PUT("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.AssignONT)
-		onts.DELETE("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.UnassignONT)
-
 		onts.POST("/:id/provision", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.provisionHandler.ProvisionOnt)
 		onts.GET("/:id/provision-jobs", h.provisionHandler.ListProvisionJobsByONT)
+
+		onts.PUT("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.ontHandler.AssignOdp)
+		onts.DELETE("/:id/odp", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.ontHandler.UnassignOdp)
 	}
 
-	odcs := api.Group("/odcs")
-	odcs.Use(authenticated)
+}
+
+// registerMappingRoutes covers the free-form network map: the boxes and
+// cables field staff place and draw, in place of a fixed ODC/ODP plant table.
+// Viewing is open to anyone authenticated; only placing, drawing or removing
+// something is gated to those who touch the field.
+func (h *handlers) registerMappingRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
+	mapping := api.Group("/mapping")
+	mapping.Use(authenticated)
 	{
-		odcs.GET("", h.distributionHandler.ListODCs)
-		odcs.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.CreateODC)
-		odcs.POST("/:id/feeds", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.AddODCFeed)
-	}
+		mapping.GET("/nodes", h.mappingHandler.ListNodes)
+		mapping.GET("/edges", h.mappingHandler.ListEdges)
 
+		editor := middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician)
+		mapping.POST("/nodes", editor, h.mappingHandler.CreateNode)
+		mapping.PUT("/nodes/:node_id", editor, h.mappingHandler.UpdateNode)
+		mapping.DELETE("/nodes/:node_id", editor, h.mappingHandler.DeleteNode)
+		mapping.POST("/edges", editor, h.mappingHandler.CreateEdge)
+		mapping.PUT("/edges/:edge_id", editor, h.mappingHandler.UpdateEdge)
+		mapping.DELETE("/edges/:edge_id", editor, h.mappingHandler.DeleteEdge)
+	}
 }
 
 // registerCSRoutes covers the WhatsApp inbox and the pushes that announce it.
@@ -256,25 +268,8 @@ func (h *handlers) registerCSAdminRoutes(cs *gin.RouterGroup) {
 
 }
 
-// registerOperationsRoutes covers the plant records between an OLT and a
-// subscriber, and the templates a provision is built from.
+// registerOperationsRoutes covers the templates a provision is built from.
 func (h *handlers) registerOperationsRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
-	odcFeeds := api.Group("/odc-feeds")
-	odcFeeds.Use(authenticated)
-	{
-		odcFeeds.GET("", h.distributionHandler.ListODCFeeds)
-		odcFeeds.PUT("/:id/route", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.SetODCFeedRoute)
-	}
-
-	odps := api.Group("/odps")
-	odps.Use(authenticated)
-	{
-		odps.GET("", h.distributionHandler.ListODPs)
-		odps.POST("", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.CreateODP)
-		odps.GET("/:id/subscribers", h.distributionHandler.SubscribersOnODP)
-		odps.PUT("/:id/route", middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician), h.distributionHandler.SetODPRoute)
-	}
-
 	configTemplates := api.Group("/config-templates")
 	configTemplates.Use(authenticated)
 	{

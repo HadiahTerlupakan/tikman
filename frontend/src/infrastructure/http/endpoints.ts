@@ -71,15 +71,16 @@ export const API_ENDPOINTS = {
   WIREGUARD_SUGGESTED_SUBNETS: (siteId: string) =>
     `/api/v1/wireguard/sites/${siteId}/suggested-subnets`,
 
-  // Fibre plant: cabinets, distribution boxes, and where a drop lands
-  ODCS: "/api/v1/odcs",
-  ODC_FEEDS: (id: string) => `/api/v1/odcs/${id}/feeds`,
-  ODPS: "/api/v1/odps",
-  ODP_SUBSCRIBERS: (id: string) => `/api/v1/odps/${id}/subscribers`,
+  // Fibre plant: where a subscriber's drop lands. The cabinet/feed/route
+  // endpoints that used to live here (ODCS, ODPS, ODC_FEED_LIST,
+  // ODC_FEED_ROUTE, ODP_ROUTE) were removed along with their last frontend
+  // callers: the backend routes themselves were already gone (deleted with
+  // the rest of the fixed ODC/ODP package), so those constants pointed at
+  // 404s with nothing to say so.
+  // ODP_SUBSCRIBERS is gone: subscribersOn() now reads ONTS filtered by
+  // odp_id, since /odps/:id/subscribers was deleted with the rest of the
+  // distribution package.
   ONT_ODP: (id: string) => `/api/v1/onts/${id}/odp`,
-  ODC_FEED_LIST: "/api/v1/odc-feeds",
-  ODC_FEED_ROUTE: (id: string) => `/api/v1/odc-feeds/${id}/route`,
-  ODP_ROUTE: (id: string) => `/api/v1/odps/${id}/route`,
 
   // Push notifications
   PUSH_SUBSCRIBE: "/api/v1/push/subscribe",
@@ -112,4 +113,10 @@ export const API_ENDPOINTS = {
   CS_BROADCASTS_MEDIA: "/api/v1/cs/broadcasts/media",
   CS_PERFORMANCE_SUMMARY: "/api/v1/cs/performance/summary",
   CS_PERFORMANCE_WAITS: "/api/v1/cs/performance/waits",
+
+  // Network map: free-form nodes and the fiber runs between them
+  MAPPING_NODES: "/api/v1/mapping/nodes",
+  MAPPING_NODE: (nodeId: string) => `/api/v1/mapping/nodes/${nodeId}`,
+  MAPPING_EDGES: "/api/v1/mapping/edges",
+  MAPPING_EDGE: (edgeId: string) => `/api/v1/mapping/edges/${edgeId}`,
 } as const;

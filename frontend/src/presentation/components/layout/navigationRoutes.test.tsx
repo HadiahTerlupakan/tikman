@@ -13,13 +13,6 @@ describe("buildNavigationRoutes", () => {
     expect(paths(UserRole.VIEWER)).toContain("/vpn");
   });
 
-  it("lists Map for every role, so the page is reachable without its URL", () => {
-    // The VPN entry was once added to a component nothing rendered, which left
-    // that page invisible to every operator. This file exists to catch that.
-    expect(paths(UserRole.ADMIN)).toContain("/map");
-    expect(paths(UserRole.VIEWER)).toContain("/map");
-  });
-
   it("shows Users only to an admin", () => {
     expect(paths(UserRole.ADMIN)).toContain("/users");
     expect(paths(UserRole.TECHNICIAN)).not.toContain("/users");
@@ -51,5 +44,15 @@ describe("buildNavigationRoutes", () => {
       expect(route.path).toMatch(/^\//);
       expect(route.name.length).toBeGreaterThan(0);
     }
+  });
+
+  it("offers the network map to the roles that may see plant", () => {
+    // Checking the name and path are on the *same* entry, not just that both
+    // strings appear somewhere in the menu — a route renamed to "Peta
+    // Jaringan" at the wrong path would otherwise still pass.
+    const route = buildNavigationRoutes(UserRole.TECHNICIAN).find(
+      (r) => r.name === "Peta Jaringan",
+    );
+    expect(route?.path).toBe("/network-map");
   });
 });

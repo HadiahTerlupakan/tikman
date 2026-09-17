@@ -7,7 +7,6 @@ import LoginPage from "../pages/Login";
 import DashboardPage from "../pages/Dashboard";
 import UsersPage from "../pages/Users";
 import SitesPage from "../pages/Sites";
-import MapPage from "../pages/MapPage";
 import OltsPage from "../pages/Olts";
 import OltConfigurationPage from "../pages/OltConfigurationPage";
 import OntsPage from "../pages/OntListPage";
@@ -27,6 +26,11 @@ const GraphsPage = lazy(() =>
 const CsPerformancePage = lazy(() =>
   import("../pages/CsPerformancePage").then((m) => ({
     default: m.CsPerformancePage,
+  })),
+);
+const NetworkMapPage = lazy(() =>
+  import("../pages/NetworkMapPage").then((m) => ({
+    default: m.NetworkMapPage,
   })),
 );
 
@@ -53,10 +57,6 @@ export const router = createBrowserRouter([
           {
             path: "sites",
             element: <SitesPage />,
-          },
-          {
-            path: "map",
-            element: <MapPage />,
           },
           {
             path: "olts",
@@ -119,6 +119,20 @@ export const router = createBrowserRouter([
                 }
               >
                 <GraphsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: "network-map",
+            element: (
+              <Suspense
+                fallback={
+                  <div style={{ padding: 24, textAlign: "center" }}>
+                    <Spin />
+                  </div>
+                }
+              >
+                <NetworkMapPage />
               </Suspense>
             ),
           },

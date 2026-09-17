@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Descriptions, Select, Space } from "antd";
+import { Alert, Button, Descriptions, InputNumber, Select, Space } from "antd";
 import {
   useAssignOntToOdp,
   useOdpSubscribers,
@@ -35,13 +35,19 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
   }, [odpId, ont.odpId]);
 
   const chosen = (odps ?? []).find((odp) => odp.id === odpId);
-  const taken = (subscribers ?? [])
-    .filter((other) => other.id !== ont.id)
-    .map((other) => other.odpPort)
-    .filter((value): value is number => typeof value === "number");
-  const available = chosen
-    ? freePorts(chosen.portCount, taken, ont.odpPort)
-    : [];
+  const takenBy = new Map(
+    (subscribers ?? [])
+      .filter((other) => other.id !== ont.id && other.odpPort)
+      .map((other) => [other.odpPort as number, other.serialNumber]),
+  );
+  // Capacity 0 means unlimited (see OdpPortFields, which solved this same
+  // gap): freePorts(0, …) loops zero times, which read as "no ports free" for
+  // a box the backend will happily accept port 999 on.
+  const isUnlimited = chosen ? chosen.portCount <= 0 : false;
+  const available =
+    chosen && !isUnlimited
+      ? freePorts(chosen.portCount, Array.from(takenBy.keys()), ont.odpPort)
+      : [];
 
   const current = (odps ?? []).find((odp) => odp.id === ont.odpId);
 
@@ -70,22 +76,39 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
           placeholder="Pilih ODP"
           value={odpId}
           onChange={setOdpId}
+          // Only the box and its stated capacity — never usedPorts, which
+          // nothing populates for a mapping node (see toOdp in
+          // DistributionRepository) and would read as a real occupancy count
+          // when it is always zero.
           options={(odps ?? []).map((odp) => ({
             value: odp.id,
-            label: `${odp.code} (${odp.usedPorts}/${odp.portCount})`,
+            label:
+              odp.portCount > 0
+                ? `${odp.code} (kapasitas ${odp.portCount})`
+                : odp.code,
           }))}
         />
-        <Select
-          style={{ minWidth: 120, maxWidth: "60vw" }}
-          placeholder="Port"
-          value={port}
-          onChange={setPort}
-          disabled={!chosen}
-          options={available.map((value) => ({
-            value,
-            label: `Port ${value}`,
-          }))}
-        />
+        {isUnlimited ? (
+          <InputNumber
+            style={{ minWidth: 120 }}
+            min={1}
+            placeholder="Nomor port"
+            value={port}
+            onChange={(value) => setPort(value ?? undefined)}
+          />
+        ) : (
+          <Select
+            style={{ minWidth: 120, maxWidth: "60vw" }}
+            placeholder="Port"
+            value={port}
+            onChange={setPort}
+            disabled={!chosen}
+            options={available.map((value) => ({
+              value,
+              label: `Port ${value}`,
+            }))}
+          />
+        )}
         <Button
           type="primary"
           loading={assign.isPending}
@@ -102,7 +125,17 @@ export function OntOdpPanel({ ont }: OntOdpPanelProps) {
         </Button>
       </Space>
 
-      {chosen && available.length === 0 && (
+      {isUnlimited && takenBy.size > 0 && (
+        <Alert
+          type="info"
+          showIcon
+          message={`Sudah dipakai: ${Array.from(takenBy.entries())
+            .map(([p, serial]) => `${p} (${serial})`)
+            .join(", ")}`}
+        />
+      )}
+
+      {chosen && !isUnlimited && available.length === 0 && (
         <Alert
           type="warning"
           showIcon
