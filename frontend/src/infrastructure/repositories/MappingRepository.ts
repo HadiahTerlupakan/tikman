@@ -32,11 +32,6 @@ export class MappingRepository {
     return res.data.data;
   }
 
-  async updateEdge(edgeId: string, edge: MappingEdge): Promise<MappingEdge> {
-    const res = await apiClient.put(API_ENDPOINTS.MAPPING_EDGE(edgeId), edge);
-    return res.data.data;
-  }
-
   async deleteEdge(edgeId: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.MAPPING_EDGE(edgeId));
   }

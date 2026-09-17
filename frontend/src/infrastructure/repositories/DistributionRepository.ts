@@ -1,15 +1,7 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 import { MappingRepository } from "./MappingRepository";
-import type {
-  CreateOdcDto,
-  CreateOdpDto,
-  MappingNode,
-  Odc,
-  OdcFeed,
-  Odp,
-  RoutePoint,
-} from "@/domain/entities";
+import type { MappingNode, Odp } from "@/domain/entities";
 import type { Ont } from "@/domain/entities";
 
 // The plant's own /odps table was deleted with the rest of the fixed ODC/ODP
@@ -33,8 +25,8 @@ function toOdp(node: MappingNode): Odp {
 }
 
 /**
- * DistributionRepository reaches the fibre plant: cabinets, the ports feeding
- * them, and the distribution boxes a subscriber's drop lands in.
+ * DistributionRepository reaches the fibre plant's distribution boxes: the
+ * ones a subscriber's drop cable lands in, and who is on which port.
  *
  * Query parameters are spelled the way the API reads them — snake_case — which
  * is the call site's job here: the request interceptor decamelizes the body and
@@ -43,38 +35,9 @@ function toOdp(node: MappingNode): Odp {
 export class DistributionRepository {
   private readonly mapping = new MappingRepository();
 
-  async listOdcs(): Promise<Odc[]> {
-    const response = await apiClient.get(API_ENDPOINTS.ODCS);
-    return response.data.data ?? [];
-  }
-
-  async createOdc(data: CreateOdcDto): Promise<Odc> {
-    const response = await apiClient.post(API_ENDPOINTS.ODCS, data);
-    return response.data.data;
-  }
-
-  async listOdcFeeds(): Promise<OdcFeed[]> {
-    const response = await apiClient.get(API_ENDPOINTS.ODC_FEED_LIST);
-    return response.data.data ?? [];
-  }
-
-  /** An empty path hands the cable back to the straight line the map draws. */
-  async setOdpRoute(odpId: string, route: RoutePoint[]): Promise<void> {
-    await apiClient.put(API_ENDPOINTS.ODP_ROUTE(odpId), { route });
-  }
-
-  async setOdcFeedRoute(feedId: string, route: RoutePoint[]): Promise<void> {
-    await apiClient.put(API_ENDPOINTS.ODC_FEED_ROUTE(feedId), { route });
-  }
-
   async listOdps(): Promise<Odp[]> {
     const nodes = await this.mapping.listNodes();
     return nodes.filter((node) => node.type === "odp").map(toOdp);
-  }
-
-  async createOdp(data: CreateOdpDto): Promise<Odp> {
-    const response = await apiClient.post(API_ENDPOINTS.ODPS, data);
-    return response.data.data;
   }
 
   /** The ONT list narrowed to one box, since /odps/:id/subscribers is gone. */
