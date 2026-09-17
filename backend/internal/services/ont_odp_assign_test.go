@@ -133,6 +133,20 @@ func TestAssignONTToODPRefusesAPortAnotherONTAlreadyHolds(t *testing.T) {
 	require.Error(t, err)
 }
 
+// validateODPPortPlacement's occupancy check must exclude the ONT being
+// (re)patched, or saving an ONT back onto the port it already holds — an
+// ordinary no-op edit — would be refused as if some other subscriber held it.
+func TestAssignONTToODPAllowsResavingOntoItsOwnPort(t *testing.T) {
+	ontService, mappingService, oltID := setupODPAssignFixture(t)
+	ont := createTestONT(t, ontService, oltID, "ZTEGCASSIGN12", 1, 1)
+	node := createTestODPNode(t, mappingService, "ODP-ASSIGN-09", 4)
+	require.NoError(t, ontService.AssignONTToODP(ont.ID, node.ID, 3))
+
+	err := ontService.AssignONTToODP(ont.ID, node.ID, 3)
+
+	require.NoError(t, err)
+}
+
 func TestUnassignONTFromODPClearsThePlacement(t *testing.T) {
 	ontService, mappingService, oltID := setupODPAssignFixture(t)
 	ont := createTestONT(t, ontService, oltID, "ZTEGCASSIGN09", 1, 1)

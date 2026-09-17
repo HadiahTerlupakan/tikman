@@ -12,15 +12,17 @@ import (
 
 // AssignONTToODP records which distribution box and port an ONT's drop cable
 // lands in. It shares validateODPPortPlacement with fresh registration
-// (zte_register_odp.go), so the same box/port rule applies whether the
-// pairing is set at register time or afterward from the ODP tab.
+// (zte_register_odp.go), so the same box/port rule — including the occupancy
+// check — applies whether the pairing is set at register time or afterward
+// from the ODP tab. ontID is excluded from that check so re-saving an ONT onto
+// the port it already holds is not refused.
 //
 // A racing pair of assignments can both pass validateODPPortPlacement; the
 // write below leans on the uq_onts_odp_port unique index to be the actual
-// arbiter, rather than adding a read-then-write check that would only narrow
-// the race window without closing it.
+// arbiter, and the strings.Contains fallback translates that race outcome the
+// same way the check above does for the common, non-racing case.
 func (s *ONTService) AssignONTToODP(ontID, odpNodeID uuid.UUID, port int) error {
-	if err := validateODPPortPlacement(s.db, odpNodeID, port); err != nil {
+	if err := validateODPPortPlacement(s.db, odpNodeID, port, ontID); err != nil {
 		return err
 	}
 
