@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, Skeleton, Space, message } from "antd";
+import { Alert, Skeleton, Space, message } from "antd";
 import { Link } from "react-router-dom";
 import type {
   FiberType,
@@ -20,6 +20,7 @@ import {
   useUpdateNode,
 } from "@/application/hooks";
 import { PageHeader } from "../components/common";
+import { CableDrawControls } from "../components/netmap/CableDrawControls";
 import { CableTypeModal } from "../components/netmap/CableTypeModal";
 import { cablePath, metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
@@ -31,6 +32,7 @@ import {
   isEdgeExists,
   isNodeExists,
   isNodeInUse,
+  missingEndpointMessage,
 } from "../components/netmap/mappingErrors";
 import { MapToolbar, type MapView } from "../components/netmap/MapToolbar";
 import { NodeFormModal } from "../components/netmap/NodeFormModal";
@@ -122,17 +124,19 @@ export function NetworkMapPage() {
     cable.startRedraw(edge);
   };
 
-  // Unlike a fresh cable, a redraw never asks which fiber type it is or for
-  // new notes — both are untouched by definition, so only the retraced
-  // geometry needs saving. cable.finish() (which clears `redrawing`) only
-  // runs on success: clearing it eagerly left `placing === "cable"` with
-  // `redrawing` already undefined after a rejection, which is exactly the
-  // condition that opens nodeTapped's guard and lets the next two node taps
-  // start a cable nobody asked for. Reading `cable.points` directly, instead
-  // of through finish(), is what lets the corners survive a failed save.
+  // A redraw never asks which fiber type it is or for new notes — both are
+  // untouched by definition. cable.finish() clears `redrawing`, so it must
+  // run only on success: clearing it eagerly (before the mutation settles)
+  // is what let a failed save leave `placing` armed with `redrawing` gone,
+  // silently reopening nodeTapped's guard for the next two taps.
   const finishRedraw = async () => {
     const edge = cable.redrawing;
     if (!edge) {
+      return;
+    }
+    const missingEndpoint = missingEndpointMessage(nodes, edge);
+    if (missingEndpoint) {
+      message.error(missingEndpoint);
       return;
     }
     const waypoints = cable.points;
@@ -217,10 +221,7 @@ export function NetworkMapPage() {
       // The id is `source--target`, so a second cable between the same pair
       // is a 409 the operator needs in plain words. Anything else — a
       // capacity rule on an odp_to_odp/odc_to_odc cascade, a network error —
-      // must surface as itself, not be misreported as a duplicate. Clearing
-      // pendingCable only on success (not in a finally) keeps the modal open
-      // on failure: a network blip should cost one retry click, not the
-      // whole traced path.
+      // must surface as itself, not be misreported as a duplicate.
       message.error(
         isEdgeExists(error)
           ? "Sudah ada kabel antara kedua node ini"
@@ -267,19 +268,12 @@ export function NetworkMapPage() {
         onView={setView}
       />
       {placing === "cable" && (
-        <Space>
-          <Button
-            onClick={cable.undoPoint}
-            disabled={cable.points.length === 0}
-          >
-            Batal titik
-          </Button>
-          {cable.redrawing && (
-            <Button type="primary" onClick={finishRedraw}>
-              Selesai
-            </Button>
-          )}
-        </Space>
+        <CableDrawControls
+          canUndo={cable.points.length > 0}
+          onUndo={cable.undoPoint}
+          showFinish={Boolean(cable.redrawing)}
+          onFinish={finishRedraw}
+        />
       )}
       {view === "map" ? (
         keyLoading ? (

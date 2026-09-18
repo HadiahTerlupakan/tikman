@@ -53,6 +53,27 @@ const { nodes, edges } = vi.hoisted(() => ({
       waypoints: [{ lat: -6.205, lng: 106.805 }],
       notes: "Kabel lama",
     },
+    // Node deletion never cascades to edges (migration 53's own design), so
+    // these two stand in for cables whose source/target was deleted after
+    // they were drawn — "GHOST-404" is never in `nodes` above.
+    {
+      edgeId: "GHOST-404--ODP-01",
+      source: "GHOST-404",
+      target: "ODP-01",
+      fiberType: "drop",
+      distance: 50,
+      waypoints: [],
+      notes: "",
+    },
+    {
+      edgeId: "ODC-01--GHOST-404",
+      source: "ODC-01",
+      target: "GHOST-404",
+      fiberType: "drop",
+      distance: 50,
+      waypoints: [],
+      notes: "",
+    },
   ],
 }));
 
@@ -262,5 +283,44 @@ describe("NetworkMapPage redraw", () => {
 
     expect(screen.queryByText("Jenis kabel")).not.toBeInTheDocument();
     expect(createEdgeMutateAsync).not.toHaveBeenCalled();
+  });
+
+  // cablePath's `?? []` fallback exists so MapCanvas can skip *drawing* a
+  // dangling edge; reusing it for arithmetic here would silently recompute
+  // metersAlong([]) === 0 — the exact historical bug (every straight cable
+  // recording 0m) reopened through the one door only a redraw can open,
+  // since node deletion never cascades to edges (migration 53's design).
+  it("refuses to save, naming the source, when the cable's source node has been deleted from the map", async () => {
+    render(<NetworkMapPage />);
+    await userEvent.click(screen.getByText("Daftar"));
+    const edgeRow = screen.getByText("GHOST-404--ODP-01").closest("tr")!;
+    await userEvent.click(
+      within(edgeRow).getByRole("button", { name: "Gambar ulang" }),
+    );
+
+    act(() => canvasProps.onDrop({ lat: -6.19, lng: 106.79 }));
+    await userEvent.click(screen.getByRole("button", { name: "Selesai" }));
+
+    expect(updateEdgeMutateAsync).not.toHaveBeenCalled();
+    expect(messageError).toHaveBeenCalledWith(
+      'Node sumber "GHOST-404" sudah dihapus dari peta, kabel tidak bisa disimpan',
+    );
+  });
+
+  it("refuses to save, naming the target, when the cable's target node has been deleted from the map", async () => {
+    render(<NetworkMapPage />);
+    await userEvent.click(screen.getByText("Daftar"));
+    const edgeRow = screen.getByText("ODC-01--GHOST-404").closest("tr")!;
+    await userEvent.click(
+      within(edgeRow).getByRole("button", { name: "Gambar ulang" }),
+    );
+
+    act(() => canvasProps.onDrop({ lat: -6.19, lng: 106.79 }));
+    await userEvent.click(screen.getByRole("button", { name: "Selesai" }));
+
+    expect(updateEdgeMutateAsync).not.toHaveBeenCalled();
+    expect(messageError).toHaveBeenCalledWith(
+      'Node tujuan "GHOST-404" sudah dihapus dari peta, kabel tidak bisa disimpan',
+    );
   });
 });
