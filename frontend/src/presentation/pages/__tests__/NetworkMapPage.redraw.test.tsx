@@ -229,6 +229,14 @@ describe("NetworkMapPage redraw", () => {
     await waitFor(() =>
       expect(messageError).toHaveBeenCalledWith("network down"),
     );
+    // Not just a toast: the redraw itself has to survive the rejection, or
+    // the corners just traced are gone with nothing on screen saying so.
+    // Selesai only renders while cable.redrawing is set, so its continued
+    // presence is what proves the redraw was not silently abandoned. Before
+    // the fix for the guard-falls-open bug, finish() cleared `redrawing`
+    // unconditionally, so this assertion alone would already have failed
+    // here — an error toast was never proof that anything else was intact.
+    expect(screen.getByRole("button", { name: "Selesai" })).toBeInTheDocument();
   });
 
   // The critical failure mode: finishRedraw used to call cable.finish()
