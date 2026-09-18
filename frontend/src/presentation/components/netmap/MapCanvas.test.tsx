@@ -33,8 +33,18 @@ vi.mock("@vis.gl/react-google-maps", () => ({
       {title}
     </button>
   ),
-  Polyline: ({ path }: { path: { lat: number; lng: number }[] }) => (
-    <div data-testid="polyline" data-points={path.length} />
+  Polyline: ({
+    path,
+    strokeColor,
+  }: {
+    path: { lat: number; lng: number }[];
+    strokeColor?: string;
+  }) => (
+    <div
+      data-testid="polyline"
+      data-points={path.length}
+      data-stroke-color={strokeColor}
+    />
   ),
 }));
 
@@ -187,5 +197,65 @@ describe("MapCanvas", () => {
     });
 
     expect(screen.getByTestId("polyline")).toHaveAttribute("data-points", "3");
+  });
+
+  // The old route has to stay visible and tell apart from the new line being
+  // traced (already true: saved edges are amber, the draft is green) — but it
+  // must also tell apart from every *other* saved cable, or a technician
+  // cannot see which one they are correcting on a map with several cables on
+  // it.
+  it("draws the cable being redrawn in a colour distinct from an ordinary saved cable", () => {
+    const fixture = {
+      nodes: [
+        node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 }),
+        node({ nodeId: "ODP-01", latitude: -6.21, longitude: 106.81 }),
+      ],
+      edges: [edge({ edgeId: "E1", source: "ODC-01", target: "ODP-01" })],
+    };
+    const { rerenderWith } = renderCanvas(fixture);
+    const ordinaryColor = screen
+      .getByTestId("polyline")
+      .getAttribute("data-stroke-color");
+
+    rerenderWith({ ...fixture, redrawingEdgeId: "E1" });
+
+    expect(screen.getByTestId("polyline")).not.toHaveAttribute(
+      "data-stroke-color",
+      ordinaryColor,
+    );
+  });
+
+  it("leaves every other saved cable in the ordinary colour while one is being redrawn", () => {
+    renderCanvas({
+      nodes: [
+        node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 }),
+        node({ nodeId: "ODP-01", latitude: -6.21, longitude: 106.81 }),
+        node({ nodeId: "ONT-09", latitude: -6.22, longitude: 106.82 }),
+      ],
+      edges: [
+        edge({ edgeId: "E1", source: "ODC-01", target: "ODP-01" }),
+        edge({
+          edgeId: "E2",
+          source: "ODP-01",
+          target: "ONT-09",
+          waypoints: [{ lat: -6.215, lng: 106.815 }],
+        }),
+      ],
+      redrawingEdgeId: "E2",
+    });
+
+    const polylines = screen.getAllByTestId("polyline");
+    // Told apart by point count (2 vs 3), since the mock does not expose
+    // which edge a polyline came from.
+    const other = polylines.find(
+      (el) => el.getAttribute("data-points") === "2",
+    )!;
+    const redrawing = polylines.find(
+      (el) => el.getAttribute("data-points") === "3",
+    )!;
+
+    expect(other.getAttribute("data-stroke-color")).not.toBe(
+      redrawing.getAttribute("data-stroke-color"),
+    );
   });
 });
