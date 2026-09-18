@@ -6,10 +6,11 @@ import { FIBER_LABELS } from "./mappingLabels";
 interface EdgeListProps {
   edges: MappingEdge[];
   onEdit: (edge: MappingEdge) => void;
+  onRedraw: (edge: MappingEdge) => void;
   onDelete: (edgeId: string) => void;
 }
 
-export function EdgeList({ edges, onEdit, onDelete }: EdgeListProps) {
+export function EdgeList({ edges, onEdit, onRedraw, onDelete }: EdgeListProps) {
   return (
     <Table
       rowKey="edgeId"
@@ -36,6 +37,9 @@ export function EdgeList({ edges, onEdit, onDelete }: EdgeListProps) {
             <Space size="small">
               <Button size="small" onClick={() => onEdit(edge)}>
                 Ubah
+              </Button>
+              <Button size="small" onClick={() => onRedraw(edge)}>
+                Gambar ulang
               </Button>
               <Popconfirm
                 title="Hapus kabel ini?"

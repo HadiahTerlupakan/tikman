@@ -19,9 +19,14 @@ const FALLBACK_ZOOM = 13;
 const NODE_ZOOM = 16;
 
 // A saved cable reads as fixed infrastructure; the one still being traced
-// needs to stand out from it while it is still only a proposal.
+// needs to stand out from it while it is still only a proposal. The cable
+// being redrawn is still saved infrastructure too, but it is about to be
+// replaced — a third colour is what lets a technician tell "the route I'm
+// correcting" apart from every other cable on the map, not just from the
+// new line.
 const EDGE_COLOR = "#f59e0b";
 const DRAFT_COLOR = "#22c55e";
+const REDRAWING_COLOR = "#94a3b8";
 
 interface MapCanvasProps {
   nodes: MappingNode[];
@@ -32,6 +37,10 @@ interface MapCanvasProps {
    * can begin there instead of at its first corner — the same start point
    * edgePath gives a saved cable. */
   fromNodeId?: string;
+  /** The cable whose route is being redrawn, if any — kept on the map in a
+   * distinct colour so a technician can see what they are correcting while
+   * the new line is traced over it. */
+  redrawingEdgeId?: string;
   /** What a map click means: place this kind of box, trace a cable, or nothing. */
   placing: NodeType | "cable" | undefined;
   apiKey: string;
@@ -89,11 +98,13 @@ function CableLines({
   edges,
   draft,
   fromNodeId,
+  redrawingEdgeId,
 }: {
   nodes: MappingNode[];
   edges: MappingEdge[];
   draft: Waypoint[];
   fromNodeId?: string;
+  redrawingEdgeId?: string;
 }) {
   // `Map` above is the imported map component, not the global constructor —
   // `globalThis` reaches past that shadowing to the real one.
@@ -120,7 +131,9 @@ function CableLines({
           <Polyline
             key={edge.edgeId}
             path={path}
-            strokeColor={EDGE_COLOR}
+            strokeColor={
+              edge.edgeId === redrawingEdgeId ? REDRAWING_COLOR : EDGE_COLOR
+            }
             strokeWeight={3}
           />
         );
@@ -144,6 +157,7 @@ export function MapCanvas({
   edges,
   draft,
   fromNodeId,
+  redrawingEdgeId,
   placing,
   apiKey,
   mapId,
@@ -173,6 +187,7 @@ export function MapCanvas({
           edges={edges}
           draft={draft}
           fromNodeId={fromNodeId}
+          redrawingEdgeId={redrawingEdgeId}
         />
       </Map>
     </APIProvider>

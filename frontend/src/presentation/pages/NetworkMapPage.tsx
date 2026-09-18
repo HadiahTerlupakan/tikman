@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, Skeleton, Space, message } from "antd";
+import { Alert, Skeleton, Space, message } from "antd";
 import { Link } from "react-router-dom";
 import type {
   FiberType,
@@ -19,14 +19,21 @@ import {
   useUpdateEdge,
   useUpdateNode,
 } from "@/application/hooks";
-import { ApiError } from "@/infrastructure/http";
 import { PageHeader } from "../components/common";
+import { CableDrawControls } from "../components/netmap/CableDrawControls";
 import { CableTypeModal } from "../components/netmap/CableTypeModal";
-import { edgePath, metersAlong } from "../components/netmap/cableMath";
+import { cablePath, metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
 import { EdgeFormModal } from "../components/netmap/EdgeFormModal";
 import { EdgeList } from "../components/netmap/EdgeList";
 import { MapCanvas } from "../components/netmap/MapCanvas";
+import {
+  errorMessage,
+  isEdgeExists,
+  isNodeExists,
+  isNodeInUse,
+  missingEndpointMessage,
+} from "../components/netmap/mappingErrors";
 import { MapToolbar, type MapView } from "../components/netmap/MapToolbar";
 import { NodeFormModal } from "../components/netmap/NodeFormModal";
 import { NodeList } from "../components/netmap/NodeList";
@@ -47,44 +54,6 @@ interface PendingCable {
   target: string;
   waypoints: Waypoint[];
   distance: number;
-}
-
-// `useCableDraw.points` holds only the corners tapped between two nodes —
-// never the nodes' own positions — so a cable with no corners at all (the
-// ordinary drop from an ODP to a house) traces zero of them. The length that
-// gets saved has to walk the same source -> corners -> target path a saved
-// cable is drawn with (cableMath.edgePath), not just the corners — measuring
-// with a second, separate implementation is exactly how the branch shipped a
-// straight cable that measured 0 metres.
-function cablePath(
-  nodes: MappingNode[],
-  source: string,
-  target: string,
-  waypoints: Waypoint[],
-): Waypoint[] {
-  const nodesById = new Map(nodes.map((node) => [node.nodeId, node]));
-  return edgePath({ source, target, waypoints }, nodesById) ?? [];
-}
-
-// A capacity rule on an odp_to_odp/odc_to_odc cascade is also a 409, and must
-// reach the operator as itself; only the id collision this cable's own
-// `source--target` naming produces should read as "already exists". Branching
-// on the code the backend now sends (not the shared status) is what tells
-// them apart.
-function isEdgeExists(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "EDGE_EXISTS";
-}
-
-function isNodeExists(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "NODE_EXISTS";
-}
-
-function isNodeInUse(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "NODE_IN_USE";
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Gagal menyimpan kabel";
 }
 
 export function NetworkMapPage() {
@@ -125,9 +94,12 @@ export function NetworkMapPage() {
   };
 
   // The first node tapped starts the cable; the second ends it and asks which
-  // of the seven fiber types it is before anything is saved.
+  // of the seven fiber types it is before anything is saved. A redraw's
+  // endpoints are already fixed by the cable on record, so a node tap has
+  // nothing to do here — Selesai (finishRedraw) is its only way to finish,
+  // which keeps re-tracing from ever reassigning what the cable connects.
   const nodeTapped = (nodeId: string) => {
-    if (placing !== "cable") {
+    if (placing !== "cable" || cable.redrawing) {
       return;
     }
     if (!cable.from) {
@@ -140,6 +112,48 @@ export function NetworkMapPage() {
       metersAlong(cablePath(nodes, source, nodeId, waypoints)),
     );
     setPendingCable({ source, target: nodeId, waypoints, distance });
+  };
+
+  // Entry point from EdgeList: re-tracing an existing cable's route without
+  // touching its endpoints, fiber type or notes. The map has to be visible
+  // for a technician to tap corners on it, so this switches view even though
+  // starting a fresh cable does not force that switch on its own.
+  const redrawEdge = (edge: MappingEdge) => {
+    setView("map");
+    setPlacing("cable");
+    cable.startRedraw(edge);
+  };
+
+  // A redraw never asks which fiber type it is or for new notes — both are
+  // untouched by definition. cable.finish() clears `redrawing`, so it must
+  // run only on success: clearing it eagerly (before the mutation settles)
+  // is what let a failed save leave `placing` armed with `redrawing` gone,
+  // silently reopening nodeTapped's guard for the next two taps.
+  const finishRedraw = async () => {
+    const edge = cable.redrawing;
+    if (!edge) {
+      return;
+    }
+    const missingEndpoint = missingEndpointMessage(nodes, edge);
+    if (missingEndpoint) {
+      message.error(missingEndpoint);
+      return;
+    }
+    const waypoints = cable.points;
+    const distance = Math.round(
+      metersAlong(cablePath(nodes, edge.source, edge.target, waypoints)),
+    );
+    try {
+      await updateEdge.mutateAsync({
+        edgeId: edge.edgeId,
+        edge: { ...edge, waypoints, distance },
+      });
+      message.success("Jalur kabel tersimpan");
+      cable.finish();
+      setPlacing(undefined);
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
   };
 
   const saveNode = async (node: MappingNode) => {
@@ -202,6 +216,7 @@ export function NetworkMapPage() {
       });
       message.success("Kabel tersimpan");
       setPlacing(undefined);
+      setPendingCable(undefined);
     } catch (error) {
       // The id is `source--target`, so a second cable between the same pair
       // is a 409 the operator needs in plain words. Anything else — a
@@ -212,8 +227,6 @@ export function NetworkMapPage() {
           ? "Sudah ada kabel antara kedua node ini"
           : errorMessage(error),
       );
-    } finally {
-      setPendingCable(undefined);
     }
   };
 
@@ -231,10 +244,9 @@ export function NetworkMapPage() {
     setEditingEdge(edge);
   };
 
-  // Unlike saveCable, the modal stays open on failure: there is no
-  // in-progress trace to abandon here, just an existing cable the operator
-  // can adjust and retry — the same choice saveNode makes for an existing
-  // node.
+  // The modal stays open on failure, the same choice saveCable and saveNode
+  // make for their own failures: nothing here needs to be abandoned, just
+  // adjusted and retried.
   const saveEdge = async (edge: MappingEdge) => {
     try {
       await updateEdge.mutateAsync({ edgeId: edge.edgeId, edge });
@@ -256,9 +268,12 @@ export function NetworkMapPage() {
         onView={setView}
       />
       {placing === "cable" && (
-        <Button onClick={cable.undoPoint} disabled={cable.points.length === 0}>
-          Batal titik
-        </Button>
+        <CableDrawControls
+          canUndo={cable.points.length > 0}
+          onUndo={cable.undoPoint}
+          showFinish={Boolean(cable.redrawing)}
+          onFinish={finishRedraw}
+        />
       )}
       {view === "map" ? (
         keyLoading ? (
@@ -281,6 +296,7 @@ export function NetworkMapPage() {
             edges={edges}
             draft={cable.points}
             fromNodeId={cable.from}
+            redrawingEdgeId={cable.redrawing?.edgeId}
             placing={placing}
             apiKey={key}
             mapId={mapId}
@@ -291,7 +307,12 @@ export function NetworkMapPage() {
       ) : (
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
           <NodeList nodes={nodes} onEdit={editNode} onDelete={removeNode} />
-          <EdgeList edges={edges} onEdit={editEdge} onDelete={removeEdge} />
+          <EdgeList
+            edges={edges}
+            onEdit={editEdge}
+            onRedraw={redrawEdge}
+            onDelete={removeEdge}
+          />
         </Space>
       )}
       <CountCards nodes={nodes} />
