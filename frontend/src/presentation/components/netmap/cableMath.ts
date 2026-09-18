@@ -59,3 +59,21 @@ export function edgePath(
     { lat: target.latitude, lng: target.longitude },
   ];
 }
+
+/**
+ * The full path for a cable named by its two node ids rather than a saved
+ * MappingEdge — what a page has on hand while a cable is only a pending save
+ * or a redraw in progress, neither of which has an `edge_id` row to read
+ * `waypoints` off of. Delegates to `edgePath` rather than walking the nodes
+ * itself, so this can never drift back into the second implementation that
+ * once shipped a straight cable measuring 0 metres.
+ */
+export function cablePath(
+  nodes: MappingNode[],
+  source: string,
+  target: string,
+  waypoints: Waypoint[],
+): Waypoint[] {
+  const nodesById = new Map(nodes.map((node) => [node.nodeId, node]));
+  return edgePath({ source, target, waypoints }, nodesById) ?? [];
+}
