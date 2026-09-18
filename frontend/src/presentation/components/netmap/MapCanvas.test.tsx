@@ -203,8 +203,12 @@ describe("MapCanvas", () => {
   // traced (already true: saved edges are amber, the draft is green) — but it
   // must also tell apart from every *other* saved cable, or a technician
   // cannot see which one they are correcting on a map with several cables on
-  // it.
-  it("draws the cable being redrawn in a colour distinct from an ordinary saved cable", () => {
+  // it. Asserting the concrete hex values, not just that the two differ, is
+  // what a mutant flipping `edge.edgeId === redrawingEdgeId` to `!==` cannot
+  // slip past: that inversion still produces two *different* colours (just
+  // the wrong cable wearing each one), so an inequality-only check passes it.
+  // "#f59e0b"/"#94a3b8" are MapCanvas's own EDGE_COLOR/REDRAWING_COLOR.
+  it("draws the cable being redrawn in the redraw colour, not the ordinary saved-cable colour", () => {
     const fixture = {
       nodes: [
         node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 }),
@@ -213,15 +217,16 @@ describe("MapCanvas", () => {
       edges: [edge({ edgeId: "E1", source: "ODC-01", target: "ODP-01" })],
     };
     const { rerenderWith } = renderCanvas(fixture);
-    const ordinaryColor = screen
-      .getByTestId("polyline")
-      .getAttribute("data-stroke-color");
+    expect(screen.getByTestId("polyline")).toHaveAttribute(
+      "data-stroke-color",
+      "#f59e0b",
+    );
 
     rerenderWith({ ...fixture, redrawingEdgeId: "E1" });
 
-    expect(screen.getByTestId("polyline")).not.toHaveAttribute(
+    expect(screen.getByTestId("polyline")).toHaveAttribute(
       "data-stroke-color",
-      ordinaryColor,
+      "#94a3b8",
     );
   });
 
@@ -254,8 +259,7 @@ describe("MapCanvas", () => {
       (el) => el.getAttribute("data-points") === "3",
     )!;
 
-    expect(other.getAttribute("data-stroke-color")).not.toBe(
-      redrawing.getAttribute("data-stroke-color"),
-    );
+    expect(other).toHaveAttribute("data-stroke-color", "#f59e0b");
+    expect(redrawing).toHaveAttribute("data-stroke-color", "#94a3b8");
   });
 });
