@@ -230,4 +230,29 @@ describe("NetworkMapPage redraw", () => {
       expect(messageError).toHaveBeenCalledWith("network down"),
     );
   });
+
+  // The critical failure mode: finishRedraw used to call cable.finish()
+  // unconditionally before the mutation even started, clearing `redrawing`
+  // (and `from`) regardless of whether the save succeeded. After a
+  // rejection, `placing` was still "cable" while `redrawing` was already
+  // undefined — exactly the condition that opens nodeTapped's guard
+  // (`placing !== "cable" || cable.redrawing`). The next two node taps then
+  // fell into the fresh-cable branch and silently started a cable nobody
+  // asked for.
+  it("does not let node taps after a failed save start a brand-new cable", async () => {
+    updateEdgeMutateAsync.mockRejectedValueOnce(new Error("network down"));
+    await startRedraw();
+
+    act(() => canvasProps.onDrop({ lat: -6.19, lng: 106.79 }));
+    await userEvent.click(screen.getByRole("button", { name: "Selesai" }));
+    await waitFor(() => expect(messageError).toHaveBeenCalled());
+
+    // Retapping two nodes, as if retrying out of habit — must not be
+    // reinterpreted as "start tracing a fresh cable from scratch".
+    act(() => canvasProps.onNodeClick("ODC-01"));
+    act(() => canvasProps.onNodeClick("ODP-02"));
+
+    expect(screen.queryByText("Jenis kabel")).not.toBeInTheDocument();
+    expect(createEdgeMutateAsync).not.toHaveBeenCalled();
+  });
 });

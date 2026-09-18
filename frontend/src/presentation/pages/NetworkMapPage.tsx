@@ -124,13 +124,18 @@ export function NetworkMapPage() {
 
   // Unlike a fresh cable, a redraw never asks which fiber type it is or for
   // new notes — both are untouched by definition, so only the retraced
-  // geometry needs saving.
+  // geometry needs saving. cable.finish() (which clears `redrawing`) only
+  // runs on success: clearing it eagerly left `placing === "cable"` with
+  // `redrawing` already undefined after a rejection, which is exactly the
+  // condition that opens nodeTapped's guard and lets the next two node taps
+  // start a cable nobody asked for. Reading `cable.points` directly, instead
+  // of through finish(), is what lets the corners survive a failed save.
   const finishRedraw = async () => {
     const edge = cable.redrawing;
     if (!edge) {
       return;
     }
-    const waypoints = cable.finish();
+    const waypoints = cable.points;
     const distance = Math.round(
       metersAlong(cablePath(nodes, edge.source, edge.target, waypoints)),
     );
@@ -140,6 +145,7 @@ export function NetworkMapPage() {
         edge: { ...edge, waypoints, distance },
       });
       message.success("Jalur kabel tersimpan");
+      cable.finish();
       setPlacing(undefined);
     } catch (error) {
       message.error(errorMessage(error));
@@ -206,18 +212,20 @@ export function NetworkMapPage() {
       });
       message.success("Kabel tersimpan");
       setPlacing(undefined);
+      setPendingCable(undefined);
     } catch (error) {
       // The id is `source--target`, so a second cable between the same pair
       // is a 409 the operator needs in plain words. Anything else — a
       // capacity rule on an odp_to_odp/odc_to_odc cascade, a network error —
-      // must surface as itself, not be misreported as a duplicate.
+      // must surface as itself, not be misreported as a duplicate. Clearing
+      // pendingCable only on success (not in a finally) keeps the modal open
+      // on failure: a network blip should cost one retry click, not the
+      // whole traced path.
       message.error(
         isEdgeExists(error)
           ? "Sudah ada kabel antara kedua node ini"
           : errorMessage(error),
       );
-    } finally {
-      setPendingCable(undefined);
     }
   };
 
@@ -235,10 +243,9 @@ export function NetworkMapPage() {
     setEditingEdge(edge);
   };
 
-  // Unlike saveCable, the modal stays open on failure: there is no
-  // in-progress trace to abandon here, just an existing cable the operator
-  // can adjust and retry — the same choice saveNode makes for an existing
-  // node.
+  // The modal stays open on failure, the same choice saveCable and saveNode
+  // make for their own failures: nothing here needs to be abandoned, just
+  // adjusted and retried.
   const saveEdge = async (edge: MappingEdge) => {
     try {
       await updateEdge.mutateAsync({ edgeId: edge.edgeId, edge });
