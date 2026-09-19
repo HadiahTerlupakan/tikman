@@ -12,6 +12,7 @@ import type {
 } from "@/domain/entities";
 import { edgePath } from "./cableMath";
 import { NODE_COLORS } from "./mappingLabels";
+import { SelectedPopups, type PopupState } from "./MapCanvasPopups";
 
 // Where the map opens when there is nothing on it yet.
 const FALLBACK_CENTER = { lat: -6.2, lng: 106.816 };
@@ -28,9 +29,11 @@ const EDGE_COLOR = "#f59e0b";
 const DRAFT_COLOR = "#22c55e";
 const REDRAWING_COLOR = "#94a3b8";
 
-interface MapCanvasProps {
-  nodes: MappingNode[];
-  edges: MappingEdge[];
+/** The cable currently being traced or redrawn, if any — the three fields
+ * exist only for that (nothing else in MapCanvas reads them), unlike
+ * `placing`, which also gates node-placement clicks and popup visibility and
+ * so stays its own prop rather than joining this group. */
+interface TracingState {
   /** The corners traced so far for the cable being drawn right now, if any. */
   draft: Waypoint[];
   /** The node the cable being traced started from, so the in-progress line
@@ -41,12 +44,33 @@ interface MapCanvasProps {
    * distinct colour so a technician can see what they are correcting while
    * the new line is traced over it. */
   redrawingEdgeId?: string;
+}
+
+interface MapCanvasProps {
+  nodes: MappingNode[];
+  edges: MappingEdge[];
+  tracing: TracingState;
   /** What a map click means: place this kind of box, trace a cable, or nothing. */
   placing: NodeType | "cable" | undefined;
   apiKey: string;
   mapId?: string;
   onDrop: (point: Waypoint) => void;
   onNodeClick: (nodeId: string) => void;
+  onEdgeClick: (edgeId: string) => void;
+  popup: PopupState;
+}
+
+/** A click on the map background places a box or extends a cable, depending
+ * on what is armed; with nothing armed, a bare click is not a drop. */
+function dropAt(
+  latLng: { lat: number; lng: number } | null,
+  placing: NodeType | "cable" | undefined,
+  onDrop: (point: Waypoint) => void,
+) {
+  if (!latLng || !placing) {
+    return;
+  }
+  onDrop({ lat: latLng.lat, lng: latLng.lng });
 }
 
 /** Opens on what is already mapped, so a technician is never sent to the sea. */
@@ -92,26 +116,26 @@ function NodeMarkers({
   );
 }
 
-/** Cables already saved, plus the path being traced right now, if any. */
-function CableLines({
-  nodes,
-  edges,
-  draft,
-  fromNodeId,
-  redrawingEdgeId,
-}: {
-  nodes: MappingNode[];
+interface CableLinesProps {
+  nodesById: Map<string, MappingNode>;
   edges: MappingEdge[];
   draft: Waypoint[];
   fromNodeId?: string;
   redrawingEdgeId?: string;
-}) {
-  // `Map` above is the imported map component, not the global constructor —
-  // `globalThis` reaches past that shadowing to the real one.
-  const nodesById = new globalThis.Map(
-    nodes.map((node) => [node.nodeId, node]),
-  );
+  placing: NodeType | "cable" | undefined;
+  onEdgeClick: (edgeId: string) => void;
+}
 
+/** Cables already saved, plus the path being traced right now, if any. */
+function CableLines({
+  nodesById,
+  edges,
+  draft,
+  fromNodeId,
+  redrawingEdgeId,
+  placing,
+  onEdgeClick,
+}: CableLinesProps) {
   // The saved path always starts at the source node (edgePath does the same
   // walk); the line still being traced has to match that, or a technician
   // sights it against the wrong start point while pulling fibre.
@@ -119,6 +143,11 @@ function CableLines({
   const draftPath = fromNode
     ? [{ lat: fromNode.latitude, lng: fromNode.longitude }, ...draft]
     : draft;
+
+  // Attached only outside tracing: a handler that merely no-op'd while
+  // tracing would still capture the click, stopping it from ever reaching
+  // the map underneath (how a technician drops a corner on an existing line).
+  const clickable = placing !== "cable";
 
   return (
     <>
@@ -135,6 +164,7 @@ function CableLines({
               edge.edgeId === redrawingEdgeId ? REDRAWING_COLOR : EDGE_COLOR
             }
             strokeWeight={3}
+            onClick={clickable ? () => onEdgeClick(edge.edgeId) : undefined}
           />
         );
       })}
@@ -147,23 +177,27 @@ function CableLines({
 
 /**
  * The map itself: boxes as coloured pins, cables as lines, and a click that
- * either places a box or extends the cable being traced, depending on what
- * the toolbar has armed. The click-to-corner tracing this hands off to is the
- * interaction described in the design spec — everything else here exists to
- * put it on a satellite map.
+ * either places a box, extends the cable being traced, or opens a popup,
+ * depending on what the toolbar has armed. The click-to-corner tracing this
+ * hands off to is the interaction described in the design spec — everything
+ * else here exists to put it on a satellite map.
  */
 export function MapCanvas({
   nodes,
   edges,
-  draft,
-  fromNodeId,
-  redrawingEdgeId,
+  tracing,
   placing,
   apiKey,
   mapId,
   onDrop,
   onNodeClick,
+  onEdgeClick,
+  popup,
 }: MapCanvasProps) {
+  // `Map` below is the imported map component, not the global constructor —
+  // `globalThis` reaches past that shadowing to the real one.
+  const nodesById = new globalThis.Map(nodes.map((n) => [n.nodeId, n]));
+
   return (
     <APIProvider apiKey={apiKey} libraries={["marker"]}>
       <Map
@@ -173,21 +207,22 @@ export function MapCanvas({
         style={{ width: "100%", height: "60vh" }}
         gestureHandling="greedy"
         disableDefaultUI={false}
-        onClick={(event) => {
-          const latLng = event.detail.latLng;
-          if (!latLng || !placing) {
-            return;
-          }
-          onDrop({ lat: latLng.lat, lng: latLng.lng });
-        }}
+        onClick={(event) => dropAt(event.detail.latLng, placing, onDrop)}
       >
         <NodeMarkers nodes={nodes} onNodeClick={onNodeClick} />
         <CableLines
-          nodes={nodes}
+          nodesById={nodesById}
           edges={edges}
-          draft={draft}
-          fromNodeId={fromNodeId}
-          redrawingEdgeId={redrawingEdgeId}
+          draft={tracing.draft}
+          fromNodeId={tracing.fromNodeId}
+          redrawingEdgeId={tracing.redrawingEdgeId}
+          placing={placing}
+          onEdgeClick={onEdgeClick}
+        />
+        <SelectedPopups
+          nodesById={nodesById}
+          visible={placing !== "cable"}
+          popup={popup}
         />
       </Map>
     </APIProvider>

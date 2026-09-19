@@ -83,14 +83,35 @@ function edge(
 
 const noop = () => {};
 
+type Tracing = ComponentProps<typeof MapCanvas>["tracing"];
+
+// MapCanvasProps.tracing groups draft/fromNodeId/redrawingEdgeId into one
+// object (see MapCanvas.tsx); this fills in `draft: []` so a test only has
+// to name the piece it cares about, the way the sibling popup() helper in
+// MapCanvas.popup.test.tsx does for PopupState.
+function tracing(overrides: Partial<Tracing> = {}): Tracing {
+  return { draft: [], ...overrides };
+}
+
 const defaultProps: ComponentProps<typeof MapCanvas> = {
   nodes: [],
   edges: [],
-  draft: [],
+  tracing: tracing(),
   placing: undefined,
   apiKey: "AIzaTEST",
   onDrop: noop,
   onNodeClick: noop,
+  onEdgeClick: noop,
+  popup: {
+    onClose: noop,
+    actions: {
+      onEditNode: noop,
+      onDeleteNode: noop,
+      onEditEdge: noop,
+      onRedrawEdge: noop,
+      onDeleteEdge: noop,
+    },
+  },
 };
 
 function renderCanvas(
@@ -167,16 +188,18 @@ describe("MapCanvas", () => {
 
   it("draws the traced path only once it has a second point to connect", () => {
     const { rerenderWith } = renderCanvas({
-      draft: [{ lat: -6.2, lng: 106.8 }],
+      tracing: tracing({ draft: [{ lat: -6.2, lng: 106.8 }] }),
     });
 
     expect(screen.queryAllByTestId("polyline")).toHaveLength(0);
 
     rerenderWith({
-      draft: [
-        { lat: -6.2, lng: 106.8 },
-        { lat: -6.21, lng: 106.81 },
-      ],
+      tracing: tracing({
+        draft: [
+          { lat: -6.2, lng: 106.8 },
+          { lat: -6.21, lng: 106.81 },
+        ],
+      }),
     });
 
     expect(screen.getAllByTestId("polyline")).toHaveLength(1);
@@ -189,11 +212,13 @@ describe("MapCanvas", () => {
   it("starts the in-progress line at the source node, not its first tapped corner", () => {
     renderCanvas({
       nodes: [node({ nodeId: "ODC-01", latitude: -6.2, longitude: 106.8 })],
-      fromNodeId: "ODC-01",
-      draft: [
-        { lat: -6.21, lng: 106.81 },
-        { lat: -6.22, lng: 106.82 },
-      ],
+      tracing: tracing({
+        fromNodeId: "ODC-01",
+        draft: [
+          { lat: -6.21, lng: 106.81 },
+          { lat: -6.22, lng: 106.82 },
+        ],
+      }),
     });
 
     expect(screen.getByTestId("polyline")).toHaveAttribute("data-points", "3");
@@ -222,7 +247,7 @@ describe("MapCanvas", () => {
       "#f59e0b",
     );
 
-    rerenderWith({ ...fixture, redrawingEdgeId: "E1" });
+    rerenderWith({ ...fixture, tracing: tracing({ redrawingEdgeId: "E1" }) });
 
     expect(screen.getByTestId("polyline")).toHaveAttribute(
       "data-stroke-color",
@@ -246,7 +271,7 @@ describe("MapCanvas", () => {
           waypoints: [{ lat: -6.215, lng: 106.815 }],
         }),
       ],
-      redrawingEdgeId: "E2",
+      tracing: tracing({ redrawingEdgeId: "E2" }),
     });
 
     const polylines = screen.getAllByTestId("polyline");

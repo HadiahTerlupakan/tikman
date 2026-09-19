@@ -103,9 +103,11 @@ vi.mock("@/application/hooks", () => ({
 }));
 
 interface MockCanvasProps {
-  draft: Waypoint[];
-  fromNodeId?: string;
-  redrawingEdgeId?: string;
+  tracing: {
+    draft: Waypoint[];
+    fromNodeId?: string;
+    redrawingEdgeId?: string;
+  };
   onDrop: (point: Waypoint) => void;
   onNodeClick: (nodeId: string) => void;
 }
@@ -168,8 +170,8 @@ describe("NetworkMapPage redraw", () => {
 
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(screen.queryByText("ODC-01--ODP-01")).not.toBeInTheDocument();
-    expect(canvasProps.fromNodeId).toBe("ODC-01");
-    expect(canvasProps.redrawingEdgeId).toBe("ODC-01--ODP-01");
+    expect(canvasProps.tracing.fromNodeId).toBe("ODC-01");
+    expect(canvasProps.tracing.redrawingEdgeId).toBe("ODC-01--ODP-01");
   });
 
   it("offers Batal titik and Selesai while redrawing, the same undo gesture as a fresh cable", async () => {
