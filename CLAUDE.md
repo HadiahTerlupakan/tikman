@@ -543,25 +543,57 @@ See `.env.example` for required variables. Key ones:
 
 ### Deployment
 
-Deployment is Jenkins, not GitHub Actions. `Jenkinsfile` runs on the VPS the
-stack itself runs on, so it builds in place and no registry sits in the path:
+Deployment is manual, run over SSH on the VPS the stack itself runs on, so it
+builds in place and no registry sits in the path. The tikman Jenkins job was
+deleted; Jenkins still runs on that host for other projects, but nothing there
+deploys this one. GitHub Actions does not deploy either — `ci.yml` only tests,
+lints and pushes images nothing consumes.
 
 ```
-docker compose --env-file /opt/tikman/.env \
-  -f docker-compose.yml -f docker-compose.vps.yml up -d --remove-orphans
+cd /opt/tikman/src && sudo -u radpro git pull --ff-only origin main
+sudo docker compose --env-file /opt/tikman/.env \
+  -f docker-compose.yml -f docker-compose.vps.yml stop worker trapd
+sudo docker compose --env-file /opt/tikman/.env \
+  -f docker-compose.yml -f docker-compose.vps.yml up -d --build --remove-orphans
 ```
 
-Its stages are Preflight (the env file exists, the `wireguard` kernel module is
-loaded, the composition resolves), Build, Deploy, and Verify — where Verify
-asserts `/health` answers and that the VPN, CS and `wa` surfaces are really
-there, because a build that predates a module leaves its menu rendering while
-every call behind it 404s.
+Git runs as `radpro`; a fetch that cannot write objects is sudo-poisoned
+ownership, not a full disk. The compose commands need `sudo` because
+`/opt/tikman/.env` is `jenkins:jenkins` mode `600` — deliberately unreadable by
+the deploy SSH user, and never in the repository. `worker` and `trapd` stop
+first because they share `api`'s network namespace and recreating `api` under
+them fails.
 
-Secrets live in `/opt/tikman/.env` on the host, owned by `jenkins` and mode
-`600`. They are deliberately unreadable by the deploy SSH user and never enter
-the repository or Jenkins itself.
+**Check before deploying:** the `wireguard` kernel module is loaded on the host,
+and `/opt/tikman/.env` is readable under sudo. A kernel upgrade that leaves the
+module unavailable stops `wg0` from being created with no code having changed.
 
-The GHCR images CI pushes are not used by this deployment. There was once a
+**Check after:** a build that predates a module leaves its menu rendering while
+every call behind it 404s, so assert the surfaces are really there.
+
+```
+docker exec tikman-api wget -qO- http://localhost:8080/health
+```
+
+Routes should answer **401** — present and auth-gated — not 404. Check
+`/api/v1/mapping/nodes`, `/api/v1/wireguard/server` and `/api/v1/cs/conversations`
+at least.
+
+Two things that read as a broken deploy and are not:
+
+- **Port 8080 on the host is Jenkins**, not the API. `curl localhost:8080/health`
+  returns Jenkins' 302 and every route 404s. The API publishes only `51820/udp`;
+  its HTTP is reached from inside the container or through the frontend.
+- **The api container's `ip` is BusyBox** and rejects `-br`, so `ip -br addr show wg0`
+  prints a usage error that looks like a missing tunnel. Use `ip addr show wg0`.
+
+Workers run scaled as `src-worker-N`, not `tikman-worker`, so a `docker ps | grep
+tikman` makes polling look dead when it is fine.
+
+A migration that fails aborts startup by design (`log.Fatal`), so a release
+carrying a destructive migration deserves a dump of what it drops first.
+
+The GHCR images CI pushes are not used. There was once a
 `.github/workflows/deploy.yml` that pulled them; it was removed because it had
 never run, had no secrets configured, and described a host layout that does not
 exist — the wrong directory, Compose v1, no VPS override and no env file, so
