@@ -1,5 +1,6 @@
 import { Button, Descriptions, Popconfirm, Space, Tag, Typography } from "antd";
 import type { MappingNode } from "@/domain/entities";
+import { colors } from "@/shared/theme";
 import { NODE_COLORS, NODE_LABELS } from "./mappingLabels";
 
 interface NodePopupProps {
@@ -46,22 +47,28 @@ function OptionalFields({ node }: { node: MappingNode }) {
  */
 export function NodePopup({ node, onEdit, onDelete, onClose }: NodePopupProps) {
   return (
-    <Space
-      direction="vertical"
-      size={8}
-      style={{ minWidth: 220, maxWidth: 280 }}
-    >
+    <Space direction="vertical" size={8} className="netmap-popup">
       <div>
         <Typography.Title level={5} style={{ margin: 0 }}>
           {node.name}
         </Typography.Title>
-        <Space size={6}>
+        <Space size={6} style={{ marginTop: 4 }}>
           <Tag color={NODE_COLORS[node.type]}>{NODE_LABELS[node.type]}</Tag>
-          <Typography.Text type="secondary">{node.nodeId}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {node.nodeId}
+          </Typography.Text>
         </Space>
       </div>
       <OptionalFields node={node} />
-      <Space style={{ width: "100%", justifyContent: "flex-end" }} wrap>
+      <Space
+        style={{
+          width: "100%",
+          justifyContent: "flex-end",
+          borderTop: `1px solid ${colors.border}`,
+          paddingTop: 8,
+        }}
+        wrap
+      >
         <Button
           size="small"
           onClick={() => {

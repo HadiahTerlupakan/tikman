@@ -47,7 +47,42 @@ describe("NodePopup", () => {
       />,
     );
 
-    expect(screen.getByText("ODP-01")).toBeInTheDocument();
+    // Secondary in weight too, not just in Typography's "secondary" colour
+    // token — a smaller size is what keeps it from competing with the name.
+    expect(screen.getByText("ODP-01")).toHaveStyle({ fontSize: "12px" });
+  });
+
+  // InfoWindow is Google's white bubble, not this app's dark surface — see
+  // index.css. This class is the hook that recolours it; jsdom cannot render
+  // Google's chrome or compute cascaded colour, so the most this can pin is
+  // that the hook is actually on the element the popup renders.
+  it("carries the class that gives the InfoWindow bubble this app's dark surface", () => {
+    const { container } = render(
+      <NodePopup
+        node={node({ nodeId: "ODP-01" })}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(container.firstChild).toHaveClass("netmap-popup");
+  });
+
+  it("separates the actions row from the content with a top border", () => {
+    render(
+      <NodePopup
+        node={node({ nodeId: "ODP-01" })}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const actionsRow = screen
+      .getByRole("button", { name: "Ubah" })
+      .closest(".ant-space");
+    expect(actionsRow).toHaveStyle({ borderTop: "1px solid #27272a" });
   });
 
   // Each type must carry its OWN colour, not just "a" colour that differs
