@@ -5,6 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
 import { MapCanvas } from "./MapCanvas";
 
+// NodePopup fetches an ODP's subscriber count for real; none of these tests
+// are about that, so it is mocked to nothing rather than left to hit a
+// QueryClient this file never sets up.
+vi.mock("@/application/hooks", () => ({
+  useOdpSubscribers: () => ({ data: undefined }),
+}));
+
 // Split out of MapCanvas.test.tsx the same way NetworkMapPage split deletion
 // and redraw into their own files: the popup is a big enough surface (two
 // content components, position resolution, a missing-endpoint fallback, and
@@ -378,5 +385,25 @@ describe("MapCanvas popups", () => {
     await userEvent.click(screen.getByRole("button", { name: "Gambar ulang" }));
 
     expect(onRedrawEdge).toHaveBeenCalledWith(selected);
+  });
+
+  // NodePopup computes its slot usage from the `edges` MapCanvas already
+  // has loaded to draw the map; this only passes if that prop actually
+  // makes it all the way down through SelectedPopups/NodePopupWindow.
+  it("shows the node's network position, proving the loaded edges reach its popup", () => {
+    const odc = node({ nodeId: "ODC-01", type: "odc", capacity: 1 });
+    const odp = node({ nodeId: "ODP-01", type: "odp" });
+    const cable = edge({ edgeId: "E1", source: "ODC-01", target: "ODP-01" });
+    render(
+      <MapCanvas
+        {...defaultProps}
+        nodes={[odc, odp]}
+        edges={[cable]}
+        popup={popup({ selectedNode: odc })}
+      />,
+    );
+
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
+    expect(screen.getByText("1 dari 1")).toBeInTheDocument();
   });
 });

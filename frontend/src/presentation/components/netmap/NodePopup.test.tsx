@@ -4,6 +4,14 @@ import userEvent from "@testing-library/user-event";
 import type { MappingNode } from "@/domain/entities";
 import { NodePopup } from "./NodePopup";
 
+// NodePopup fetches an ODP's subscriber count for real; that fetch and its
+// wiring is NodePopup.networkContext.test.tsx's concern, not this file's, so
+// it is mocked to nothing here rather than left to hit a QueryClient this
+// file never sets up.
+vi.mock("@/application/hooks", () => ({
+  useOdpSubscribers: () => ({ data: undefined }),
+}));
+
 function node(
   overrides: Partial<MappingNode> & { nodeId: string },
 ): MappingNode {
@@ -26,6 +34,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01", name: "ODP Depan Masjid" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -41,6 +51,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01", name: "ODP Depan Masjid" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -60,6 +72,8 @@ describe("NodePopup", () => {
     const { container } = render(
       <NodePopup
         node={node({ nodeId: "ODP-01" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -73,6 +87,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -92,6 +108,8 @@ describe("NodePopup", () => {
     const { rerender } = render(
       <NodePopup
         node={node({ nodeId: "SRV-01", type: "server" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -104,6 +122,8 @@ describe("NodePopup", () => {
     rerender(
       <NodePopup
         node={node({ nodeId: "ODP-01", type: "odp" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -116,6 +136,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01", latitude: -6.2, longitude: 106.8 })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -133,6 +155,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -157,6 +181,8 @@ describe("NodePopup", () => {
           serialNumber: "",
           notes: "",
         })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
@@ -179,6 +205,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={target}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={onEdit}
         onDelete={vi.fn()}
         onClose={onClose}
@@ -199,6 +227,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={onDelete}
         onClose={vi.fn()}
@@ -217,6 +247,8 @@ describe("NodePopup", () => {
     render(
       <NodePopup
         node={node({ nodeId: "ODP-01" })}
+        edges={[]}
+        nodesById={new Map()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onClose={onClose}

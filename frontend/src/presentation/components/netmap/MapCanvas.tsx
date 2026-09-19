@@ -221,6 +221,7 @@ export function MapCanvas({
         />
         <SelectedPopups
           nodesById={nodesById}
+          edges={edges}
           visible={placing !== "cable"}
           popup={popup}
         />
