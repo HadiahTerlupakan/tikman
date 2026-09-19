@@ -47,6 +47,47 @@ func TestASecondNodeWithTheSameIDIsRefused(t *testing.T) {
 	require.ErrorIs(t, err, ErrNodeExists)
 }
 
+// mapping_edges addresses its endpoints by node_id, so an OLT with
+// coordinates gets a server node to be a valid edge endpoint. The partial
+// unique index on olt_id is what keeps that mirror one-to-one: without it,
+// nothing would stop a second server node from claiming the same OLT, and
+// whichever one a feeder cable happened to point at would be a coin flip.
+func TestASecondServerNodeForTheSameOLTIsRefused(t *testing.T) {
+	s := mappingSetup(t)
+	oltID := uuid.New()
+	_, err := s.CreateNode(models.MappingNode{
+		NodeID: "SERVER-01", Type: models.NodeServer, Name: "OLT Satu",
+		Latitude: -6.2, Longitude: 106.8, OLTID: &oltID,
+	})
+	require.NoError(t, err)
+
+	_, err = s.CreateNode(models.MappingNode{
+		NodeID: "SERVER-02", Type: models.NodeServer, Name: "OLT Satu Lagi",
+		Latitude: -6.3, Longitude: 106.9, OLTID: &oltID,
+	})
+
+	require.Error(t, err, "one OLT must not end up mirrored by two server nodes")
+}
+
+// Two different OLTs must not be blocked from each having their own server
+// node - only a repeated olt_id is refused, not olt_id itself being set.
+func TestTwoDifferentOLTsEachGetTheirOwnServerNode(t *testing.T) {
+	s := mappingSetup(t)
+	first, second := uuid.New(), uuid.New()
+	_, err := s.CreateNode(models.MappingNode{
+		NodeID: "SERVER-01", Type: models.NodeServer, Name: "OLT Satu",
+		Latitude: -6.2, Longitude: 106.8, OLTID: &first,
+	})
+	require.NoError(t, err)
+
+	_, err = s.CreateNode(models.MappingNode{
+		NodeID: "SERVER-02", Type: models.NodeServer, Name: "OLT Dua",
+		Latitude: -6.3, Longitude: 106.9, OLTID: &second,
+	})
+
+	require.NoError(t, err)
+}
+
 func TestUpdatingANodeKeepsItsIdentity(t *testing.T) {
 	s := mappingSetup(t)
 	_, err := s.CreateNode(odpNode("ODP-01", "Nama Lama"))
