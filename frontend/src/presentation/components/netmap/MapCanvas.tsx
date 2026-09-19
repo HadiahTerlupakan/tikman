@@ -1,6 +1,7 @@
 import {
   AdvancedMarker,
   APIProvider,
+  InfoWindow,
   Map,
   Polyline,
 } from "@vis.gl/react-google-maps";
@@ -11,7 +12,9 @@ import type {
   Waypoint,
 } from "@/domain/entities";
 import { edgePath } from "./cableMath";
+import { EdgePopup } from "./EdgePopup";
 import { NODE_COLORS } from "./mappingLabels";
+import { NodePopup } from "./NodePopup";
 
 // Where the map opens when there is nothing on it yet.
 const FALLBACK_CENTER = { lat: -6.2, lng: 106.816 };
@@ -27,6 +30,28 @@ const NODE_ZOOM = 16;
 const EDGE_COLOR = "#f59e0b";
 const DRAFT_COLOR = "#22c55e";
 const REDRAWING_COLOR = "#94a3b8";
+
+/** What each popup's actions do. */
+interface PopupActions {
+  onEditNode: (node: MappingNode) => void;
+  onDeleteNode: (nodeId: string) => void;
+  onEditEdge: (edge: MappingEdge) => void;
+  onRedrawEdge: (edge: MappingEdge) => void;
+  onDeleteEdge: (edgeId: string) => void;
+}
+
+/** The node or cable whose popup is open, if any (mutually exclusive, set by
+ * the page in response to onNodeClick/onEdgeClick), how to close it, and what
+ * its actions do. Grouped into one object rather than eight flat props —
+ * MapCanvas already carries the map's own props, and threading these
+ * individually would make its signature a parameter list rather than a
+ * component's inputs. */
+interface PopupState {
+  selectedNode?: MappingNode;
+  selectedEdge?: MappingEdge;
+  onClose: () => void;
+  actions: PopupActions;
+}
 
 interface MapCanvasProps {
   nodes: MappingNode[];
@@ -47,6 +72,21 @@ interface MapCanvasProps {
   mapId?: string;
   onDrop: (point: Waypoint) => void;
   onNodeClick: (nodeId: string) => void;
+  onEdgeClick: (edgeId: string) => void;
+  popup: PopupState;
+}
+
+/** A click on the map background places a box or extends a cable, depending
+ * on what is armed; with nothing armed, a bare click is not a drop. */
+function dropAt(
+  latLng: { lat: number; lng: number } | null,
+  placing: NodeType | "cable" | undefined,
+  onDrop: (point: Waypoint) => void,
+) {
+  if (!latLng || !placing) {
+    return;
+  }
+  onDrop({ lat: latLng.lat, lng: latLng.lng });
 }
 
 /** Opens on what is already mapped, so a technician is never sent to the sea. */
@@ -92,26 +132,26 @@ function NodeMarkers({
   );
 }
 
-/** Cables already saved, plus the path being traced right now, if any. */
-function CableLines({
-  nodes,
-  edges,
-  draft,
-  fromNodeId,
-  redrawingEdgeId,
-}: {
-  nodes: MappingNode[];
+interface CableLinesProps {
+  nodesById: Map<string, MappingNode>;
   edges: MappingEdge[];
   draft: Waypoint[];
   fromNodeId?: string;
   redrawingEdgeId?: string;
-}) {
-  // `Map` above is the imported map component, not the global constructor —
-  // `globalThis` reaches past that shadowing to the real one.
-  const nodesById = new globalThis.Map(
-    nodes.map((node) => [node.nodeId, node]),
-  );
+  placing: NodeType | "cable" | undefined;
+  onEdgeClick: (edgeId: string) => void;
+}
 
+/** Cables already saved, plus the path being traced right now, if any. */
+function CableLines({
+  nodesById,
+  edges,
+  draft,
+  fromNodeId,
+  redrawingEdgeId,
+  placing,
+  onEdgeClick,
+}: CableLinesProps) {
   // The saved path always starts at the source node (edgePath does the same
   // walk); the line still being traced has to match that, or a technician
   // sights it against the wrong start point while pulling fibre.
@@ -119,6 +159,11 @@ function CableLines({
   const draftPath = fromNode
     ? [{ lat: fromNode.latitude, lng: fromNode.longitude }, ...draft]
     : draft;
+
+  // Attached only outside tracing: a handler that merely no-op'd while
+  // tracing would still capture the click, stopping it from ever reaching
+  // the map underneath (how a technician drops a corner on an existing line).
+  const clickable = placing !== "cable";
 
   return (
     <>
@@ -135,6 +180,7 @@ function CableLines({
               edge.edgeId === redrawingEdgeId ? REDRAWING_COLOR : EDGE_COLOR
             }
             strokeWeight={3}
+            onClick={clickable ? () => onEdgeClick(edge.edgeId) : undefined}
           />
         );
       })}
@@ -145,12 +191,112 @@ function CableLines({
   );
 }
 
+interface NodePopupWindowProps {
+  node: MappingNode;
+  onClose: () => void;
+  actions: PopupActions;
+}
+
+function NodePopupWindow({ node, onClose, actions }: NodePopupWindowProps) {
+  return (
+    <InfoWindow
+      position={{ lat: node.latitude, lng: node.longitude }}
+      onCloseClick={onClose}
+    >
+      <NodePopup
+        node={node}
+        onEdit={actions.onEditNode}
+        onDelete={actions.onDeleteNode}
+        onClose={onClose}
+      />
+    </InfoWindow>
+  );
+}
+
+interface EdgePopupWindowProps {
+  edge: MappingEdge;
+  nodesById: Map<string, MappingNode>;
+  onClose: () => void;
+  actions: PopupActions;
+}
+
+// Node deletion never cascades to edges (migration 53's own design), so
+// either end can be gone; anchor on whichever one still resolves, and skip
+// the popup entirely only if neither does — there is nowhere left to anchor it.
+function EdgePopupWindow({
+  edge,
+  nodesById,
+  onClose,
+  actions,
+}: EdgePopupWindowProps) {
+  const source = nodesById.get(edge.source);
+  const target = nodesById.get(edge.target);
+  const anchor = source ?? target;
+  if (!anchor) {
+    return null;
+  }
+  return (
+    <InfoWindow
+      position={{ lat: anchor.latitude, lng: anchor.longitude }}
+      onCloseClick={onClose}
+    >
+      <EdgePopup
+        edge={edge}
+        sourceNode={source}
+        targetNode={target}
+        onEdit={actions.onEditEdge}
+        onRedraw={actions.onRedrawEdge}
+        onDelete={actions.onDeleteEdge}
+        onClose={onClose}
+      />
+    </InfoWindow>
+  );
+}
+
+interface SelectedPopupsProps {
+  nodesById: Map<string, MappingNode>;
+  /** False while a cable is being traced: "no popup, no interference" covers
+   * a selection left over from before tracing started, not just a fresh
+   * click during it. */
+  visible: boolean;
+  popup: PopupState;
+}
+
+/** The one popup open on the map, if any. A node takes priority by
+ * construction (useMapSelection never holds both at once), so checking it
+ * first is enough rather than a rule that needs stating separately. */
+function SelectedPopups({ nodesById, visible, popup }: SelectedPopupsProps) {
+  if (!visible) {
+    return null;
+  }
+  if (popup.selectedNode) {
+    return (
+      <NodePopupWindow
+        node={popup.selectedNode}
+        onClose={popup.onClose}
+        actions={popup.actions}
+      />
+    );
+  }
+  if (!popup.selectedEdge) {
+    return null;
+  }
+  return (
+    <EdgePopupWindow
+      edge={popup.selectedEdge}
+      nodesById={nodesById}
+      onClose={popup.onClose}
+      actions={popup.actions}
+    />
+  );
+}
+
 /**
  * The map itself: boxes as coloured pins, cables as lines, and a click that
- * either places a box or extends the cable being traced, depending on what
- * the toolbar has armed. The click-to-corner tracing this hands off to is the
- * interaction described in the design spec — everything else here exists to
- * put it on a satellite map.
+ * either places a box, extends the cable being traced, or opens a popup,
+ * depending on what the toolbar has armed. The click-to-corner tracing this
+ * hands off to is the interaction described in the design spec — everything
+ * else here exists to put it on a satellite map.
  */
 export function MapCanvas({
   nodes,
@@ -163,7 +309,13 @@ export function MapCanvas({
   mapId,
   onDrop,
   onNodeClick,
+  onEdgeClick,
+  popup,
 }: MapCanvasProps) {
+  // `Map` below is the imported map component, not the global constructor —
+  // `globalThis` reaches past that shadowing to the real one.
+  const nodesById = new globalThis.Map(nodes.map((n) => [n.nodeId, n]));
+
   return (
     <APIProvider apiKey={apiKey} libraries={["marker"]}>
       <Map
@@ -173,21 +325,22 @@ export function MapCanvas({
         style={{ width: "100%", height: "60vh" }}
         gestureHandling="greedy"
         disableDefaultUI={false}
-        onClick={(event) => {
-          const latLng = event.detail.latLng;
-          if (!latLng || !placing) {
-            return;
-          }
-          onDrop({ lat: latLng.lat, lng: latLng.lng });
-        }}
+        onClick={(event) => dropAt(event.detail.latLng, placing, onDrop)}
       >
         <NodeMarkers nodes={nodes} onNodeClick={onNodeClick} />
         <CableLines
-          nodes={nodes}
+          nodesById={nodesById}
           edges={edges}
           draft={draft}
           fromNodeId={fromNodeId}
           redrawingEdgeId={redrawingEdgeId}
+          placing={placing}
+          onEdgeClick={onEdgeClick}
+        />
+        <SelectedPopups
+          nodesById={nodesById}
+          visible={placing !== "cable"}
+          popup={popup}
         />
       </Map>
     </APIProvider>

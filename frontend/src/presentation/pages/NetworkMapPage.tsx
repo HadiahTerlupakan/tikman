@@ -21,10 +21,8 @@ import {
 } from "@/application/hooks";
 import { PageHeader } from "../components/common";
 import { CableDrawControls } from "../components/netmap/CableDrawControls";
-import { CableTypeModal } from "../components/netmap/CableTypeModal";
 import { cablePath, metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
-import { EdgeFormModal } from "../components/netmap/EdgeFormModal";
 import { EdgeList } from "../components/netmap/EdgeList";
 import { MapCanvas } from "../components/netmap/MapCanvas";
 import {
@@ -35,26 +33,14 @@ import {
   missingEndpointMessage,
 } from "../components/netmap/mappingErrors";
 import { MapToolbar, type MapView } from "../components/netmap/MapToolbar";
-import { NodeFormModal } from "../components/netmap/NodeFormModal";
+import {
+  NetworkMapModals,
+  type NodeFormTarget,
+  type PendingCable,
+} from "../components/netmap/NetworkMapModals";
 import { NodeList } from "../components/netmap/NodeList";
 import { useCableDraw } from "../components/netmap/useCableDraw";
-
-// What the node form is doing right now: adding a freshly tapped point.
-// `initial` is set later (editing) once the list view can open it.
-interface NodeFormTarget {
-  type: NodeType;
-  position: Waypoint;
-  initial?: MappingNode;
-}
-
-// A cable with both ends named and its path traced, waiting only on which of
-// the seven fiber types it is before it can be saved.
-interface PendingCable {
-  source: string;
-  target: string;
-  waypoints: Waypoint[];
-  distance: number;
-}
+import { useMapSelection } from "../components/netmap/useMapSelection";
 
 export function NetworkMapPage() {
   const { data: nodes = [] } = useMappingNodes();
@@ -67,6 +53,7 @@ export function NetworkMapPage() {
   const deleteEdge = useDeleteEdge();
   const { key, mapId, isLoading: keyLoading } = useGoogleMapsKey();
   const cable = useCableDraw();
+  const selection = useMapSelection();
 
   const [view, setView] = useState<MapView>("map");
   const [placing, setPlacing] = useState<NodeType | "cable">();
@@ -94,24 +81,42 @@ export function NetworkMapPage() {
   };
 
   // The first node tapped starts the cable; the second ends it and asks which
-  // of the seven fiber types it is before anything is saved. A redraw's
-  // endpoints are already fixed by the cable on record, so a node tap has
-  // nothing to do here — Selesai (finishRedraw) is its only way to finish,
-  // which keeps re-tracing from ever reassigning what the cable connects.
+  // of the seven fiber types it is. A redraw's endpoints are already fixed,
+  // so a tap does nothing there — Selesai (finishRedraw) is its only way to
+  // finish, keeping re-tracing from ever reassigning what a cable connects.
+  // Outside all of that, a tap is a technician asking what this box is.
   const nodeTapped = (nodeId: string) => {
-    if (placing !== "cable" || cable.redrawing) {
+    if (placing === "cable") {
+      if (cable.redrawing) {
+        return;
+      }
+      if (!cable.from) {
+        cable.start(nodeId);
+        return;
+      }
+      const source = cable.from;
+      const waypoints = cable.finish();
+      const distance = Math.round(
+        metersAlong(cablePath(nodes, source, nodeId, waypoints)),
+      );
+      setPendingCable({ source, target: nodeId, waypoints, distance });
       return;
     }
-    if (!cable.from) {
-      cable.start(nodeId);
+    const node = nodes.find((n) => n.nodeId === nodeId);
+    if (node) {
+      selection.selectNode(node);
+    }
+  };
+
+  // Mirrors nodeTapped's guard: tracing owns every tap on the map.
+  const edgeTapped = (edgeId: string) => {
+    if (placing === "cable") {
       return;
     }
-    const source = cable.from;
-    const waypoints = cable.finish();
-    const distance = Math.round(
-      metersAlong(cablePath(nodes, source, nodeId, waypoints)),
-    );
-    setPendingCable({ source, target: nodeId, waypoints, distance });
+    const edge = edges.find((e) => e.edgeId === edgeId);
+    if (edge) {
+      selection.selectEdge(edge);
+    }
   };
 
   // Entry point from EdgeList: re-tracing an existing cable's route without
@@ -302,6 +307,19 @@ export function NetworkMapPage() {
             mapId={mapId}
             onDrop={tapped}
             onNodeClick={nodeTapped}
+            onEdgeClick={edgeTapped}
+            popup={{
+              selectedNode: selection.node,
+              selectedEdge: selection.edge,
+              onClose: selection.clear,
+              actions: {
+                onEditNode: editNode,
+                onDeleteNode: removeNode,
+                onEditEdge: editEdge,
+                onRedrawEdge: redrawEdge,
+                onDeleteEdge: removeEdge,
+              },
+            }}
           />
         )
       ) : (
@@ -316,31 +334,17 @@ export function NetworkMapPage() {
         </Space>
       )}
       <CountCards nodes={nodes} />
-      {formTarget && (
-        <NodeFormModal
-          open
-          type={formTarget.type}
-          position={formTarget.position}
-          initial={formTarget.initial}
-          onCancel={() => setFormTarget(undefined)}
-          onSubmit={saveNode}
-        />
-      )}
-      {pendingCable && (
-        <CableTypeModal
-          open
-          onCancel={() => setPendingCable(undefined)}
-          onSubmit={saveCable}
-        />
-      )}
-      {editingEdge && (
-        <EdgeFormModal
-          open
-          initial={editingEdge}
-          onCancel={() => setEditingEdge(undefined)}
-          onSubmit={saveEdge}
-        />
-      )}
+      <NetworkMapModals
+        formTarget={formTarget}
+        onCancelForm={() => setFormTarget(undefined)}
+        onSubmitNode={saveNode}
+        pendingCable={pendingCable}
+        onCancelCable={() => setPendingCable(undefined)}
+        onSubmitCable={saveCable}
+        editingEdge={editingEdge}
+        onCancelEdge={() => setEditingEdge(undefined)}
+        onSubmitEdge={saveEdge}
+      />
     </Space>
   );
 }

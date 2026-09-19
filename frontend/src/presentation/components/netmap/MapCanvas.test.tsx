@@ -91,6 +91,17 @@ const defaultProps: ComponentProps<typeof MapCanvas> = {
   apiKey: "AIzaTEST",
   onDrop: noop,
   onNodeClick: noop,
+  onEdgeClick: noop,
+  popup: {
+    onClose: noop,
+    actions: {
+      onEditNode: noop,
+      onDeleteNode: noop,
+      onEditEdge: noop,
+      onRedrawEdge: noop,
+      onDeleteEdge: noop,
+    },
+  },
 };
 
 function renderCanvas(
