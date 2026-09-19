@@ -96,8 +96,27 @@ func (s *OLTService) Create(in CreateOLTInput) (*models.OLT, error) {
 		}
 	}
 
-	// No rack, shelf or slot: discovery works those out at ONT level.
-	olt := &models.OLT{
+	olt := buildOLT(in, encryptedPassword)
+
+	// Coordinates given at creation must reach the map immediately, not only
+	// on a later edit - so the OLT insert and the node it may create share one
+	// transaction with syncOLTMapNode.
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(olt).Error; err != nil {
+			return fmt.Errorf("failed to create OLT: %w", err)
+		}
+		return syncOLTMapNode(tx, olt)
+	}); err != nil {
+		return nil, err
+	}
+
+	return olt, nil
+}
+
+// buildOLT assembles the row Create writes. No rack, shelf or slot: discovery
+// works those out at ONT level.
+func buildOLT(in CreateOLTInput, encryptedPassword string) *models.OLT {
+	return &models.OLT{
 		SiteID:            in.SiteID,
 		Name:              in.Name,
 		IPAddress:         in.IPAddress,
@@ -113,12 +132,6 @@ func (s *OLTService) Create(in CreateOLTInput) (*models.OLT, error) {
 		Password:          encryptedPassword,
 		Status:            models.OLTStatusOnline,
 	}
-
-	if err := s.db.Create(olt).Error; err != nil {
-		return nil, fmt.Errorf("failed to create OLT: %w", err)
-	}
-
-	return olt, nil
 }
 
 // validateOLTInput checks everything that can be judged without touching the
@@ -182,11 +195,24 @@ func (s *OLTService) Update(id uuid.UUID, updates map[string]interface{}) error 
 		updates["password"] = encryptedPassword
 	}
 
-	if err := s.db.Model(&models.OLT{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-		return fmt.Errorf("failed to update OLT: %w", err)
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.OLT{}).Where("id = ?", id).Updates(updates)
+		if result.Error != nil {
+			return fmt.Errorf("failed to update OLT: %w", result.Error)
+		}
+		// A no-op update (id not found, or neither coordinate touched) has no
+		// map node to reconcile - matches the pre-sync behaviour of leaving an
+		// unknown id as a silent success instead of surfacing it here.
+		if result.RowsAffected == 0 || (!hasLatitude && !hasLongitude) {
+			return nil
+		}
 
-	return nil
+		var olt models.OLT
+		if err := tx.First(&olt, "id = ?", id).Error; err != nil {
+			return fmt.Errorf("failed to reload OLT %s: %w", id, err)
+		}
+		return syncOLTMapNode(tx, &olt)
+	})
 }
 
 // Delete removes an OLT and all dependent data in one transaction: ONTs,
