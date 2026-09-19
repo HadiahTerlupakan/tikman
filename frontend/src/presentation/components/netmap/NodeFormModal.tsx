@@ -1,4 +1,4 @@
-import { Checkbox, Form, Input, InputNumber, Modal } from "antd";
+import { Checkbox, Form, Input, InputNumber, Modal, Select } from "antd";
 import { useEffect } from "react";
 import type { MappingNode, NodeType, Waypoint } from "@/domain/entities";
 import { parseCoordinate } from "@/presentation/components/sites/siteCoordinates";
@@ -25,6 +25,10 @@ interface NodeFormValues {
   serialNumber?: string;
   notes?: string;
 }
+
+/** The splitter ratios this network actually stocks. Cleared rather than typed,
+ * because a ratio is a part someone holds in their hand, not a free number. */
+const SPLITTER_RATIOS = ["1:2", "1:4", "1:8", "1:16"];
 
 const LATITUDE_RANGE = { min: -90, max: 90 };
 const LONGITUDE_RANGE = { min: -180, max: 180 };
@@ -203,7 +207,14 @@ export function NodeFormModal({
               <InputNumber min={0} style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item name="splitter" label="Rasio splitter">
-              <Input placeholder="mis. 1:8" />
+              <Select
+                placeholder="Pilih rasio"
+                allowClear
+                options={SPLITTER_RATIOS.map((ratio) => ({
+                  value: ratio,
+                  label: ratio,
+                }))}
+              />
             </Form.Item>
           </>
         )}

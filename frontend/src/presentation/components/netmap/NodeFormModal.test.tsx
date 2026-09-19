@@ -139,6 +139,25 @@ describe("NodeFormModal", () => {
     expect(screen.queryByLabelText("Rasio splitter")).not.toBeInTheDocument();
   });
 
+  it("offers every splitter ratio this network stocks, and nothing to type", async () => {
+    const user = userEvent.setup();
+    render(
+      <NodeFormModal
+        open
+        type="odp"
+        position={{ lat: -6.21, lng: 106.81 }}
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Rasio splitter"));
+
+    for (const ratio of ["1:2", "1:4", "1:8", "1:16"]) {
+      expect(await screen.findByTitle(ratio)).toBeInTheDocument();
+    }
+  });
+
   it("keeps ONT-only fields off a non-ONT form", () => {
     render(
       <NodeFormModal
