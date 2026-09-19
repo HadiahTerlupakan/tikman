@@ -36,6 +36,8 @@ func mappingError(c *gin.Context, err error, notFoundCode string) {
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "SLOTS_FULL"})
 	case errors.Is(err, services.ErrNodeInUse):
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_IN_USE"})
+	case errors.Is(err, services.ErrNodeMirrorsOLT):
+		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_MIRRORS_OLT"})
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error(), Code: notFoundCode})
 	default:

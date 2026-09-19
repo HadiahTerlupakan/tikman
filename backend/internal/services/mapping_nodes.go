@@ -17,6 +17,13 @@ var ErrNodeExists = errors.New("node id already exists")
 // edge is allowed to.
 var ErrNodeInUse = errors.New("node masih dipakai")
 
+// ErrNodeMirrorsOLT marks a server node created from an OLT's own
+// coordinates (OLTService's sync, see olt_map_node.go). Deleting it here
+// would read as removing a pin, but the pin is not the real thing: the OLT
+// row, its credentials and everything provisioned under it would still
+// exist with no way back onto the map.
+var ErrNodeMirrorsOLT = errors.New("node ini mengikuti data OLT; hapus OLT-nya lewat menu OLT, bukan dari peta")
+
 // MappingService holds the network map: the boxes and the cables between them.
 type MappingService struct {
 	db *gorm.DB
@@ -67,8 +74,35 @@ func (s *MappingService) UpdateNode(nodeID string, in models.MappingNode) (*mode
 		"capacity": in.Capacity, "splitter": in.Splitter,
 		"pppoe": in.PPPoE, "serial_number": in.SerialNumber, "notes": in.Notes,
 	}
-	if err := s.db.Model(node).Updates(fields).Error; err != nil {
-		return nil, fmt.Errorf("update node %s: %w", nodeID, err)
+
+	if node.OLTID != nil {
+		// Name and type describe the OLT record, not the pin - the map may
+		// move it but not rename or retype it, the same way node_id itself is
+		// never part of this update.
+		fields["name"] = node.Name
+		fields["type"] = node.Type
+		if err := validateCoordinates(&in.Latitude, &in.Longitude); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(node).Updates(fields).Error; err != nil {
+			return fmt.Errorf("update node %s: %w", nodeID, err)
+		}
+		if node.OLTID == nil {
+			return nil
+		}
+		// Moving the pin is exactly how someone corrects where the OLT
+		// actually sits; leaving the OLT row behind would make the two
+		// disagree about it.
+		if err := tx.Model(&models.OLT{}).Where("id = ?", *node.OLTID).
+			Updates(map[string]any{"latitude": in.Latitude, "longitude": in.Longitude}).Error; err != nil {
+			return fmt.Errorf("sync OLT %s coordinates: %w", *node.OLTID, err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	return s.GetNode(nodeID)
 }
@@ -83,6 +117,9 @@ func (s *MappingService) DeleteNode(nodeID string) error {
 	node, err := s.GetNode(nodeID)
 	if err != nil {
 		return err
+	}
+	if node.OLTID != nil {
+		return fmt.Errorf("%w: %s", ErrNodeMirrorsOLT, nodeID)
 	}
 	var inUse int64
 	if err := s.db.Model(&models.ONT{}).Where("odp_id = ?", node.ID).Count(&inUse).Error; err != nil {

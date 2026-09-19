@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/gorm"
 )
 
 func mappingSetup(t *testing.T) *MappingService {
@@ -176,4 +177,99 @@ func TestDeletingANodeWithOnlyCablesAttachedSucceeds(t *testing.T) {
 	err = s.DeleteNode("ODP-DELETE-03")
 
 	require.NoError(t, err)
+}
+
+// oltBackedNode creates a real OLT and a server node mirroring it, the shape
+// OLTService's own sync produces - so these tests exercise the guard against
+// a node MappingService itself never builds this way outside a test.
+func oltBackedNode(t *testing.T, db *gorm.DB, s *MappingService, nodeID string, lat, lon float64) (*models.OLT, *models.MappingNode) {
+	t.Helper()
+	olt := createTestOLT(t, db, uuid.New())
+	// The real sync (olt_map_node.go) never leaves these two disagreeing;
+	// setting them here is what makes this fixture the shape it produces,
+	// rather than a node that merely happens to carry an olt_id.
+	require.NoError(t, db.Model(olt).Updates(map[string]any{"latitude": lat, "longitude": lon}).Error)
+	node, err := s.CreateNode(models.MappingNode{
+		NodeID: nodeID, Type: models.NodeServer, Name: olt.Name,
+		Latitude: lat, Longitude: lon, OLTID: &olt.ID,
+	})
+	require.NoError(t, err)
+	return olt, node
+}
+
+// Deleting an OLT-backed node from the map would read as removing a pin, but
+// the OLT record, its credentials and everything provisioned under it would
+// still exist with no way back onto the map - so this must refuse, not just
+// warn.
+func TestDeletingAnOLTBackedNodeIsRefused(t *testing.T) {
+	db := setupTestDB(t)
+	s := NewMappingService(db)
+	_, node := oltBackedNode(t, db, s, "SERVER-DELETE-01", -6.2, 106.8)
+
+	err := s.DeleteNode(node.NodeID)
+
+	require.ErrorIs(t, err, ErrNodeMirrorsOLT)
+	still, getErr := s.GetNode(node.NodeID)
+	require.NoError(t, getErr, "the refusal must leave the node in place")
+	assert.Equal(t, node.ID, still.ID)
+}
+
+// Moving a pin on the map is exactly how someone corrects where the OLT
+// actually sits, and the OLT record must not disagree with the pin
+// afterwards.
+func TestUpdatingAnOLTBackedNodeMovesTheOLTToo(t *testing.T) {
+	db := setupTestDB(t)
+	s := NewMappingService(db)
+	olt, node := oltBackedNode(t, db, s, "SERVER-MOVE-01", -6.2, 106.8)
+
+	newLat, newLon := -7.0, 108.0
+	updated, err := s.UpdateNode(node.NodeID, models.MappingNode{
+		Type: models.NodeServer, Name: node.Name, Latitude: newLat, Longitude: newLon,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, newLat, updated.Latitude)
+	assert.Equal(t, newLon, updated.Longitude)
+	var storedOLT models.OLT
+	require.NoError(t, db.First(&storedOLT, "id = ?", olt.ID).Error)
+	require.NotNil(t, storedOLT.Latitude)
+	require.NotNil(t, storedOLT.Longitude)
+	assert.Equal(t, newLat, *storedOLT.Latitude)
+	assert.Equal(t, newLon, *storedOLT.Longitude)
+}
+
+// Name and type describe the OLT record, not the pin: node_id is already
+// never part of an update, and an OLT-backed node's name/type must be just
+// as immune, or the map could quietly retype someone's OLT into an ODP.
+func TestUpdatingAnOLTBackedNodeIgnoresNameAndTypeChanges(t *testing.T) {
+	db := setupTestDB(t)
+	s := NewMappingService(db)
+	_, node := oltBackedNode(t, db, s, "SERVER-RENAME-01", -6.2, 106.8)
+
+	updated, err := s.UpdateNode(node.NodeID, models.MappingNode{
+		Type: models.NodeODP, Name: "Bukan OLT Lagi", Latitude: -6.3, Longitude: 106.9,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, node.Name, updated.Name, "name must stay whatever the OLT record already said")
+	assert.Equal(t, models.NodeServer, updated.Type, "type must stay server")
+}
+
+// A pin moved onto an impossible coordinate must not reach the OLT record
+// either - the same range validateCoordinates already enforces for the OLT
+// menu's own latitude/longitude fields.
+func TestUpdatingAnOLTBackedNodeRejectsAnOutOfRangeCoordinate(t *testing.T) {
+	db := setupTestDB(t)
+	s := NewMappingService(db)
+	olt, node := oltBackedNode(t, db, s, "SERVER-BADCOORD-01", -6.2, 106.8)
+
+	_, err := s.UpdateNode(node.NodeID, models.MappingNode{
+		Type: models.NodeServer, Name: node.Name, Latitude: 200, Longitude: 106.8,
+	})
+
+	require.ErrorIs(t, err, ErrValidation)
+	var storedOLT models.OLT
+	require.NoError(t, db.First(&storedOLT, "id = ?", olt.ID).Error)
+	require.NotNil(t, storedOLT.Latitude)
+	assert.Equal(t, -6.2, *storedOLT.Latitude, "the OLT record must not move on a rejected update")
 }
