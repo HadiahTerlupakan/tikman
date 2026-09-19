@@ -69,7 +69,50 @@ describe("EdgePopup", () => {
       />,
     );
 
-    expect(screen.getByText("ODC-01 → ODP-01")).toBeInTheDocument();
+    // Secondary in weight too, not just in Typography's "secondary" colour
+    // token — a smaller size is what keeps it from competing with the names.
+    expect(screen.getByText("ODC-01 → ODP-01")).toHaveStyle({
+      fontSize: "12px",
+    });
+  });
+
+  // InfoWindow is Google's white bubble, not this app's dark surface — see
+  // index.css. This class is the hook that recolours it; jsdom cannot render
+  // Google's chrome or compute cascaded colour, so the most this can pin is
+  // that the hook is actually on the element the popup renders.
+  it("carries the class that gives the InfoWindow bubble this app's dark surface", () => {
+    const { container } = render(
+      <EdgePopup
+        edge={edge()}
+        sourceNode={sourceNode}
+        targetNode={targetNode}
+        onEdit={vi.fn()}
+        onRedraw={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(container.firstChild).toHaveClass("netmap-popup");
+  });
+
+  it("separates the actions row from the content with a top border", () => {
+    render(
+      <EdgePopup
+        edge={edge()}
+        sourceNode={sourceNode}
+        targetNode={targetNode}
+        onEdit={vi.fn()}
+        onRedraw={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const actionsRow = screen
+      .getByRole("button", { name: "Ubah" })
+      .closest(".ant-space");
+    expect(actionsRow).toHaveStyle({ borderTop: "1px solid #27272a" });
   });
 
   it("shows the fiber type and the drawn length", () => {

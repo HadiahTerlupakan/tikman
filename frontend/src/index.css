@@ -46,3 +46,74 @@ body {
     flex: 1 0 100%;
   }
 }
+
+/*
+ * InfoWindow is Google Maps' own widget, not this app's: its bubble ships a
+ * white background that the antd theme in shared/theme/index.ts cannot
+ * reach, so the same white text that reads fine on this app's near-black
+ * surfaces went invisible on Google's white one (that theme file already
+ * hit this once for Alert). Recolouring the bubble's own chrome, not just
+ * the text inside it, is what makes the popup read as one of this app's
+ * cards instead of a foreign white rectangle floating on the map.
+ *
+ * Class names below are Google's, assigned at runtime after this stylesheet
+ * has already loaded, and Google's own rules already carry `!important` on
+ * some of these same properties — matching that plus scoping under the
+ * map's `.gm-style` root (for specificity, not narrower matching) is what
+ * makes an override actually win rather than lose the source-order tiebreak.
+ */
+.gm-style .gm-style-iw,
+.gm-style .gm-style-iw-c {
+  background-color: #18181b !important;
+  border: 1px solid #27272a !important;
+  border-radius: 8px !important;
+}
+
+/*
+ * Google sizes this to whatever the widest/tallest content it has ever
+ * measured for the InfoWindow was, not the content actually open now, which
+ * is what leaves a popup larger than it needs to be. Letting width/height
+ * track the content we actually rendered is the "size it to its content"
+ * fix; NodePopup/EdgePopup's own .netmap-popup class supplies the real
+ * min/max-width, so this only has to get out of the way.
+ */
+.gm-style .gm-style-iw-d {
+  background-color: transparent !important;
+  overflow: visible !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+/* The tail below the bubble is a separate element Google paints white on
+   its own ::after, independent of the bubble's own background above. */
+.gm-style .gm-style-iw-tc::after {
+  background: #18181b !important;
+}
+
+/* The close glyph is a dark mark meant for a white bubble, so it disappears
+   on this dark one. Inverting the whole control flips it light without
+   depending on whether Google renders the glyph as an svg, a masked span or
+   a background image — any of which this project cannot pin to one version. */
+.gm-style .gm-style-iw button {
+  filter: invert(1) brightness(1.7);
+}
+
+/*
+ * NodePopup and EdgePopup render inside the InfoWindow above, not this app's
+ * own page layout, so their width lives here rather than as inline style —
+ * it is the one thing both popups share, and the phone breakpoint only has
+ * to name it once for both.
+ */
+.netmap-popup {
+  min-width: 220px;
+  max-width: 280px;
+}
+
+@media (max-width: 400px) {
+  .netmap-popup {
+    min-width: 0;
+    max-width: 220px;
+  }
+}

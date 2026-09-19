@@ -1,5 +1,6 @@
 import { Button, Descriptions, Popconfirm, Space, Typography } from "antd";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
+import { colors } from "@/shared/theme";
 import { formatMeters } from "./cableMath";
 import { FIBER_LABELS } from "./mappingLabels";
 
@@ -45,7 +46,15 @@ interface ActionsProps {
 
 function Actions({ edge, onEdit, onRedraw, onDelete, onClose }: ActionsProps) {
   return (
-    <Space style={{ width: "100%", justifyContent: "flex-end" }} wrap>
+    <Space
+      style={{
+        width: "100%",
+        justifyContent: "flex-end",
+        borderTop: `1px solid ${colors.border}`,
+        paddingTop: 8,
+      }}
+      wrap
+    >
       <Button
         size="small"
         onClick={() => {
@@ -99,17 +108,13 @@ export function EdgePopup({
   const targetName = targetNode?.name ?? DELETED_NODE_LABEL;
 
   return (
-    <Space
-      direction="vertical"
-      size={8}
-      style={{ minWidth: 220, maxWidth: 280 }}
-    >
+    <Space direction="vertical" size={8} className="netmap-popup">
       <div>
         <Typography.Title level={5} style={{ margin: 0 }}>
           {sourceName} → {targetName}
         </Typography.Title>
-        <div>
-          <Typography.Text type="secondary">
+        <div style={{ marginTop: 4 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {edge.source} → {edge.target}
           </Typography.Text>
         </div>
