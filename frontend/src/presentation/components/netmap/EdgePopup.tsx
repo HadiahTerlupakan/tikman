@@ -19,6 +19,68 @@ interface EdgePopupProps {
 
 const DELETED_NODE_LABEL = "Node sudah dihapus";
 
+function Details({ edge }: { edge: MappingEdge }) {
+  return (
+    <Descriptions column={1} size="small">
+      <Descriptions.Item label="Jenis">
+        {FIBER_LABELS[edge.fiberType]}
+      </Descriptions.Item>
+      <Descriptions.Item label="Panjang">
+        {formatMeters(edge.distance)}
+      </Descriptions.Item>
+      {edge.notes && (
+        <Descriptions.Item label="Catatan">{edge.notes}</Descriptions.Item>
+      )}
+    </Descriptions>
+  );
+}
+
+interface ActionsProps {
+  edge: MappingEdge;
+  onEdit: (edge: MappingEdge) => void;
+  onRedraw: (edge: MappingEdge) => void;
+  onDelete: (edgeId: string) => void;
+  onClose: () => void;
+}
+
+function Actions({ edge, onEdit, onRedraw, onDelete, onClose }: ActionsProps) {
+  return (
+    <Space style={{ width: "100%", justifyContent: "flex-end" }} wrap>
+      <Button
+        size="small"
+        onClick={() => {
+          onEdit(edge);
+          onClose();
+        }}
+      >
+        Ubah
+      </Button>
+      <Button
+        size="small"
+        onClick={() => {
+          onRedraw(edge);
+          onClose();
+        }}
+      >
+        Gambar ulang
+      </Button>
+      <Popconfirm
+        title="Hapus kabel ini?"
+        okText="Ya"
+        cancelText="Tidak"
+        onConfirm={() => {
+          onDelete(edge.edgeId);
+          onClose();
+        }}
+      >
+        <Button size="small" danger>
+          Hapus
+        </Button>
+      </Popconfirm>
+    </Space>
+  );
+}
+
 /**
  * The InfoWindow content for a cable: its ends by name (an id alone sends a
  * technician to go look it up), what it is, how long it is, and the three
@@ -43,59 +105,23 @@ export function EdgePopup({
       style={{ minWidth: 220, maxWidth: 280 }}
     >
       <div>
-        <Typography.Text strong>
+        <Typography.Title level={5} style={{ margin: 0 }}>
           {sourceName} → {targetName}
-        </Typography.Text>
+        </Typography.Title>
         <div>
           <Typography.Text type="secondary">
             {edge.source} → {edge.target}
           </Typography.Text>
         </div>
       </div>
-      <Descriptions column={1} size="small">
-        <Descriptions.Item label="Jenis">
-          {FIBER_LABELS[edge.fiberType]}
-        </Descriptions.Item>
-        <Descriptions.Item label="Panjang">
-          {formatMeters(edge.distance)}
-        </Descriptions.Item>
-        {edge.notes && (
-          <Descriptions.Item label="Catatan">{edge.notes}</Descriptions.Item>
-        )}
-      </Descriptions>
-      <Space style={{ width: "100%", justifyContent: "flex-end" }} wrap>
-        <Button
-          size="small"
-          onClick={() => {
-            onEdit(edge);
-            onClose();
-          }}
-        >
-          Ubah
-        </Button>
-        <Button
-          size="small"
-          onClick={() => {
-            onRedraw(edge);
-            onClose();
-          }}
-        >
-          Gambar ulang
-        </Button>
-        <Popconfirm
-          title="Hapus kabel ini?"
-          okText="Ya"
-          cancelText="Tidak"
-          onConfirm={() => {
-            onDelete(edge.edgeId);
-            onClose();
-          }}
-        >
-          <Button size="small" danger>
-            Hapus
-          </Button>
-        </Popconfirm>
-      </Space>
+      <Details edge={edge} />
+      <Actions
+        edge={edge}
+        onEdit={onEdit}
+        onRedraw={onRedraw}
+        onDelete={onDelete}
+        onClose={onClose}
+      />
     </Space>
   );
 }

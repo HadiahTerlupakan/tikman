@@ -119,10 +119,9 @@ export function NetworkMapPage() {
     }
   };
 
-  // Entry point from EdgeList: re-tracing an existing cable's route without
-  // touching its endpoints, fiber type or notes. The map has to be visible
-  // for a technician to tap corners on it, so this switches view even though
-  // starting a fresh cable does not force that switch on its own.
+  // Entry point from EdgeList: re-tracing a cable's route without touching
+  // its endpoints, fiber type or notes. Switches to the map (unlike starting
+  // a fresh cable) since a technician needs it visible to tap corners on it.
   const redrawEdge = (edge: MappingEdge) => {
     setView("map");
     setPlacing("cable");
@@ -188,9 +187,8 @@ export function NetworkMapPage() {
     try {
       await deleteNode.mutateAsync(nodeId);
     } catch (error) {
-      // DeleteNode refuses with 409 NODE_IN_USE while an ONT still points at
-      // this node, naming how many — that has to reach the operator as
-      // itself, not the generic fallback.
+      // DeleteNode refuses with 409 NODE_IN_USE, naming how many ONTs still
+      // point at this node — that has to reach the operator as itself.
       message.error(
         isNodeInUse(error) ? errorMessage(error) : "Gagal menghapus node",
       );
@@ -299,9 +297,11 @@ export function NetworkMapPage() {
           <MapCanvas
             nodes={nodes}
             edges={edges}
-            draft={cable.points}
-            fromNodeId={cable.from}
-            redrawingEdgeId={cable.redrawing?.edgeId}
+            tracing={{
+              draft: cable.points,
+              fromNodeId: cable.from,
+              redrawingEdgeId: cable.redrawing?.edgeId,
+            }}
             placing={placing}
             apiKey={key}
             mapId={mapId}

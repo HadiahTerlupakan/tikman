@@ -1,7 +1,6 @@
 import {
   AdvancedMarker,
   APIProvider,
-  InfoWindow,
   Map,
   Polyline,
 } from "@vis.gl/react-google-maps";
@@ -12,9 +11,8 @@ import type {
   Waypoint,
 } from "@/domain/entities";
 import { edgePath } from "./cableMath";
-import { EdgePopup } from "./EdgePopup";
 import { NODE_COLORS } from "./mappingLabels";
-import { NodePopup } from "./NodePopup";
+import { SelectedPopups, type PopupState } from "./MapCanvasPopups";
 
 // Where the map opens when there is nothing on it yet.
 const FALLBACK_CENTER = { lat: -6.2, lng: 106.816 };
@@ -31,31 +29,11 @@ const EDGE_COLOR = "#f59e0b";
 const DRAFT_COLOR = "#22c55e";
 const REDRAWING_COLOR = "#94a3b8";
 
-/** What each popup's actions do. */
-interface PopupActions {
-  onEditNode: (node: MappingNode) => void;
-  onDeleteNode: (nodeId: string) => void;
-  onEditEdge: (edge: MappingEdge) => void;
-  onRedrawEdge: (edge: MappingEdge) => void;
-  onDeleteEdge: (edgeId: string) => void;
-}
-
-/** The node or cable whose popup is open, if any (mutually exclusive, set by
- * the page in response to onNodeClick/onEdgeClick), how to close it, and what
- * its actions do. Grouped into one object rather than eight flat props —
- * MapCanvas already carries the map's own props, and threading these
- * individually would make its signature a parameter list rather than a
- * component's inputs. */
-interface PopupState {
-  selectedNode?: MappingNode;
-  selectedEdge?: MappingEdge;
-  onClose: () => void;
-  actions: PopupActions;
-}
-
-interface MapCanvasProps {
-  nodes: MappingNode[];
-  edges: MappingEdge[];
+/** The cable currently being traced or redrawn, if any — the three fields
+ * exist only for that (nothing else in MapCanvas reads them), unlike
+ * `placing`, which also gates node-placement clicks and popup visibility and
+ * so stays its own prop rather than joining this group. */
+interface TracingState {
   /** The corners traced so far for the cable being drawn right now, if any. */
   draft: Waypoint[];
   /** The node the cable being traced started from, so the in-progress line
@@ -66,6 +44,12 @@ interface MapCanvasProps {
    * distinct colour so a technician can see what they are correcting while
    * the new line is traced over it. */
   redrawingEdgeId?: string;
+}
+
+interface MapCanvasProps {
+  nodes: MappingNode[];
+  edges: MappingEdge[];
+  tracing: TracingState;
   /** What a map click means: place this kind of box, trace a cable, or nothing. */
   placing: NodeType | "cable" | undefined;
   apiKey: string;
@@ -191,106 +175,6 @@ function CableLines({
   );
 }
 
-interface NodePopupWindowProps {
-  node: MappingNode;
-  onClose: () => void;
-  actions: PopupActions;
-}
-
-function NodePopupWindow({ node, onClose, actions }: NodePopupWindowProps) {
-  return (
-    <InfoWindow
-      position={{ lat: node.latitude, lng: node.longitude }}
-      onCloseClick={onClose}
-    >
-      <NodePopup
-        node={node}
-        onEdit={actions.onEditNode}
-        onDelete={actions.onDeleteNode}
-        onClose={onClose}
-      />
-    </InfoWindow>
-  );
-}
-
-interface EdgePopupWindowProps {
-  edge: MappingEdge;
-  nodesById: Map<string, MappingNode>;
-  onClose: () => void;
-  actions: PopupActions;
-}
-
-// Node deletion never cascades to edges (migration 53's own design), so
-// either end can be gone; anchor on whichever one still resolves, and skip
-// the popup entirely only if neither does — there is nowhere left to anchor it.
-function EdgePopupWindow({
-  edge,
-  nodesById,
-  onClose,
-  actions,
-}: EdgePopupWindowProps) {
-  const source = nodesById.get(edge.source);
-  const target = nodesById.get(edge.target);
-  const anchor = source ?? target;
-  if (!anchor) {
-    return null;
-  }
-  return (
-    <InfoWindow
-      position={{ lat: anchor.latitude, lng: anchor.longitude }}
-      onCloseClick={onClose}
-    >
-      <EdgePopup
-        edge={edge}
-        sourceNode={source}
-        targetNode={target}
-        onEdit={actions.onEditEdge}
-        onRedraw={actions.onRedrawEdge}
-        onDelete={actions.onDeleteEdge}
-        onClose={onClose}
-      />
-    </InfoWindow>
-  );
-}
-
-interface SelectedPopupsProps {
-  nodesById: Map<string, MappingNode>;
-  /** False while a cable is being traced: "no popup, no interference" covers
-   * a selection left over from before tracing started, not just a fresh
-   * click during it. */
-  visible: boolean;
-  popup: PopupState;
-}
-
-/** The one popup open on the map, if any. A node takes priority by
- * construction (useMapSelection never holds both at once), so checking it
- * first is enough rather than a rule that needs stating separately. */
-function SelectedPopups({ nodesById, visible, popup }: SelectedPopupsProps) {
-  if (!visible) {
-    return null;
-  }
-  if (popup.selectedNode) {
-    return (
-      <NodePopupWindow
-        node={popup.selectedNode}
-        onClose={popup.onClose}
-        actions={popup.actions}
-      />
-    );
-  }
-  if (!popup.selectedEdge) {
-    return null;
-  }
-  return (
-    <EdgePopupWindow
-      edge={popup.selectedEdge}
-      nodesById={nodesById}
-      onClose={popup.onClose}
-      actions={popup.actions}
-    />
-  );
-}
-
 /**
  * The map itself: boxes as coloured pins, cables as lines, and a click that
  * either places a box, extends the cable being traced, or opens a popup,
@@ -301,9 +185,7 @@ function SelectedPopups({ nodesById, visible, popup }: SelectedPopupsProps) {
 export function MapCanvas({
   nodes,
   edges,
-  draft,
-  fromNodeId,
-  redrawingEdgeId,
+  tracing,
   placing,
   apiKey,
   mapId,
@@ -331,9 +213,9 @@ export function MapCanvas({
         <CableLines
           nodesById={nodesById}
           edges={edges}
-          draft={draft}
-          fromNodeId={fromNodeId}
-          redrawingEdgeId={redrawingEdgeId}
+          draft={tracing.draft}
+          fromNodeId={tracing.fromNodeId}
+          redrawingEdgeId={tracing.redrawingEdgeId}
           placing={placing}
           onEdgeClick={onEdgeClick}
         />

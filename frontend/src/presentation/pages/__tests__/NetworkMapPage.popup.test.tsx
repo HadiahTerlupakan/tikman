@@ -87,7 +87,7 @@ vi.mock("@/application/hooks", () => ({
 }));
 
 interface MockCanvasProps {
-  fromNodeId?: string;
+  tracing: { fromNodeId?: string };
   onDrop: (point: Waypoint) => void;
   onNodeClick: (nodeId: string) => void;
   onEdgeClick: (edgeId: string) => void;
@@ -153,7 +153,7 @@ describe("NetworkMapPage popups", () => {
     await userEvent.click(screen.getByRole("button", { name: /Tarik kabel/ }));
     act(() => canvasProps.onNodeClick("ODC-01"));
 
-    expect(canvasProps.fromNodeId).toBe("ODC-01");
+    expect(canvasProps.tracing.fromNodeId).toBe("ODC-01");
     expect(canvasProps.popup.selectedNode).toBeUndefined();
   });
 
@@ -267,6 +267,6 @@ describe("NetworkMapPage popups", () => {
 
     act(() => canvasProps.popup.actions.onRedrawEdge(edges[0] as MappingEdge));
 
-    expect(canvasProps.fromNodeId).toBe("ODC-01");
+    expect(canvasProps.tracing.fromNodeId).toBe("ODC-01");
   });
 });

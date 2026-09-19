@@ -61,7 +61,7 @@ export function NodePopup({ node, onEdit, onDelete, onClose }: NodePopupProps) {
         </Space>
       </div>
       <OptionalFields node={node} />
-      <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+      <Space style={{ width: "100%", justifyContent: "flex-end" }} wrap>
         <Button
           size="small"
           onClick={() => {

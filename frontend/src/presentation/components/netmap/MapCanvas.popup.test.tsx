@@ -113,7 +113,7 @@ function popup(overrides: Partial<Popup> = {}): Popup {
 const defaultProps: ComponentProps<typeof MapCanvas> = {
   nodes: [],
   edges: [],
-  draft: [],
+  tracing: { draft: [] },
   placing: undefined,
   apiKey: "AIzaTEST",
   onDrop: noop,
@@ -150,9 +150,23 @@ describe("MapCanvas popups", () => {
     expect(within(infoWindow).getByText("ODP Satu")).toBeInTheDocument();
   });
 
-  it("opens a cable's popup, resolving both ends from the node list", () => {
-    const source = node({ nodeId: "ODC-01", name: "ODC Satu" });
-    const target = node({ nodeId: "ODP-01", name: "ODP Satu" });
+  // Distinct coordinates on each end, with the anchor asserted, is what makes
+  // this able to tell "anchors on source" from a reversed `target ?? source`
+  // priority — both fixtures sharing the factory's default coordinates could
+  // not, and neither could a test that only checked the names resolved.
+  it("opens a cable's popup, resolving both ends from the node list and anchoring on the source", () => {
+    const source = node({
+      nodeId: "ODC-01",
+      name: "ODC Satu",
+      latitude: -6.2,
+      longitude: 106.8,
+    });
+    const target = node({
+      nodeId: "ODP-01",
+      name: "ODP Satu",
+      latitude: -6.3,
+      longitude: 106.9,
+    });
     const selected = edge({ edgeId: "E1", source: "ODC-01", target: "ODP-01" });
     render(
       <MapCanvas
@@ -164,6 +178,9 @@ describe("MapCanvas popups", () => {
     );
 
     expect(screen.getByText("ODC Satu → ODP Satu")).toBeInTheDocument();
+    const infoWindow = screen.getByTestId("info-window");
+    expect(infoWindow).toHaveAttribute("data-lat", "-6.2");
+    expect(infoWindow).toHaveAttribute("data-lng", "106.8");
   });
 
   // Node deletion never cascades to edges (migration 53's own design). The

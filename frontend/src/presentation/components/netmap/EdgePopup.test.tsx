@@ -38,7 +38,7 @@ const sourceNode = node({ nodeId: "ODC-01", name: "ODP Masjid" });
 const targetNode = node({ nodeId: "ODP-01", name: "Rumah Pak Budi" });
 
 describe("EdgePopup", () => {
-  it("names both ends by their node name, not their id", () => {
+  it("reads both ends by their node name as its heading, not their id", () => {
     render(
       <EdgePopup
         edge={edge()}
@@ -51,7 +51,9 @@ describe("EdgePopup", () => {
       />,
     );
 
-    expect(screen.getByText("ODP Masjid → Rumah Pak Budi")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "ODP Masjid → Rumah Pak Budi" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the ids secondary to the names", () => {
@@ -221,5 +223,25 @@ describe("EdgePopup", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ya" }));
     expect(onDelete).toHaveBeenCalledWith("ODC-01--ODP-01");
+  });
+
+  it("closes the popup once the delete is confirmed", async () => {
+    const onClose = vi.fn();
+    render(
+      <EdgePopup
+        edge={edge()}
+        sourceNode={sourceNode}
+        targetNode={targetNode}
+        onEdit={vi.fn()}
+        onRedraw={vi.fn()}
+        onDelete={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Hapus" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Ya" }));
+
+    expect(onClose).toHaveBeenCalled();
   });
 });
