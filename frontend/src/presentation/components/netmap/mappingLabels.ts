@@ -15,6 +15,12 @@ export const NODE_COLORS: Record<NodeType, string> = {
   ont: "#22c55e",
 };
 
+// Shown wherever a cable or a connection has to name a node that no longer
+// exists. Node deletion never cascades to edges, so a dangling reference is
+// a normal state to render honestly, not a defensive fallback for one that
+// "shouldn't happen".
+export const DELETED_NODE_LABEL = "Node sudah dihapus";
+
 export const FIBER_LABELS: Record<FiberType, string> = {
   feeder: "Feeder",
   distribution: "Distribusi",

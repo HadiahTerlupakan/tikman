@@ -1,8 +1,8 @@
 import { Button, Descriptions, Popconfirm, Space, Typography } from "antd";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
 import { colors } from "@/shared/theme";
-import { formatMeters } from "./cableMath";
-import { FIBER_LABELS } from "./mappingLabels";
+import { formatMeters, straightLineMeters } from "./cableMath";
+import { DELETED_NODE_LABEL, FIBER_LABELS } from "./mappingLabels";
 
 interface EdgePopupProps {
   edge: MappingEdge;
@@ -18,8 +18,6 @@ interface EdgePopupProps {
   onClose: () => void;
 }
 
-const DELETED_NODE_LABEL = "Node sudah dihapus";
-
 function Details({ edge }: { edge: MappingEdge }) {
   return (
     <Descriptions column={1} size="small">
@@ -33,6 +31,55 @@ function Details({ edge }: { edge: MappingEdge }) {
         <Descriptions.Item label="Catatan">{edge.notes}</Descriptions.Item>
       )}
     </Descriptions>
+  );
+}
+
+/**
+ * How this cable was actually traced: its full drawn length against the
+ * straight line between its ends, and how many corners it took to get
+ * there. Zero bends with a drawn length close to the straight line usually
+ * means the route was guessed, not walked — the length a technician should
+ * not yet trust for ordering cable.
+ */
+function TraceInfo({
+  edge,
+  sourceNode,
+  targetNode,
+}: {
+  edge: MappingEdge;
+  sourceNode?: MappingNode;
+  targetNode?: MappingNode;
+}) {
+  const bends = edge.waypoints?.length ?? 0;
+  // Only the straight line is computed fresh here: the traced length is
+  // already known (edge.distance, shown above as Panjang) and needs no
+  // node coordinates, but there is no stored field to compare it against.
+  const straight =
+    sourceNode && targetNode
+      ? straightLineMeters(sourceNode, targetNode)
+      : undefined;
+  const straightText =
+    straight !== undefined ? ` (garis lurus ${formatMeters(straight)})` : "";
+  const line = `${formatMeters(edge.distance)}${straightText} · ${bends} titik belok`;
+
+  return (
+    <Space
+      direction="vertical"
+      size={2}
+      style={{
+        width: "100%",
+        borderTop: `1px solid ${colors.border}`,
+        paddingTop: 8,
+      }}
+    >
+      <Typography.Text
+        type="secondary"
+        style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}
+      >
+        Jejak kabel
+      </Typography.Text>
+      <Typography.Text>{line}</Typography.Text>
+    </Space>
   );
 }
 
@@ -120,6 +167,7 @@ export function EdgePopup({
         </div>
       </div>
       <Details edge={edge} />
+      <TraceInfo edge={edge} sourceNode={sourceNode} targetNode={targetNode} />
       <Actions
         edge={edge}
         onEdit={onEdit}

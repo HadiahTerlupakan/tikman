@@ -1,10 +1,17 @@
 import { Button, Descriptions, Popconfirm, Space, Tag, Typography } from "antd";
-import type { MappingNode } from "@/domain/entities";
+import { useOdpSubscribers } from "@/application/hooks";
+import type { MappingEdge, MappingNode } from "@/domain/entities";
 import { colors } from "@/shared/theme";
 import { NODE_COLORS, NODE_LABELS } from "./mappingLabels";
+import { NodeNetworkContext } from "./NodeNetworkContext";
 
 interface NodePopupProps {
   node: MappingNode;
+  /** Every cable on the map and an index of every node by its nodeId — the
+   * same `edges`/nodesById MapCanvas already builds to draw the map, reused
+   * here for slot usage and connection counts rather than fetched again. */
+  edges: MappingEdge[];
+  nodesById: Map<string, MappingNode>;
   onEdit: (node: MappingNode) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
@@ -45,7 +52,21 @@ function OptionalFields({ node }: { node: MappingNode }) {
  * name first (what a person recognises), the code second (an identifier, not
  * a label), then only the fields actually filled in.
  */
-export function NodePopup({ node, onEdit, onDelete, onClose }: NodePopupProps) {
+export function NodePopup({
+  node,
+  edges,
+  nodesById,
+  onEdit,
+  onDelete,
+  onClose,
+}: NodePopupProps) {
+  // A mapping node's own `id` is the real ODP id the subscriber list is
+  // keyed on (see DistributionRepository.toOdp); `nodeId` is only its
+  // fallback for a node that predates that column. Never asked for any
+  // other type — a server or ONT has no ports to fetch subscribers for.
+  const odpId = node.type === "odp" ? node.id ?? node.nodeId : undefined;
+  const { data: subscribers } = useOdpSubscribers(odpId);
+
   return (
     <Space direction="vertical" size={8} className="netmap-popup">
       <div>
@@ -60,6 +81,12 @@ export function NodePopup({ node, onEdit, onDelete, onClose }: NodePopupProps) {
         </Space>
       </div>
       <OptionalFields node={node} />
+      <NodeNetworkContext
+        node={node}
+        edges={edges}
+        nodesById={nodesById}
+        subscriberCount={subscribers?.length}
+      />
       <Space
         style={{
           width: "100%",

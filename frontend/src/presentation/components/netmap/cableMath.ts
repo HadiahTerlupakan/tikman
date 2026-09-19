@@ -28,6 +28,22 @@ export function formatMeters(m: number): string {
 }
 
 /**
+ * The distance if this cable ran straight between its ends, ignoring
+ * whatever corners it was actually traced through — what "how it was
+ * traced" compares the drawn length against, to tell a route that was
+ * walked on the ground from one that was only guessed as a straight line.
+ */
+export function straightLineMeters(
+  source: MappingNode,
+  target: MappingNode,
+): number {
+  return metersAlong([
+    { lat: source.latitude, lng: source.longitude },
+    { lat: target.latitude, lng: target.longitude },
+  ]);
+}
+
+/**
  * The full drawn length of one cable: its named ends plus the corners traced
  * between them. An edge stores only the corners — `useCableDraw` never records
  * the node it started or finished on — so even a straight drop with no corners

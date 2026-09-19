@@ -27,11 +27,19 @@ export interface PopupState {
 
 interface NodePopupWindowProps {
   node: MappingNode;
+  edges: MappingEdge[];
+  nodesById: Map<string, MappingNode>;
   onClose: () => void;
   actions: PopupActions;
 }
 
-function NodePopupWindow({ node, onClose, actions }: NodePopupWindowProps) {
+function NodePopupWindow({
+  node,
+  edges,
+  nodesById,
+  onClose,
+  actions,
+}: NodePopupWindowProps) {
   return (
     <InfoWindow
       position={{ lat: node.latitude, lng: node.longitude }}
@@ -39,6 +47,8 @@ function NodePopupWindow({ node, onClose, actions }: NodePopupWindowProps) {
     >
       <NodePopup
         node={node}
+        edges={edges}
+        nodesById={nodesById}
         onEdit={actions.onEditNode}
         onDelete={actions.onDeleteNode}
         onClose={onClose}
@@ -93,6 +103,9 @@ function EdgePopupWindow({
 
 interface SelectedPopupsProps {
   nodesById: Map<string, MappingNode>;
+  /** Every cable on the map — passed straight through to a node's popup for
+   * its slot usage and connection counts (see NodePopup). */
+  edges: MappingEdge[];
   /** False while a cable is being traced: "no popup, no interference" covers
    * a selection left over from before tracing started, not just a fresh
    * click during it. */
@@ -105,6 +118,7 @@ interface SelectedPopupsProps {
  * first is enough rather than a rule that needs stating separately. */
 export function SelectedPopups({
   nodesById,
+  edges,
   visible,
   popup,
 }: SelectedPopupsProps) {
@@ -115,6 +129,8 @@ export function SelectedPopups({
     return (
       <NodePopupWindow
         node={popup.selectedNode}
+        edges={edges}
+        nodesById={nodesById}
         onClose={popup.onClose}
         actions={popup.actions}
       />

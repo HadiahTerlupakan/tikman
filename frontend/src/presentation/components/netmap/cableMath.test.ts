@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MappingNode } from "@/domain/entities";
-import { edgePath, formatMeters, metersAlong } from "./cableMath";
+import {
+  edgePath,
+  formatMeters,
+  metersAlong,
+  straightLineMeters,
+} from "./cableMath";
 
 describe("metersAlong", () => {
   // The length shown has to be the cable that was pulled, not the straight line
@@ -104,5 +109,42 @@ describe("edgePath", () => {
     );
 
     expect(path).toBeUndefined();
+  });
+});
+
+describe("straightLineMeters", () => {
+  const base: MappingNode = {
+    nodeId: "X",
+    type: "odc",
+    name: "X",
+    latitude: -6.2,
+    longitude: 106.8,
+    capacity: 0,
+    splitter: "",
+    pppoe: "",
+    serialNumber: "",
+    notes: "",
+  };
+
+  // An independently obvious expected value (not derived by calling the
+  // function under test on itself): two identical points are zero metres
+  // apart, drawn path or not.
+  it("is zero when both ends sit at the same coordinates", () => {
+    const same = { ...base };
+
+    expect(straightLineMeters(same, { ...same })).toBe(0);
+  });
+
+  // Reuses the same reference fact metersAlong's own test establishes
+  // independently (a hundredth of a degree of latitude is about a
+  // kilometre), so this does not just check the function against itself.
+  it("is the distance between two nodes' coordinates, ignoring any drawn detour", () => {
+    const source = { ...base, latitude: -6.2, longitude: 106.8 };
+    const target = { ...base, latitude: -6.21, longitude: 106.8 };
+
+    const m = straightLineMeters(source, target);
+
+    expect(m).toBeGreaterThan(1050);
+    expect(m).toBeLessThan(1160);
   });
 });
