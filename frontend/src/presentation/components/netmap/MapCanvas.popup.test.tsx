@@ -403,6 +403,7 @@ describe("MapCanvas popups", () => {
       />,
     );
 
-    expect(screen.getByText("1 dari 1 terpakai")).toBeInTheDocument();
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
+    expect(screen.getByText("1 dari 1")).toBeInTheDocument();
   });
 });

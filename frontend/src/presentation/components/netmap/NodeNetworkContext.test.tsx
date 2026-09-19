@@ -57,7 +57,10 @@ describe("NodeNetworkContext", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows how full a box is", () => {
+  // "Kabel tergambar" has to say plainly that this counts cables drawn on
+  // the map, not the box's real occupancy — see the "different sources"
+  // test below for why that label matters.
+  it("shows how full a box is, labelled as a map figure", () => {
     const odc = node("ODC-01", "odc", { capacity: 8 });
     const odp = node("ODP-01", "odp");
     const edges = [edge("ODC-01", "ODP-01")];
@@ -70,7 +73,8 @@ describe("NodeNetworkContext", () => {
       />,
     );
 
-    expect(screen.getByText("1 dari 8 terpakai")).toBeInTheDocument();
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
+    expect(screen.getByText("1 dari 8")).toBeInTheDocument();
   });
 
   it("shows unlimited instead of a count when capacity is zero", () => {
@@ -79,6 +83,7 @@ describe("NodeNetworkContext", () => {
       <NodeNetworkContext node={odc} edges={[]} nodesById={byId([odc])} />,
     );
 
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
     expect(screen.getByText("tanpa batas")).toBeInTheDocument();
   });
 
@@ -101,10 +106,10 @@ describe("NodeNetworkContext", () => {
       />,
     );
 
-    expect(screen.getByText("8 dari 8 terpakai")).toBeInTheDocument();
-    expect(
-      screen.getByText("1 dari 8 untuk kaskade ke ODC"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
+    expect(screen.getByText("8 dari 8")).toBeInTheDocument();
+    expect(screen.getByText("Kaskade tergambar")).toBeInTheDocument();
+    expect(screen.getByText("1 dari 8")).toBeInTheDocument();
     expect(screen.queryByText(/10/)).not.toBeInTheDocument();
   });
 
@@ -114,7 +119,7 @@ describe("NodeNetworkContext", () => {
       <NodeNetworkContext node={odc} edges={[]} nodesById={byId([odc])} />,
     );
 
-    expect(screen.queryByText(/kaskade/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/kaskade/i)).not.toBeInTheDocument();
   });
 
   it("names what feeds a node and what hangs off it, counted by kind", () => {
@@ -172,7 +177,10 @@ describe("NodeNetworkContext", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows an ODP's real subscriber count when given one", () => {
+  // "Pelanggan terdaftar" has to say plainly this counts real ONT
+  // registrations, not map cables — the deliberate opposite of reconciling
+  // it with "Kabel tergambar" above.
+  it("shows an ODP's real subscriber count, labelled as a registry figure", () => {
     const odp = node("ODP-01", "odp");
     render(
       <NodeNetworkContext
@@ -183,7 +191,8 @@ describe("NodeNetworkContext", () => {
       />,
     );
 
-    expect(screen.getByText("Pelanggan: 4 ONT")).toBeInTheDocument();
+    expect(screen.getByText("Pelanggan terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("4 ONT")).toBeInTheDocument();
   });
 
   it("shows zero subscribers as a real figure, not as nothing to show", () => {
@@ -197,7 +206,8 @@ describe("NodeNetworkContext", () => {
       />,
     );
 
-    expect(screen.getByText("Pelanggan: 0 ONT")).toBeInTheDocument();
+    expect(screen.getByText("Pelanggan terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("0 ONT")).toBeInTheDocument();
   });
 
   it("says nothing about subscribers when no count was given", () => {
@@ -217,5 +227,29 @@ describe("NodeNetworkContext", () => {
 
     const section = screen.getByText("tanpa batas").closest(".ant-space");
     expect(section).toHaveStyle({ borderTop: "1px solid #27272a" });
+  });
+
+  // The exact scenario this label change exists for: a box with cables
+  // drawn for only some of its registered customers. Both numbers must
+  // render, each under its own label, with nothing reconciling them —
+  // the gap between them is the useful signal, not a bug to hide.
+  it("labels the map-derived count and the registered-subscriber count as coming from different sources", () => {
+    const odp = node("ODP-01", "odp", { capacity: 8 });
+    const ont = node("ONT-01", "ont");
+    const edges = [edge("ODP-01", "ONT-01")];
+
+    render(
+      <NodeNetworkContext
+        node={odp}
+        edges={edges}
+        nodesById={byId([odp, ont])}
+        subscriberCount={5}
+      />,
+    );
+
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
+    expect(screen.getByText("1 dari 8")).toBeInTheDocument();
+    expect(screen.getByText("Pelanggan terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("5 ONT")).toBeInTheDocument();
   });
 });

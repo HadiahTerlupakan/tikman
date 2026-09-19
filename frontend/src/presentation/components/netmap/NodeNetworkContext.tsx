@@ -1,4 +1,4 @@
-import { Space, Typography } from "antd";
+import { Descriptions, Space, Typography } from "antd";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
 import { colors } from "@/shared/theme";
 import { DELETED_NODE_LABEL, FIBER_LABELS, NODE_LABELS } from "./mappingLabels";
@@ -15,24 +15,36 @@ interface NodeNetworkContextProps {
   subscriberCount?: number;
 }
 
-function slotLines(info: NodeSlotInfo): string[] {
+interface StatItem {
+  label: string;
+  value: string;
+}
+
+// "Kabel tergambar" (cables drawn) counts edges on the map; it is not the
+// box's real occupancy, and must say so — see NodeNetworkContext.test.tsx's
+// "different sources" test for why this label exists at all.
+const DRAWN_LABEL = "Kabel tergambar";
+const DRAWN_CASCADE_LABEL = "Kaskade tergambar";
+
+function slotStats(info: NodeSlotInfo): StatItem[] {
   if (info.unlimited) {
-    return ["tanpa batas"];
+    return [{ label: DRAWN_LABEL, value: "tanpa batas" }];
   }
   const ordinary = info.usages.find((usage) => !usage.cascade);
   const cascade = info.usages.find((usage) => usage.cascade);
-  const lines = ordinary
-    ? [`${ordinary.used} dari ${info.capacity} terpakai`]
+  const stats: StatItem[] = ordinary
+    ? [{ label: DRAWN_LABEL, value: `${ordinary.used} dari ${info.capacity}` }]
     : [];
-  // Only mentioned once it is actually used: an unused cascade pool is not
-  // news, but a nonzero one has to read as its own figure, never folded into
-  // the line above.
+  // Only shown once it is actually used: an unused cascade pool is not news,
+  // but a nonzero one has to read as its own figure, never folded into the
+  // row above — the trap this whole feature exists to get right.
   if (cascade && cascade.used > 0) {
-    lines.push(
-      `${cascade.used} dari ${info.capacity} untuk kaskade ke ${NODE_LABELS[cascade.targetType]}`,
-    );
+    stats.push({
+      label: DRAWN_CASCADE_LABEL,
+      value: `${cascade.used} dari ${info.capacity}`,
+    });
   }
-  return lines;
+  return stats;
 }
 
 function connectionsLine(connections: NodeConnections): string | undefined {
@@ -54,9 +66,18 @@ function connectionsLine(connections: NodeConnections): string | undefined {
  * what hangs off it, and — for an ODP — how many ONTs are really assigned
  * to it. Kept in its own visually distinct block from the node's own
  * attributes above, since it answers a different question: not what this
- * box is, but what depends on it. Renders nothing at all when there is
- * genuinely nothing to say (an isolated node of a type capacity never
- * gates, with no cables and no subscriber count given).
+ * box is, but what depends on it.
+ *
+ * The slot count and the subscriber count are never reconciled into one
+ * figure or explained against each other — they come from different
+ * sources (cables drawn on the map vs. real ONT registrations) and can
+ * honestly disagree. That gap is the most useful thing on the screen: a
+ * technician standing at the box needs to see it, not have it smoothed
+ * away. Each row's label says which source it came from instead.
+ *
+ * Renders nothing at all when there is genuinely nothing to say (an
+ * isolated node of a type capacity never gates, with no cables and no
+ * subscriber count given).
  */
 export function NodeNetworkContext({
   node,
@@ -66,9 +87,15 @@ export function NodeNetworkContext({
 }: NodeNetworkContextProps) {
   const slots = slotUsage(node, edges, nodesById);
   const connections = connectionsLine(nodeConnections(node, edges, nodesById));
-  const hasSubscribers = subscriberCount !== undefined;
+  const stats = slots ? slotStats(slots) : [];
+  if (subscriberCount !== undefined) {
+    stats.push({
+      label: "Pelanggan terdaftar",
+      value: `${subscriberCount} ONT`,
+    });
+  }
 
-  if (!slots && !connections && !hasSubscribers) {
+  if (stats.length === 0 && !connections) {
     return null;
   }
 
@@ -88,13 +115,15 @@ export function NodeNetworkContext({
       >
         Posisi jaringan
       </Typography.Text>
-      {slots &&
-        slotLines(slots).map((line) => (
-          <Typography.Text key={line}>{line}</Typography.Text>
-        ))}
       {connections && <Typography.Text>{connections}</Typography.Text>}
-      {hasSubscribers && (
-        <Typography.Text>{`Pelanggan: ${subscriberCount} ONT`}</Typography.Text>
+      {stats.length > 0 && (
+        <Descriptions column={1} size="small">
+          {stats.map((stat) => (
+            <Descriptions.Item key={stat.label} label={stat.label}>
+              {stat.value}
+            </Descriptions.Item>
+          ))}
+        </Descriptions>
       )}
     </Space>
   );

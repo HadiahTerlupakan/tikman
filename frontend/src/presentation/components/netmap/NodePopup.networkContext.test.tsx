@@ -82,7 +82,8 @@ describe("NodePopup network context", () => {
       />,
     );
 
-    expect(screen.getByText("1 dari 8 terpakai")).toBeInTheDocument();
+    expect(screen.getByText("Kabel tergambar")).toBeInTheDocument();
+    expect(screen.getByText("1 dari 8")).toBeInTheDocument();
   });
 
   it("shows what feeds this node and what hangs off it", () => {
@@ -122,7 +123,8 @@ describe("NodePopup network context", () => {
       />,
     );
 
-    expect(screen.getByText("Pelanggan: 3 ONT")).toBeInTheDocument();
+    expect(screen.getByText("Pelanggan terdaftar")).toBeInTheDocument();
+    expect(screen.getByText("3 ONT")).toBeInTheDocument();
   });
 
   // Reuses "odp-real-id" as this node's nodeId — a key the mock actually has
