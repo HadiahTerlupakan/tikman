@@ -89,6 +89,9 @@ vi.mock("@/application/hooks", () => ({
   // MapToolbar's own export button; its download mechanics are covered by
   // MapToolbar.test.tsx, downloadFile.test.ts and MappingRepository.test.ts.
   useExportMapping: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  // ImportKmzButton (rendered unconditionally by MapToolbar) calls both.
+  usePreviewImport: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCommitImport: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 // This suite never traces a cable or opens the node form, so the canvas can

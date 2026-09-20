@@ -23,7 +23,7 @@ var (
 // the connection that would overfill it, counted per kind of thing hanging off
 // it — a cascade to another box does not eat a customer's slot.
 func (s *MappingService) CreateEdge(in models.MappingEdge) (*models.MappingEdge, error) {
-	if err := s.checkSlots(in, ""); err != nil {
+	if err := s.checkSlots(in, "", false); err != nil {
 		return nil, err
 	}
 	if err := s.db.Create(&in).Error; err != nil {
@@ -41,9 +41,22 @@ func (s *MappingService) CreateEdge(in models.MappingEdge) (*models.MappingEdge,
 // the edge being edited, which already occupies one of the slots it would
 // otherwise be checked against — without this, a notes-only edit of a cable
 // on an already-full box would refuse itself forever.
-func (s *MappingService) checkSlots(in models.MappingEdge, excludeID string) error {
+//
+// tolerateMissing treats a source or target that resolves to no node at all
+// as nothing to check, rather than an error. CreateEdge/UpdateEdge pass
+// false: the drawing UI only ever cables two boxes already on the map, so an
+// unresolvable endpoint there is a real bug. CommitImport passes true — an
+// import may legitimately bring a cable without its ends
+// (migrations/53_network_mapping.sql; see also removeOLTMapNode), and
+// refusing the whole commit over a dangling reference this schema already
+// tolerates would be import inventing a stricter rule than the map itself
+// has.
+func (s *MappingService) checkSlots(in models.MappingEdge, excludeID string, tolerateMissing bool) error {
 	source, err := s.GetNode(in.Source)
 	if err != nil {
+		if tolerateMissing && errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
 		return fmt.Errorf("source %s: %w", in.Source, err)
 	}
 	if source.Capacity <= 0 {
@@ -57,6 +70,9 @@ func (s *MappingService) checkSlots(in models.MappingEdge, excludeID string) err
 	}
 	target, err := s.GetNode(in.Target)
 	if err != nil {
+		if tolerateMissing && errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
 		return fmt.Errorf("target %s: %w", in.Target, err)
 	}
 	kind, counts := slotKind(source.Type, target.Type, in.FiberType)
@@ -123,7 +139,7 @@ func (s *MappingService) UpdateEdge(edgeID string, in models.MappingEdge) (*mode
 		return nil, fmt.Errorf("get edge %s: %w", edgeID, err)
 	}
 	candidate := models.MappingEdge{Source: in.Source, Target: in.Target, FiberType: in.FiberType}
-	if err := s.checkSlots(candidate, edgeID); err != nil {
+	if err := s.checkSlots(candidate, edgeID, false); err != nil {
 		return nil, err
 	}
 	fields := map[string]any{

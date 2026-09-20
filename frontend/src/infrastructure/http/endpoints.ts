@@ -120,4 +120,6 @@ export const API_ENDPOINTS = {
   MAPPING_EDGES: "/api/v1/mapping/edges",
   MAPPING_EDGE: (edgeId: string) => `/api/v1/mapping/edges/${edgeId}`,
   MAPPING_EXPORT: "/api/v1/mapping/export",
+  MAPPING_IMPORT_PREVIEW: "/api/v1/mapping/import/preview",
+  MAPPING_IMPORT_COMMIT: "/api/v1/mapping/import/commit",
 } as const;

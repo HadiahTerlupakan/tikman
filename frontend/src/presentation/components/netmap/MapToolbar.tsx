@@ -1,6 +1,7 @@
 import { DownloadOutlined } from "@ant-design/icons";
 import { Button, Segmented, Space } from "antd";
 import type { NodeType } from "@/domain/entities";
+import { ImportKmzButton } from "./ImportKmzButton";
 import { NODE_COLORS, NODE_LABELS } from "./mappingLabels";
 import { useKmzExport } from "./useKmzExport";
 
@@ -115,6 +116,7 @@ export function MapToolbar({
         >
           Unduh KMZ
         </Button>
+        <ImportKmzButton />
         <Segmented
           value={view}
           onChange={(v) => onView(v as MapView)}

@@ -195,6 +195,12 @@ func (h *handlers) registerMappingRoutes(api *gin.RouterGroup, authenticated gin
 		mapping.POST("/edges", editor, h.mappingHandler.CreateEdge)
 		mapping.PUT("/edges/:edge_id", editor, h.mappingHandler.UpdateEdge)
 		mapping.DELETE("/edges/:edge_id", editor, h.mappingHandler.DeleteEdge)
+
+		// Import gated the same as every write above: previewing already
+		// reveals how a file's ids collide with the live map, and only
+		// committing ever writes anything.
+		mapping.POST("/import/preview", editor, h.mappingHandler.PreviewImport)
+		mapping.POST("/import/commit", editor, h.mappingHandler.CommitImport)
 	}
 }
 

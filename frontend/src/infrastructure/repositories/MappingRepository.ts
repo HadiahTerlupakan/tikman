@@ -1,4 +1,11 @@
-import type { MappingEdge, MappingNode } from "@/domain/entities";
+import type {
+  ImportedEdge,
+  ImportedNode,
+  ImportPreview,
+  ImportResult,
+  MappingEdge,
+  MappingNode,
+} from "@/domain/entities";
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
 
@@ -50,5 +57,32 @@ export class MappingRepository {
       responseType: "blob",
     });
     return { blob: res.data, warning: res.headers["x-kmz-warning"] ?? "" };
+  }
+
+  // Multipart, not JSON, the same reason CsRepository.sendMedia drops the
+  // Content-Type header: leaving the client's default in place would make
+  // axios JSON-encode the FormData instead of sending the file itself.
+  async previewImport(file: File): Promise<ImportPreview> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await apiClient.post(
+      API_ENDPOINTS.MAPPING_IMPORT_PREVIEW,
+      form,
+      { headers: { "Content-Type": false } },
+    );
+    return res.data.data;
+  }
+
+  // Sends back exactly the preview's own row shape, corrected in place -
+  // there is no separate "commit" shape to translate into.
+  async commitImport(
+    nodes: ImportedNode[],
+    edges: ImportedEdge[],
+  ): Promise<ImportResult> {
+    const res = await apiClient.post(API_ENDPOINTS.MAPPING_IMPORT_COMMIT, {
+      nodes,
+      edges,
+    });
+    return res.data.data;
   }
 }

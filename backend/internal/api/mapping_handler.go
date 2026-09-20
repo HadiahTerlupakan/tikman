@@ -39,6 +39,13 @@ func mappingError(c *gin.Context, err error, notFoundCode string) {
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_IN_USE"})
 	case errors.Is(err, services.ErrNodeMirrorsOLT):
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_MIRRORS_OLT"})
+	case errors.Is(err, services.ErrImportInvalid):
+		// CommitImport re-derives every collision, blocked type and required
+		// field from the database itself rather than trusting the request -
+		// see nodesToCreate/edgesToCreate - so reaching this means the
+		// preview the person confirmed is now stale, or a row was tampered
+		// with. Either way the whole commit already rolled back as one.
+		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "IMPORT_REFUSED"})
 	case errors.Is(err, services.ErrValidation):
 		// Reachable today only from UpdateNode's coordinate check on an
 		// OLT-backed node (mapping_nodes.go) - same code as

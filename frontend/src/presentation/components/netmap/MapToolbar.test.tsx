@@ -10,6 +10,10 @@ import { MapToolbar } from "./MapToolbar";
 const mutateAsync = vi.fn();
 vi.mock("@/application/hooks", () => ({
   useExportMapping: () => ({ mutateAsync, isPending: false }),
+  // ImportKmzButton renders unconditionally alongside the export button;
+  // its own flow is exercised by ImportKmzModal.test.tsx instead.
+  usePreviewImport: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCommitImport: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock("./downloadFile", () => ({ downloadFile: vi.fn() }));
 // antd's message is an imperative singleton, not something a render finds in

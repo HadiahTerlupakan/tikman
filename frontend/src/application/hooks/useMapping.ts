@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MappingEdge, MappingNode } from "@/domain/entities";
+import type {
+  ImportedEdge,
+  ImportedNode,
+  MappingEdge,
+  MappingNode,
+} from "@/domain/entities";
 import { MappingRepository } from "@/infrastructure/repositories";
 
 const repo = new MappingRepository();
@@ -68,4 +73,27 @@ export function useDeleteEdge() {
 // fires a download each time it is asked for.
 export function useExportMapping() {
   return useMutation({ mutationFn: () => repo.exportKmz() });
+}
+
+// Parses an uploaded file and reports what it found - nothing is written, so
+// there is nothing here to invalidate.
+export function usePreviewImport() {
+  return useMutation({ mutationFn: (file: File) => repo.previewImport(file) });
+}
+
+export function useCommitImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      nodes,
+      edges,
+    }: {
+      nodes: ImportedNode[];
+      edges: ImportedEdge[];
+    }) => repo.commitImport(nodes, edges),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: NODES });
+      qc.invalidateQueries({ queryKey: EDGES });
+    },
+  });
 }

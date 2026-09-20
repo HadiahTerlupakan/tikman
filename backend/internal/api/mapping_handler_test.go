@@ -33,6 +33,8 @@ func mappingRouter(t *testing.T) (*gin.Engine, *services.MappingService) {
 	g.PUT("/edges/:edge_id", h.UpdateEdge)
 	g.DELETE("/edges/:edge_id", h.DeleteEdge)
 	g.GET("/export", h.ExportKMZ)
+	g.POST("/import/preview", h.PreviewImport)
+	g.POST("/import/commit", h.CommitImport)
 	return r, svc
 }
 
