@@ -190,8 +190,19 @@ export function NodeFormModal({
           name="name"
           label="Nama"
           rules={[{ required: true, message: "Nama harus diisi" }]}
+          // UpdateNode silently pins this back to the OLT record's own name
+          // for a mirror node (mapping_nodes.go) — offering it as editable
+          // here would let an operator retype it and watch the change vanish.
+          extra={
+            initial?.oltId
+              ? "Nama mengikuti data OLT, ubah lewat menu OLT"
+              : undefined
+          }
         >
-          <Input placeholder="mis. ODP Depan Masjid" />
+          <Input
+            placeholder="mis. ODP Depan Masjid"
+            readOnly={Boolean(initial?.oltId)}
+          />
         </Form.Item>
         <Form.Item name="nodeId" label="Kode">
           <Input

@@ -1,9 +1,17 @@
 import { Button, Descriptions, Popconfirm, Space, Tag, Typography } from "antd";
+import { Link } from "react-router-dom";
 import { useOdpSubscribers } from "@/application/hooks";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
 import { colors } from "@/shared/theme";
 import { NODE_COLORS, NODE_LABELS } from "./mappingLabels";
 import { NodeNetworkContext } from "./NodeNetworkContext";
+
+const ACTIONS_ROW_STYLE = {
+  width: "100%",
+  justifyContent: "flex-end" as const,
+  borderTop: `1px solid ${colors.border}`,
+  paddingTop: 8,
+};
 
 interface NodePopupProps {
   node: MappingNode;
@@ -43,6 +51,69 @@ function OptionalFields({ node }: { node: MappingNode }) {
         <Descriptions.Item label="Catatan">{node.notes}</Descriptions.Item>
       )}
     </Descriptions>
+  );
+}
+
+/**
+ * The popup's action row. A node that mirrors an OLT (oltId set) gets no
+ * Hapus: deleting it here would read as removing a pin, but it would really
+ * destroy the OLT record and every ONT under it — DeleteNode already refuses
+ * this server-side with NODE_MIRRORS_OLT, so the map points at the OLT menu
+ * before that round trip rather than after it. Ubah stays either way: moving
+ * a mirror is exactly how its position gets corrected, and UpdateNode already
+ * writes that back to the OLT record.
+ */
+function NodePopupActions({
+  node,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  node: MappingNode;
+  onEdit: (node: MappingNode) => void;
+  onDelete: (nodeId: string) => void;
+  onClose: () => void;
+}) {
+  const editButton = (
+    <Button
+      size="small"
+      onClick={() => {
+        onEdit(node);
+        onClose();
+      }}
+    >
+      Ubah
+    </Button>
+  );
+
+  if (node.oltId) {
+    return (
+      <Space style={ACTIONS_ROW_STYLE} wrap>
+        {editButton}
+        <Link to="/olts" onClick={onClose}>
+          <Button size="small">Buka menu OLT</Button>
+        </Link>
+      </Space>
+    );
+  }
+
+  return (
+    <Space style={ACTIONS_ROW_STYLE} wrap>
+      {editButton}
+      <Popconfirm
+        title="Hapus node ini?"
+        okText="Ya"
+        cancelText="Tidak"
+        onConfirm={() => {
+          onDelete(node.nodeId);
+          onClose();
+        }}
+      >
+        <Button size="small" danger>
+          Hapus
+        </Button>
+      </Popconfirm>
+    </Space>
   );
 }
 
@@ -87,38 +158,12 @@ export function NodePopup({
         nodesById={nodesById}
         subscriberCount={subscribers?.length}
       />
-      <Space
-        style={{
-          width: "100%",
-          justifyContent: "flex-end",
-          borderTop: `1px solid ${colors.border}`,
-          paddingTop: 8,
-        }}
-        wrap
-      >
-        <Button
-          size="small"
-          onClick={() => {
-            onEdit(node);
-            onClose();
-          }}
-        >
-          Ubah
-        </Button>
-        <Popconfirm
-          title="Hapus node ini?"
-          okText="Ya"
-          cancelText="Tidak"
-          onConfirm={() => {
-            onDelete(node.nodeId);
-            onClose();
-          }}
-        >
-          <Button size="small" danger>
-            Hapus
-          </Button>
-        </Popconfirm>
-      </Space>
+      <NodePopupActions
+        node={node}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onClose={onClose}
+      />
     </Space>
   );
 }
