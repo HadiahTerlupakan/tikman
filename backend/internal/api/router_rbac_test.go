@@ -139,3 +139,16 @@ func TestMappingWritesStayOpenToTechnicians(t *testing.T) {
 		})
 	}
 }
+
+// The KMZ export is a read like ListNodes/ListEdges, not a write - a viewer
+// who can already see the map in the browser must be able to download it too.
+func TestMappingExportIsOpenToEveryRole(t *testing.T) {
+	for _, role := range []models.UserRole{models.UserRoleViewer, models.UserRoleCS, models.UserRoleTechnician, models.UserRoleAdmin} {
+		t.Run(string(role), func(t *testing.T) {
+			router, store := rbacTestRouter(t)
+
+			assert.Equal(t, http.StatusOK,
+				requestAs(t, router, store, role, http.MethodGet, "/api/v1/mapping/export"))
+		})
+	}
+}

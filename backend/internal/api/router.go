@@ -186,6 +186,7 @@ func (h *handlers) registerMappingRoutes(api *gin.RouterGroup, authenticated gin
 	{
 		mapping.GET("/nodes", h.mappingHandler.ListNodes)
 		mapping.GET("/edges", h.mappingHandler.ListEdges)
+		mapping.GET("/export", h.mappingHandler.ExportKMZ)
 
 		editor := middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician)
 		mapping.POST("/nodes", editor, h.mappingHandler.CreateNode)
