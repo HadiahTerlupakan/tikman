@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -38,6 +39,15 @@ func mappingError(c *gin.Context, err error, notFoundCode string) {
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_IN_USE"})
 	case errors.Is(err, services.ErrNodeMirrorsOLT):
 		c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error(), Code: "NODE_MIRRORS_OLT"})
+	case errors.Is(err, services.ErrValidation):
+		// Reachable today only from UpdateNode's coordinate check on an
+		// OLT-backed node (mapping_nodes.go) - same code as
+		// olt_handler_crud_update.go uses for the OLT menu's own
+		// latitude/longitude fields, since it is the same rule.
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: strings.TrimPrefix(err.Error(), services.ErrValidation.Error()+": "),
+			Code:  "INVALID_COORDINATES",
+		})
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error(), Code: notFoundCode})
 	default:

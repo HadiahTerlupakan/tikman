@@ -260,6 +260,26 @@ func TestDeletingAnOLTBackedNodeAnswers409WithItsOwnCode(t *testing.T) {
 	assert.Equal(t, "NODE_MIRRORS_OLT", responseCode(t, rec))
 }
 
+// Moving an OLT-backed pin to an impossible coordinate is bad input, not a
+// server fault - the same distinction olt_handler_crud_update.go already
+// draws for the OLT menu's own latitude/longitude fields.
+func TestMovingAnOLTBackedNodeOutOfRangeAnswers400(t *testing.T) {
+	r, svc := mappingRouter(t)
+	oltID := uuid.New()
+	_, err := svc.CreateNode(models.MappingNode{
+		NodeID: "SERVER-01", Type: models.NodeServer, Name: "OLT Satu",
+		Latitude: -6.2, Longitude: 106.8, OLTID: &oltID,
+	})
+	require.NoError(t, err)
+
+	rec := putJSON(t, r, "/api/v1/mapping/nodes/SERVER-01", gin.H{
+		"node_id": "SERVER-01", "type": "server", "name": "OLT Satu",
+		"latitude": 200, "longitude": 106.8,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 // This is the one case that actually exercises mappingError's not-found
 // branch rather than its conflict branch — nothing else in this file did.
 func TestUpdatingAMissingNodeAnswers404(t *testing.T) {
