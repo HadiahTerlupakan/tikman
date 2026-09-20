@@ -158,6 +158,35 @@ describe("NodeFormModal", () => {
     }
   });
 
+  it("asks an OLT for nothing a splitter would answer, but still asks an ODC", () => {
+    const { unmount } = render(
+      <NodeFormModal
+        open
+        type="server"
+        position={{ lat: -6.21, lng: 106.81 }}
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Jumlah slot")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Rasio splitter")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <NodeFormModal
+        open
+        type="odc"
+        position={{ lat: -6.21, lng: 106.81 }}
+        onCancel={() => {}}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(screen.getByLabelText("Jumlah slot")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rasio splitter")).toBeInTheDocument();
+  });
+
   it("keeps ONT-only fields off a non-ONT form", () => {
     render(
       <NodeFormModal

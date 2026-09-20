@@ -30,6 +30,17 @@ interface NodeFormValues {
  * because a ratio is a part someone holds in their hand, not a free number. */
 const SPLITTER_RATIOS = ["1:2", "1:4", "1:8", "1:16"];
 
+/**
+ * Only a cabinet or a distribution box fans a fibre out through a splitter.
+ * An OLT is where the fibre starts: it has no splitter, and the backend's
+ * slotKind has no case where a server is the source, so a slot count on one
+ * is never weighed against anything. Offering either field on an OLT asks
+ * for a number that cannot mean anything.
+ */
+function fansOutThroughASplitter(type: NodeType): boolean {
+  return type === "odc" || type === "odp";
+}
+
 const LATITUDE_RANGE = { min: -90, max: 90 };
 const LONGITUDE_RANGE = { min: -180, max: 180 };
 
@@ -124,6 +135,7 @@ function buildNodeFromValues(
     ? initial.nodeId
     : values.nodeId || `${effectiveType.toUpperCase()}-${Date.now()}`;
   const isOnt = effectiveType === "ont";
+  const splits = fansOutThroughASplitter(effectiveType);
 
   return {
     id: initial?.id,
@@ -132,8 +144,8 @@ function buildNodeFromValues(
     name: values.name,
     latitude: Number(values.latitude),
     longitude: Number(values.longitude),
-    capacity: isOnt ? initial?.capacity ?? 0 : values.capacity ?? 0,
-    splitter: isOnt ? initial?.splitter ?? "" : values.splitter ?? "",
+    capacity: splits ? values.capacity ?? 0 : initial?.capacity ?? 0,
+    splitter: splits ? values.splitter ?? "" : initial?.splitter ?? "",
     pppoe: isOnt ? values.pppoe ?? "" : initial?.pppoe ?? "",
     serialNumber: isOnt
       ? values.serialNumber ?? ""
@@ -212,7 +224,7 @@ export function NodeFormModal({
             }
           />
         </Form.Item>
-        {effectiveType !== "ont" && (
+        {fansOutThroughASplitter(effectiveType) && (
           <>
             <Form.Item name="capacity" label="Jumlah slot">
               <InputNumber min={0} style={{ width: "100%" }} />
