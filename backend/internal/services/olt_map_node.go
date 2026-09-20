@@ -100,6 +100,14 @@ func removeOLTMapNode(tx *gorm.DB, oltID uuid.UUID) error {
 // with ids of the same shape. Collisions are checked one at a time rather
 // than with the migration's window function, since this runs per OLT rather
 // than over a whole table at once.
+//
+// The plain "does any row already hold this node_id" check below looks like
+// the same mistake the migration's backfill made - treating a stranger's row
+// as reason enough to skip - but it is not: the only caller, createOLTMapNode,
+// runs after syncOLTMapNode has already confirmed via olt_id that *this* OLT
+// has no node yet. So a match found here can never be this OLT's own row; it
+// can only be someone else's, which is exactly the collision case, and the
+// unqualified check is correct for that reason rather than by coincidence.
 func serverNodeIDForOLT(tx *gorm.DB, olt *models.OLT) (string, error) {
 	candidate := truncateToRunes("SERVER-"+olt.Name, serverNodeIDMaxLen-serverNodeIDSuffixLen)
 

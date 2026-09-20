@@ -1,6 +1,7 @@
 package database
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -109,6 +110,53 @@ func TestBackfillTruncatesCollidingOverlongOLTNamesToDistinctNodeIDs(t *testing.
 		assert.LessOrEqualf(t, len(n.NodeID), 64, "node_id %q must fit varchar(64)", n.NodeID)
 	}
 	assert.NotEqual(t, nodes[0].NodeID, nodes[1].NodeID, "the disambiguating suffix must survive truncation")
+}
+
+// Migration 53 could not have this problem: it created mapping_nodes itself,
+// so nothing could pre-exist. This table has taken arbitrary user-typed
+// node_ids since 53 shipped - a leftover manual node (from the "+ Server"
+// button this feature replaces, say) squatting on the exact string an OLT's
+// backfill would compute must not read as "this OLT was already migrated".
+// WHERE NOT EXISTS on node_id alone cannot tell a stranger's row apart from
+// this OLT's own earlier run, and silently drops the OLT off the map with no
+// error and no signal.
+func TestBackfillGivesAnOLTItsOwnNodeEvenWhenAnUnrelatedRowSquatsOnItsNodeID(t *testing.T) {
+	db := freshPostgresBeforeMapping(t)
+	name := "OLT " + uuid.NewString()[:8]
+	squattedNodeID := "SERVER-" + name
+	require.NoError(t, db.Exec(
+		`INSERT INTO mapping_nodes (id, node_id, type, name, latitude, longitude)
+			VALUES (?, ?, 'server', 'Node lama tak terkait', -6.2, 106.8)`,
+		uuid.New(), squattedNodeID,
+	).Error)
+	lat, lon := -6.9, 107.6
+	olt := oltFixture(t, db, name, &lat, &lon)
+
+	require.NoError(t, RunSQLMigrations(db, "../../migrations"))
+
+	var node models.MappingNode
+	err := db.Where("olt_id = ?", olt.ID).First(&node).Error
+	require.NoError(t, err, "the OLT must still get its own server node even though its computed node_id was already taken")
+	assert.NotEqual(t, squattedNodeID, node.NodeID, "the OLT's node_id must be disambiguated away from the pre-existing row")
+	assert.Truef(t, strings.HasPrefix(node.NodeID, squattedNodeID),
+		"node_id %q must still start with %s", node.NodeID, squattedNodeID)
+
+	var untouched int64
+	require.NoError(t, db.Model(&models.MappingNode{}).
+		Where("node_id = ? AND olt_id IS NULL", squattedNodeID).Count(&untouched).Error)
+	assert.Equal(t, int64(1), untouched, "the pre-existing unrelated node must be left alone")
+
+	// The fix must not trade the silent-skip bug for a duplicate-row one: a
+	// straight re-run of the migration's own SQL (bypassing schema_migrations,
+	// the way a hand run against a live database might) must still be a no-op.
+	sqlBytes, err := os.ReadFile("../../migrations/55_olt_map_node.sql")
+	require.NoError(t, err)
+	for _, statement := range splitSQLStatements(string(sqlBytes)) {
+		require.NoError(t, db.Exec(statement).Error, "re-running the migration's own SQL must stay idempotent")
+	}
+	var afterRerun int64
+	require.NoError(t, db.Model(&models.MappingNode{}).Where("olt_id = ?", olt.ID).Count(&afterRerun).Error)
+	assert.Equal(t, int64(1), afterRerun, "a straight re-run must not insert a second node for the same OLT")
 }
 
 // mapping_edges resolves a feeder's source by node_id, not olt_id, so this

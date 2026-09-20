@@ -44,17 +44,46 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mapping_nodes_olt_id
 -- olts.name is varchar(255) but mapping_nodes.name is only varchar(120) - a
 -- gap odc_ids/odp_ids never had to close, since odcs.code/odps.code both
 -- already fit inside 120. left(name, 120) below is display truncation only:
--- it never touches mapped_node_id, so a long name still disambiguates on its
--- own untruncated collision count.
+-- it never touches the node_id computed below, so a long name still
+-- disambiguates on its own untruncated collision count.
+--
+-- One thing migration 53 could not hit: it created mapping_nodes itself, so
+-- nothing could pre-exist there. This table has taken arbitrary user-typed
+-- node_ids since 53 shipped, so a leftover row - a manual node from the
+-- "+ Server" button this feature replaces, or anything else - can already
+-- hold the exact string an OLT's backfill would compute. A candidate is only
+-- a genuine repeat of *this OLT's own* earlier run if some row already
+-- carries it with olt_id equal to this OLT; any other row holding it
+-- (olt_id null, or a different OLT entirely) is a collision to disambiguate,
+-- the same as two OLTs sharing a name - not evidence the work is done. Using
+-- plain node_id equality for that check, as the very first version of this
+-- migration did, reads a stranger's row as "already migrated" and drops the
+-- OLT off the map with no error and no signal - never observed in
+-- production, but real on any environment where a leftover node's name
+-- happens to match an OLT's.
+--
+-- The final WHERE NOT EXISTS mirrors the same principle for the replay guard
+-- itself: idempotency is "this OLT already has a row" (olt_id matches), not
+-- "this literal string is taken" - so a second run recognizes its own prior
+-- work regardless of which node_id it landed on, and never re-inserts.
 WITH olt_ids AS (
-    SELECT o.*,
-           left('SERVER-' || o.name, 64 - 9) || CASE
-               WHEN row_number() OVER (PARTITION BY o.name ORDER BY o.created_at, o.id) > 1
-               THEN '-' || left(o.id::text, 8) ELSE '' END AS mapped_node_id
+    SELECT o.*, left('SERVER-' || o.name, 64 - 9) AS base_node_id
     FROM olts o
     WHERE o.latitude IS NOT NULL AND o.longitude IS NOT NULL
+),
+olt_node_ids AS (
+    SELECT c.*,
+           (row_number() OVER (PARTITION BY c.name ORDER BY c.created_at, c.id) > 1
+               OR EXISTS (
+                   SELECT 1 FROM mapping_nodes m
+                   WHERE m.node_id = c.base_node_id
+                     AND (m.olt_id IS NULL OR m.olt_id <> c.id)
+               )) AS needs_suffix
+    FROM olt_ids c
 )
 INSERT INTO mapping_nodes (id, node_id, type, name, latitude, longitude, capacity, olt_id, created_at, updated_at)
-SELECT gen_random_uuid(), mapped_node_id, 'server', left(name, 120), latitude, longitude, 0, id, created_at, updated_at
-FROM olt_ids
-WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.node_id = olt_ids.mapped_node_id);
+SELECT gen_random_uuid(),
+       CASE WHEN needs_suffix THEN base_node_id || '-' || left(id::text, 8) ELSE base_node_id END,
+       'server', left(name, 120), latitude, longitude, 0, id, created_at, updated_at
+FROM olt_node_ids
+WHERE NOT EXISTS (SELECT 1 FROM mapping_nodes m WHERE m.olt_id = olt_node_ids.id);

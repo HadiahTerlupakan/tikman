@@ -283,3 +283,35 @@ func TestCreatingTwoOLTsWithTheSameNameGetsDistinctServerNodeIDs(t *testing.T) {
 	require.NotNil(t, secondNode)
 	assert.NotEqual(t, firstNode.NodeID, secondNode.NodeID)
 }
+
+// Confirms serverNodeIDForOLT's doc comment rather than just asserting it:
+// this is the live-path sibling of migrations/55_olt_map_node.sql's backfill
+// bug (a stranger's row read as "already done"). The live path never had
+// that bug, but only because createOLTMapNode's caller already ruled out
+// this OLT owning any existing node before this function ever runs - so a
+// node_id match found here is always someone else's, and must disambiguate
+// exactly like a same-named sibling OLT does.
+func TestCreatingAnOLTGetsItsOwnNodeEvenWhenAnUnrelatedRowSquatsOnItsNodeID(t *testing.T) {
+	db := setupTestDB(t)
+	siteService := NewSiteService(db)
+	oltService := NewOLTService(db, testEncryptionKey)
+	site, err := siteService.Create("Site", "Loc", "Desc")
+	require.NoError(t, err)
+	name := "OLT Diserobot"
+	squattedNodeID := "SERVER-" + name
+	require.NoError(t, db.Create(&models.MappingNode{
+		NodeID: squattedNodeID, Type: models.NodeServer, Name: "Node lama tak terkait",
+		Latitude: -6.2, Longitude: 106.8,
+	}).Error)
+
+	lat, lon := -6.9, 107.6
+	in := mapNodeOLTInput(name, &lat, &lon)
+	in.SiteID = site.ID
+	olt, err := oltService.Create(in)
+	require.NoError(t, err)
+
+	node := serverNodeFor(t, db, olt.ID)
+	require.NotNil(t, node)
+	assert.NotEqual(t, squattedNodeID, node.NodeID, "the OLT's node_id must be disambiguated away from the pre-existing row")
+	assert.True(t, strings.HasPrefix(node.NodeID, squattedNodeID))
+}
