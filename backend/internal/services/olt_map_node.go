@@ -14,18 +14,30 @@ import (
 // first 8 characters of the OLT's own id, the same shape migration
 // 55_olt_map_node.sql's backfill uses), so truncating the candidate can never
 // leave the suffix itself to be cut off instead of the name.
+//
+// mapNodeNameMaxLen mirrors mapping_nodes.name's varchar(120) - shorter than
+// olts.name's own varchar(255), the same gap migration 55_olt_map_node.sql's
+// backfill has to close with left(name, 120). Unlike the node_id truncation
+// above, an overlong display name has no suffix to protect, so it is a plain
+// cut with nothing else to reserve room for.
 const (
 	serverNodeIDMaxLen    = 64
 	serverNodeIDSuffixLen = 9
+	mapNodeNameMaxLen     = 120
 )
 
 // syncOLTMapNode keeps mapping_nodes in step with one OLT's current
-// coordinates, wherever they were just written from - the OLT menu (via
-// Create/Update below) or the map itself (MappingService.UpdateNode writes
-// the OLT row directly, so this function is never on that path, but the end
-// state - both rows agreeing - is the same either way). It must run in the
-// same transaction as the OLT write it follows, so a failure here rolls that
-// write back rather than leaving the two out of step.
+// coordinates and name, wherever they were just written from - the OLT menu
+// (via Create/Update below) or the map itself (MappingService.UpdateNode
+// writes the OLT row directly, so this function is never on that path, but
+// the end state - both rows agreeing - is the same either way). It must run
+// in the same transaction as the OLT write it follows, so a failure here
+// rolls that write back rather than leaving the two out of step.
+//
+// name is kept in sync, unlike node_id: a cable addresses this row by
+// node_id, so that one must never move once assigned, but name is only the
+// label anything reading mapping_nodes directly - the map's own node list
+// included - shows for it, and has no other source of truth to fall back on.
 func syncOLTMapNode(tx *gorm.DB, olt *models.OLT) error {
 	if olt.Latitude == nil || olt.Longitude == nil {
 		return removeOLTMapNode(tx, olt.ID)
@@ -40,7 +52,9 @@ func syncOLTMapNode(tx *gorm.DB, olt *models.OLT) error {
 		return fmt.Errorf("find map node for OLT %s: %w", olt.ID, err)
 	default:
 		if err := tx.Model(&existing).Updates(map[string]any{
-			"latitude": *olt.Latitude, "longitude": *olt.Longitude,
+			"name":      truncateToRunes(olt.Name, mapNodeNameMaxLen),
+			"latitude":  *olt.Latitude,
+			"longitude": *olt.Longitude,
 		}).Error; err != nil {
 			return fmt.Errorf("move map node for OLT %s: %w", olt.ID, err)
 		}
@@ -56,7 +70,7 @@ func createOLTMapNode(tx *gorm.DB, olt *models.OLT) error {
 		return err
 	}
 	node := models.MappingNode{
-		NodeID: nodeID, Type: models.NodeServer, Name: olt.Name,
+		NodeID: nodeID, Type: models.NodeServer, Name: truncateToRunes(olt.Name, mapNodeNameMaxLen),
 		Latitude: *olt.Latitude, Longitude: *olt.Longitude, OLTID: &olt.ID,
 	}
 	if err := tx.Create(&node).Error; err != nil {

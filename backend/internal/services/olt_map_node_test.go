@@ -130,6 +130,79 @@ func TestChangingAnOLTsCoordinatesMovesItsServerNode(t *testing.T) {
 	assert.Equal(t, newLon, moved.Longitude)
 }
 
+// name is the one label anything reading mapping_nodes directly - the map's
+// own Daftar table included - has for this row; unlike node_id (a cable
+// endpoint, frozen on purpose) or a popup that could resolve olt_id itself,
+// there is no other place for a rename to reach.
+func TestRenamingALocatedOLTRenamesItsServerNode(t *testing.T) {
+	db := setupTestDB(t)
+	siteService := NewSiteService(db)
+	oltService := NewOLTService(db, testEncryptionKey)
+	site, err := siteService.Create("Site", "Loc", "Desc")
+	require.NoError(t, err)
+	lat, lon := -6.2, 106.8
+	in := mapNodeOLTInput("OLT Nama Lama", &lat, &lon)
+	in.SiteID = site.ID
+	olt, err := oltService.Create(in)
+	require.NoError(t, err)
+	before := serverNodeFor(t, db, olt.ID)
+	require.NotNil(t, before)
+
+	err = oltService.Update(olt.ID, map[string]interface{}{"name": "OLT Nama Baru"})
+	require.NoError(t, err)
+
+	after := serverNodeFor(t, db, olt.ID)
+	require.NotNil(t, after)
+	assert.Equal(t, "OLT Nama Baru", after.Name)
+	assert.Equal(t, before.NodeID, after.NodeID, "node_id must never move even though the name does")
+}
+
+// Fix for the same overflow migration 55_olt_map_node.sql's backfill already
+// guards against: olts.name is varchar(255) but mapping_nodes.name is only
+// varchar(120). Sharing the OLT write's own transaction means an unguarded
+// rename would not just fail to update the mirror - a real Postgres "value
+// too long" error here would roll the rename itself back too.
+func TestRenamingAnOLTToAnOverlongNameTruncatesItsServerNodesName(t *testing.T) {
+	db := setupTestDB(t)
+	siteService := NewSiteService(db)
+	oltService := NewOLTService(db, testEncryptionKey)
+	site, err := siteService.Create("Site", "Loc", "Desc")
+	require.NoError(t, err)
+	lat, lon := -6.2, 106.8
+	in := mapNodeOLTInput("OLT Pendek", &lat, &lon)
+	in.SiteID = site.ID
+	olt, err := oltService.Create(in)
+	require.NoError(t, err)
+
+	err = oltService.Update(olt.ID, map[string]interface{}{"name": strings.Repeat("X", 255)})
+	require.NoError(t, err)
+
+	after := serverNodeFor(t, db, olt.ID)
+	require.NotNil(t, after)
+	assert.LessOrEqual(t, len(after.Name), 120, "name must fit mapping_nodes.name's varchar(120)")
+}
+
+// Same guard, at creation rather than on a later rename: an OLT located and
+// named at olts.name's own maximum in the same request must not fail to
+// create its mirror.
+func TestCreatingAnOLTWithAnOverlongNameTruncatesItsServerNodesName(t *testing.T) {
+	db := setupTestDB(t)
+	siteService := NewSiteService(db)
+	oltService := NewOLTService(db, testEncryptionKey)
+	site, err := siteService.Create("Site", "Loc", "Desc")
+	require.NoError(t, err)
+	lat, lon := -6.2, 106.8
+	in := mapNodeOLTInput(strings.Repeat("X", 255), &lat, &lon)
+	in.SiteID = site.ID
+
+	olt, err := oltService.Create(in)
+	require.NoError(t, err)
+
+	node := serverNodeFor(t, db, olt.ID)
+	require.NotNil(t, node)
+	assert.LessOrEqual(t, len(node.Name), 120, "name must fit mapping_nodes.name's varchar(120)")
+}
+
 // Clearing a wrongly entered position is how an operator takes an OLT back
 // off the map. Its cables are not this function's concern - migration
 // 55_olt_map_node.sql and MappingService.checkSlots already tolerate a

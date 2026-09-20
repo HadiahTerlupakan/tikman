@@ -186,6 +186,10 @@ func (s *OLTService) Update(id uuid.UUID, updates map[string]interface{}) error 
 			return err
 		}
 	}
+	// A rename has to reach the mirror too: name is the only label anything
+	// reading mapping_nodes directly has for this row, unlike node_id (frozen
+	// on purpose) or coordinates (already synced below).
+	_, hasName := updates["name"].(string)
 
 	if password, ok := updates["password"].(string); ok {
 		encryptedPassword, err := utils.Encrypt(password, strings.TrimSpace(string(s.encryptionKey)))
@@ -200,10 +204,11 @@ func (s *OLTService) Update(id uuid.UUID, updates map[string]interface{}) error 
 		if result.Error != nil {
 			return fmt.Errorf("failed to update OLT: %w", result.Error)
 		}
-		// A no-op update (id not found, or neither coordinate touched) has no
-		// map node to reconcile - matches the pre-sync behaviour of leaving an
-		// unknown id as a silent success instead of surfacing it here.
-		if result.RowsAffected == 0 || (!hasLatitude && !hasLongitude) {
+		// A no-op update (id not found, or none of coordinates/name touched)
+		// has no map node to reconcile - matches the pre-sync behaviour of
+		// leaving an unknown id as a silent success instead of surfacing it
+		// here.
+		if result.RowsAffected == 0 || (!hasLatitude && !hasLongitude && !hasName) {
 			return nil
 		}
 
