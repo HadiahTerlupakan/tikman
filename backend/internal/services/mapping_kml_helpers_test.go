@@ -8,11 +8,13 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
-// mustBuildKML is buildKML with the error already asserted away, for the
-// tests whose focus is the document shape rather than error handling.
+// mustBuildKML is buildKML with the error (and the skipped-cable warning)
+// already discarded, for the tests whose focus is the document shape rather
+// than error handling or the warning itself - see mapping_kml_warning_test.go
+// for the tests that read the warning return value.
 func mustBuildKML(t *testing.T, nodes []models.MappingNode, edges []models.MappingEdge) []byte {
 	t.Helper()
-	kml, err := buildKML(nodes, edges)
+	kml, _, err := buildKML(nodes, edges)
 	require.NoError(t, err)
 	return kml
 }

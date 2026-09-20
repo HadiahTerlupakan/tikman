@@ -29,6 +29,10 @@ func corsMiddleware(allowedOrigins string) gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, Cookie, X-CSRF-Token, X-Request-ID")
 			c.Header("Access-Control-Allow-Credentials", "true")
+			// Custom response headers are invisible to cross-origin JS unless
+			// listed here explicitly - the KMZ export's skipped-cable warning
+			// is the one header this app currently needs a caller to read.
+			c.Header("Access-Control-Expose-Headers", kmzWarningHeader)
 		}
 
 		if c.Request.Method == http.MethodOptions {

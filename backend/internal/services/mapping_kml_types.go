@@ -12,10 +12,16 @@ type kmlRoot struct {
 	Document kmlDocument `xml:"Document"`
 }
 
+// Description carries the one sentence naming every cable this export left
+// out for a missing endpoint, with their ids - empty on a clean export.
+// Field order (name, then description, before Style/Folder) again follows
+// ogckml22.xsd's AbstractFeatureType sequence, the same rule kmlPlacemark's
+// own comment explains.
 type kmlDocument struct {
-	Name    string      `xml:"name"`
-	Styles  []kmlStyle  `xml:"Style"`
-	Folders []kmlFolder `xml:"Folder"`
+	Name        string      `xml:"name"`
+	Description string      `xml:"description,omitempty"`
+	Styles      []kmlStyle  `xml:"Style"`
+	Folders     []kmlFolder `xml:"Folder"`
 }
 
 // kmlFolder is what keeps the sidebar navigable: one per node kind plus one

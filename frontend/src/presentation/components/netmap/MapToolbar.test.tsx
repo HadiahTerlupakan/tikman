@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MapToolbar } from "./MapToolbar";
@@ -12,10 +12,26 @@ vi.mock("@/application/hooks", () => ({
   useExportMapping: () => ({ mutateAsync, isPending: false }),
 }));
 vi.mock("./downloadFile", () => ({ downloadFile: vi.fn() }));
+// antd's message is an imperative singleton, not something a render finds in
+// the DOM reliably under jsdom - spying on it directly is what lets a click
+// assert whether the warning toast fired, without pulling in a real overlay.
+vi.mock("antd", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("antd")>();
+  return {
+    ...actual,
+    message: { ...actual.message, warning: vi.fn(), error: vi.fn() },
+  };
+});
 
 const noop = () => {};
 
 describe("MapToolbar", () => {
+  // message.warning's call history otherwise survives between tests (it is
+  // the same mock function for the whole file) - the negative assertion
+  // below ("says nothing extra") is exactly the case that would silently
+  // pass or fail depending on what an earlier test happened to trigger.
+  beforeEach(() => vi.clearAllMocks());
+
   // Hand-placing a "server" is the duplicate-OLT concept this feature
   // removes; a real OLT goes on the map through its own dedicated button.
   it("offers one button per kind of thing that goes on a map, and OLT instead of hand-placed Server", () => {
@@ -134,7 +150,7 @@ describe("MapToolbar", () => {
   it("downloads the map as a KMZ when asked", async () => {
     const { downloadFile } = await import("./downloadFile");
     const blob = new Blob(["fake kmz"]);
-    mutateAsync.mockResolvedValue(blob);
+    mutateAsync.mockResolvedValue({ blob, warning: "" });
     render(
       <MapToolbar
         placing={undefined}
@@ -151,5 +167,55 @@ describe("MapToolbar", () => {
 
     expect(mutateAsync).toHaveBeenCalled();
     expect(downloadFile).toHaveBeenCalledWith(blob, "peta-jaringan.kmz");
+  });
+
+  // A cable dropped for a missing endpoint must not disappear silently - the
+  // backend names how many and why in one sentence; this only has to relay it.
+  it("warns when the export left cables out", async () => {
+    const { message } = await import("antd");
+    const warning =
+      "1 kabel dilewati karena salah satu ujungnya sudah dihapus dari peta";
+    mutateAsync.mockResolvedValue({ blob: new Blob(["fake kmz"]), warning });
+    render(
+      <MapToolbar
+        placing={undefined}
+        onPlace={noop}
+        onPlaceOlt={noop}
+        onDrawCable={noop}
+        onCancel={noop}
+        view="map"
+        onView={noop}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Unduh KMZ/ }));
+
+    expect(message.warning).toHaveBeenCalledWith(warning);
+  });
+
+  // The other half of the same rule: a one-sided test that only checks the
+  // warning fires would still pass a version that always warns regardless of
+  // what the export actually did.
+  it("says nothing extra when the export is clean", async () => {
+    const { message } = await import("antd");
+    mutateAsync.mockResolvedValue({
+      blob: new Blob(["fake kmz"]),
+      warning: "",
+    });
+    render(
+      <MapToolbar
+        placing={undefined}
+        onPlace={noop}
+        onPlaceOlt={noop}
+        onDrawCable={noop}
+        onCancel={noop}
+        view="map"
+        onView={noop}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Unduh KMZ/ }));
+
+    expect(message.warning).not.toHaveBeenCalled();
   });
 });

@@ -42,11 +42,13 @@ export class MappingRepository {
   }
 
   // A blob, not JSON: the backend answers a .kmz archive, and the shared
-  // response interceptor knows to leave a blob response untouched.
-  async exportKmz(): Promise<Blob> {
+  // response interceptor knows to leave a blob response untouched. The
+  // warning header is absent entirely on a clean export (not present but
+  // empty), hence the "" default rather than leaving it undefined.
+  async exportKmz(): Promise<{ blob: Blob; warning: string }> {
     const res = await apiClient.get(API_ENDPOINTS.MAPPING_EXPORT, {
       responseType: "blob",
     });
-    return res.data;
+    return { blob: res.data, warning: res.headers["x-kmz-warning"] ?? "" };
   }
 }

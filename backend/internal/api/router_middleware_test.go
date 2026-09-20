@@ -68,6 +68,20 @@ func TestCORSRejectsUnconfiguredOrigin(t *testing.T) {
 	assert.Equal(t, "Origin", w.Header().Get("Vary"))
 }
 
+// The KMZ export's warning is a custom response header; without exposing it
+// explicitly, a cross-origin browser hides it from JS regardless of the
+// header actually being present on the response.
+func TestCORSExposesTheKmzWarningHeader(t *testing.T) {
+	router := newMiddlewareTestRouter(t, "http://localhost:3000")
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Contains(t, w.Header().Get("Access-Control-Expose-Headers"), "X-Kmz-Warning")
+}
+
 func TestLoginIsRateLimitedPerIP(t *testing.T) {
 	router := newMiddlewareTestRouter(t, "http://localhost:3000")
 

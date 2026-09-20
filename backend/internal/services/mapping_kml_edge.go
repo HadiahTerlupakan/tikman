@@ -29,20 +29,25 @@ type kmlWaypoint struct {
 
 // edgeFolder is the Kabel folder: every cable whose two ends still resolve
 // to a node on the map. It is left out entirely when nothing survives, the
-// same rule nodeFolder applies per node kind.
-func edgeFolder(edges []models.MappingEdge, nodesByID map[string]models.MappingNode) *kmlFolder {
+// same rule nodeFolder applies per node kind. The second return is the
+// edge_id of every cable that did not survive - the caller needs that list
+// to tell the person downloading the file that something was left out,
+// rather than producing a smaller file with no explanation.
+func edgeFolder(edges []models.MappingEdge, nodesByID map[string]models.MappingNode) (*kmlFolder, []string) {
 	var placemarks []kmlPlacemark
+	var skipped []string
 	for _, e := range edges {
 		path, ok := edgePath(e, nodesByID)
 		if !ok {
+			skipped = append(skipped, e.EdgeID)
 			continue
 		}
 		placemarks = append(placemarks, edgePlacemark(e, path))
 	}
 	if len(placemarks) == 0 {
-		return nil
+		return nil, skipped
 	}
-	return &kmlFolder{Name: "Kabel", Placemarks: placemarks}
+	return &kmlFolder{Name: "Kabel", Placemarks: placemarks}, skipped
 }
 
 // edgePath is cableMath.ts's edgePath ported to Go: the full drawn path of

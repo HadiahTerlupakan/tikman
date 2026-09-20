@@ -69,13 +69,33 @@ describe("MappingRepository", () => {
     const blob = new Blob(["fake kmz"], {
       type: "application/vnd.google-earth.kmz",
     });
-    vi.mocked(apiClient.get).mockResolvedValue({ data: blob } as never);
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: blob,
+      headers: {},
+    } as never);
 
     const result = await new MappingRepository().exportKmz();
 
     expect(apiClient.get).toHaveBeenCalledWith("/api/v1/mapping/export", {
       responseType: "blob",
     });
-    expect(result).toBe(blob);
+    expect(result.blob).toBe(blob);
+    expect(result.warning).toBe("");
+  });
+
+  // The backend leaves the header off entirely on a clean export (not
+  // present-but-empty) - a skipped cable's warning must still reach the
+  // person downloading the file, not only the description inside it.
+  it("carries the skipped-cable warning header through when present", async () => {
+    const warning =
+      "1 kabel dilewati karena salah satu ujungnya sudah dihapus dari peta";
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob(["fake kmz"]),
+      headers: { "x-kmz-warning": warning },
+    } as never);
+
+    const result = await new MappingRepository().exportKmz();
+
+    expect(result.warning).toBe(warning);
   });
 });

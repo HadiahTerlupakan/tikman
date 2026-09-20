@@ -67,10 +67,13 @@ func coordinate(lat, lng float64) string {
 }
 
 // buildKML assembles the whole document: one folder per node kind so Google
-// Earth's sidebar stays navigable, then the cables. Pure and DB-free, so the
+// Earth's sidebar stays navigable, then the cables. The second return value
+// is empty for a clean export and a one-sentence Indonesian warning
+// otherwise: a cable dropped for a missing endpoint must not disappear
+// without telling the person downloading the file. Pure and DB-free, so the
 // structural rules - coordinate order, colour, grouping, the dangling-edge
 // rule - are all testable without a database.
-func buildKML(nodes []models.MappingNode, edges []models.MappingEdge) ([]byte, error) {
+func buildKML(nodes []models.MappingNode, edges []models.MappingEdge) ([]byte, string, error) {
 	nodesByID := make(map[string]models.MappingNode, len(nodes))
 	for _, n := range nodes {
 		nodesByID[n.NodeID] = n
@@ -82,14 +85,36 @@ func buildKML(nodes []models.MappingNode, edges []models.MappingEdge) ([]byte, e
 			doc.Folders = append(doc.Folders, *folder)
 		}
 	}
-	if folder := edgeFolder(edges, nodesByID); folder != nil {
+	folder, skipped := edgeFolder(edges, nodesByID)
+	if folder != nil {
 		doc.Styles = append(doc.Styles, cableLineStyle())
 		doc.Folders = append(doc.Folders, *folder)
+	}
+	warning := skippedCablesMessage(len(skipped))
+	if warning != "" {
+		// The sentence is also what the HTTP response header carries
+		// (mapping_handler_export.go); the file additionally names which
+		// cables it is, since a downloaded header is gone the moment the
+		// file is opened later.
+		doc.Description = warning + ": " + strings.Join(skipped, ", ")
 	}
 
 	body, err := xml.MarshalIndent(kmlRoot{Xmlns: kmlNamespace, Document: doc}, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal kml: %w", err)
+		return nil, "", fmt.Errorf("marshal kml: %w", err)
 	}
-	return append([]byte(xml.Header), body...), nil
+	return append([]byte(xml.Header), body...), warning, nil
+}
+
+// skippedCablesMessage is the one sentence a technician sees when the export
+// leaves cables out - empty when nothing was skipped, since a clean export
+// must say nothing extra. "Salah satu ujungnya" (one of its ends) rather
+// than naming source/target: either end can be the one that is gone, and
+// this reads the same regardless, without requiring the reader to know the
+// word "dangling".
+func skippedCablesMessage(count int) string {
+	if count == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d kabel dilewati karena salah satu ujungnya sudah dihapus dari peta", count)
 }
