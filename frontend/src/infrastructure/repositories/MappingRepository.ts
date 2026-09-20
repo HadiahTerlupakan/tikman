@@ -40,4 +40,13 @@ export class MappingRepository {
   async deleteEdge(edgeId: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.MAPPING_EDGE(edgeId));
   }
+
+  // A blob, not JSON: the backend answers a .kmz archive, and the shared
+  // response interceptor knows to leave a blob response untouched.
+  async exportKmz(): Promise<Blob> {
+    const res = await apiClient.get(API_ENDPOINTS.MAPPING_EXPORT, {
+      responseType: "blob",
+    });
+    return res.data;
+  }
 }

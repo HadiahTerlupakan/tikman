@@ -62,4 +62,20 @@ describe("MappingRepository", () => {
       edge,
     );
   });
+
+  // The KMZ is a zip, not JSON: it must be asked for as a blob, or the shared
+  // response interceptor's camelizeKeys would silently replace it with `{}`.
+  it("asks for the export as a blob", async () => {
+    const blob = new Blob(["fake kmz"], {
+      type: "application/vnd.google-earth.kmz",
+    });
+    vi.mocked(apiClient.get).mockResolvedValue({ data: blob } as never);
+
+    const result = await new MappingRepository().exportKmz();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/api/v1/mapping/export", {
+      responseType: "blob",
+    });
+    expect(result).toBe(blob);
+  });
 });

@@ -63,3 +63,9 @@ export function useDeleteEdge() {
     onSuccess: () => qc.invalidateQueries({ queryKey: EDGES }),
   });
 }
+
+// A mutation rather than a query: exporting does not read cached state, it
+// fires a download each time it is asked for.
+export function useExportMapping() {
+  return useMutation({ mutationFn: () => repo.exportKmz() });
+}

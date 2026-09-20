@@ -119,4 +119,5 @@ export const API_ENDPOINTS = {
   MAPPING_NODE: (nodeId: string) => `/api/v1/mapping/nodes/${nodeId}`,
   MAPPING_EDGES: "/api/v1/mapping/edges",
   MAPPING_EDGE: (edgeId: string) => `/api/v1/mapping/edges/${edgeId}`,
+  MAPPING_EXPORT: "/api/v1/mapping/export",
 } as const;

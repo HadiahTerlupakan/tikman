@@ -30,11 +30,20 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+// isBinaryResponseType: humps.camelizeKeys walks an object's own enumerable
+// properties, and a Blob/ArrayBuffer has none - size/type live on the
+// prototype - so it silently replaces a binary response with `{}` instead of
+// leaving it alone. A response requested with one of these types must skip
+// the transform entirely.
+export function isBinaryResponseType(responseType?: string): boolean {
+  return responseType === "blob" || responseType === "arraybuffer";
+}
+
 // Response interceptor
 apiClient.interceptors.response.use(
   (response) => {
     // Transform response data from snake_case to camelCase
-    if (response.data) {
+    if (response.data && !isBinaryResponseType(response.config.responseType)) {
       try {
         // humps.camelizeKeys recursively processes nested objects and arrays by default
         response.data = camelizeKeys(response.data);

@@ -3,6 +3,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MapToolbar } from "./MapToolbar";
 
+// The export button's own download mechanics (useExportMapping, downloadFile)
+// are exercised by MappingRepository.test.ts and downloadFile.test.ts; this
+// file only needs to know MapToolbar asks for the mutation and hands its
+// result off, without a real QueryClient to back a live useMutation.
+const mutateAsync = vi.fn();
+vi.mock("@/application/hooks", () => ({
+  useExportMapping: () => ({ mutateAsync, isPending: false }),
+}));
+vi.mock("./downloadFile", () => ({ downloadFile: vi.fn() }));
+
 const noop = () => {};
 
 describe("MapToolbar", () => {
@@ -116,5 +126,30 @@ describe("MapToolbar", () => {
     expect(
       screen.queryByRole("button", { name: /OLT/ }),
     ).not.toBeInTheDocument();
+  });
+
+  // Small and unobtrusive: available next to the Peta/Daftar toggle
+  // regardless of what is being placed, since exporting does not conflict
+  // with an in-progress placement.
+  it("downloads the map as a KMZ when asked", async () => {
+    const { downloadFile } = await import("./downloadFile");
+    const blob = new Blob(["fake kmz"]);
+    mutateAsync.mockResolvedValue(blob);
+    render(
+      <MapToolbar
+        placing={undefined}
+        onPlace={noop}
+        onPlaceOlt={noop}
+        onDrawCable={noop}
+        onCancel={noop}
+        view="map"
+        onView={noop}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Unduh KMZ/ }));
+
+    expect(mutateAsync).toHaveBeenCalled();
+    expect(downloadFile).toHaveBeenCalledWith(blob, "peta-jaringan.kmz");
   });
 });

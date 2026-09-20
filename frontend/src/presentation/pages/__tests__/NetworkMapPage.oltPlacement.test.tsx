@@ -54,6 +54,9 @@ vi.mock("@/application/hooks", () => ({
     mapId: "test-map",
     isLoading: false,
   }),
+  // MapToolbar's own export button; its download mechanics are covered by
+  // MapToolbar.test.tsx, downloadFile.test.ts and MappingRepository.test.ts.
+  useExportMapping: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 interface MockCanvasProps {
