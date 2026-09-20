@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Alert, Skeleton, Space, message } from "antd";
-import { Link } from "react-router-dom";
+import { Space, message } from "antd";
 import type {
   FiberType,
   MappingEdge,
   MappingNode,
-  NodeType,
   Waypoint,
 } from "@/domain/entities";
 import {
@@ -23,27 +21,33 @@ import { PageHeader } from "../components/common";
 import { CableDrawControls } from "../components/netmap/CableDrawControls";
 import { cablePath, metersAlong } from "../components/netmap/cableMath";
 import { CountCards } from "../components/netmap/CountCards";
-import { EdgeList } from "../components/netmap/EdgeList";
-import { MapCanvas } from "../components/netmap/MapCanvas";
 import {
   errorMessage,
+  INVALID_COORDINATES_MESSAGE,
   isEdgeExists,
+  isInvalidCoordinates,
   isNodeExists,
   isNodeInUse,
+  isNodeMirrorsOlt,
   missingEndpointMessage,
 } from "../components/netmap/mappingErrors";
-import { MapToolbar, type MapView } from "../components/netmap/MapToolbar";
+import {
+  MapToolbar,
+  type MapView,
+  type Placing,
+} from "../components/netmap/MapToolbar";
+import { NetworkMapBody } from "../components/netmap/NetworkMapBody";
 import {
   NetworkMapModals,
   type NodeFormTarget,
   type PendingCable,
 } from "../components/netmap/NetworkMapModals";
-import { NodeList } from "../components/netmap/NodeList";
 import { useCableDraw } from "../components/netmap/useCableDraw";
 import { useMapSelection } from "../components/netmap/useMapSelection";
+import { useOltPlacement } from "../components/netmap/useOltPlacement";
 
 export function NetworkMapPage() {
-  const { data: nodes = [] } = useMappingNodes();
+  const { data: nodes = [], refetch: refetchNodes } = useMappingNodes();
   const { data: edges = [] } = useMappingEdges();
   const createNode = useCreateNode();
   const updateNode = useUpdateNode();
@@ -56,23 +60,30 @@ export function NetworkMapPage() {
   const selection = useMapSelection();
 
   const [view, setView] = useState<MapView>("map");
-  const [placing, setPlacing] = useState<NodeType | "cable">();
+  const [placing, setPlacing] = useState<Placing>();
   const [formTarget, setFormTarget] = useState<NodeFormTarget>();
   const [pendingCable, setPendingCable] = useState<PendingCable>();
   const [editingEdge, setEditingEdge] = useState<MappingEdge>();
+  const oltPlacement = useOltPlacement(setPlacing, refetchNodes);
 
   const stopPlacing = () => {
     setPlacing(undefined);
     setFormTarget(undefined);
     setPendingCable(undefined);
+    oltPlacement.cancel();
     cable.cancel();
   };
 
-  // A tap on the map means "put a node here" while placing a node, and "one
-  // more corner" while a cable is being traced.
+  // A tap on the map means "put a node here" while placing a node, "one more
+  // corner" while a cable is being traced, and "here is where this OLT sits"
+  // while an OLT is armed.
   const tapped = (point: Waypoint) => {
     if (placing === "cable") {
       cable.addPoint(point);
+      return;
+    }
+    if (placing === "olt") {
+      oltPlacement.drop(point);
       return;
     }
     if (placing) {
@@ -171,11 +182,15 @@ export function NetworkMapPage() {
       setPlacing(undefined);
     } catch (error) {
       // Mirrors saveCable: a duplicate id is its own plain-language message,
-      // not indistinguishable from a network error.
+      // and so is a mirror node's coordinates falling outside the range the
+      // OLT record itself enforces (UpdateNode's validateCoordinates) —
+      // neither is indistinguishable from a plain network error.
       message.error(
         isNodeExists(error)
           ? "Kode node sudah dipakai, gunakan kode lain"
-          : "Gagal menyimpan node",
+          : isInvalidCoordinates(error)
+            ? INVALID_COORDINATES_MESSAGE
+            : "Gagal menyimpan node",
       );
     }
   };
@@ -187,10 +202,14 @@ export function NetworkMapPage() {
     try {
       await deleteNode.mutateAsync(nodeId);
     } catch (error) {
-      // DeleteNode refuses with 409 NODE_IN_USE, naming how many ONTs still
-      // point at this node — that has to reach the operator as itself.
+      // DeleteNode refuses a mirror node with NODE_MIRRORS_OLT and a node
+      // still in use with NODE_IN_USE (naming how many ONTs) — both already
+      // carry the right plain-language explanation, unlike an unrelated
+      // failure.
       message.error(
-        isNodeInUse(error) ? errorMessage(error) : "Gagal menghapus node",
+        isNodeMirrorsOlt(error) || isNodeInUse(error)
+          ? errorMessage(error)
+          : "Gagal menghapus node",
       );
     }
   };
@@ -265,6 +284,7 @@ export function NetworkMapPage() {
       <MapToolbar
         placing={placing}
         onPlace={setPlacing}
+        onPlaceOlt={oltPlacement.arm}
         onDrawCable={() => setPlacing("cable")}
         onCancel={stopPlacing}
         view={view}
@@ -278,62 +298,36 @@ export function NetworkMapPage() {
           onFinish={finishRedraw}
         />
       )}
-      {view === "map" ? (
-        keyLoading ? (
-          <Skeleton active paragraph={{ rows: 8 }} title={false} />
-        ) : !key ? (
-          <Alert
-            type="info"
-            showIcon
-            message="Kunci API Google Maps belum diatur"
-            description={
-              <span>
-                Peta tidak bisa digambar tanpa kunci. Tambahkan di{" "}
-                <Link to="/settings">Pengaturan</Link>.
-              </span>
-            }
-          />
-        ) : (
-          <MapCanvas
-            nodes={nodes}
-            edges={edges}
-            tracing={{
-              draft: cable.points,
-              fromNodeId: cable.from,
-              redrawingEdgeId: cable.redrawing?.edgeId,
-            }}
-            placing={placing}
-            apiKey={key}
-            mapId={mapId}
-            onDrop={tapped}
-            onNodeClick={nodeTapped}
-            onEdgeClick={edgeTapped}
-            popup={{
-              selectedNode: selection.node,
-              selectedEdge: selection.edge,
-              onClose: selection.clear,
-              actions: {
-                onEditNode: editNode,
-                onDeleteNode: removeNode,
-                onEditEdge: editEdge,
-                onRedrawEdge: redrawEdge,
-                onDeleteEdge: removeEdge,
-              },
-            }}
-          />
-        )
-      ) : (
-        <Space direction="vertical" style={{ width: "100%" }} size="middle">
-          <NodeList nodes={nodes} onEdit={editNode} onDelete={removeNode} />
-          <EdgeList
-            edges={edges}
-            onEdit={editEdge}
-            onRedraw={redrawEdge}
-            onDelete={removeEdge}
-          />
-        </Space>
-      )}
-      <CountCards nodes={nodes} />
+      <NetworkMapBody
+        view={view}
+        keyLoading={keyLoading}
+        apiKey={key}
+        mapId={mapId}
+        nodes={nodes}
+        edges={edges}
+        tracing={{
+          draft: cable.points,
+          fromNodeId: cable.from,
+          redrawingEdgeId: cable.redrawing?.edgeId,
+        }}
+        placing={placing}
+        onDrop={tapped}
+        onNodeClick={nodeTapped}
+        onEdgeClick={edgeTapped}
+        popup={{
+          selectedNode: selection.node,
+          selectedEdge: selection.edge,
+          onClose: selection.clear,
+          actions: {
+            onEditNode: editNode,
+            onDeleteNode: removeNode,
+            onEditEdge: editEdge,
+            onRedrawEdge: redrawEdge,
+            onDeleteEdge: removeEdge,
+          },
+        }}
+      />
+      <CountCards nodes={nodes} olts={oltPlacement.olts} />
       <NetworkMapModals
         formTarget={formTarget}
         onCancelForm={() => setFormTarget(undefined)}
@@ -344,6 +338,10 @@ export function NetworkMapPage() {
         editingEdge={editingEdge}
         onCancelEdge={() => setEditingEdge(undefined)}
         onSubmitEdge={saveEdge}
+        oltPlacement={oltPlacement.target}
+        unplacedOlts={oltPlacement.unplaced}
+        onCancelOltPlacement={oltPlacement.cancel}
+        onSubmitOltPlacement={oltPlacement.submit}
       />
     </Space>
   );

@@ -53,8 +53,12 @@ const updateEdgeMutateAsync = vi.hoisted(() => vi.fn());
 const deleteEdgeMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("@/application/hooks", () => ({
-  useMappingNodes: () => ({ data: nodes, isLoading: false }),
+  useMappingNodes: () => ({ data: nodes, isLoading: false, refetch: vi.fn() }),
   useMappingEdges: () => ({ data: edges, isLoading: false }),
+  // This suite never places an OLT; an empty fleet keeps that button a
+  // no-op (see NetworkMapPage.oltPlacement.test.tsx for the real flow).
+  useOlts: () => ({ data: [], isLoading: false }),
+  useUpdateOlt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateNode: () => ({
     mutateAsync: createNodeMutateAsync,
     isPending: false,

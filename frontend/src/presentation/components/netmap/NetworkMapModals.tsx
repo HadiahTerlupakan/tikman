@@ -3,11 +3,13 @@ import type {
   MappingEdge,
   MappingNode,
   NodeType,
+  Olt,
   Waypoint,
 } from "@/domain/entities";
 import { CableTypeModal } from "./CableTypeModal";
 import { EdgeFormModal } from "./EdgeFormModal";
 import { NodeFormModal } from "./NodeFormModal";
+import { OltPlacementModal } from "./OltPlacementModal";
 
 // What the node form is doing right now: adding a freshly tapped point.
 // `initial` is set later (editing) once the list view or a map popup opens it.
@@ -26,6 +28,12 @@ export interface PendingCable {
   distance: number;
 }
 
+// What the OLT-placement form is doing right now: a map tap fixed a
+// position, and only which OLT it belongs to remains to be asked.
+export interface OltPlacementTarget {
+  position: Waypoint;
+}
+
 interface NetworkMapModalsProps {
   formTarget?: NodeFormTarget;
   onCancelForm: () => void;
@@ -36,6 +44,11 @@ interface NetworkMapModalsProps {
   editingEdge?: MappingEdge;
   onCancelEdge: () => void;
   onSubmitEdge: (edge: MappingEdge) => void;
+  oltPlacement?: OltPlacementTarget;
+  /** OLTs with no coordinates yet — the only ones there is anything to place. */
+  unplacedOlts: Olt[];
+  onCancelOltPlacement: () => void;
+  onSubmitOltPlacement: (oltId: string) => void;
 }
 
 /**
@@ -54,6 +67,10 @@ export function NetworkMapModals({
   editingEdge,
   onCancelEdge,
   onSubmitEdge,
+  oltPlacement,
+  unplacedOlts,
+  onCancelOltPlacement,
+  onSubmitOltPlacement,
 }: NetworkMapModalsProps) {
   return (
     <>
@@ -80,6 +97,15 @@ export function NetworkMapModals({
           initial={editingEdge}
           onCancel={onCancelEdge}
           onSubmit={onSubmitEdge}
+        />
+      )}
+      {oltPlacement && (
+        <OltPlacementModal
+          open
+          position={oltPlacement.position}
+          olts={unplacedOlts}
+          onCancel={onCancelOltPlacement}
+          onSubmit={onSubmitOltPlacement}
         />
       )}
     </>

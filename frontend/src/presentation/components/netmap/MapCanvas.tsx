@@ -4,15 +4,11 @@ import {
   Map,
   Polyline,
 } from "@vis.gl/react-google-maps";
-import type {
-  MappingEdge,
-  MappingNode,
-  NodeType,
-  Waypoint,
-} from "@/domain/entities";
+import type { MappingEdge, MappingNode, Waypoint } from "@/domain/entities";
 import { edgePath } from "./cableMath";
 import { NODE_COLORS } from "./mappingLabels";
 import { SelectedPopups, type PopupState } from "./MapCanvasPopups";
+import type { Placing } from "./MapToolbar";
 
 // Where the map opens when there is nothing on it yet.
 const FALLBACK_CENTER = { lat: -6.2, lng: 106.816 };
@@ -51,7 +47,7 @@ interface MapCanvasProps {
   edges: MappingEdge[];
   tracing: TracingState;
   /** What a map click means: place this kind of box, trace a cable, or nothing. */
-  placing: NodeType | "cable" | undefined;
+  placing: Placing | undefined;
   apiKey: string;
   mapId?: string;
   onDrop: (point: Waypoint) => void;
@@ -64,7 +60,7 @@ interface MapCanvasProps {
  * on what is armed; with nothing armed, a bare click is not a drop. */
 function dropAt(
   latLng: { lat: number; lng: number } | null,
-  placing: NodeType | "cable" | undefined,
+  placing: Placing | undefined,
   onDrop: (point: Waypoint) => void,
 ) {
   if (!latLng || !placing) {
@@ -122,7 +118,7 @@ interface CableLinesProps {
   draft: Waypoint[];
   fromNodeId?: string;
   redrawingEdgeId?: string;
-  placing: NodeType | "cable" | undefined;
+  placing: Placing | undefined;
   onEdgeClick: (edgeId: string) => void;
 }
 
