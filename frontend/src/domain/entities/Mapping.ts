@@ -26,6 +26,11 @@ export interface MappingNode {
   pppoe: string;
   serialNumber: string;
   notes: string;
+  /** Set only on a node that mirrors an OLT's own coordinates (backend:
+   * MappingNode.OLTID). Absent on every node placed by hand. Name and type
+   * on such a node are the OLT's, not the map's — the backend silently
+   * discards edits to either. */
+  oltId?: string;
 }
 
 export interface MappingEdge {

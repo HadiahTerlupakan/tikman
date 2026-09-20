@@ -1,9 +1,17 @@
-import { Button, Descriptions, Popconfirm, Space, Tag, Typography } from "antd";
+import { Button, Descriptions, Space, Tag, Typography } from "antd";
 import { useOdpSubscribers } from "@/application/hooks";
 import type { MappingEdge, MappingNode } from "@/domain/entities";
 import { colors } from "@/shared/theme";
 import { NODE_COLORS, NODE_LABELS } from "./mappingLabels";
+import { NodeDeleteControl } from "./NodeDeleteControl";
 import { NodeNetworkContext } from "./NodeNetworkContext";
+
+const ACTIONS_ROW_STYLE = {
+  width: "100%",
+  justifyContent: "flex-end" as const,
+  borderTop: `1px solid ${colors.border}`,
+  paddingTop: 8,
+};
 
 interface NodePopupProps {
   node: MappingNode;
@@ -43,6 +51,44 @@ function OptionalFields({ node }: { node: MappingNode }) {
         <Descriptions.Item label="Catatan">{node.notes}</Descriptions.Item>
       )}
     </Descriptions>
+  );
+}
+
+// Ubah always stays: moving a mirror node is exactly how its position gets
+// corrected, and UpdateNode already writes that back to the OLT record.
+// Whether Hapus itself is offered is NodeDeleteControl's call, not this
+// popup's — shared with NodeList so both surfaces refuse the same way.
+function NodePopupActions({
+  node,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  node: MappingNode;
+  onEdit: (node: MappingNode) => void;
+  onDelete: (nodeId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Space style={ACTIONS_ROW_STYLE} wrap>
+      <Button
+        size="small"
+        onClick={() => {
+          onEdit(node);
+          onClose();
+        }}
+      >
+        Ubah
+      </Button>
+      <NodeDeleteControl
+        node={node}
+        onDelete={(nodeId) => {
+          onDelete(nodeId);
+          onClose();
+        }}
+        onOltLinkClick={onClose}
+      />
+    </Space>
   );
 }
 
@@ -87,38 +133,12 @@ export function NodePopup({
         nodesById={nodesById}
         subscriberCount={subscribers?.length}
       />
-      <Space
-        style={{
-          width: "100%",
-          justifyContent: "flex-end",
-          borderTop: `1px solid ${colors.border}`,
-          paddingTop: 8,
-        }}
-        wrap
-      >
-        <Button
-          size="small"
-          onClick={() => {
-            onEdit(node);
-            onClose();
-          }}
-        >
-          Ubah
-        </Button>
-        <Popconfirm
-          title="Hapus node ini?"
-          okText="Ya"
-          cancelText="Tidak"
-          onConfirm={() => {
-            onDelete(node.nodeId);
-            onClose();
-          }}
-        >
-          <Button size="small" danger>
-            Hapus
-          </Button>
-        </Popconfirm>
-      </Space>
+      <NodePopupActions
+        node={node}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onClose={onClose}
+      />
     </Space>
   );
 }

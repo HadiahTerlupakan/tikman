@@ -18,6 +18,23 @@ export function isNodeInUse(error: unknown): boolean {
   return error instanceof ApiError && error.code === "NODE_IN_USE";
 }
 
+// A node that mirrors an OLT (see MappingNode.oltId) refuses DeleteNode with
+// this code; its backend message already points at the OLT menu, so it is
+// reused as-is rather than replaced with a second, competing explanation.
+export function isNodeMirrorsOlt(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "NODE_MIRRORS_OLT";
+}
+
+export function isInvalidCoordinates(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "INVALID_COORDINATES";
+}
+
+// validateCoordinates (shared by the site, OLT and mapping-node update paths)
+// answers this code in English ("latitude %v is outside -90..90"); every
+// other branch in this file either reuses Indonesian backend text as-is or
+// supplies its own, and this is the one that needs the latter.
+export const INVALID_COORDINATES_MESSAGE = "Koordinat tidak valid";
+
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Gagal menyimpan kabel";
 }

@@ -48,11 +48,20 @@ type MappingNode struct {
 	// Explicit column name: GORM's naming strategy would otherwise derive
 	// pp_po_e from this field, which nobody writing SQL against this table
 	// later would guess.
-	PPPoE        string    `gorm:"type:varchar(64);column:pppoe" json:"pppoe"`
-	SerialNumber string    `gorm:"type:varchar(64)" json:"serial_number"`
-	Notes        string    `gorm:"type:text" json:"notes"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	PPPoE        string `gorm:"type:varchar(64);column:pppoe" json:"pppoe"`
+	SerialNumber string `gorm:"type:varchar(64)" json:"serial_number"`
+	Notes        string `gorm:"type:text" json:"notes"`
+	// OLTID links a server node to the OLT it mirrors; nil for a node placed by
+	// hand. It has to be an id rather than the OLT's name: a feeder cable
+	// addresses this row by node_id, and node_id is derived from the name once
+	// and then frozen (see migrations/55_olt_map_node.sql), so only an id
+	// survives a later rename. The partial unique index is what gives an OLT
+	// at most one server node — a plain uniqueIndex would also forbid every
+	// hand-placed node from leaving this column null, since GORM has no way to
+	// say "unique, but only when set" without the where clause.
+	OLTID     *uuid.UUID `gorm:"type:uuid;uniqueIndex:idx_mapping_nodes_olt_id,where:olt_id IS NOT NULL" json:"olt_id,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 func (n *MappingNode) BeforeCreate(*gorm.DB) error {

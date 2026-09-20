@@ -53,8 +53,12 @@ const updateEdgeMutateAsync = vi.hoisted(() => vi.fn());
 const deleteEdgeMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("@/application/hooks", () => ({
-  useMappingNodes: () => ({ data: nodes, isLoading: false }),
+  useMappingNodes: () => ({ data: nodes, isLoading: false, refetch: vi.fn() }),
   useMappingEdges: () => ({ data: edges, isLoading: false }),
+  // This suite never places an OLT; an empty fleet keeps that button a
+  // no-op (see NetworkMapPage.oltPlacement.test.tsx for the real flow).
+  useOlts: () => ({ data: [], isLoading: false }),
+  useUpdateOlt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateNode: () => ({
     mutateAsync: createNodeMutateAsync,
     isPending: false,
@@ -350,6 +354,29 @@ describe("NetworkMapPage", () => {
       expect(messageError).toHaveBeenCalledWith(
         "Kode node sudah dipakai, gunakan kode lain",
       ),
+    );
+  });
+
+  // UpdateNode's coordinate check on a mirror node (mapping_nodes.go) answers
+  // this code with an English message (validateCoordinates, shared with the
+  // site/OLT forms) — it must not reach the operator verbatim.
+  it("shows an Indonesian message when a node's coordinates are refused, not the backend's English text", async () => {
+    updateNodeMutateAsync.mockRejectedValueOnce(
+      new ApiError(
+        400,
+        "INVALID_COORDINATES",
+        undefined,
+        "latitude 200 is outside -90..90",
+      ),
+    );
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByText("Daftar"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Ubah" })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+
+    await waitFor(() =>
+      expect(messageError).toHaveBeenCalledWith("Koordinat tidak valid"),
     );
   });
 });

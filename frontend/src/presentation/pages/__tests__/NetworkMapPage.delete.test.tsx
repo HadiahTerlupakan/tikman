@@ -51,8 +51,12 @@ const updateEdgeMutateAsync = vi.hoisted(() => vi.fn());
 const deleteEdgeMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("@/application/hooks", () => ({
-  useMappingNodes: () => ({ data: nodes, isLoading: false }),
+  useMappingNodes: () => ({ data: nodes, isLoading: false, refetch: vi.fn() }),
   useMappingEdges: () => ({ data: edges, isLoading: false }),
+  // This suite never places an OLT; an empty fleet keeps that button a
+  // no-op (see NetworkMapPage.oltPlacement.test.tsx for the real flow).
+  useOlts: () => ({ data: [], isLoading: false }),
+  useUpdateOlt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateNode: () => ({
     mutateAsync: createNodeMutateAsync,
     isPending: false,
@@ -174,6 +178,31 @@ describe("NetworkMapPage deletion", () => {
     await waitFor(() =>
       expect(messageError).toHaveBeenCalledWith(
         "node masih dipakai: 3 ONT masih terhubung ke ODP-01",
+      ),
+    );
+  });
+
+  // DeleteNode refuses a mirror node with NODE_MIRRORS_OLT (mapping_nodes.go)
+  // whose message already points at the OLT menu — this must reach the
+  // operator as itself, from wherever Hapus is still reachable on such a
+  // node (the Daftar table, unlike the map popup, offers no other guard).
+  it("points to the OLT menu when a node that mirrors an OLT is refused deletion", async () => {
+    deleteNodeMutateAsync.mockRejectedValueOnce(
+      new ApiError(
+        409,
+        "NODE_MIRRORS_OLT",
+        undefined,
+        "node ini mengikuti data OLT; hapus OLT-nya lewat menu OLT, bukan dari peta",
+      ),
+    );
+    render(<NetworkMapPage />);
+
+    await userEvent.click(screen.getByText("Daftar"));
+    await confirmDelete("ODC Satu");
+
+    await waitFor(() =>
+      expect(messageError).toHaveBeenCalledWith(
+        "node ini mengikuti data OLT; hapus OLT-nya lewat menu OLT, bukan dari peta",
       ),
     );
   });

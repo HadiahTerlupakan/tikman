@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -238,6 +239,45 @@ func TestDeletingAMissingEdgeAnswers404(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Contains(t, rec.Body.String(), "EDGE_NOT_FOUND")
+}
+
+// A server node mirroring an OLT must not be deletable from the map at all -
+// the same 409 family as NODE_EXISTS/SLOTS_FULL/NODE_IN_USE, but with its own
+// code so the frontend can tell "go to the OLT menu instead" apart from every
+// other conflict this endpoint answers.
+func TestDeletingAnOLTBackedNodeAnswers409WithItsOwnCode(t *testing.T) {
+	r, svc := mappingRouter(t)
+	oltID := uuid.New()
+	_, err := svc.CreateNode(models.MappingNode{
+		NodeID: "SERVER-01", Type: models.NodeServer, Name: "OLT Satu",
+		Latitude: -6.2, Longitude: 106.8, OLTID: &oltID,
+	})
+	require.NoError(t, err)
+
+	rec := deleteRequest(t, r, "/api/v1/mapping/nodes/SERVER-01")
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	assert.Equal(t, "NODE_MIRRORS_OLT", responseCode(t, rec))
+}
+
+// Moving an OLT-backed pin to an impossible coordinate is bad input, not a
+// server fault - the same distinction olt_handler_crud_update.go already
+// draws for the OLT menu's own latitude/longitude fields.
+func TestMovingAnOLTBackedNodeOutOfRangeAnswers400(t *testing.T) {
+	r, svc := mappingRouter(t)
+	oltID := uuid.New()
+	_, err := svc.CreateNode(models.MappingNode{
+		NodeID: "SERVER-01", Type: models.NodeServer, Name: "OLT Satu",
+		Latitude: -6.2, Longitude: 106.8, OLTID: &oltID,
+	})
+	require.NoError(t, err)
+
+	rec := putJSON(t, r, "/api/v1/mapping/nodes/SERVER-01", gin.H{
+		"node_id": "SERVER-01", "type": "server", "name": "OLT Satu",
+		"latitude": 200, "longitude": 106.8,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 // This is the one case that actually exercises mappingError's not-found
