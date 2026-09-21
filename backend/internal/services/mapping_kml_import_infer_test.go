@@ -93,17 +93,24 @@ func TestClassifyPlacemarksGuessesTypeFromPlacemarkName(t *testing.T) {
 	assert.Contains(t, nodes[0].Reason, "nama titik")
 }
 
-// Never guess silently: when neither the folder nor the name says anything,
-// the row must say so and stay excluded until a person picks a type.
-func TestClassifyPlacemarksLeavesTypeBlankWhenNothingMatches(t *testing.T) {
+// A distribution box outnumbers every other kind of box in this plant, so a
+// surveyed point carrying no type hint is overwhelmingly an ODP. Leaving it
+// blank made the technician pick the same value dozens of times by hand,
+// which is the work this preview exists to remove.
+//
+// The assumption is still never silent, which was the original rule's real
+// point: Reason says the type was assumed rather than read, so the operator
+// can see at a glance which rows are inferred and change the few that are
+// ODCs before committing.
+func TestClassifyPlacemarksAssumesODPWhenNothingSaysOtherwise(t *testing.T) {
 	raw := []rawPlacemark{pointPlacemark("Lokasi A", "Titik", -6.21, 106.81, nil)}
 
 	nodes, _, _ := classifyPlacemarks(raw)
 
 	require.Len(t, nodes, 1)
-	assert.Equal(t, models.NodeType(""), nodes[0].Type)
-	assert.False(t, nodes[0].Include)
-	assert.Contains(t, nodes[0].Reason, "manual")
+	assert.Equal(t, models.NodeODP, nodes[0].Type)
+	assert.True(t, nodes[0].Include)
+	assert.Contains(t, nodes[0].Reason, "dianggap ODP")
 }
 
 func TestClassifyPlacemarksFlagsUnsupportedShapeAsIssue(t *testing.T) {

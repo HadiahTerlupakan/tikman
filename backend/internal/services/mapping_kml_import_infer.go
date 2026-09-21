@@ -108,7 +108,13 @@ func nodeFromGuess(rp rawPlacemark) ImportedNode {
 	if t, why := guessNodeType(rp.Folder, pm.Name); t != "" {
 		n.Type, n.Reason = t, why
 	} else {
-		n.Reason = "Tidak ada info jenis pada folder maupun nama titik; pilih manual"
+		// An ODP outnumbers every other box in this plant, so an unlabelled
+		// survey point is overwhelmingly one, and leaving it blank made an
+		// operator pick the same value dozens of times by hand. The guess is
+		// still stated rather than hidden: Reason marks the row as assumed,
+		// which is what keeps this from presenting a guess as a fact.
+		n.Type = models.NodeODP
+		n.Reason = "Folder maupun nama titik tidak menyebut jenis; dianggap ODP - ubah bila ODC"
 	}
 	return n
 }
