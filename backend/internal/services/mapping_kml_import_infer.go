@@ -23,8 +23,13 @@ const nearestNodeThresholdMeters = 30.0
 // it connects (file order is never guaranteed) can still be matched against
 // all of them - see classifyEdge.
 func classifyPlacemarks(raw []rawPlacemark) ([]ImportedNode, []ImportedEdge, []ImportIssue) {
-	var nodes []ImportedNode
-	var issues []ImportIssue
+	// Built with make rather than declared nil, like edges below: these three
+	// are marshalled straight to the browser, and encoding/json writes a nil
+	// slice as null. The preview reads .length on each one, so a null is a
+	// TypeError rather than a zero - and Issues is nil exactly when a file
+	// resolved perfectly, which made the cleanest import the one that broke.
+	nodes := make([]ImportedNode, 0, len(raw))
+	issues := make([]ImportIssue, 0)
 	var pendingEdges []struct {
 		row  int
 		rp   rawPlacemark
