@@ -74,11 +74,12 @@ const (
 	maxKMLNestingDepth = 64
 
 	// maxKMLPlacemarks caps how many placemarks one import will carry into
-	// memory and render in the preview - both tables show every row with no
-	// pagination, so this is a DOM row count as much as a memory bound. It
-	// also bounds classifyEdge's own nearest-node search, which is O(nodes x
-	// edges without ExtendedData): measured at roughly 613s of CPU from a
-	// file that zips to 65 KiB when this was 200,000.
+	// memory and render in the preview - a memory bound, and (see
+	// ImportNodesTable.tsx/ImportEdgesTable.tsx's own PREVIEW_PAGE_SIZE) no
+	// longer a DOM row count, now that both tables paginate. It also bounds
+	// classifyEdge's own nearest-node search, which is O(nodes x edges
+	// without ExtendedData): measured at roughly 613s of CPU from a file
+	// that zips to 65 KiB when this was 200,000.
 	//
 	// 2,000 counted nodes and edges together with no headroom for a real
 	// network's second half: a plant with as many nodes as this constant's
@@ -99,10 +100,19 @@ const (
 	// higher value would (16 MiB comfortably holds far more than 5,000 of
 	// this system's own ~1KB placemarks) - that would need the guess path's
 	// O(nodes) nearestNode search restructured to not scale quadratically
-	// with the total, a larger change than this round's own scope. Nor does
-	// it address antd's Table rendering 5,000 rows with no pagination in
-	// the browser, un-measured here and accepted as a smaller version of a
-	// trade-off this cap already made at 2,000.
+	// with the total, a larger change than this round's own scope.
+	//
+	// What this comment got wrong the first time: it called the two
+	// preview tables rendering up to 5,000 rows with no pagination "a
+	// smaller version of a trade-off this cap already made at 2,000" -
+	// un-measured, and wrong. Measured in a real browser at 2,500 nodes +
+	// 2,500 edges: one keystroke in any field cost 7,691-10,113 ms, because
+	// every row re-rendered on every change, not merely 2,500 rows'-worth
+	// of ordinary render cost. Keystroke cost had already reached 1,101 ms
+	// at the old 2,000-row cap - not this round's regression - but calling
+	// 2,500 rows "a smaller version" of that understated an input the
+	// table's own re-render behaviour made superlinear, not proportional.
+	// Both tables now paginate (PREVIEW_PAGE_SIZE, 50 rows/page) instead.
 	maxKMLPlacemarks = 5000
 
 	// maxExtendedDataFields caps how many <Data> rows one placemark's own

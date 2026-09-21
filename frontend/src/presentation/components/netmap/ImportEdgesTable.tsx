@@ -4,6 +4,11 @@ import { FIBER_OPTIONS } from "./mappingLabels";
 
 type OnChange = (row: number, patch: Partial<ImportedEdge>) => void;
 
+// See ImportNodesTable.tsx's own PREVIEW_PAGE_SIZE for the measurement
+// behind this: the same unpaginated-table cost applies here, on the same
+// screen, for the same reason.
+const PREVIEW_PAGE_SIZE = 50;
+
 interface ImportEdgesTableProps {
   edges: ImportedEdge[];
   onChange: OnChange;
@@ -89,7 +94,7 @@ export function ImportEdgesTable({ edges, onChange }: ImportEdgesTableProps) {
       rowKey="row"
       size="small"
       dataSource={edges}
-      pagination={false}
+      pagination={{ pageSize: PREVIEW_PAGE_SIZE }}
       title={() => `Kabel (${edges.length})`}
       columns={[
         includeColumn(onChange),

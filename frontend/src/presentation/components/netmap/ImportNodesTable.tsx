@@ -12,6 +12,13 @@ import { NODE_LABELS } from "./mappingLabels";
 
 type OnChange = (row: number, patch: Partial<ImportedNode>) => void;
 
+// Measured in real Chrome at 2,500 rows: unpaginated, first paint cost
+// 9,338 ms and one keystroke in any field cost 7,691-10,113 ms, because
+// antd re-renders every row on every change - pagination alone (no other
+// change) took both to the low tens of milliseconds by only ever mounting
+// one page's worth of rows.
+const PREVIEW_PAGE_SIZE = 50;
+
 interface ImportNodesTableProps {
   nodes: ImportedNode[];
   onChange: OnChange;
@@ -155,7 +162,7 @@ export function ImportNodesTable({ nodes, onChange }: ImportNodesTableProps) {
       rowKey="row"
       size="small"
       dataSource={nodes}
-      pagination={false}
+      pagination={{ pageSize: PREVIEW_PAGE_SIZE }}
       title={() => `Node (${nodes.length})`}
       columns={[
         includeColumn(onChange),
