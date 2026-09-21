@@ -143,7 +143,7 @@ export function VpnPeerFormModal({ open, peer, onClose }: Props) {
           extra="Beri nama berbeda bila satu site punya lebih dari satu POP."
           rules={[{ required: true, message: "Nama tunnel wajib diisi" }]}
         >
-          <Input placeholder="Alfa POP 1" />
+          <Input placeholder="Cakra POP 1" />
         </Form.Item>
         <Form.Item
           name="allowedIps"
