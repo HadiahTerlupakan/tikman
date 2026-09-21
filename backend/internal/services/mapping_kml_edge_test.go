@@ -137,5 +137,12 @@ func TestEdgePlacemarkExtendedDataPrecedesTheLineStringInTheRawXML(t *testing.T)
 	kabelFolder := bytes.Index(kml, []byte("<name>Kabel</name>"))
 	require.GreaterOrEqual(t, kabelFolder, 0, "the Kabel folder must exist in the export")
 	section := kml[kabelFolder:]
-	assert.Less(t, bytes.Index(section, []byte("<ExtendedData>")), bytes.Index(section, []byte("<LineString>")))
+	extendedDataIdx := bytes.Index(section, []byte("<ExtendedData>"))
+	lineStringIdx := bytes.Index(section, []byte("<LineString>"))
+	// Same trap as the node placemark's own version of this test: -1 (not
+	// found) is less than any real index, so if <ExtendedData> vanished from
+	// this placemark entirely, the assert.Less below would still pass.
+	require.GreaterOrEqual(t, extendedDataIdx, 0, "<ExtendedData> must be present in the exported placemark")
+	require.GreaterOrEqual(t, lineStringIdx, 0, "<LineString> must be present in the exported placemark")
+	assert.Less(t, extendedDataIdx, lineStringIdx)
 }

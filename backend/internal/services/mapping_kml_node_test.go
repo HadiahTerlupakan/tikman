@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
@@ -126,5 +127,13 @@ func TestNodeStylesUseTheMapsOwnColourPerType(t *testing.T) {
 func TestNodePlacemarkExtendedDataPrecedesThePointInTheRawXML(t *testing.T) {
 	kml := mustBuildKML(t, []models.MappingNode{minimalOdpNode()}, nil)
 
-	assert.Less(t, bytes.Index(kml, []byte("<ExtendedData>")), bytes.Index(kml, []byte("<Point>")))
+	extendedDataIdx := bytes.Index(kml, []byte("<ExtendedData>"))
+	pointIdx := bytes.Index(kml, []byte("<Point>"))
+	// bytes.Index returns -1 for "not found", and -1 is less than any real
+	// index - so if <ExtendedData> vanished from the output entirely, the
+	// assert.Less below would still pass. These guards make that a distinct,
+	// reported failure instead of a silent false-green.
+	require.GreaterOrEqual(t, extendedDataIdx, 0, "<ExtendedData> must be present in the exported placemark")
+	require.GreaterOrEqual(t, pointIdx, 0, "<Point> must be present in the exported placemark")
+	assert.Less(t, extendedDataIdx, pointIdx)
 }
