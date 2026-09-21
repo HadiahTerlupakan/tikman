@@ -322,12 +322,19 @@ func parseCoordinate(s string) (lat, lng float64, ok bool) {
 	return latVal, lngVal, true
 }
 
+// maxLineStringPoints bounds one cable's corners. A real one comes from a
+// technician tapping a map and is a handful to a few dozen points at most;
+// this leaves generous headroom while keeping a single mapping_edges.waypoints
+// value - loaded by ListEdges for every signed-in user on every map page -
+// from being sized by whatever a file claims a cable's route was.
+const maxLineStringPoints = 5000
+
 // parseLineString reads a LineString's space-separated coordinate tuples,
 // refusing anything with fewer than the two a line must have to mean
-// anything.
+// anything, or more than maxLineStringPoints.
 func parseLineString(s string) ([]kmlWaypoint, bool) {
 	fields := strings.Fields(s)
-	if len(fields) < 2 {
+	if len(fields) < 2 || len(fields) > maxLineStringPoints {
 		return nil, false
 	}
 	points := make([]kmlWaypoint, 0, len(fields))

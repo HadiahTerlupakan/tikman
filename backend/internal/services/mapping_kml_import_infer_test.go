@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -178,6 +179,35 @@ func TestClassifyPlacemarksFlagsDegenerateLineStringAsIssue(t *testing.T) {
 
 	assert.Empty(t, edges)
 	require.Len(t, issues, 1)
+}
+
+// A cable's corners come from a technician tapping a map - a real route
+// never has more than a few dozen. Nothing bounded how many a LineString
+// could carry: at maxKMLPlacemarks, one cable whose coordinate list runs to
+// the KML byte cap marshals into a single mapping_edges.waypoints value of
+// a comparable size, which then loads on every map page for every
+// signed-in user - ListEdges has no per-row limit.
+func TestParseLineStringRefusesTooManyPoints(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i <= maxLineStringPoints; i++ {
+		b.WriteString("0,0,0 ")
+	}
+
+	_, ok := parseLineString(b.String())
+
+	assert.False(t, ok)
+}
+
+func TestParseLineStringAcceptsExactlyTheCap(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < maxLineStringPoints; i++ {
+		b.WriteString("0,0,0 ")
+	}
+
+	points, ok := parseLineString(b.String())
+
+	assert.True(t, ok)
+	assert.Len(t, points, maxLineStringPoints)
 }
 
 // Mirrors edgeExtendedData in mapping_kml_edge.go exactly, including that
