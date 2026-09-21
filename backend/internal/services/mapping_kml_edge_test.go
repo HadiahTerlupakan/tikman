@@ -1,9 +1,11 @@
 package services
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/datatypes"
 )
@@ -113,4 +115,27 @@ func TestEdgeDescriptionIncludesNotesOnlyWhenSet(t *testing.T) {
 	assert.NotContains(t, barePm.Description, "Catatan")
 	assert.Contains(t, notedPm.Description, "Jenis: Drop")
 	assert.Contains(t, notedPm.Description, "Catatan: sudah diperbaiki")
+}
+
+// The regression this export already shipped once: kmlPlacemark's field
+// order is not free choice (its own doc comment explains why), but nothing
+// before this asserted on it directly - a struct that round-trips happily
+// through Go's own decoder can still be invalid against the real OGC
+// schema, since encoding/xml matches by tag name, not position. Checked on
+// the raw bytes, not the decoded struct: unmarshalling into kmlRoot would
+// succeed either way and so could never catch this by construction.
+//
+// Scoped to the Kabel folder onward, not the whole document: fixtureNodes'
+// own placemarks carry ExtendedData too, ahead of this one in the file, so
+// a plain whole-document index comparison would find their ExtendedData
+// and this edge's LineString and could pass by accident regardless of
+// this placemark's own field order.
+func TestEdgePlacemarkExtendedDataPrecedesTheLineStringInTheRawXML(t *testing.T) {
+	edge := models.MappingEdge{EdgeID: "E-1", Source: "ODC-01", Target: "ODP-01"}
+	kml := mustBuildKML(t, fixtureNodes(), []models.MappingEdge{edge})
+
+	kabelFolder := bytes.Index(kml, []byte("<name>Kabel</name>"))
+	require.GreaterOrEqual(t, kabelFolder, 0, "the Kabel folder must exist in the export")
+	section := kml[kabelFolder:]
+	assert.Less(t, bytes.Index(section, []byte("<ExtendedData>")), bytes.Index(section, []byte("<LineString>")))
 }

@@ -108,11 +108,25 @@ func TestCommitImportEnforcesCapacityAcrossEdgesInTheSameBatch(t *testing.T) {
 	assert.Empty(t, edgesGot)
 }
 
-func TestCommitImportRefusesABlankFiberType(t *testing.T) {
+// Named for what it actually passes: a garbage value, not a blank one - a
+// blank fibre type is deliberately allowed (isValidFiberType's own "" case),
+// the same as a cable drawn through the map UI with no type chosen yet. A
+// test named after the behaviour it does not exercise is worse than no test.
+func TestCommitImportRefusesAnInvalidFiberType(t *testing.T) {
 	s := mappingSetup(t)
 	edge := includedEdge("E-1", "ODC-01", "ODP-01", models.FiberType("bukan-jenis"))
 
 	_, err := s.CommitImport(nil, []ImportedEdge{edge})
 
 	require.ErrorIs(t, err, ErrImportInvalid)
+}
+
+func TestCommitImportAcceptsABlankFiberType(t *testing.T) {
+	s := mappingSetup(t)
+	edge := includedEdge("E-1", "ODC-01", "ODP-01", "")
+
+	result, err := s.CommitImport(nil, []ImportedEdge{edge})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.EdgesCreated)
 }

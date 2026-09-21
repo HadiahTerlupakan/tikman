@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/google/uuid"
@@ -113,4 +114,17 @@ func TestNodeStylesUseTheMapsOwnColourPerType(t *testing.T) {
 	if assert.NotNil(t, style) && assert.NotNil(t, style.IconStyle) {
 		assert.Equal(t, kmlColor("#8b5cf6"), style.IconStyle.Color)
 	}
+}
+
+// The regression this export already shipped once: kmlPlacemark's field
+// order is not free choice (its own doc comment explains why), but nothing
+// before this asserted on it directly - a struct that round-trips happily
+// through Go's own decoder can still be invalid against the real OGC
+// schema, since encoding/xml matches by tag name, not position. Checked on
+// the raw bytes, not the decoded struct: unmarshalling into kmlRoot would
+// succeed either way and so could never catch this by construction.
+func TestNodePlacemarkExtendedDataPrecedesThePointInTheRawXML(t *testing.T) {
+	kml := mustBuildKML(t, []models.MappingNode{minimalOdpNode()}, nil)
+
+	assert.Less(t, bytes.Index(kml, []byte("<ExtendedData>")), bytes.Index(kml, []byte("<Point>")))
 }
