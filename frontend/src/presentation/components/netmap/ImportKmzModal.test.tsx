@@ -197,6 +197,30 @@ describe("ImportKmzModal", () => {
     });
   });
 
+  // Every imported node lands at capacity 0, which checkSlots reads as
+  // "nobody has counted the ports yet" and never enforces - a capacity
+  // nobody can see or set in the preview is a capacity rule that never
+  // applies to anything imported.
+  it("shows the node's capacity and commits a value entered for it", async () => {
+    previewMutateAsync.mockResolvedValue(
+      previewWith([baseNode({ capacity: 0 })]),
+    );
+    commitMutateAsync.mockResolvedValue({ nodesCreated: 1, edgesCreated: 0 });
+    render(<ImportKmzModal open onClose={vi.fn()} />);
+    await uploadAndPreview();
+
+    const capacityInput = screen.getByDisplayValue("0");
+    fireEvent.change(capacityInput, { target: { value: "8" } });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Simpan ke Peta" }),
+    );
+
+    expect(commitMutateAsync).toHaveBeenCalledWith({
+      nodes: [expect.objectContaining({ capacity: 8 })],
+      edges: [],
+    });
+  });
+
   it("surfaces unsupported placemarks as issues rather than dropping them silently", async () => {
     previewMutateAsync.mockResolvedValue({
       nodes: [],

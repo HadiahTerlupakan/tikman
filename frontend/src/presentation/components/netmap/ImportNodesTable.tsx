@@ -106,6 +106,26 @@ function coordinateColumn(
   };
 }
 
+// Nothing about a bare KML placemark says how many ports a box has, so
+// capacity is never guessed - it always arrives at 0, which checkSlots
+// reads as "nobody has counted the ports yet" and never enforces it.
+// Editable here is the only way an imported ODP's capacity rule ever
+// applies to anything: it cannot be inferred, only entered by a person.
+function capacityColumn(onChange: OnChange) {
+  return {
+    title: "Kapasitas",
+    render: (_: unknown, row: ImportedNode) => (
+      <InputNumber
+        size="small"
+        min={0}
+        style={{ width: 80 }}
+        value={row.capacity}
+        onChange={(value) => onChange(row.row, { capacity: value ?? 0 })}
+      />
+    ),
+  };
+}
+
 /**
  * The node half of the import preview: every Point placemark found, with
  * what TikMan believes it is and why (mapping_kml_import_infer.go on the
@@ -131,6 +151,7 @@ export function ImportNodesTable({ nodes, onChange }: ImportNodesTableProps) {
         { title: "Nama", dataIndex: "name" },
         coordinateColumn("Lintang", "latitude", onChange),
         coordinateColumn("Bujur", "longitude", onChange),
+        capacityColumn(onChange),
         {
           title: "Alasan / Konflik",
           render: (_: unknown, row: ImportedNode) => reasonCell(row),
