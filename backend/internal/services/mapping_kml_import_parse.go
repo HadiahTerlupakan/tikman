@@ -27,11 +27,21 @@ const (
 	// either shape by the same ~20x this shrinks the byte budget. That is not
 	// the same as a 20x cut in the resulting memory, though: measured
 	// (TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier),
-	// the <Data>-row shape costs a stable ~1,015 bytes of allocation per row
-	// regardless of scale, so its worst case at this cap is roughly 124 MiB,
-	// not 472 MiB / 20 - a large improvement on the pre-fix figure, but not a
-	// clean ratio, since encoding/xml's struct decode has more per-element
-	// overhead than the pure token-skipping the sibling-element shape uses.
+	// the <Data>-row shape costs a stable ~1,015 bytes of cumulative
+	// allocation per row regardless of scale, so its worst case at this cap
+	// is roughly 124 MiB of TotalAlloc - a large improvement on the pre-fix
+	// figure, but not a clean ratio, since encoding/xml's struct decode has
+	// more per-element overhead than the pure token-skipping the
+	// sibling-element shape uses. That 124 MiB is cumulative allocation, not
+	// what is actually live at once: sampled directly during the operation
+	// (not after - a GC can reclaim the decode's own transient garbage
+	// before a snapshot taken afterwards would see it), peak live heap for
+	// the same worst case measures roughly 17-24 MiB, since the rejected
+	// placemark's struct is never retained past walkStartElement's own
+	// length check. Both figures matter for different reasons: TotalAlloc is
+	// the GC churn one request causes, live heap is what it holds onto at
+	// once - stating only the first, as an earlier draft of this comment
+	// did, overstates the second by roughly 5-7x.
 	maxKMLDecompressedBytes = 5 << 20
 
 	// maxKMLNestingDepth bounds how many elements deep the walk in walkKML

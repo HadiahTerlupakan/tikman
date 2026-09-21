@@ -175,20 +175,30 @@ func TestWalkKMLRefusesTooManyExtendedDataFieldsOnOnePlacemark(t *testing.T) {
 // just under that cap can still cause. Measured here: 100,000 rows from a
 // 4,289,068-byte input (as many rows as fit under the 5 MiB cap alongside a
 // second, larger placemark elsewhere in the same file) cost 101,777,984 bytes
-// (~97 MiB), reproducibly (three runs, identical to the byte). That is a
-// roughly 24x amplification over input size, not the 4.7x the pre-fix
-// 307 KiB-to-472 MiB figure implied - encoding/xml's per-element struct
-// decode (an xml.Name plus two strings per <Data>) costs more than the
-// sibling-skipping path TestParseKMZForImportRefusesMoreThanMaxKMLDecompressedBytes's
-// own doc comment describes, and extrapolating linearly to the ~121,700 rows
-// that fit the full 5 MiB cap puts the true worst case at roughly 124 MiB -
-// large improvement over the pre-fix 472 MiB-5.2 GiB, but a hundred-odd MiB
-// transient per malicious request, not "tens of MB". Closing that further
-// would need decode-time counting (a custom UnmarshalXML, or a per-placemark
-// token budget alongside depthLimitedTokens) - a bigger change than the "if
-// it is easy" asked for here, so the threshold below is set to catch a real
-// regression (back toward the old multi-hundred-MiB or GiB shape), not to
-// assert a number nobody required.
+// (~97 MiB) of cumulative TotalAlloc, reproducibly (three runs, identical to
+// the byte). That is a roughly 24x amplification over input size, not the
+// 4.7x the pre-fix 307 KiB-to-472 MiB figure implied - encoding/xml's
+// per-element struct decode (an xml.Name plus two strings per <Data>) costs
+// more than the sibling-skipping path
+// TestParseKMZForImportRefusesMoreThanMaxKMLDecompressedBytes's own doc
+// comment describes, and extrapolating linearly to the ~121,700 rows that
+// fit the full 5 MiB cap puts the true worst case at roughly 124 MiB of
+// TotalAlloc - large improvement over the pre-fix 472 MiB-5.2 GiB.
+//
+// TotalAlloc is cumulative, not what is actually live at once: the rejected
+// placemark's struct is never retained past walkStartElement's own length
+// check, so a GC running during or shortly after the decode reclaims nearly
+// all of it. Sampled directly during the operation (a snapshot taken only
+// after it returns can already be too late), peak live heap for the same
+// ~121,700-row worst case measures roughly 17-24 MiB across repeated
+// samples - not the "hundred-odd MiB transient" an earlier draft of this
+// comment claimed by stating the cumulative figure as if it were the live
+// one. Closing the cumulative cost further would need decode-time counting
+// (a custom UnmarshalXML, or a per-placemark token budget alongside
+// depthLimitedTokens) - a bigger change than the "if it is easy" asked for
+// here, so the threshold below is set to catch a real regression (back
+// toward the old multi-hundred-MiB or GiB shape), not to assert a number
+// nobody required.
 func TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier(t *testing.T) {
 	const rows = 100_000
 	var b strings.Builder
