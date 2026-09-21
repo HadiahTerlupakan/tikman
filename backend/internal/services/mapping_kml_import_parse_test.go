@@ -67,6 +67,23 @@ func TestWalkKMLHandlesAPlacemarkWithNoFolderAtAll(t *testing.T) {
 	assert.Equal(t, "", raw[0].Folder)
 }
 
+// A <GroundOverlay> or <NetworkLink> beside the placemarks is ordinary in a
+// field survey - Google Earth uses both. Each carries its own <name>, and
+// the walk must not mistake a name two levels below the folder (its own
+// container's child) for the folder's own name one level below.
+func TestWalkKMLDoesNotLetASiblingElementsNameStealTheFoldersAttribution(t *testing.T) {
+	kml := `<kml><Document><Folder><name>ODP</name>
+<GroundOverlay><name>Overlay Foto</name></GroundOverlay>
+<Placemark><name>ODP-01</name><Point><coordinates>0,0,0</coordinates></Point></Placemark>
+</Folder></Document></kml>`
+
+	raw, err := walkKML(strings.NewReader(kml), maxKMLNestingDepth, maxKMLPlacemarks)
+
+	require.NoError(t, err)
+	require.Len(t, raw, 1)
+	assert.Equal(t, "ODP", raw[0].Folder, "the overlay's own name must not overwrite the enclosing folder's")
+}
+
 // A small, cheap stand-in for "a KML nested a thousand folders deep": the
 // production ceiling is generous (maxKMLNestingDepth), but the guard itself
 // has to fire well before that many bytes are worth allocating in a test.

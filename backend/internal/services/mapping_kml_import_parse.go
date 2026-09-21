@@ -153,6 +153,14 @@ func (d *depthLimitedTokens) Token() (xml.Token, error) {
 	return tok, nil
 }
 
+// folderFrame is one open <Folder> on walkKML's own stack, together with the
+// depth it was itself opened at - what tells "this folder's own <name>"
+// apart from a sibling container's, one level further down.
+type folderFrame struct {
+	name  string
+	depth int
+}
+
 // walkKML reads every Placemark in a KML document via an explicit token
 // loop, rather than unmarshalling the whole Folder tree in one call: KML
 // nowhere bounds how many <Folder> elements a hostile file nests, and a Go
@@ -163,9 +171,10 @@ func (d *depthLimitedTokens) Token() (xml.Token, error) {
 // inside a single Placemark's own contents, decoded through kmlPlacemark
 // via DecodeElement.
 func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
-	dec := xml.NewTokenDecoder(&depthLimitedTokens{dec: xml.NewDecoder(r), maxDepth: maxDepth})
+	tokens := &depthLimitedTokens{dec: xml.NewDecoder(r), maxDepth: maxDepth}
+	dec := xml.NewTokenDecoder(tokens)
 	var placemarks []rawPlacemark
-	var folders []string
+	var folders []folderFrame
 
 	for {
 		tok, err := dec.Token()
@@ -187,7 +196,7 @@ func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
 			continue
 		}
 
-		placemarks, err = walkStartElement(dec, start, &folders, placemarks, maxPlacemarks)
+		placemarks, err = walkStartElement(dec, start, &folders, placemarks, maxPlacemarks, tokens.depth)
 		if err != nil {
 			return nil, err
 		}
@@ -196,23 +205,28 @@ func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
 
 // walkStartElement handles the three element kinds walkKML's loop cares
 // about, kept separate so walkKML itself stays inside the project's function
-// length guideline.
+// length guideline. depth is this start element's own depth (depthLimitedTokens
+// increments before handing the token back), used to tell a folder's own
+// <name> apart from one belonging to a sibling container such as
+// <GroundOverlay> or <NetworkLink> - both ordinary in a field survey, and
+// both carry a <name> of their own one level further down than the
+// folder's, which must not overwrite it.
 func walkStartElement(
-	dec *xml.Decoder, start xml.StartElement, folders *[]string,
-	placemarks []rawPlacemark, maxPlacemarks int,
+	dec *xml.Decoder, start xml.StartElement, folders *[]folderFrame,
+	placemarks []rawPlacemark, maxPlacemarks, depth int,
 ) ([]rawPlacemark, error) {
 	switch start.Name.Local {
 	case "Folder":
-		*folders = append(*folders, "")
+		*folders = append(*folders, folderFrame{depth: depth})
 	case "name":
-		if len(*folders) == 0 {
-			return placemarks, nil // Document's own <name>, not a folder's
+		if len(*folders) == 0 || depth != (*folders)[len(*folders)-1].depth+1 {
+			return placemarks, nil // Document's own <name>, or a sibling container's
 		}
 		var value string
 		if err := dec.DecodeElement(&value, &start); err != nil {
 			return nil, fmt.Errorf("baca nama folder: %w", err)
 		}
-		(*folders)[len(*folders)-1] = value
+		(*folders)[len(*folders)-1].name = value
 	case "Placemark":
 		if len(placemarks) >= maxPlacemarks {
 			return nil, fmt.Errorf("terlalu banyak placemark dalam satu berkas (lebih dari %d)", maxPlacemarks)
@@ -226,9 +240,9 @@ func walkStartElement(
 	return placemarks, nil
 }
 
-func currentFolder(folders []string) string {
+func currentFolder(folders []folderFrame) string {
 	if len(folders) == 0 {
 		return ""
 	}
-	return folders[len(folders)-1]
+	return folders[len(folders)-1].name
 }
