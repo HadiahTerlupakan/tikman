@@ -15,7 +15,7 @@ import (
 // the tunnel they sit behind is down. Polling them anyway would mark every ONT
 // in the site offline at once, which is the false alarm commit 9d8c9ee removed.
 //
-// A site can terminate more than one tunnel: Cariu is one site with two POPs,
+// A site can terminate more than one tunnel: one site here has two POPs,
 // each behind its own router. So the peers that speak for an OLT are the ones
 // whose allowed_ips carry its address, and a POP going down says nothing about
 // the OLTs reached through the other one.

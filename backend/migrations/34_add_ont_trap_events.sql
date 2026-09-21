@@ -7,7 +7,7 @@
 -- independently, over hours rather than minutes — which container logs, being
 -- rotated, cannot support.
 --
--- Cariu alone sends about 200 traps a minute, so this table is written to
+-- A single busy OLT sends about 200 traps a minute, so this table is written to
 -- constantly and read rarely. It carries no foreign key to onts: a trap names an
 -- ONU by serial, and one that arrives for an ONU not yet registered is exactly
 -- the kind of event worth keeping.

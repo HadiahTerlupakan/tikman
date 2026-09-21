@@ -1,4 +1,4 @@
--- A site can terminate more than one tunnel. Cariu is one site with two POPs,
+-- A site can terminate more than one tunnel. One site here has two POPs,
 -- each behind its own router and its own WireGuard peer, and the uniqueness on
 -- site_id made the second one impossible to register.
 --

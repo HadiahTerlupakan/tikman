@@ -33,7 +33,7 @@ func NewONTHandler(ontService *services.ONTService, metricsService *services.Met
 
 // List handles GET /api/v1/onts
 // maxONTPageSize bounds one page of ONTs. The old cap of 500 sat below a single
-// populated chassis — Cariu carries 651 — so a caller asking for 1000 was
+// populated chassis — one here carries 651 — so a caller asking for 1000 was
 // silently answered with 500, and every page that counted the rows it received
 // understated the network without saying so. A full ZTE C320 fits inside this.
 //
