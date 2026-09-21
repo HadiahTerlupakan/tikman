@@ -246,18 +246,34 @@ func TestParseKMZForImportRefusesMoreThanMaxKMLPlacemarks(t *testing.T) {
 	assert.Contains(t, err.Error(), "placemark")
 }
 
+// Building the fixture from the constant itself (maxKMLDecompressedBytes+1)
+// tests the arithmetic in extractKML, not the value of the constant: it
+// would pass identically whether this were 5 MiB or 100 MiB. The explicit
+// equality below pins the value in the open, with a message that says what
+// to do, so a future edit to the constant has to update this test on
+// purpose rather than silently keep passing against a boundary that moved
+// out from under it.
+func TestMaxKMLDecompressedBytesIsSixteenMiB(t *testing.T) {
+	require.Equal(t, 16<<20, maxKMLDecompressedBytes,
+		"the production cap changed - update the literal byte counts in TestExtractKMLAcceptsExactlyTheProductionCapAndRefusesOneByteMore too")
+}
+
 // The production value, exercised through parseKMZForImport, the same
 // reasoning as the placemark-cap test above: 2,000 placemarks - the other
-// half of what makes 5 MiB of markup an already-generous ceiling - cannot
-// legitimately need anywhere near this much text.
-func TestParseKMZForImportRefusesMoreThanMaxKMLDecompressedBytes(t *testing.T) {
-	big := bytes.Repeat([]byte("a"), maxKMLDecompressedBytes+1)
-	kmz := buildTestKMZ(t, kmzKMLEntry, big)
+// half of what makes the byte cap an already-generous ceiling - cannot
+// legitimately need anywhere near this much text. Literal byte counts, not
+// maxKMLDecompressedBytes+1/-1: see TestMaxKMLDecompressedBytesIsSixteenMiB.
+func TestExtractKMLAcceptsExactlyTheProductionCapAndRefusesOneByteMore(t *testing.T) {
+	const sixteenMiB = 16 * 1024 * 1024
+	atCap := buildTestKMZ(t, kmzKMLEntry, bytes.Repeat([]byte("a"), sixteenMiB))
+	overCap := buildTestKMZ(t, kmzKMLEntry, bytes.Repeat([]byte("a"), sixteenMiB+1))
 
-	_, err := parseKMZForImport(kmz)
+	_, errAtCap := extractKML(atCap, maxKMLDecompressedBytes)
+	_, errOverCap := extractKML(overCap, maxKMLDecompressedBytes)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "besar")
+	assert.NoError(t, errAtCap, "exactly 16 MiB of doc.kml must be accepted by the size gate")
+	require.Error(t, errOverCap)
+	assert.Contains(t, errOverCap.Error(), "besar")
 }
 
 // Go's xml.Decoder has no DTD support: a DOCTYPE's internal <!ENTITY> subset
