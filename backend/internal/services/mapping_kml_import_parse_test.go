@@ -88,6 +88,31 @@ func TestWalkKMLRefusesNestingPastMaxDepth(t *testing.T) {
 	assert.Contains(t, err.Error(), "dalam")
 }
 
+// walkKML's own loop only ever sees the tokens between one Placemark's start
+// and end tags as a single pair - everything inside is handed to
+// dec.DecodeElement, whose unmarshalling (and Skip, for whatever kmlPlacemark
+// does not recognise) recurses on Go's own call stack, invisible to a depth
+// counter that only increments on the outer loop's own Token calls. The
+// nesting guard has to bind there too, not only on <Folder>.
+func TestWalkKMLRefusesNestingInsideAPlacemarkToo(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("<kml><Document><Folder><name>ODP</name>")
+	b.WriteString("<Placemark><name>x</name><description>")
+	for i := 0; i < 50; i++ {
+		b.WriteString("<a>")
+	}
+	for i := 0; i < 50; i++ {
+		b.WriteString("</a>")
+	}
+	b.WriteString("</description><Point><coordinates>0,0,0</coordinates></Point></Placemark>")
+	b.WriteString("</Folder></Document></kml>")
+
+	_, err := walkKML(strings.NewReader(b.String()), 10, maxKMLPlacemarks)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dalam")
+}
+
 func TestWalkKMLRefusesTooManyPlacemarks(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("<kml><Document><Folder><name>ODP</name>")

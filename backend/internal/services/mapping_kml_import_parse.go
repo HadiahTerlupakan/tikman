@@ -110,24 +110,55 @@ func findKMLEntry(zr *zip.Reader) (*zip.File, error) {
 	return nil, errors.New("KMZ tidak berisi berkas .kml")
 }
 
+// depthLimitedTokens wraps a plain *xml.Decoder as an xml.TokenReader,
+// refusing once nesting passes maxDepth. Handed to xml.NewTokenDecoder so
+// that *every* token the resulting Decoder ever reads passes through here -
+// not only the ones walkKML's own loop consumes, but also every one
+// DecodeElement and its own internal Skip read while working through a
+// single Placemark's contents. Go's unmarshal recurses on the goroutine's
+// call stack once per nesting level for exactly that content (measured: a
+// few hundred KB of nesting inside one placemark, with the outer loop's own
+// depth never above single digits, drove live heap into the hundreds of
+// megabytes with the previous version of this guard, which only counted
+// what its own loop saw). Binding the limit at the token source itself
+// closes that gap regardless of which internal call path does the
+// recursing.
+type depthLimitedTokens struct {
+	dec      *xml.Decoder
+	maxDepth int
+	depth    int
+}
+
+func (d *depthLimitedTokens) Token() (xml.Token, error) {
+	tok, err := d.dec.Token()
+	if err != nil {
+		return tok, err
+	}
+	switch tok.(type) {
+	case xml.StartElement:
+		d.depth++
+		if d.depth > d.maxDepth {
+			return nil, fmt.Errorf("struktur KML terlalu dalam (lebih dari %d level)", d.maxDepth)
+		}
+	case xml.EndElement:
+		d.depth--
+	}
+	return tok, nil
+}
+
 // walkKML reads every Placemark in a KML document via an explicit token
 // loop, rather than unmarshalling the whole Folder tree in one call: KML
 // nowhere bounds how many <Folder> elements a hostile file nests, and a Go
 // struct type that mirrored that nesting would ask encoding/xml to recurse
-// once per level on the goroutine's own call stack. depth is tracked here on
-// the heap instead, so maxDepth rejects a pathological file long before that
-// recursion would ever be attempted.
-//
-// A single Placemark's own contents are decoded through kmlPlacemark
-// (DecodeElement), which has no recursive field anywhere in its shape - an
-// attacker nesting garbage inside one placemark instead of in the folder
-// tree hits encoding/xml's own Skip, which is an iterative loop for exactly
-// this reason.
+// once per level on the goroutine's own call stack. The depth limit lives in
+// depthLimitedTokens below the Decoder itself, so it applies uniformly
+// whether the nesting is in the folder tree this loop walks directly or
+// inside a single Placemark's own contents, decoded through kmlPlacemark
+// via DecodeElement.
 func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
-	dec := xml.NewDecoder(r)
+	dec := xml.NewTokenDecoder(&depthLimitedTokens{dec: xml.NewDecoder(r), maxDepth: maxDepth})
 	var placemarks []rawPlacemark
 	var folders []string
-	depth := 0
 
 	for {
 		tok, err := dec.Token()
@@ -139,7 +170,6 @@ func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
 		}
 
 		if end, ok := tok.(xml.EndElement); ok {
-			depth--
 			if end.Name.Local == "Folder" && len(folders) > 0 {
 				folders = folders[:len(folders)-1]
 			}
@@ -150,12 +180,7 @@ func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
 			continue
 		}
 
-		depth++
-		if depth > maxDepth {
-			return nil, fmt.Errorf("struktur folder KML terlalu dalam (lebih dari %d level)", maxDepth)
-		}
-
-		placemarks, err = walkStartElement(dec, start, &folders, &depth, placemarks, maxPlacemarks)
+		placemarks, err = walkStartElement(dec, start, &folders, placemarks, maxPlacemarks)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +191,7 @@ func walkKML(r io.Reader, maxDepth, maxPlacemarks int) ([]rawPlacemark, error) {
 // about, kept separate so walkKML itself stays inside the project's function
 // length guideline.
 func walkStartElement(
-	dec *xml.Decoder, start xml.StartElement, folders *[]string, depth *int,
+	dec *xml.Decoder, start xml.StartElement, folders *[]string,
 	placemarks []rawPlacemark, maxPlacemarks int,
 ) ([]rawPlacemark, error) {
 	switch start.Name.Local {
@@ -180,7 +205,6 @@ func walkStartElement(
 		if err := dec.DecodeElement(&value, &start); err != nil {
 			return nil, fmt.Errorf("baca nama folder: %w", err)
 		}
-		*depth--
 		(*folders)[len(*folders)-1] = value
 	case "Placemark":
 		if len(placemarks) >= maxPlacemarks {
@@ -190,7 +214,6 @@ func walkStartElement(
 		if err := dec.DecodeElement(&pm, &start); err != nil {
 			return nil, fmt.Errorf("baca placemark: %w", err)
 		}
-		*depth--
 		placemarks = append(placemarks, rawPlacemark{Placemark: pm, Folder: currentFolder(*folders)})
 	}
 	return placemarks, nil
