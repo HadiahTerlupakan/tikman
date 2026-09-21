@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Checkbox, Input, Select, Table, Tag } from "antd";
 import type { FiberType, ImportedEdge } from "@/domain/entities";
 import { FIBER_OPTIONS } from "./mappingLabels";
@@ -86,6 +87,23 @@ function fiberTypeColumn(onChange: OnChange) {
 
 /** The cable half of the import preview - see ImportNodesTable for the node half. */
 export function ImportEdgesTable({ edges, onChange }: ImportEdgesTableProps) {
+  // See ImportNodesTable.tsx's own columns useMemo for why: a fresh columns
+  // array on every render defeats antd's per-row memoisation even for rows
+  // whose own data has not changed.
+  const columns = useMemo(
+    () => [
+      includeColumn(onChange),
+      textColumn("Kode", "edgeId", onChange),
+      textColumn("Sumber", "source", onChange),
+      textColumn("Tujuan", "target", onChange),
+      fiberTypeColumn(onChange),
+      {
+        title: "Alasan / Konflik",
+        render: (_: unknown, row: ImportedEdge) => reasonCell(row),
+      },
+    ],
+    [onChange],
+  );
   if (edges.length === 0) {
     return null;
   }
@@ -96,17 +114,7 @@ export function ImportEdgesTable({ edges, onChange }: ImportEdgesTableProps) {
       dataSource={edges}
       pagination={{ pageSize: PREVIEW_PAGE_SIZE }}
       title={() => `Kabel (${edges.length})`}
-      columns={[
-        includeColumn(onChange),
-        textColumn("Kode", "edgeId", onChange),
-        textColumn("Sumber", "source", onChange),
-        textColumn("Tujuan", "target", onChange),
-        fiberTypeColumn(onChange),
-        {
-          title: "Alasan / Konflik",
-          render: (_: unknown, row: ImportedEdge) => reasonCell(row),
-        },
-      ]}
+      columns={columns}
     />
   );
 }

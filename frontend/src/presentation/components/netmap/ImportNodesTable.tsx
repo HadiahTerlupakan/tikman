@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Checkbox,
   Input,
@@ -154,6 +155,28 @@ function capacityColumn(onChange: OnChange) {
  * importable, see the OLT menu instead.
  */
 export function ImportNodesTable({ nodes, onChange }: ImportNodesTableProps) {
+  // Built once per onChange identity, not once per render: antd's Table
+  // only skips re-rendering a row whose own data is unchanged if the
+  // columns array (and each column's render function) is also the same
+  // reference as last time - a fresh array of fresh closures on every
+  // render, as this was before, defeats that regardless of what pagination
+  // already fixed for the rows a person is not currently looking at.
+  const columns = useMemo(
+    () => [
+      includeColumn(onChange),
+      nodeIdColumn(onChange),
+      typeColumn(onChange),
+      { title: "Nama", dataIndex: "name" },
+      coordinateColumn("Lintang", "latitude", onChange),
+      coordinateColumn("Bujur", "longitude", onChange),
+      capacityColumn(onChange),
+      {
+        title: "Alasan / Konflik",
+        render: (_: unknown, row: ImportedNode) => reasonCell(row),
+      },
+    ],
+    [onChange],
+  );
   if (nodes.length === 0) {
     return null;
   }
@@ -164,19 +187,7 @@ export function ImportNodesTable({ nodes, onChange }: ImportNodesTableProps) {
       dataSource={nodes}
       pagination={{ pageSize: PREVIEW_PAGE_SIZE }}
       title={() => `Node (${nodes.length})`}
-      columns={[
-        includeColumn(onChange),
-        nodeIdColumn(onChange),
-        typeColumn(onChange),
-        { title: "Nama", dataIndex: "name" },
-        coordinateColumn("Lintang", "latitude", onChange),
-        coordinateColumn("Bujur", "longitude", onChange),
-        capacityColumn(onChange),
-        {
-          title: "Alasan / Konflik",
-          render: (_: unknown, row: ImportedNode) => reasonCell(row),
-        },
-      ]}
+      columns={columns}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { message } from "antd";
 import type {
   ImportedEdge,
@@ -59,15 +59,28 @@ export function useKmzImport() {
   const runPreview = (file: File) =>
     runMutation(() => previewMutation.mutateAsync(file), setPreview);
 
-  const updateNode = (row: number, patch: Partial<ImportedNode>) =>
-    setPreview((p) =>
-      p ? { ...p, nodes: patchByRow(p.nodes, row, patch) } : p,
-    );
+  // useCallback with no dependencies: both only ever call the functional
+  // form of setPreview, so neither closes over anything that changes
+  // between renders. This is what ImportNodesTable/ImportEdgesTable
+  // receive as `onChange`, threaded into every column's render function -
+  // a new identity here on every keystroke (previously: a plain function
+  // recreated on every render of this hook) forced antd's Table to treat
+  // every visible row as changed, not only the one actually edited.
+  const updateNode = useCallback(
+    (row: number, patch: Partial<ImportedNode>) =>
+      setPreview((p) =>
+        p ? { ...p, nodes: patchByRow(p.nodes, row, patch) } : p,
+      ),
+    [],
+  );
 
-  const updateEdge = (row: number, patch: Partial<ImportedEdge>) =>
-    setPreview((p) =>
-      p ? { ...p, edges: patchByRow(p.edges, row, patch) } : p,
-    );
+  const updateEdge = useCallback(
+    (row: number, patch: Partial<ImportedEdge>) =>
+      setPreview((p) =>
+        p ? { ...p, edges: patchByRow(p.edges, row, patch) } : p,
+      ),
+    [],
+  );
 
   const reset = () => setPreview(undefined);
 
