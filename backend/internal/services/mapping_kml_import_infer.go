@@ -159,7 +159,7 @@ func classifyEdge(row int, rp rawPlacemark, path []kmlWaypoint, localNodes []Imp
 	// what tells "this ExtendedData is our own export" apart from a vendor
 	// file that happens to carry some unrelated ExtendedData of its own.
 	if ext["source"] != "" && ext["target"] != "" {
-		e = edgeFromExtendedData(rp.Placemark, ext, path)
+		e = edgeFromExtendedData(rp.Placemark, ext, path, localNodes)
 	} else {
 		e = edgeFromGuess(rp.Placemark, path, localNodes)
 	}
@@ -170,15 +170,37 @@ func classifyEdge(row int, rp rawPlacemark, path []kmlWaypoint, localNodes []Imp
 	return e
 }
 
-func edgeFromExtendedData(pm kmlPlacemark, ext map[string]string, path []kmlWaypoint) ImportedEdge {
-	distance, _ := strconv.ParseFloat(ext["distance"], 64)
-	return ImportedEdge{
+// edgeFromExtendedData trusts source and target completely - classifyEdge
+// only reaches here once both are present - but distance and fiber_type are
+// each allowed to be missing on their own, since nothing requires a foreign
+// file's ExtendedData to carry this system's whole schema rather than part
+// of it. Each falls through to what can still be derived rather than a
+// silent zero or blank claimed as if it came from the file: a missing
+// distance is computed from the line's own traced points (a computation,
+// not a guess), and a missing fiber_type is guessed the same way
+// edgeFromGuess would, now that source and target are known. The reason
+// says exactly which parts were supplied and which were not, so this can
+// never read as more confident than it is.
+func edgeFromExtendedData(pm kmlPlacemark, ext map[string]string, path []kmlWaypoint, localNodes []ImportedNode) ImportedEdge {
+	e := ImportedEdge{
 		EdgeID: firstNonEmpty(ext["edge_id"], pm.Name),
 		Source: ext["source"], Target: ext["target"],
-		FiberType: models.FiberType(ext["fiber_type"]), Distance: distance,
 		Waypoints: innerCorners(path),
-		Reason:    "Dari data ekspor (ExtendedData)",
+		Reason:    "Sumber dan tujuan dari data ekspor (ExtendedData).",
 	}
+	if distance, err := strconv.ParseFloat(ext["distance"], 64); err == nil {
+		e.Distance = distance
+	} else {
+		e.Distance = pathLengthMeters(path)
+		e.Reason += " Panjang dihitung dari garis."
+	}
+	if ext["fiber_type"] != "" {
+		e.FiberType = models.FiberType(ext["fiber_type"])
+	} else if ft, why := guessFiberType(e.Source, e.Target, localNodes); ft != "" {
+		e.FiberType = ft
+		e.Reason += " " + why
+	}
+	return e
 }
 
 func edgeFromGuess(pm kmlPlacemark, path []kmlWaypoint, localNodes []ImportedNode) ImportedEdge {

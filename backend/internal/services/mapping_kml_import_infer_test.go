@@ -235,6 +235,43 @@ func TestClassifyPlacemarksEdgeUsesExtendedDataWhenPresent(t *testing.T) {
 	assert.True(t, e.Include)
 }
 
+// A foreign file's ExtendedData carrying only source/target (the two keys
+// required to enter this path at all - see classifyEdge) must not silently
+// zero its distance while still claiming full export provenance. The file's
+// own traced line already says exactly how long the cable is; that is a
+// computation, not a guess.
+func TestClassifyPlacemarksEdgeWithNoExtendedDataDistanceComputesItFromThePath(t *testing.T) {
+	ext := extData("source", "ODC-01", "target", "ODP-01")
+	coords := coordinate(-6.20, 106.80) + " " + coordinate(-6.21, 106.81)
+	raw := []rawPlacemark{linePlacemark("E-1", "Kabel", coords, ext)}
+
+	_, edges, _ := classifyPlacemarks(raw)
+
+	require.Len(t, edges, 1)
+	want := haversineMeters(-6.20, 106.80, -6.21, 106.81)
+	assert.InDelta(t, want, edges[0].Distance, 1e-6)
+	assert.Contains(t, edges[0].Reason, "dihitung dari garis", "must disclose that distance was computed, not supplied, unlike source/target")
+}
+
+// Same shape, for fiber_type: nothing stops a vendor's ExtendedData from
+// naming source/target that also happen to resolve to nodes in this same
+// file, in which case guessFiberType has exactly what it needs.
+func TestClassifyPlacemarksEdgeWithNoExtendedDataFiberTypeGuessesFromResolvedTypes(t *testing.T) {
+	ext := extData("source", "ODC-01", "target", "ODP-01")
+	coords := coordinate(-6.20, 106.80) + " " + coordinate(-6.21, 106.81)
+	raw := []rawPlacemark{
+		linePlacemark("E-1", "Kabel", coords, ext),
+		pointPlacemark("ODC-01", "ODC", -6.20, 106.80, nil),
+		pointPlacemark("ODP-01", "ODP", -6.21, 106.81, nil),
+	}
+
+	_, edges, _ := classifyPlacemarks(raw)
+
+	require.Len(t, edges, 1)
+	assert.Equal(t, models.FiberDistribution, edges[0].FiberType)
+	assert.Contains(t, edges[0].Reason, "distribusi")
+}
+
 // The realistic field-survey shape: a technician places boxes, then draws a
 // line between them with no attributes at all. The line's own endpoints are
 // the only clue, so the nearest already-placed node in the same file is what

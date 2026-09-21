@@ -28,6 +28,18 @@ func haversineMeters(lat1, lng1, lat2, lng2 float64) float64 {
 	return 2 * earthRadiusM * math.Asin(math.Sqrt(h))
 }
 
+// pathLengthMeters mirrors cableMath.ts's metersAlong: the sum of each
+// consecutive segment's haversine distance. Used when ExtendedData is
+// missing its own distance - the file's own traced line already says
+// exactly how long the cable is, which is a computation, not a guess.
+func pathLengthMeters(path []kmlWaypoint) float64 {
+	var total float64
+	for i := 1; i < len(path); i++ {
+		total += haversineMeters(path[i-1].Lat, path[i-1].Lng, path[i].Lat, path[i].Lng)
+	}
+	return total
+}
+
 func extendedDataMap(ext *kmlExtendedData) map[string]string {
 	m := make(map[string]string)
 	if ext == nil {
