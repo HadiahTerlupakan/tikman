@@ -40,13 +40,26 @@ const (
 	// measured directly via buildKML at 2,000 nodes with every optional
 	// field filled). Measured at that new ceiling, the <Data>-row shape
 	// above (as many rows as fit in one placemark under 16 MiB - 381,296)
-	// costs 372.3 MiB of cumulative TotalAlloc, but only ~54 MiB of peak
-	// live heap sampled directly during the operation (two trials, 53.8 and
-	// 54.3 MiB) - the rejected placemark's struct is never retained past
-	// walkStartElement's own maxExtendedDataFields check, so most of the
-	// churn is reclaimed before it ever becomes a steady-state cost. Both
-	// figures matter for different reasons: TotalAlloc is the GC churn one
-	// request causes, live heap is what it holds onto at once - see
+	// costs 372.3 MiB of cumulative TotalAlloc.
+	//
+	// What survives to any one snapshot afterwards is far less, but "peak
+	// live heap" is not one number - this exact paragraph has stated it
+	// wrong twice by picking a single figure without saying which measure
+	// it was or how busy the process already was. Stated separately, each
+	// sampled directly during the operation rather than from a snapshot
+	// taken after (a GC can reclaim the churn before then): heap growth
+	// over a pre-operation baseline measures roughly 50-70 MiB, consistent
+	// across an isolated single-test run and a clean standalone process;
+	// absolute peak HeapAlloc with no baseline subtracted ranges from ~70
+	// MiB in an isolated process to 130+ MiB in a busier one, since it also
+	// carries whatever the process already held before this ran; process
+	// MaxRSS growth (OS-level - more than just the Go heap) measures
+	// roughly 70-110 MiB. Call the reduction from 372.3 MiB cumulative
+	// roughly 3-7x, not a single ratio - the rejected placemark's struct is
+	// never retained past walkStartElement's own maxExtendedDataFields
+	// check, so most of the churn is reclaimed before it becomes a
+	// steady-state cost, but exactly how much survives to a given snapshot
+	// depends on the metric and the process, not a fixed number. See
 	// TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier
 	// for the smaller, deterministic fixture this is extrapolated from.
 	maxKMLDecompressedBytes = 16 << 20

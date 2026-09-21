@@ -174,29 +174,31 @@ func TestWalkKMLRefusesTooManyExtendedDataFieldsOnOnePlacemark(t *testing.T) {
 // itself, so this measures - rather than assumes - the residual cost a file
 // just under that cap can still cause. Measured here: 100,000 rows from a
 // 4,289,068-byte input cost 101,777,984 bytes (~97 MiB) of cumulative
-// TotalAlloc, reproducibly (three runs, identical to the byte) - a fixed,
-// deterministic fixture kept well under whatever maxKMLDecompressedBytes
-// currently is, rather than scaled to it, so this test does not need
-// updating every time that cap changes.
+// TotalAlloc in one isolated run - a fixed, deterministic fixture kept well
+// under whatever maxKMLDecompressedBytes currently is, rather than scaled to
+// it, so this test does not need updating every time that cap changes.
+// TotalAlloc is not perfectly repeatable run to run within a single process,
+// though: five trials in one process measured a spread of roughly 9-21 KB
+// around this figure (background allocator/GC state carried between
+// trials), so treat "~97 MiB" as accurate to within a few tens of KB, not
+// to the byte, and treat any single-process repeated measurement of it the
+// same way.
 //
 // Extrapolating this vector's own measured ~1,015 bytes/row to the current
 // 16 MiB cap's true maximum (381,296 rows) puts the full worst case at
 // 372.3 MiB of cumulative TotalAlloc, measured directly rather than only
-// extrapolated - but only ~54 MiB of peak live heap sampled during the
-// operation itself (two trials, 53.8 and 54.3 MiB): the rejected
-// placemark's struct is never retained past walkStartElement's own length
-// check, so a GC running during or shortly after the decode reclaims most
-// of the churn before it becomes a steady-state cost. Both figures matter
-// for different reasons: TotalAlloc is the GC churn one request causes,
-// live heap is what it holds onto at once - stating only the first, as an
-// earlier draft of this comment did, overstates the second by roughly
-// 5-7x. Closing the cumulative cost further would need decode-time
-// counting (a custom UnmarshalXML, or a per-placemark token budget
-// alongside depthLimitedTokens) - a bigger change than the "if it is easy"
-// asked for here, so the threshold below is set to catch a real regression
-// on this fixed-size fixture (back toward a multi-hundred-MiB shape at
-// 100,000 rows, not the ~97 MiB measured), not to assert a number nobody
-// required.
+// extrapolated. What survives to any one snapshot afterwards is far less,
+// but not one clean number - see maxKMLDecompressedBytes's own doc comment
+// in mapping_kml_import_parse.go for the three separately measured,
+// separately labelled figures (heap growth over baseline, absolute peak
+// HeapAlloc, and process MaxRSS growth) and why a single bare "peak live
+// heap" figure was wrong twice before this. Closing the cumulative cost
+// further would need decode-time counting (a custom UnmarshalXML, or a
+// per-placemark token budget alongside depthLimitedTokens) - a bigger
+// change than the "if it is easy" asked for here, so the threshold below is
+// set to catch a real regression on this fixed-size fixture (back toward a
+// multi-hundred-MiB shape at 100,000 rows, not the ~97 MiB measured), not
+// to assert a number nobody required.
 func TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier(t *testing.T) {
 	const rows = 100_000
 	var b strings.Builder

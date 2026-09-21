@@ -15,6 +15,13 @@ const splitterMaxLen = 16
 // this leaves generous headroom while keeping a single mapping_edges.waypoints
 // value - loaded by ListEdges for every signed-in user on every map page -
 // from being sized by whatever a file claims a cable's route was.
+//
+// Known residual, not fixed: this bounds one cable, not a file's total
+// waypoints across every cable - measured, 145 LineStrings each legitimately
+// at exactly this cap turned a 47,960 B KMZ into an 18,164,837 B preview
+// response (379x) at 122.5 MiB peak live heap per concurrent request.
+// Adversarial-only (needs the editor role) and preview-only (nothing is
+// written), so left as a known gap rather than a fix this round.
 const maxLineStringPoints = 5000
 
 // haversineMeters mirrors cableMath.ts's metersBetween (Go cannot import
