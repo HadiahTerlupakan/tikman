@@ -175,3 +175,24 @@ func TestCommitImportRefusesNaNCoordinates(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrImportInvalid)
 }
+
+// maxLineStringPoints only ever bounded parseLineString - the KMZ parse
+// path. CommitImport's own JSON body carries Waypoints directly, with
+// nothing routed back through that parser at all, so the same cap has to
+// be enforced again here: otherwise a commit request built by hand (or by
+// a buggy/tampered client, never through a preview at all) can put an
+// unbounded mapping_edges.waypoints value straight into the database -
+// the exact row ListEdges then serves to every signed-in user on every
+// map page, which is the harm maxLineStringPoints exists to prevent.
+func TestCommitImportRefusesTooManyWaypointsOnAnEdge(t *testing.T) {
+	s := mappingSetup(t)
+	edge := includedEdge("E-1", "ODC-01", "ODP-01", models.FiberDistribution)
+	edge.Waypoints = make([]kmlWaypoint, maxLineStringPoints+1)
+
+	_, err := s.CommitImport(nil, []ImportedEdge{edge})
+
+	require.ErrorIs(t, err, ErrImportInvalid)
+	got, err := s.ListEdges()
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}

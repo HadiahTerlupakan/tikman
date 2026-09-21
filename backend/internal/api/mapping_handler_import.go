@@ -55,13 +55,21 @@ func (h *MappingHandler) PreviewImport(c *gin.Context) {
 func refuseImportUpload(c *gin.Context, err error) {
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: fmt.Sprintf("berkas melebihi batas %d MB", maxImportUploadBytes>>20),
-			Code:  "IMPORT_FILE_TOO_LARGE",
-		})
+		tooLargeResponse(c, "berkas")
 		return
 	}
 	c.JSON(http.StatusBadRequest, ErrorResponse{Error: "berkas KMZ wajib diisi", Code: "IMPORT_FILE_REQUIRED"})
+}
+
+// tooLargeResponse answers the shared shape of a request that exceeded
+// maxImportUploadBytes, whichever of the two import endpoints hit it - noun
+// names what exceeded the cap in the person's own words ("berkas" for the
+// multipart upload, "data impor" for the JSON commit body).
+func tooLargeResponse(c *gin.Context, noun string) {
+	c.JSON(http.StatusBadRequest, ErrorResponse{
+		Error: fmt.Sprintf("%s melebihi batas %d MB", noun, maxImportUploadBytes>>20),
+		Code:  "IMPORT_FILE_TOO_LARGE",
+	})
 }
 
 // importCommitRequest is decoded straight into the service's own row types:
@@ -75,10 +83,20 @@ type importCommitRequest struct {
 
 // CommitImport writes exactly what the person confirmed in the preview
 // screen, in one transaction - see MappingService.CommitImport for what is
-// re-checked before anything is written.
+// re-checked before anything is written. Bounded by the same
+// maxImportUploadBytes as PreviewImport: this endpoint writes to the
+// database while preview only reads it, so it has at least as much reason
+// to bound the body it is handed, not less.
 func (h *MappingHandler) CommitImport(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxImportUploadBytes)
+
 	var req importCommitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			tooLargeResponse(c, "data impor")
+			return
+		}
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "INVALID_IMPORT"})
 		return
 	}

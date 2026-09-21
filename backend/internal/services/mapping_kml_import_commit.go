@@ -118,6 +118,15 @@ func edgesToCreate(edges []ImportedEdge, existing map[string]bool) ([]models.Map
 		if !isValidFiberType(e.FiberType) {
 			return nil, fmt.Errorf("%w: kabel %q punya jenis serat yang tidak valid", ErrImportInvalid, e.EdgeID)
 		}
+		// maxLineStringPoints (mapping_kml_import_fields.go) only ever
+		// bounded parseLineString - the KMZ parse path. CommitImport's own
+		// JSON body carries Waypoints directly, never routed back through
+		// that parser, so a request built by hand (or a tampered client)
+		// could otherwise put an unbounded mapping_edges.waypoints value
+		// straight into the row ListEdges serves to every signed-in user.
+		if len(e.Waypoints) > maxLineStringPoints {
+			return nil, fmt.Errorf("%w: kabel %q punya terlalu banyak titik jalur (lebih dari %d)", ErrImportInvalid, e.EdgeID, maxLineStringPoints)
+		}
 		if existing[e.EdgeID] || seen[e.EdgeID] {
 			return nil, fmt.Errorf("%w: kode kabel %q masih bentrok", ErrImportInvalid, e.EdgeID)
 		}

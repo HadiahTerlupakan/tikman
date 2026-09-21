@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -190,4 +191,23 @@ func TestCommitImportAnswers409WhenCapacityWouldOverflow(t *testing.T) {
 
 	require.Equal(t, http.StatusConflict, rec.Code)
 	assert.Equal(t, "SLOTS_FULL", responseCode(t, rec))
+}
+
+// PreviewImport has carried a MaxBytesReader since it was written; commit
+// never did, despite writing to the database while preview only reads it.
+func TestCommitImportRefusesABodyPastTheSizeCap(t *testing.T) {
+	r, _ := mappingRouter(t)
+	longNotes := strings.Repeat("x", maxImportUploadBytes+1)
+	body, err := json.Marshal(gin.H{
+		"edges": []gin.H{{"edge_id": "E-1", "source": "ODC-01", "target": "ODP-01", "notes": longNotes, "include": true}},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mapping/import/commit", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Equal(t, "IMPORT_FILE_TOO_LARGE", responseCode(t, rec))
 }
