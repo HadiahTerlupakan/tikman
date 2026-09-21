@@ -104,6 +104,40 @@ func TestPreviewImportAnswersAUsableBodyWhenExtendedDataDistanceIsNaN(t *testing
 	assert.False(t, math.IsNaN(body.Data.Edges[0].Distance))
 }
 
+// The exact shape measured through the real handler before the fix: a
+// 12.8 KiB KMZ answered 200 OK with 225,085 waypoints accepted for one
+// cable, 45x maxLineStringPoints. bufio.Scanner's default 64 KiB per-token
+// limit made lineStringFieldCountInRange stop and report "in range" the
+// moment it hit the oversized token, and strings.Fields (no such limit)
+// then parsed everything after it with no cap left to catch the result.
+// After the fix this placemark must become an issue, not an oversized edge.
+func TestPreviewImportRefusesALineStringWithAnOversizedCoordinateToken(t *testing.T) {
+	r, _ := mappingRouter(t)
+	var coords strings.Builder
+	coords.WriteString("106.8,-6.2,0 106.81,-6.21,0 ")
+	coords.WriteString("106.8,-6.2," + strings.Repeat("0", 70_000))
+	coords.WriteString(" ")
+	for i := 0; i < 6_000; i++ {
+		coords.WriteString("106.8,-6.2,0 ")
+	}
+	kml := `<kml><Document><Folder><name>Kabel</name>
+<Placemark><name>E-1</name><LineString><coordinates>` + coords.String() + `</coordinates></LineString></Placemark>
+</Folder></Document></kml>`
+	req := importUploadRequest(t, "/api/v1/mapping/import/preview", buildImportKMZBytes(t, kml))
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var body struct {
+		Data services.ImportPreview `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Empty(t, body.Data.Edges, "an oversized coordinate token must not smuggle a cable past the waypoint cap")
+	require.Len(t, body.Data.Issues, 1)
+	assert.Contains(t, body.Data.Issues[0].Reason, "Garis tidak valid")
+}
+
 func TestPreviewImportRefusesAnUploadPastTheSizeCap(t *testing.T) {
 	r, _ := mappingRouter(t)
 	oversized := bytes.Repeat([]byte("x"), maxImportUploadBytes+1)

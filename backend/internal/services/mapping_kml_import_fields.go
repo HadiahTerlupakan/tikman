@@ -162,6 +162,20 @@ func parseLineString(s string) ([]kmlWaypoint, bool) {
 // asked for a token's text, so counting costs none of that - and the loop
 // exits the instant the count is exceeded, so even the counting itself
 // never runs past the cap.
+//
+// bufio.Scanner also stops - Scan returning false - when one token exceeds
+// its internal buffer (bufio.MaxScanTokenSize, 64 KiB), which looks
+// identical to a clean end of input unless Err() is checked afterwards.
+// parseCoordinate only reads a token's first two comma-separated parts, so
+// a coordinate tuple with an oversized third ("altitude") component is
+// still a syntactically valid coordinate as far as this file's own parsing
+// is concerned - just one word that trips the scanner's buffer. Without the
+// Err() check, that truncated the count at whatever had been seen so far
+// and reported it as final, so a LineString with a handful of ordinary
+// points, one oversized token, and thousands more ordinary points after it
+// passed as if it had only the first few - then parseLineString's own
+// strings.Fields (no per-token size limit) went on to parse every one of
+// those thousands with no cap left to catch them.
 func lineStringFieldCountInRange(s string) bool {
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	scanner.Split(bufio.ScanWords)
@@ -171,6 +185,9 @@ func lineStringFieldCountInRange(s string) bool {
 		if count > maxLineStringPoints {
 			return false
 		}
+	}
+	if scanner.Err() != nil {
+		return false
 	}
 	return count >= 2
 }
