@@ -18,6 +18,16 @@ type OnChange = (row: number, patch: Partial<ImportedNode>) => void;
 // antd re-renders every row on every change - pagination alone (no other
 // change) took both to the low tens of milliseconds by only ever mounting
 // one page's worth of rows.
+//
+// Passed below as defaultPageSize, not pageSize: antd's Pagination treats
+// pageSize as a controlled prop, so passing it with no onChange/
+// onShowSizeChange pins it - the "50/100/..." size-changer still renders
+// (antd shows it once a table has more than one page), but every click on
+// it is a no-op. defaultPageSize only seeds antd's own internal state,
+// leaving the changer free to actually change it - someone reviewing a
+// large survey has a real reason to want more than 50 rows at once, and
+// 100 is still comfortably inside the measured envelope above (doubling
+// 50 rows' cost is nowhere near what made 2,500 rows expensive).
 const PREVIEW_PAGE_SIZE = 50;
 
 interface ImportNodesTableProps {
@@ -185,7 +195,7 @@ export function ImportNodesTable({ nodes, onChange }: ImportNodesTableProps) {
       rowKey="row"
       size="small"
       dataSource={nodes}
-      pagination={{ pageSize: PREVIEW_PAGE_SIZE }}
+      pagination={{ defaultPageSize: PREVIEW_PAGE_SIZE }}
       title={() => `Node (${nodes.length})`}
       columns={columns}
     />

@@ -112,7 +112,7 @@ export function ImportEdgesTable({ edges, onChange }: ImportEdgesTableProps) {
       rowKey="row"
       size="small"
       dataSource={edges}
-      pagination={{ pageSize: PREVIEW_PAGE_SIZE }}
+      pagination={{ defaultPageSize: PREVIEW_PAGE_SIZE }}
       title={() => `Kabel (${edges.length})`}
       columns={columns}
     />

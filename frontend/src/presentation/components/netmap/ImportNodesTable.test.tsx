@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ImportedNode } from "@/domain/entities";
 import { ImportNodesTable } from "./ImportNodesTable";
 
@@ -43,5 +44,20 @@ describe("ImportNodesTable pagination", () => {
 
     expect(screen.getByDisplayValue("ODP-1")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("ODP-51")).not.toBeInTheDocument();
+  });
+
+  // pageSize is a controlled prop in antd's Pagination - passing it with no
+  // onChange/onShowSizeChange pins it, so the size-changer renders but every
+  // click on it is a no-op. Asserting a row the operator asked for actually
+  // appears, not that the changer is present or that some onChange fired.
+  it("lets the operator switch to a larger page size", async () => {
+    const nodes = Array.from({ length: 120 }, (_, i) => nodeAt(i + 1));
+    render(<ImportNodesTable nodes={nodes} onChange={vi.fn()} />);
+    expect(screen.queryByDisplayValue("ODP-51")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Page Size" }));
+    await userEvent.click(await screen.findByText("100 / page"));
+
+    expect(screen.getByDisplayValue("ODP-51")).toBeInTheDocument();
   });
 });

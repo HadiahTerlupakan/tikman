@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ImportedEdge } from "@/domain/entities";
 import { ImportEdgesTable } from "./ImportEdgesTable";
 
@@ -35,5 +36,20 @@ describe("ImportEdgesTable pagination", () => {
 
     expect(screen.getByDisplayValue("E-1")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("E-51")).not.toBeInTheDocument();
+  });
+
+  // Same defaultPageSize-not-pageSize reasoning as ImportNodesTable.test.tsx:
+  // pageSize is a controlled prop in antd's Pagination, so passing it with
+  // no onChange/onShowSizeChange pins it - the size-changer renders but
+  // every click on it is a no-op.
+  it("lets the operator switch to a larger page size", async () => {
+    const edges = Array.from({ length: 120 }, (_, i) => edgeAt(i + 1));
+    render(<ImportEdgesTable edges={edges} onChange={vi.fn()} />);
+    expect(screen.queryByDisplayValue("E-51")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Page Size" }));
+    await userEvent.click(await screen.findByText("100 / page"));
+
+    expect(screen.getByDisplayValue("E-51")).toBeInTheDocument();
   });
 });
