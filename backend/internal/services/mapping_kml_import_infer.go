@@ -298,7 +298,14 @@ func sanitizeID(s string) string {
 
 // parseCoordinate reverses coordinate() in mapping_kml.go: KML's own
 // "longitude,latitude,altitude" order, altitude ignored since nothing on
-// this map ever has one.
+// this map ever has one. Validated through the same validateCoordinates
+// every other coordinate write in this system uses (site_service.go):
+// strconv.ParseFloat happily parses "NaN"/"Inf" as real floats with no
+// error, and a swapped lat/lng pair - the commonest defect in a hand-made
+// or third-party file, which is exactly what this feature exists to
+// import - parses as two perfectly ordinary-looking numbers that are
+// simply impossible as a latitude. Either would otherwise reach an
+// ImportedNode/ImportedEdge field unnoticed.
 func parseCoordinate(s string) (lat, lng float64, ok bool) {
 	parts := strings.Split(strings.TrimSpace(s), ",")
 	if len(parts) < 2 {
@@ -307,6 +314,9 @@ func parseCoordinate(s string) (lat, lng float64, ok bool) {
 	lngVal, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 	latVal, err2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
 	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	if validateCoordinates(&latVal, &lngVal) != nil {
 		return 0, 0, false
 	}
 	return latVal, lngVal, true

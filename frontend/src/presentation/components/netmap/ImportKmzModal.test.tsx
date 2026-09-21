@@ -169,6 +169,34 @@ describe("ImportKmzModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  // The commonest defect in a hand-made or third-party file is lat/lng
+  // swapped - and the person confirming the preview cannot correct, or even
+  // notice, a coordinate they are never shown.
+  it("shows the node's coordinates and commits an edit made to them", async () => {
+    previewMutateAsync.mockResolvedValue(previewWith([baseNode()]));
+    commitMutateAsync.mockResolvedValue({ nodesCreated: 1, edgesCreated: 0 });
+    render(<ImportKmzModal open onClose={vi.fn()} />);
+    await uploadAndPreview();
+
+    expect(await screen.findByDisplayValue("-6.2")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("106.8")).toBeInTheDocument();
+
+    // fireEvent, not userEvent.type: antd's InputNumber treats each
+    // intermediate keystroke of a negative decimal ("-", "-6", "-6.")  as an
+    // invalid number and resets, the same reason BroadcastModal.test.tsx's
+    // own file input uses fireEvent rather than simulating keystrokes.
+    const latitudeInput = screen.getByDisplayValue("-6.2");
+    fireEvent.change(latitudeInput, { target: { value: "-6.25" } });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Simpan ke Peta" }),
+    );
+
+    expect(commitMutateAsync).toHaveBeenCalledWith({
+      nodes: [expect.objectContaining({ latitude: -6.25 })],
+      edges: [],
+    });
+  });
+
   it("surfaces unsupported placemarks as issues rather than dropping them silently", async () => {
     previewMutateAsync.mockResolvedValue({
       nodes: [],

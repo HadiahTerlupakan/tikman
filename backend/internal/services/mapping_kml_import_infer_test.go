@@ -138,6 +138,39 @@ func TestClassifyPlacemarksFlagsInvalidPointCoordinatesAsIssue(t *testing.T) {
 	assert.Contains(t, issues[0].Reason, "oordinat")
 }
 
+// strconv.ParseFloat parses "NaN" successfully - a hand-written or vendor
+// KML carrying it is not a parse failure, only a bad value, and a NaN
+// latitude must not silently become an ImportedNode field: it fails
+// encoding/json's own Marshal after the response status is already
+// written, so the request answers 200 with no usable body at all.
+func TestParseCoordinateRejectsNaN(t *testing.T) {
+	_, _, ok := parseCoordinate("106.8,NaN,0")
+	assert.False(t, ok)
+}
+
+func TestParseCoordinateRejectsInfinity(t *testing.T) {
+	_, _, ok := parseCoordinate("Inf,-6.2,0")
+	assert.False(t, ok)
+}
+
+// The commonest defect in a hand-made or third-party file: lng,lat written
+// where KML wants lat,lng lands a real-looking but impossible latitude.
+func TestParseCoordinateRejectsOutOfRangeLatitude(t *testing.T) {
+	_, _, ok := parseCoordinate("106.8,200,0")
+	assert.False(t, ok)
+}
+
+func TestClassifyPlacemarksFlagsANaNCoordinateAsAnIssueNotANode(t *testing.T) {
+	raw := []rawPlacemark{{Folder: "ODP", Placemark: kmlPlacemark{
+		Name: "Rusak", Point: &kmlPoint{Coordinates: "106.8,NaN,0"},
+	}}}
+
+	nodes, _, issues := classifyPlacemarks(raw)
+
+	assert.Empty(t, nodes)
+	require.Len(t, issues, 1)
+}
+
 func TestClassifyPlacemarksFlagsDegenerateLineStringAsIssue(t *testing.T) {
 	raw := []rawPlacemark{linePlacemark("E-1", "Kabel", "106.8,-6.2,0", nil)}
 

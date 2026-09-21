@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/google/uuid"
@@ -65,6 +66,13 @@ func validateCoordinates(latitude, longitude *float64) error {
 	}
 	if latitude == nil {
 		return nil
+	}
+	// Checked explicitly rather than left to the range comparisons below:
+	// every IEEE 754 comparison with NaN except != is false, so `NaN < -90`
+	// and `NaN > 90` both evaluate false and a NaN value would otherwise
+	// read as being inside every valid range there is.
+	if math.IsNaN(*latitude) || math.IsNaN(*longitude) {
+		return fmt.Errorf("%w: latitude/longitude must be a real number", ErrValidation)
 	}
 	if *latitude < -90 || *latitude > 90 {
 		return fmt.Errorf("%w: latitude %v is outside -90..90", ErrValidation, *latitude)

@@ -1,4 +1,12 @@
-import { Checkbox, Input, Select, Table, Tag, Tooltip } from "antd";
+import {
+  Checkbox,
+  Input,
+  InputNumber,
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
 import type { ImportedNode, NodeType } from "@/domain/entities";
 import { NODE_LABELS } from "./mappingLabels";
 
@@ -74,6 +82,30 @@ function typeColumn(onChange: OnChange) {
   };
 }
 
+// Lintang/Bujur are editable, not read-only display: a swapped lat/lng pair
+// is the commonest defect in a hand-made or third-party file - exactly what
+// this feature exists to import - and the person confirming has to be able
+// to see and fix it here, not only be told it exists.
+function coordinateColumn(
+  title: string,
+  field: "latitude" | "longitude",
+  onChange: OnChange,
+) {
+  return {
+    title,
+    render: (_: unknown, row: ImportedNode) => (
+      <InputNumber
+        size="small"
+        style={{ width: 100 }}
+        value={row[field]}
+        onChange={(value) =>
+          onChange(row.row, { [field]: value ?? 0 } as Partial<ImportedNode>)
+        }
+      />
+    ),
+  };
+}
+
 /**
  * The node half of the import preview: every Point placemark found, with
  * what TikMan believes it is and why (mapping_kml_import_infer.go on the
@@ -97,6 +129,8 @@ export function ImportNodesTable({ nodes, onChange }: ImportNodesTableProps) {
         nodeIdColumn(onChange),
         typeColumn(onChange),
         { title: "Nama", dataIndex: "name" },
+        coordinateColumn("Lintang", "latitude", onChange),
+        coordinateColumn("Bujur", "longitude", onChange),
         {
           title: "Alasan / Konflik",
           render: (_: unknown, row: ImportedNode) => reasonCell(row),

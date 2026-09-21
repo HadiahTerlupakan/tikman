@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/uuid"
@@ -249,6 +250,18 @@ func TestSiteRefusesCoordinatesOutsideTheGlobe(t *testing.T) {
 	require.ErrorIs(t, err, ErrValidation)
 
 	_, err = service.CreateWithCoordinates("Nowhere", "", "", floatPtr(0), floatPtr(181))
+	require.ErrorIs(t, err, ErrValidation)
+}
+
+// A NaN latitude/longitude compares false against every bound
+// (validateCoordinates' own `< -90 || > 90` never fires for NaN, since any
+// IEEE 754 comparison with NaN except != is false), so the range check
+// alone let one straight through - only caught once checked explicitly.
+func TestSiteRefusesNaNCoordinates(t *testing.T) {
+	db := setupTestDB(t)
+	service := NewSiteService(db)
+
+	_, err := service.CreateWithCoordinates("Nowhere", "", "", floatPtr(math.NaN()), floatPtr(0))
 	require.ErrorIs(t, err, ErrValidation)
 }
 
