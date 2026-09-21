@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -115,6 +116,52 @@ func TestRoundTripExportThenImportRecoversEveryNodeAndEdgeField(t *testing.T) {
 	assert.Equal(t, models.FiberFeeder, e2.FiberType)
 	assert.InDelta(t, 1200, e2.Distance, 1e-9)
 	assert.Empty(t, e2.Waypoints, "a cable exported with no corners must not gain phantom ones on the way back")
+}
+
+// buildLargePlant makes nodes+edges connected in a simple chain (each edge's
+// source is the previous node, target the next) - realistic enough to
+// exercise edgeFromExtendedData's real Source/Target fields, not a
+// contrived shape chosen to be cheap to classify.
+func buildLargePlant(nodeCount int) ([]models.MappingNode, []models.MappingEdge) {
+	nodes := make([]models.MappingNode, nodeCount)
+	for i := range nodes {
+		nodes[i] = models.MappingNode{
+			NodeID: fmt.Sprintf("ODP-%04d", i), Type: models.NodeODP,
+			Name: fmt.Sprintf("ODP %d", i), Latitude: -6.2 + float64(i)*0.0001, Longitude: 106.8 + float64(i)*0.0001,
+		}
+	}
+	edges := make([]models.MappingEdge, nodeCount-1)
+	for i := range edges {
+		edges[i] = models.MappingEdge{
+			EdgeID: fmt.Sprintf("E-%04d", i), Source: nodes[i].NodeID, Target: nodes[i+1].NodeID,
+			FiberType: models.FiberDistribution,
+		}
+	}
+	return nodes, edges
+}
+
+// A full plant at roughly this system's own historical "2,000 placemarks"
+// reference point has close to as many cables as boxes (a real network is
+// not a bag of disconnected nodes), so 2,000 nodes plus 1,999 cables
+// connecting them is 3,999 placemarks in one file - past maxKMLPlacemarks
+// when that counted nodes and edges together with no headroom for the
+// second half of a real network. ExportKMZ has no cap of its own, so this
+// plant exports happily and then cannot be read back by this system's own
+// importer - and round-tripping a full export is a real, confirmed usage
+// (import source A), not a hypothetical edge case.
+func TestRoundTripHandlesAFullPlantAtTheHistoricalPlacemarkReferenceSize(t *testing.T) {
+	nodes, edges := buildLargePlant(2000)
+	kmz, warning, err := BuildKMZ(nodes, edges)
+	require.NoError(t, err)
+	require.Empty(t, warning, "ExportKMZ itself carries no placemark-count cap")
+
+	raw, err := parseKMZForImport(kmz)
+
+	require.NoError(t, err, "this system's own maximal realistic export must read back through its own importer")
+	gotNodes, gotEdges, issues := classifyPlacemarks(raw)
+	assert.Empty(t, issues)
+	assert.Len(t, gotNodes, 2000)
+	assert.Len(t, gotEdges, 1999)
 }
 
 // The other half of the round trip: importing a file that is a straight

@@ -65,12 +65,32 @@ const (
 	// pagination, so this is a DOM row count as much as a memory bound. It
 	// also bounds classifyEdge's own nearest-node search, which is O(nodes x
 	// edges without ExtendedData): measured at roughly 613s of CPU from a
-	// file that zips to 65 KiB when this was 200,000. 2,000 is still far
-	// more than a single technician draws in one field survey (a real route
-	// is a handful of corners, not a plant's whole placemark count), while
-	// keeping that search trivially fast and the table sizes the preview
-	// screen was actually built to show.
-	maxKMLPlacemarks = 2000
+	// file that zips to 65 KiB when this was 200,000.
+	//
+	// 2,000 counted nodes and edges together with no headroom for a real
+	// network's second half: a plant with as many nodes as this constant's
+	// own reference point (2,000) naturally has close to as many cables
+	// connecting them (a real network is not a bag of disconnected boxes),
+	// so 2,000 nodes plus 1,999 cables - one file, ExportKMZ's own output,
+	// no cap of its own on that side - is 3,999 placemarks, and could not
+	// be read back by this system's own importer. Round-tripping a full
+	// export is a real, confirmed usage, not a hypothetical.
+	//
+	// 5,000 covers that shape with room to spare (up to 2,500 nodes and
+	// 2,500 edges) without reopening the 613s danger zone: measured
+	// directly (classifyPlacemarks, no ExtendedData - the expensive guess
+	// path this cap also exists to bound), an even 2,500/2,500 split -
+	// nearestNode's worst case for any given total - costs 1.39s, against
+	// 222ms at the old 2,000/1,000-split-worst-case and 613s at 200,000.
+	// This does not make the byte cap the only real bound the way a much
+	// higher value would (16 MiB comfortably holds far more than 5,000 of
+	// this system's own ~1KB placemarks) - that would need the guess path's
+	// O(nodes) nearestNode search restructured to not scale quadratically
+	// with the total, a larger change than this round's own scope. Nor does
+	// it address antd's Table rendering 5,000 rows with no pagination in
+	// the browser, un-measured here and accepted as a smaller version of a
+	// trade-off this cap already made at 2,000.
+	maxKMLPlacemarks = 5000
 
 	// maxExtendedDataFields caps how many <Data> rows one placemark's own
 	// ExtendedData may carry. Our own export writes at most 7 (nodes) or 6
