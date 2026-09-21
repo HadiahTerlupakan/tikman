@@ -167,3 +167,27 @@ func TestClassifyPlacemarksBoundsAnOverlongEdgeIDSourceAndTargetFromExtendedData
 	assert.LessOrEqual(t, len([]rune(edges[0].Source)), 64)
 	assert.LessOrEqual(t, len([]rune(edges[0].Target)), 64)
 }
+
+// The exact same trap parseCoordinate was fixed for, one function over:
+// strconv.ParseFloat parses "NaN"/"Inf"/"-Inf" with no error, and a NaN/Inf
+// Distance reaching an ImportedEdge field fails encoding/json's own Marshal
+// after the response status is already written - a 200 with no usable
+// body. Negative is rejected too: a cable has no such thing as a negative
+// length. All four fall through to pathLengthMeters, the same as a missing
+// distance already does.
+func TestClassifyPlacemarksEdgeRejectsNonFiniteOrNegativeDistance(t *testing.T) {
+	for _, bad := range []string{"NaN", "Inf", "-Inf", "-5"} {
+		t.Run(bad, func(t *testing.T) {
+			ext := extData("source", "ODC-01", "target", "ODP-01", "distance", bad)
+			coords := coordinate(-6.20, 106.80) + " " + coordinate(-6.21, 106.81)
+			raw := []rawPlacemark{linePlacemark("E-1", "Kabel", coords, ext)}
+
+			_, edges, _ := classifyPlacemarks(raw)
+
+			require.Len(t, edges, 1)
+			want := haversineMeters(-6.20, 106.80, -6.21, 106.81)
+			assert.InDelta(t, want, edges[0].Distance, 1e-6)
+			assert.Contains(t, edges[0].Reason, "dihitung dari garis")
+		})
+	}
+}

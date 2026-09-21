@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -70,6 +71,36 @@ func TestPreviewImportAnswersWhatTheFileHeld(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Len(t, body.Data.Nodes, 1)
 	assert.Equal(t, "ODP-01", body.Data.Nodes[0].NodeID)
+}
+
+// The exact failure this measured through the real handler before the fix:
+// a NaN distance reached ImportedEdge.Distance, and encoding/json's own
+// Marshal refuses to encode NaN - failing *after* c.JSON had already
+// written the 200 status, so the response body came back empty and the
+// modal had nothing to show.
+func TestPreviewImportAnswersAUsableBodyWhenExtendedDataDistanceIsNaN(t *testing.T) {
+	r, _ := mappingRouter(t)
+	kml := `<kml><Document><Folder><name>Kabel</name>
+<Placemark><name>E-1</name><ExtendedData>
+<Data name="edge_id"><value>E-1</value></Data>
+<Data name="source"><value>ODC-01</value></Data>
+<Data name="target"><value>ODP-01</value></Data>
+<Data name="distance"><value>NaN</value></Data>
+</ExtendedData><LineString><coordinates>106.8,-6.2,0 106.81,-6.21,0</coordinates></LineString></Placemark>
+</Folder></Document></kml>`
+	req := importUploadRequest(t, "/api/v1/mapping/import/preview", buildImportKMZBytes(t, kml))
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotEmpty(t, rec.Body.Bytes(), "a 200 with an empty body is exactly the failure this test exists to catch")
+	var body struct {
+		Data services.ImportPreview `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Data.Edges, 1)
+	assert.False(t, math.IsNaN(body.Data.Edges[0].Distance))
 }
 
 func TestPreviewImportRefusesAnUploadPastTheSizeCap(t *testing.T) {

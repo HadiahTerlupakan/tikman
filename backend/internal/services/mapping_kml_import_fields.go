@@ -93,6 +93,17 @@ func boundEdgeFields(e ImportedEdge) ImportedEdge {
 	return e
 }
 
+// isValidDistance rejects what strconv.ParseFloat accepts but a physical
+// cable length cannot be: NaN and Inf both parse with no error - the same
+// trap parseCoordinate is guarded against below - and a NaN/Inf Distance
+// reaching an ImportedEdge field fails encoding/json's own Marshal after
+// the response status is already written, a 200 with no usable body.
+// Negative is rejected too: nothing on this map has a cable of negative
+// length.
+func isValidDistance(f float64) bool {
+	return !math.IsNaN(f) && !math.IsInf(f, 0) && f >= 0
+}
+
 // parseCoordinate reverses coordinate() in mapping_kml.go: KML's own
 // "longitude,latitude,altitude" order, altitude ignored since nothing on
 // this map ever has one. Validated through the same validateCoordinates

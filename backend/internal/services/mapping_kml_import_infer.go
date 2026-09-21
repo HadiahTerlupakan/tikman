@@ -190,7 +190,7 @@ func edgeFromExtendedData(pm kmlPlacemark, ext map[string]string, path []kmlWayp
 		Notes:     ext["notes"],
 		Reason:    "Sumber dan tujuan dari data ekspor (ExtendedData).",
 	}
-	if distance, err := strconv.ParseFloat(ext["distance"], 64); err == nil {
+	if distance, err := strconv.ParseFloat(ext["distance"], 64); err == nil && isValidDistance(distance) {
 		e.Distance = distance
 	} else {
 		e.Distance = pathLengthMeters(path)
