@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bufio"
 	"math"
 	"strconv"
 	"strings"
@@ -134,10 +135,10 @@ func parseCoordinate(s string) (lat, lng float64, ok bool) {
 // refusing anything with fewer than the two a line must have to mean
 // anything, or more than maxLineStringPoints.
 func parseLineString(s string) ([]kmlWaypoint, bool) {
-	fields := strings.Fields(s)
-	if len(fields) < 2 || len(fields) > maxLineStringPoints {
+	if !lineStringFieldCountInRange(s) {
 		return nil, false
 	}
+	fields := strings.Fields(s)
 	points := make([]kmlWaypoint, 0, len(fields))
 	for _, f := range fields {
 		lat, lng, ok := parseCoordinate(f)
@@ -147,4 +148,29 @@ func parseLineString(s string) ([]kmlWaypoint, bool) {
 		points = append(points, kmlWaypoint{Lat: lat, Lng: lng})
 	}
 	return points, true
+}
+
+// lineStringFieldCountInRange counts a LineString's space-separated
+// coordinate tuples via bufio.ScanWords rather than strings.Fields, so
+// maxLineStringPoints is a memory bound and not only a correctness one:
+// strings.Fields must materialise a []string slot for every token it finds
+// before its own length could ever be compared against the cap, and a
+// single-character token repeated many times fits millions of tokens in a
+// modest byte budget (measured: 5,000,000 tokens cost ~80 MB for the slice
+// alone before this fix, purely from allocating one 16-byte header per
+// token). ScanWords advances its own small internal buffer and is never
+// asked for a token's text, so counting costs none of that - and the loop
+// exits the instant the count is exceeded, so even the counting itself
+// never runs past the cap.
+func lineStringFieldCountInRange(s string) bool {
+	scanner := bufio.NewScanner(strings.NewReader(s))
+	scanner.Split(bufio.ScanWords)
+	count := 0
+	for scanner.Scan() {
+		count++
+		if count > maxLineStringPoints {
+			return false
+		}
+	}
+	return count >= 2
 }
