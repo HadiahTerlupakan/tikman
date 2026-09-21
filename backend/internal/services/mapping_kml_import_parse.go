@@ -14,35 +14,42 @@ const (
 	// maxKMLDecompressedBytes bounds doc.kml itself once unzipped, checked
 	// against the zip's own declared size before anything is read and again
 	// against what is actually read - the standard defence against a small
-	// upload whose one entry decompresses to something enormous. 100 MiB was
-	// generous enough to let breadth (not depth) attacks through every other
-	// guard: measured, 2.7 million <Data> rows in one placemark's
-	// ExtendedData from a 307 KiB upload reached 472 MiB of live heap, and
-	// 14.8 million sibling elements in one <description> from a 101 KiB
-	// upload reached 5.2 GiB allocated - neither shape is bounded by
-	// maxKMLNestingDepth (siblings, not nesting) or maxKMLPlacemarks (one
-	// placemark). 2,000 placemarks cannot legitimately need anywhere near
-	// 100 MiB of markup - a realistic file is well under 1 MiB - so 5 MiB
-	// leaves generous headroom while cutting the achievable element count for
-	// either shape by the same ~20x this shrinks the byte budget. That is not
-	// the same as a 20x cut in the resulting memory, though: measured
-	// (TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier),
-	// the <Data>-row shape costs a stable ~1,015 bytes of cumulative
-	// allocation per row regardless of scale, so its worst case at this cap
-	// is roughly 124 MiB of TotalAlloc - a large improvement on the pre-fix
-	// figure, but not a clean ratio, since encoding/xml's struct decode has
-	// more per-element overhead than the pure token-skipping the
-	// sibling-element shape uses. That 124 MiB is cumulative allocation, not
-	// what is actually live at once: sampled directly during the operation
-	// (not after - a GC can reclaim the decode's own transient garbage
-	// before a snapshot taken afterwards would see it), peak live heap for
-	// the same worst case measures roughly 17-24 MiB, since the rejected
-	// placemark's struct is never retained past walkStartElement's own
-	// length check. Both figures matter for different reasons: TotalAlloc is
-	// the GC churn one request causes, live heap is what it holds onto at
-	// once - stating only the first, as an earlier draft of this comment
-	// did, overstates the second by roughly 5-7x.
-	maxKMLDecompressedBytes = 5 << 20
+	// upload whose one entry decompresses to something enormous. 100 MiB let
+	// breadth (not depth) attacks through every other guard: measured, 2.7
+	// million <Data> rows in one placemark's ExtendedData from a 307 KiB
+	// upload reached 472 MiB of live heap, and 14.8 million sibling elements
+	// in one <description> from a 101 KiB upload reached 5.2 GiB allocated -
+	// neither shape is bounded by maxKMLNestingDepth (siblings, not nesting)
+	// or maxKMLPlacemarks (one placemark).
+	//
+	// A first pass lowered this to 5 MiB, reasoning from maxKMLPlacemarks
+	// (2,000) and "a realistic file is well under 1 MiB". Measured against a
+	// real Google Earth export at that same 2,000-placemark ceiling - each
+	// one carrying its own Style/StyleMap and Earth's generated balloon HTML,
+	// not just this system's own compact ExtendedData - that guess left only
+	// 2.3% headroom (2,561 B/placemark measured, so 5 MiB admits ~2,047 of
+	// them): one <img> tag or a longer name in a real field survey would tip
+	// over into "berkas doc.kml terlalu besar" for a file the placemark cap
+	// itself would otherwise accept. All three import sources (this system's
+	// own export, a Google Earth field survey, a vendor file) are real
+	// inputs, so a cap sized only from this system's own output was too
+	// tight for one of them.
+	//
+	// 16 MiB is 2,000 x 8 KiB - roughly 3x the fattest measured Earth
+	// placemark above and 8x this system's own export (1,024 B/placemark,
+	// measured directly via buildKML at 2,000 nodes with every optional
+	// field filled). Measured at that new ceiling, the <Data>-row shape
+	// above (as many rows as fit in one placemark under 16 MiB - 381,296)
+	// costs 372.3 MiB of cumulative TotalAlloc, but only ~54 MiB of peak
+	// live heap sampled directly during the operation (two trials, 53.8 and
+	// 54.3 MiB) - the rejected placemark's struct is never retained past
+	// walkStartElement's own maxExtendedDataFields check, so most of the
+	// churn is reclaimed before it ever becomes a steady-state cost. Both
+	// figures matter for different reasons: TotalAlloc is the GC churn one
+	// request causes, live heap is what it holds onto at once - see
+	// TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier
+	// for the smaller, deterministic fixture this is extrapolated from.
+	maxKMLDecompressedBytes = 16 << 20
 
 	// maxKMLNestingDepth bounds how many elements deep the walk in walkKML
 	// will follow, independent of file size: a handful of bytes per level
