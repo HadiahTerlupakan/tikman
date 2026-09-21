@@ -311,3 +311,58 @@ func TestClassifyPlacemarksTruncatesAnOverlongGuessedNodeID(t *testing.T) {
 	require.Len(t, nodes, 1)
 	assert.LessOrEqual(t, len([]rune(nodes[0].NodeID)), 64)
 }
+
+// sanitizeID's truncation only ever ran on a guessed node_id. Every other
+// string field - on both the guess path and the ExtendedData path, which is
+// exactly as unbounded as a placemark's raw <name> or a hand-typed
+// ExtendedData value - reached commit unbounded, where Postgres's own
+// varchar limits would abort the whole transaction with a 22001 the person
+// never sees coming, since the preview showed no problem with it.
+func TestClassifyPlacemarksBoundsAnOverlongNameOnEitherPath(t *testing.T) {
+	long := strings.Repeat("x", 200)
+	ext := extData("node_id", "ODP-01", "type", "odp")
+
+	fromExtendedData, _, _ := classifyPlacemarks([]rawPlacemark{pointPlacemark(long, "ODP", -6.2, 106.8, ext)})
+	fromGuess, _, _ := classifyPlacemarks([]rawPlacemark{pointPlacemark(long, "ODP", -6.2, 106.8, nil)})
+
+	require.Len(t, fromExtendedData, 1)
+	require.Len(t, fromGuess, 1)
+	assert.LessOrEqual(t, len([]rune(fromExtendedData[0].Name)), 120)
+	assert.LessOrEqual(t, len([]rune(fromGuess[0].Name)), 120)
+}
+
+func TestClassifyPlacemarksBoundsAnOverlongNodeIDFromExtendedData(t *testing.T) {
+	ext := extData("node_id", strings.Repeat("x", 100), "type", "odp")
+	raw := []rawPlacemark{pointPlacemark("ODP Satu", "ODP", -6.2, 106.8, ext)}
+
+	nodes, _, _ := classifyPlacemarks(raw)
+
+	require.Len(t, nodes, 1)
+	assert.LessOrEqual(t, len([]rune(nodes[0].NodeID)), 64)
+}
+
+func TestClassifyPlacemarksBoundsAnOverlongSplitterPPPoEAndSerialFromExtendedData(t *testing.T) {
+	long := strings.Repeat("x", 100)
+	ext := extData("node_id", "ODP-01", "type", "odp", "splitter", long, "pppoe", long, "serial_number", long)
+	raw := []rawPlacemark{pointPlacemark("ODP Satu", "ODP", -6.2, 106.8, ext)}
+
+	nodes, _, _ := classifyPlacemarks(raw)
+
+	require.Len(t, nodes, 1)
+	assert.LessOrEqual(t, len([]rune(nodes[0].Splitter)), 16)
+	assert.LessOrEqual(t, len([]rune(nodes[0].PPPoE)), 64)
+	assert.LessOrEqual(t, len([]rune(nodes[0].SerialNumber)), 64)
+}
+
+func TestClassifyPlacemarksBoundsAnOverlongEdgeIDSourceAndTargetFromExtendedData(t *testing.T) {
+	long := strings.Repeat("e", 100)
+	ext := extData("edge_id", long, "source", long, "target", long)
+	raw := []rawPlacemark{linePlacemark("E-1", "Kabel", "106.8,-6.2,0 106.9,-6.3,0", ext)}
+
+	_, edges, _ := classifyPlacemarks(raw)
+
+	require.Len(t, edges, 1)
+	assert.LessOrEqual(t, len([]rune(edges[0].EdgeID)), 64)
+	assert.LessOrEqual(t, len([]rune(edges[0].Source)), 64)
+	assert.LessOrEqual(t, len([]rune(edges[0].Target)), 64)
+}
