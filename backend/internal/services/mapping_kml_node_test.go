@@ -67,6 +67,7 @@ func TestNodeExtendedDataRoundTripsEveryModelField(t *testing.T) {
 	node.Splitter = "1:8"
 	node.PPPoE = "user@isp"
 	node.SerialNumber = "SN-123"
+	node.Notes = "dekat tiang 12"
 
 	root := parseKML(t, mustBuildKML(t, []models.MappingNode{node}, nil))
 	pm := findPlacemark(t, findFolder(t, root, "ODP"), "ODP Depan Masjid")
@@ -78,6 +79,7 @@ func TestNodeExtendedDataRoundTripsEveryModelField(t *testing.T) {
 	assert.Equal(t, "user@isp", extendedDataValue(t, pm, "pppoe"))
 	assert.Equal(t, "SN-123", extendedDataValue(t, pm, "serial_number"))
 	assert.Equal(t, "", extendedDataValue(t, pm, "olt_id"))
+	assert.Equal(t, "dekat tiang 12", extendedDataValue(t, pm, "notes"))
 }
 
 func TestNodeExtendedDataCarriesTheOLTIdWhenTheNodeMirrorsOne(t *testing.T) {

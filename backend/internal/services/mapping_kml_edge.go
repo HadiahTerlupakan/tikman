@@ -122,6 +122,7 @@ func edgeExtendedData(e models.MappingEdge) *kmlExtendedData {
 		{Name: "target", Value: e.Target},
 		{Name: "fiber_type", Value: string(e.FiberType)},
 		{Name: "distance", Value: strconv.FormatFloat(e.Distance, 'f', -1, 64)},
+		{Name: "notes", Value: e.Notes},
 	}}
 }
 

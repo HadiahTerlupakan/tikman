@@ -86,7 +86,7 @@ func TestASurvivingEdgeIsKeptWhenAnotherEdgeDangles(t *testing.T) {
 func TestEdgeExtendedDataRoundTripsEveryModelField(t *testing.T) {
 	edge := models.MappingEdge{
 		EdgeID: "E-1", Source: "ODC-01", Target: "ODP-01",
-		FiberType: models.FiberDistribution, Distance: 123.5,
+		FiberType: models.FiberDistribution, Distance: 123.5, Notes: "sudah diperbaiki",
 	}
 
 	root := parseKML(t, mustBuildKML(t, fixtureNodes(), []models.MappingEdge{edge}))
@@ -97,6 +97,7 @@ func TestEdgeExtendedDataRoundTripsEveryModelField(t *testing.T) {
 	assert.Equal(t, "ODP-01", extendedDataValue(t, pm, "target"))
 	assert.Equal(t, "distribution", extendedDataValue(t, pm, "fiber_type"))
 	assert.Equal(t, "123.5", extendedDataValue(t, pm, "distance"))
+	assert.Equal(t, "sudah diperbaiki", extendedDataValue(t, pm, "notes"))
 }
 
 func TestEdgeDescriptionIncludesNotesOnlyWhenSet(t *testing.T) {

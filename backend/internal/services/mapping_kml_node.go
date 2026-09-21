@@ -84,5 +84,6 @@ func nodeExtendedData(n models.MappingNode) *kmlExtendedData {
 		{Name: "pppoe", Value: n.PPPoE},
 		{Name: "serial_number", Value: n.SerialNumber},
 		{Name: "olt_id", Value: oltID},
+		{Name: "notes", Value: n.Notes},
 	}}
 }

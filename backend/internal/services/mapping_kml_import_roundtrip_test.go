@@ -49,6 +49,7 @@ func TestRoundTripExportThenImportRecoversEveryNodeAndEdgeField(t *testing.T) {
 			EdgeID: "E-1", Source: "ODC-01", Target: "ODP-01",
 			FiberType: models.FiberDistribution, Distance: 543.21,
 			Waypoints: datatypes.JSON(`[{"lat":-6.21,"lng":106.81},{"lat":-6.23,"lng":106.83}]`),
+			Notes:     "sudah diperbaiki",
 		},
 		{
 			EdgeID: "E-2", Source: "SERVER-01", Target: "ODC-01",
@@ -74,6 +75,7 @@ func TestRoundTripExportThenImportRecoversEveryNodeAndEdgeField(t *testing.T) {
 	assert.Equal(t, "ODC Satu", odc.Name)
 	assert.InDelta(t, -6.20, odc.Latitude, 1e-6)
 	assert.InDelta(t, 106.80, odc.Longitude, 1e-6)
+	assert.Equal(t, "dekat gerbang", odc.Notes)
 	assert.True(t, odc.Include)
 	assert.False(t, odc.Blocked)
 
@@ -104,6 +106,7 @@ func TestRoundTripExportThenImportRecoversEveryNodeAndEdgeField(t *testing.T) {
 	assert.InDelta(t, 106.81, e1.Waypoints[0].Lng, 1e-6)
 	assert.InDelta(t, -6.23, e1.Waypoints[1].Lat, 1e-6)
 	assert.InDelta(t, 106.83, e1.Waypoints[1].Lng, 1e-6)
+	assert.Equal(t, "sudah diperbaiki", e1.Notes)
 	assert.True(t, e1.Include)
 
 	e2 := byID["E-2"]

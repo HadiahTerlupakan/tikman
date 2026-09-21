@@ -92,6 +92,7 @@ func nodeFromExtendedData(pm kmlPlacemark, ext map[string]string, nodeType model
 	return ImportedNode{
 		NodeID: firstNonEmpty(ext["node_id"], pm.Name), Type: nodeType, Name: pm.Name,
 		Capacity: capacity, Splitter: ext["splitter"], PPPoE: ext["pppoe"], SerialNumber: ext["serial_number"],
+		Notes:  ext["notes"],
 		Reason: "Dari data ekspor (ExtendedData)",
 	}
 }
@@ -186,6 +187,7 @@ func edgeFromExtendedData(pm kmlPlacemark, ext map[string]string, path []kmlWayp
 		EdgeID: firstNonEmpty(ext["edge_id"], pm.Name),
 		Source: ext["source"], Target: ext["target"],
 		Waypoints: innerCorners(path),
+		Notes:     ext["notes"],
 		Reason:    "Sumber dan tujuan dari data ekspor (ExtendedData).",
 	}
 	if distance, err := strconv.ParseFloat(ext["distance"], 64); err == nil {
