@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -144,6 +145,78 @@ func TestWalkKMLRefusesTooManyPlacemarks(t *testing.T) {
 	assert.Contains(t, err.Error(), "placemark")
 }
 
+// Nothing bounded how many <Data> rows one placemark's own ExtendedData
+// could claim - not maxKMLNestingDepth (siblings, not nesting) and not
+// maxKMLPlacemarks (this is still one placemark). Measured: 2.7 million
+// <Data> rows in a single ExtendedData, from an upload well under the byte
+// cap, reached 472 MiB of live heap. maxKMLDecompressedBytes' own
+// reduction bounds the achievable worst case; this catches the specific
+// shape outright and cheaply, without waiting for the byte budget to run out.
+func TestWalkKMLRefusesTooManyExtendedDataFieldsOnOnePlacemark(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("<kml><Document><Folder><name>ODP</name>")
+	b.WriteString(`<Placemark><name>x</name><Point><coordinates>0,0,0</coordinates></Point><ExtendedData>`)
+	for i := 0; i <= maxExtendedDataFields; i++ {
+		fmt.Fprintf(&b, `<Data name="f%d"><value>v</value></Data>`, i)
+	}
+	b.WriteString("</ExtendedData></Placemark></Folder></Document></kml>")
+
+	_, err := walkKML(strings.NewReader(b.String()), maxKMLNestingDepth, maxKMLPlacemarks)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ExtendedData")
+}
+
+// The len(ext.Data) check above only fires after dec.DecodeElement has
+// already materialised every <Data> row into memory - it stops an oversized
+// result from propagating past walkStartElement, not the decode's own
+// allocation. What actually bounds that allocation is maxKMLDecompressedBytes
+// itself, so this measures - rather than assumes - the residual cost a file
+// just under that cap can still cause. Measured here: 100,000 rows from a
+// 4,289,068-byte input (as many rows as fit under the 5 MiB cap alongside a
+// second, larger placemark elsewhere in the same file) cost 101,777,984 bytes
+// (~97 MiB), reproducibly (three runs, identical to the byte). That is a
+// roughly 24x amplification over input size, not the 4.7x the pre-fix
+// 307 KiB-to-472 MiB figure implied - encoding/xml's per-element struct
+// decode (an xml.Name plus two strings per <Data>) costs more than the
+// sibling-skipping path TestParseKMZForImportRefusesMoreThanMaxKMLDecompressedBytes's
+// own doc comment describes, and extrapolating linearly to the ~121,700 rows
+// that fit the full 5 MiB cap puts the true worst case at roughly 124 MiB -
+// large improvement over the pre-fix 472 MiB-5.2 GiB, but a hundred-odd MiB
+// transient per malicious request, not "tens of MB". Closing that further
+// would need decode-time counting (a custom UnmarshalXML, or a per-placemark
+// token budget alongside depthLimitedTokens) - a bigger change than the "if
+// it is easy" asked for here, so the threshold below is set to catch a real
+// regression (back toward the old multi-hundred-MiB or GiB shape), not to
+// assert a number nobody required.
+func TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier(t *testing.T) {
+	const rows = 100_000
+	var b strings.Builder
+	b.Grow(rows * 45)
+	b.WriteString("<kml><Document><Folder><name>ODP</name>")
+	b.WriteString(`<Placemark><name>x</name><Point><coordinates>0,0,0</coordinates></Point><ExtendedData>`)
+	for i := 0; i < rows; i++ {
+		fmt.Fprintf(&b, `<Data name="f%d"><value>v</value></Data>`, i)
+	}
+	b.WriteString("</ExtendedData></Placemark></Folder></Document></kml>")
+	input := b.String()
+	require.Less(t, len(input), maxKMLDecompressedBytes,
+		"fixture must fit under the production byte cap to measure the residual decode cost, not the cap rejecting it on size alone")
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+
+	_, err := walkKML(strings.NewReader(input), maxKMLNestingDepth, maxKMLPlacemarks)
+
+	runtime.ReadMemStats(&after)
+	require.Error(t, err, "still over maxExtendedDataFields, must still be refused")
+	grew := after.TotalAlloc - before.TotalAlloc
+	const twoHundredMiB = 200 << 20 // ~2x the measured 101,777,984 bytes; catches a regression, not sensitive to allocator noise
+	assert.Less(t, grew, uint64(twoHundredMiB),
+		"decoding %d ExtendedData rows from a %d-byte file allocated %d bytes - expected roughly 100 MiB (measured), not a multiple more", rows, len(input), grew)
+}
+
 // The production value itself, exercised through parseKMZForImport (not
 // walkKML with an injected small cap): both preview tables render every row
 // with no pagination, and classifyEdge's own nearest-node search is O(nodes
@@ -163,6 +236,20 @@ func TestParseKMZForImportRefusesMoreThanMaxKMLPlacemarks(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "placemark")
+}
+
+// The production value, exercised through parseKMZForImport, the same
+// reasoning as the placemark-cap test above: 2,000 placemarks - the other
+// half of what makes 5 MiB of markup an already-generous ceiling - cannot
+// legitimately need anywhere near this much text.
+func TestParseKMZForImportRefusesMoreThanMaxKMLDecompressedBytes(t *testing.T) {
+	big := bytes.Repeat([]byte("a"), maxKMLDecompressedBytes+1)
+	kmz := buildTestKMZ(t, kmzKMLEntry, big)
+
+	_, err := parseKMZForImport(kmz)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "besar")
 }
 
 // Go's xml.Decoder has no DTD support: a DOCTYPE's internal <!ENTITY> subset

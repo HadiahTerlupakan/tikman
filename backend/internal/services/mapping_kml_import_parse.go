@@ -14,10 +14,25 @@ const (
 	// maxKMLDecompressedBytes bounds doc.kml itself once unzipped, checked
 	// against the zip's own declared size before anything is read and again
 	// against what is actually read - the standard defence against a small
-	// upload whose one entry decompresses to something enormous. 100 MiB of
-	// KML text already describes a plant far larger than anything this
-	// system runs today.
-	maxKMLDecompressedBytes = 100 << 20
+	// upload whose one entry decompresses to something enormous. 100 MiB was
+	// generous enough to let breadth (not depth) attacks through every other
+	// guard: measured, 2.7 million <Data> rows in one placemark's
+	// ExtendedData from a 307 KiB upload reached 472 MiB of live heap, and
+	// 14.8 million sibling elements in one <description> from a 101 KiB
+	// upload reached 5.2 GiB allocated - neither shape is bounded by
+	// maxKMLNestingDepth (siblings, not nesting) or maxKMLPlacemarks (one
+	// placemark). 2,000 placemarks cannot legitimately need anywhere near
+	// 100 MiB of markup - a realistic file is well under 1 MiB - so 5 MiB
+	// leaves generous headroom while cutting the achievable element count for
+	// either shape by the same ~20x this shrinks the byte budget. That is not
+	// the same as a 20x cut in the resulting memory, though: measured
+	// (TestWalkKMLBoundsExtendedDataDecodeCostToRoughlyTheByteCapNotAMultiplier),
+	// the <Data>-row shape costs a stable ~1,015 bytes of allocation per row
+	// regardless of scale, so its worst case at this cap is roughly 124 MiB,
+	// not 472 MiB / 20 - a large improvement on the pre-fix figure, but not a
+	// clean ratio, since encoding/xml's struct decode has more per-element
+	// overhead than the pure token-skipping the sibling-element shape uses.
+	maxKMLDecompressedBytes = 5 << 20
 
 	// maxKMLNestingDepth bounds how many elements deep the walk in walkKML
 	// will follow, independent of file size: a handful of bytes per level
@@ -39,6 +54,13 @@ const (
 	// keeping that search trivially fast and the table sizes the preview
 	// screen was actually built to show.
 	maxKMLPlacemarks = 2000
+
+	// maxExtendedDataFields caps how many <Data> rows one placemark's own
+	// ExtendedData may carry. Our own export writes at most 7 (nodes) or 6
+	// (edges, see nodeExtendedData/edgeExtendedData); 100 leaves generous
+	// room for a vendor's own extra fields while refusing a placemark that
+	// claims thousands.
+	maxExtendedDataFields = 100
 )
 
 // rawPlacemark is one Placemark element as found in the file, together with
@@ -234,6 +256,17 @@ func walkStartElement(
 		var pm kmlPlacemark
 		if err := dec.DecodeElement(&pm, &start); err != nil {
 			return nil, fmt.Errorf("baca placemark: %w", err)
+		}
+		// Nothing bounds how many <Data> rows one placemark's own
+		// ExtendedData can claim while it is being decoded above - not
+		// maxDepth (siblings, not nesting) and not maxPlacemarks (this is
+		// still one placemark). This does not prevent that decode's own
+		// allocation (maxKMLDecompressedBytes' own reduction is what bounds
+		// the achievable worst case) but it does stop the result from
+		// propagating any further: nothing legitimate needs anywhere near
+		// this many fields on one placemark.
+		if pm.ExtendedData != nil && len(pm.ExtendedData.Data) > maxExtendedDataFields {
+			return nil, fmt.Errorf("placemark %q punya terlalu banyak field ExtendedData (lebih dari %d)", pm.Name, maxExtendedDataFields)
 		}
 		placemarks = append(placemarks, rawPlacemark{Placemark: pm, Folder: currentFolder(*folders)})
 	}
