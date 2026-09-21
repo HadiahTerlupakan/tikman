@@ -191,3 +191,27 @@ func TestClassifyPlacemarksEdgeRejectsNonFiniteOrNegativeDistance(t *testing.T) 
 		})
 	}
 }
+
+// classifyNode gets this right for "type": a value that fails
+// isValidNodeType is treated as absent, not trusted verbatim. The fiber_type
+// branch skipped that check and trusted any non-empty string, so a garbage
+// value previewed as an ordinary, importable row (Unresolved only looks at
+// EdgeID/Source/Target) and then failed isValidFiberType at commit time,
+// refusing the *entire* batch over one field that was never shown as a
+// problem.
+func TestClassifyPlacemarksEdgeIgnoresAnInvalidFiberTypeAndGuessesInstead(t *testing.T) {
+	ext := extData("source", "ODC-01", "target", "ODP-01", "fiber_type", "bukan-jenis")
+	coords := coordinate(-6.20, 106.80) + " " + coordinate(-6.21, 106.81)
+	raw := []rawPlacemark{
+		linePlacemark("E-1", "Kabel", coords, ext),
+		pointPlacemark("ODC-01", "ODC", -6.20, 106.80, nil),
+		pointPlacemark("ODP-01", "ODP", -6.21, 106.81, nil),
+	}
+
+	_, edges, _ := classifyPlacemarks(raw)
+
+	require.Len(t, edges, 1)
+	assert.Equal(t, models.FiberDistribution, edges[0].FiberType)
+	assert.True(t, edges[0].Include)
+	assert.Contains(t, edges[0].Reason, "tidak valid")
+}

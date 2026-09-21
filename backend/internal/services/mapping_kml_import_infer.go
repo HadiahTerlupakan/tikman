@@ -196,10 +196,21 @@ func edgeFromExtendedData(pm kmlPlacemark, ext map[string]string, path []kmlWayp
 		e.Distance = pathLengthMeters(path)
 		e.Reason += " Panjang dihitung dari garis."
 	}
-	if ext["fiber_type"] != "" {
-		e.FiberType = models.FiberType(ext["fiber_type"])
-	} else if ft, why := guessFiberType(e.Source, e.Target, localNodes); ft != "" {
+	// classifyNode makes the equivalent check on "type" before ever trusting
+	// ExtendedData with it; a garbage fiber_type must be treated the same
+	// way - trusting it verbatim would preview as an ordinary, importable
+	// row (Unresolved only looks at EdgeID/Source/Target), then fail
+	// isValidFiberType at commit and refuse the whole batch over a field
+	// the preview never flagged as a problem.
+	ft := models.FiberType(ext["fiber_type"])
+	if ft != "" && !isValidFiberType(ft) {
+		e.Reason += " Jenis serat pada data ekspor tidak valid, diabaikan."
+		ft = ""
+	}
+	if ft != "" {
 		e.FiberType = ft
+	} else if guessed, why := guessFiberType(e.Source, e.Target, localNodes); guessed != "" {
+		e.FiberType = guessed
 		e.Reason += " " + why
 	}
 	return e
