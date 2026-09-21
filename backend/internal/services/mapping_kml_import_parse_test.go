@@ -127,6 +127,27 @@ func TestWalkKMLRefusesTooManyPlacemarks(t *testing.T) {
 	assert.Contains(t, err.Error(), "placemark")
 }
 
+// The production value itself, exercised through parseKMZForImport (not
+// walkKML with an injected small cap): both preview tables render every row
+// with no pagination, and classifyEdge's own nearest-node search is O(nodes
+// x edges without ExtendedData) - a cap high enough to describe "a plant far
+// larger than anything this system runs today" was also high enough to be
+// impractical to even test at full scale, which was itself the tell.
+func TestParseKMZForImportRefusesMoreThanMaxKMLPlacemarks(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("<kml><Document><Folder><name>ODP</name>")
+	for i := 0; i <= maxKMLPlacemarks; i++ {
+		fmt.Fprintf(&b, `<Placemark><name>ODP-%d</name><Point><coordinates>0,0,0</coordinates></Point></Placemark>`, i)
+	}
+	b.WriteString("</Folder></Document></kml>")
+	kmz := buildTestKMZ(t, kmzKMLEntry, []byte(b.String()))
+
+	_, err := parseKMZForImport(kmz)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "placemark")
+}
+
 // Go's xml.Decoder has no DTD support: a DOCTYPE's internal <!ENTITY> subset
 // is never parsed, so a reference to one is always "undefined" from the
 // decoder's own point of view, whether or not this file declares it. This is

@@ -29,9 +29,16 @@ const (
 	maxKMLNestingDepth = 64
 
 	// maxKMLPlacemarks caps how many placemarks one import will carry into
-	// memory. Generous next to any plant this ISP runs today, but not
-	// unbounded - a preview response has to stay renderable.
-	maxKMLPlacemarks = 200_000
+	// memory and render in the preview - both tables show every row with no
+	// pagination, so this is a DOM row count as much as a memory bound. It
+	// also bounds classifyEdge's own nearest-node search, which is O(nodes x
+	// edges without ExtendedData): measured at roughly 613s of CPU from a
+	// file that zips to 65 KiB when this was 200,000. 2,000 is still far
+	// more than a single technician draws in one field survey (a real route
+	// is a handful of corners, not a plant's whole placemark count), while
+	// keeping that search trivially fast and the table sizes the preview
+	// screen was actually built to show.
+	maxKMLPlacemarks = 2000
 )
 
 // rawPlacemark is one Placemark element as found in the file, together with
