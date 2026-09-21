@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -129,4 +130,48 @@ func TestCommitImportAcceptsABlankFiberType(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.EdgesCreated)
+}
+
+// nodesToCreate already re-derives Type, NodeID and every collision from the
+// database, and refuses the caller's own Blocked flag, on the stated
+// principle that a client is untrusted regardless of what the preview
+// showed. Latitude/Longitude were copied straight through with no such
+// check - the exact swapped-Jakarta-pair defect ImportNodesTable's own
+// Lintang/Bujur columns exist to let a person catch and fix, writable
+// again if nothing on the commit side actually enforces it.
+func TestCommitImportRefusesOutOfRangeCoordinates(t *testing.T) {
+	s := mappingSetup(t)
+	node := includedNode("ODP-01", models.NodeODP)
+	node.Latitude, node.Longitude = 999, -5000
+
+	_, err := s.CommitImport([]ImportedNode{node}, nil)
+
+	require.ErrorIs(t, err, ErrImportInvalid)
+	got, err := s.ListNodes()
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+// The swapped-pair case named in the review directly: 106.8 is a real,
+// in-range-looking longitude sitting in the latitude field - not obviously
+// broken the way 999 is, exactly why it is the commonest defect and exactly
+// what validateCoordinates' own range check catches regardless.
+func TestCommitImportRefusesASwappedLatLngPair(t *testing.T) {
+	s := mappingSetup(t)
+	node := includedNode("ODP-01", models.NodeODP)
+	node.Latitude, node.Longitude = 106.8, -6.2
+
+	_, err := s.CommitImport([]ImportedNode{node}, nil)
+
+	require.ErrorIs(t, err, ErrImportInvalid)
+}
+
+func TestCommitImportRefusesNaNCoordinates(t *testing.T) {
+	s := mappingSetup(t)
+	node := includedNode("ODP-01", models.NodeODP)
+	node.Latitude = math.NaN()
+
+	_, err := s.CommitImport([]ImportedNode{node}, nil)
+
+	require.ErrorIs(t, err, ErrImportInvalid)
 }

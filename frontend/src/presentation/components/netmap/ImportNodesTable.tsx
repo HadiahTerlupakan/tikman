@@ -86,17 +86,30 @@ function typeColumn(onChange: OnChange) {
 // is the commonest defect in a hand-made or third-party file - exactly what
 // this feature exists to import - and the person confirming has to be able
 // to see and fix it here, not only be told it exists.
+// validateCoordinates (backend, site_service.go, reused by nodesToCreate)
+// is the real refusal; min/max here only get that refusal in front of the
+// person before they submit, rather than only after, for the one obviously
+// wrong case a bound can catch (999, -5000) - a swapped-but-in-range pair
+// still needs a person to notice it in the columns themselves.
+const COORDINATE_RANGE: Record<"latitude" | "longitude", [number, number]> = {
+  latitude: [-90, 90],
+  longitude: [-180, 180],
+};
+
 function coordinateColumn(
   title: string,
   field: "latitude" | "longitude",
   onChange: OnChange,
 ) {
+  const [min, max] = COORDINATE_RANGE[field];
   return {
     title,
     render: (_: unknown, row: ImportedNode) => (
       <InputNumber
         size="small"
         style={{ width: 100 }}
+        min={min}
+        max={max}
         value={row[field]}
         onChange={(value) =>
           onChange(row.row, { [field]: value ?? 0 } as Partial<ImportedNode>)

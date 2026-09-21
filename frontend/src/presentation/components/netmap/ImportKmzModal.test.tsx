@@ -197,6 +197,23 @@ describe("ImportKmzModal", () => {
     });
   });
 
+  // Kapasitas already has min={0}; the coordinate columns did not carry
+  // any bound at all, so a value like 999 or -5000 could be typed and
+  // would only be refused server-side, after submission rather than before.
+  it("bounds the coordinate inputs to real latitude/longitude ranges", async () => {
+    previewMutateAsync.mockResolvedValue(previewWith([baseNode()]));
+    render(<ImportKmzModal open onClose={vi.fn()} />);
+    await uploadAndPreview();
+
+    const latitudeInput = screen.getByDisplayValue("-6.2");
+    const longitudeInput = screen.getByDisplayValue("106.8");
+
+    expect(latitudeInput).toHaveAttribute("aria-valuemin", "-90");
+    expect(latitudeInput).toHaveAttribute("aria-valuemax", "90");
+    expect(longitudeInput).toHaveAttribute("aria-valuemin", "-180");
+    expect(longitudeInput).toHaveAttribute("aria-valuemax", "180");
+  });
+
   // Every imported node lands at capacity 0, which checkSlots reads as
   // "nobody has counted the ports yet" and never enforces - a capacity
   // nobody can see or set in the preview is a capacity rule that never

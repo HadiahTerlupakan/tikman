@@ -82,6 +82,16 @@ func nodesToCreate(nodes []ImportedNode, existing map[string]bool) ([]models.Map
 		if n.NodeID == "" {
 			return nil, fmt.Errorf("%w: ada node tanpa kode", ErrImportInvalid)
 		}
+		// Every other field here is re-derived or re-checked against the
+		// database regardless of what the caller claims (Type, NodeID,
+		// collisions, Blocked above) - Latitude/Longitude must not be the one
+		// exception. validateCoordinates (site_service.go) is the same check
+		// ImportNodesTable's own Lintang/Bujur columns exist so a person can
+		// see and fix before commit; nothing stops a client from sending
+		// something the preview never showed.
+		if err := validateCoordinates(&n.Latitude, &n.Longitude); err != nil {
+			return nil, fmt.Errorf("%w: node %q: %v", ErrImportInvalid, n.NodeID, err)
+		}
 		if existing[n.NodeID] || seen[n.NodeID] {
 			return nil, fmt.Errorf("%w: kode node %q masih bentrok", ErrImportInvalid, n.NodeID)
 		}
