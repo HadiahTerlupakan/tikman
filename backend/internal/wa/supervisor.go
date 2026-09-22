@@ -20,6 +20,20 @@ func (c *Client) signalDropped() {
 	}
 }
 
+func (c *Client) signalLoggedOut() {
+	select {
+	case c.loggedOut <- struct{}{}:
+	default:
+	}
+}
+
+// LoggedOut fires when WhatsApp ends this number's link. Whoever owns the
+// session must drop it and let a fresh one be opened: the device is gone, and
+// this client can no longer reach a pairable state.
+func (c *Client) LoggedOut() <-chan struct{} {
+	return c.loggedOut
+}
+
 func (c *Client) signalPaired() {
 	select {
 	case c.paired <- struct{}{}:

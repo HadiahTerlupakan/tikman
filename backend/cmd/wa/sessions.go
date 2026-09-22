@@ -189,10 +189,30 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 		syncChannels(ctx, live.client, s.deps.channels, account.ID, logger)
 	})
 
+	// The other half of what restart exists for. ControlDisconnect drops the
+	// session when an admin ends the link; WhatsApp can end it on its own,
+	// which deletes the device just the same, and until this nothing watched
+	// for that - so the process held a client that could never pair again.
+	go watchForLogout(ctx, live.client.LoggedOut(), func() {
+		logger.Info("WhatsApp ended this link; dropping the session so the number can be paired again")
+		s.restart(account.ID)
+	})
+
 	avatars := wa.NewAvatarSweeper(account.ID, s.deps.conversations, live.client,
 		s.deps.cfg.WAMediaDir, avatarPace, avatarRefresh)
 	sweepAvatars(ctx, avatars, logger)
 	every(ctx, avatarSweep, func() { sweepAvatars(ctx, avatars, logger) })
+}
+
+// watchForLogout drops one session once WhatsApp ends its link, and leaves it
+// alone on shutdown: a logout deletes the device and only a session rebuilt
+// around a new one can be paired, while a shutdown has a pairing worth keeping.
+func watchForLogout(ctx context.Context, loggedOut <-chan struct{}, drop func()) {
+	select {
+	case <-ctx.Done():
+	case <-loggedOut:
+		drop()
+	}
 }
 
 // drainAll empties both of every number's outboxes, the chat replies and the

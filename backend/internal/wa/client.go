@@ -62,6 +62,13 @@ type Client struct {
 	// instead of exiting: exiting would leave nothing running to recover the
 	// very session this pairing is about to produce.
 	paired chan struct{}
+	// loggedOut carries "WhatsApp ended this link" out to whoever owns this
+	// session's lifetime. It cannot be answered in here: the logout deletes
+	// the device, and whatsmeow refuses every later use of it, so the only way
+	// back to a pairable state is a session built around a fresh device. One
+	// slot, like the others - a second logout before the first is answered
+	// says nothing new.
+	loggedOut chan struct{}
 	// connected carries "this session is authenticated" to whoever has to wait
 	// for it. Connect returns once the noise handshake is sent, which is well
 	// before whatsmeow can serve a request, so anything that asks WhatsApp a
@@ -97,6 +104,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		logger:    opt.Logger,
 		dropped:   make(chan struct{}, 1),
 		paired:    make(chan struct{}, 1),
+		loggedOut: make(chan struct{}, 1),
 		connected: make(chan struct{}, 1),
 		ctx:       ctx,
 	}
@@ -231,8 +239,12 @@ func (c *Client) routeSession(rawEvt any) {
 		c.logger.Error("Another client took over this WhatsApp session; staying disconnected")
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 	case *events.LoggedOut:
-		c.logger.Warn("WhatsApp logged this number out. The process stays up but " +
-			"will send and receive nothing until it is paired again")
+		c.logger.Warn("WhatsApp logged this number out. Rebuilding the session so " +
+			"the number can be paired again")
+		// Raised before the status write, which can fail or block: this
+		// signal is the only route back to a pairable state, and a database
+		// blip must not be able to strand the number for good.
+		c.signalLoggedOut()
 		c.setStatus(c.ctx, models.WAAccountDisconnected)
 		c.signalDropped()
 	case *events.KeepAliveTimeout:
