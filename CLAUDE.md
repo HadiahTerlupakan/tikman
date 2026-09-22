@@ -65,7 +65,10 @@ go test -v -run TestFunctionName ./internal/services/
 
 ### Tool Versions
 
-- Go 1.25.x
+- Go 1.26.x (floor set by `golang.org/x/crypto` v0.56.0, which carries the
+  SSH DoS fixes; the three Dockerfiles and CI must move together with go.mod,
+  or the image build fails on `go mod download` while a local build on a newer
+  toolchain still passes)
 - Node.js 24
 - PostgreSQL 15 / TimescaleDB in production Compose
 - Redis 7
