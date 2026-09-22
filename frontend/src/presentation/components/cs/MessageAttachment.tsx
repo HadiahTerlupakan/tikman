@@ -76,7 +76,7 @@ function VideoAttachment({
         footer={null}
         width={720}
         centered
-        destroyOnClose
+        destroyOnHidden
       >
         {/* autoPlay: the click that opened this was the request to watch it. */}
         <video

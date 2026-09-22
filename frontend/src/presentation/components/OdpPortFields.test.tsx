@@ -124,12 +124,19 @@ describe("OdpPortFields", () => {
     expect(screen.queryByText(/port kosong/)).not.toBeInTheDocument();
   });
 
+  // Asserted on the boundary rather than by counting role="option" nodes.
+  // antd 5.29 changed which elements carry that role, so the count started
+  // matching two untitled wrappers instead of the ports while all four ports
+  // were still on screen — the query broke, not the component. The last port
+  // being offered and the one past it not is what "exactly as many" means
+  // anyway, and it does not depend on antd's internal markup.
   it("offers exactly as many ports as a box with a stated capacity", async () => {
     renderFields();
 
     await chooseTheBox();
 
-    expect(screen.getAllByRole("option")).toHaveLength(4);
+    expect(await screen.findByTitle("Port 4")).toBeInTheDocument();
+    expect(screen.queryByTitle("Port 5")).not.toBeInTheDocument();
   });
 
   // A box placed on the map with no capacity filled in yet still has to be

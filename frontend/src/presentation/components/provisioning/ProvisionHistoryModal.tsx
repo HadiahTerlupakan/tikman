@@ -60,7 +60,7 @@ export function ProvisionHistoryModal({
       onCancel={onClose}
       footer={null}
       width={800}
-      destroyOnClose
+      destroyOnHidden
     >
       <Table
         columns={columns}

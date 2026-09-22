@@ -184,7 +184,7 @@ export function ZteProvisionModal({
       // withheld. It is disabled until the operator says they have read it.
       okButtonProps={{ disabled: step === 2 && !confirmed }}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
       width={720}
     >
       <Alert

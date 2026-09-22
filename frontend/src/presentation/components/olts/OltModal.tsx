@@ -175,7 +175,7 @@ export function OltModal({
       title={olt ? "Edit OLT" : "Create OLT"}
       open={open}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
       width={600}
       footer={[
         <Button key="cancel" onClick={onClose}>

@@ -180,7 +180,7 @@ export function ImportKmzModal({ open, onClose }: ImportKmzModalProps) {
       title="Impor Peta dari KMZ"
       onCancel={close}
       width={900}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <ModalFooter
           preview={preview}

@@ -30,7 +30,7 @@ export function CableTypeModal({
       onOk={() => onSubmit(fiberType)}
       okText="Simpan"
       cancelText="Batal"
-      destroyOnClose
+      destroyOnHidden
     >
       <Select<FiberType>
         style={{ width: "100%" }}

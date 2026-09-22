@@ -195,7 +195,7 @@ export function NodeFormModal({
       onOk={submit}
       okText="Simpan"
       cancelText="Batal"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" preserve={false}>
         <Form.Item

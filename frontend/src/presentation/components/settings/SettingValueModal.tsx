@@ -32,7 +32,7 @@ export function SettingValueModal({
       confirmLoading={loading}
       onOk={() => onSubmit(value.trim())}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       <Typography.Paragraph type="secondary">
         {setting?.description}

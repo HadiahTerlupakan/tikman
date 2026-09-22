@@ -86,7 +86,7 @@ export function ProvisionModal({
           Kirim
         </Button>,
       ]}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item name="templateId" label="Configuration Template">

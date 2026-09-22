@@ -48,7 +48,7 @@ export function OltPlacementModal({
       onOk={submit}
       okText="Simpan"
       cancelText="Batal"
-      destroyOnClose
+      destroyOnHidden
     >
       <Descriptions column={1} size="small" style={{ marginBottom: 12 }}>
         <Descriptions.Item label="Koordinat">

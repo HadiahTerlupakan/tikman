@@ -82,7 +82,7 @@ export function UserModal({
       onOk={handleSubmit}
       onCancel={onClose}
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical">
         <Form.Item

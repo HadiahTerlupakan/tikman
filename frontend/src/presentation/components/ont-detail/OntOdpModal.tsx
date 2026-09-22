@@ -64,7 +64,7 @@ export function OntOdpModal({ ont, onClose }: OntOdpModalProps) {
       okText="Simpan"
       cancelText="Batal"
       confirmLoading={assign.isPending}
-      destroyOnClose
+      destroyOnHidden
       footer={(_, { OkBtn, CancelBtn }) => (
         <>
           {ont.odpId && (

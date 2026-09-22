@@ -45,7 +45,7 @@ export function OntRemoveDialog({
       maskClosable={!loading}
       onCancel={onCancel}
       onOk={() => onConfirm(removeFromOlt)}
-      destroyOnClose
+      destroyOnHidden
     >
       <Paragraph>
         TikMan&apos;s record of this ONT goes, along with its metrics and event
