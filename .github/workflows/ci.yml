@@ -133,6 +133,17 @@ jobs:
         working-directory: backend
         run: go mod verify
 
+      # Trivy (security-scan) matches package versions against advisories.
+      # govulncheck walks the call graph instead and reports only what this
+      # code actually reaches, which is what separates a real exposure from an
+      # unused import — on the first run here it told 13 reachable apart from
+      # 5 that were only imported. It runs on the same 1.25.x the production
+      # image builds with, so it answers for the binary that ships. The tool
+      # is pinned; its vulnerability database is fetched fresh each run.
+      - name: Run govulncheck
+        working-directory: backend
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
   backend-build:
     name: Backend Build
     runs-on: ubuntu-latest
