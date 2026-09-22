@@ -14,7 +14,7 @@ require (
 	// Pinned to a pseudo-version on purpose: the tagged release after this
 	// commit requires Go 1.26, and this module is on 1.25. Do not let a
 	// `go get -u` move it until the toolchain moves first.
-	go.mau.fi/whatsmeow v0.0.0-20260816113502-fb386f152837
+	go.mau.fi/whatsmeow v0.0.0-20260921121126-35ae40906e74
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.57.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
@@ -91,14 +91,14 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.49 // indirect
+	github.com/mattn/go-sqlite3 v1.14.52 // indirect
 	github.com/mdlayher/genetlink v1.3.2 // indirect
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
-	github.com/petermattis/goid v0.0.0-20260816044145-ed329add6b1b // indirect
+	github.com/petermattis/goid v0.0.0-20260820044319-269ab09b5261 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.1 // indirect
@@ -115,7 +115,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.mau.fi/libsignal v0.2.2 // indirect
-	go.mau.fi/util v0.10.0 // indirect
+	go.mau.fi/util v0.10.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
@@ -130,7 +130,7 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297 // indirect
+	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
