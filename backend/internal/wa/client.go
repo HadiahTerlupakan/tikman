@@ -52,6 +52,7 @@ type Client struct {
 	inbound   *inboundHandler
 	receipts  *receiptHandler
 	presence  *presenceHandler
+	contacts  *contactSaver
 	// dropped carries "the socket went away" from an event handler to the
 	// supervisor. It holds one slot because a second drop before the first is
 	// answered says nothing new.
@@ -122,6 +123,13 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		accountID:     opt.AccountID,
 		conversations: opt.Conversations,
 		publisher:     opt.Publisher,
+	}
+	client.contacts = &contactSaver{
+		wa:            wac,
+		db:            opt.DB,
+		accountID:     opt.AccountID,
+		conversations: opt.Conversations,
+		logger:        opt.Logger,
 	}
 	return client, nil
 }
@@ -195,6 +203,12 @@ func (c *Client) route(rawEvt any) {
 		if err := c.inbound.handle(c.ctx, evt); err != nil {
 			c.logger.Error("Could not store incoming WhatsApp message",
 				zap.String("wa_message_id", evt.Info.ID), zap.Error(err))
+			break
+		}
+		if !evt.Info.IsFromMe {
+			// Off the event goroutine: it is a round trip to WhatsApp, and whatsmeow
+			// delivers nothing else on this number while a handler is busy.
+			go c.contacts.ensure(c.ctx, evt)
 		}
 	case *events.Receipt:
 		if err := c.receipts.handle(c.ctx, evt); err != nil {

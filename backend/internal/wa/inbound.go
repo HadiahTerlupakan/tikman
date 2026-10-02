@@ -189,11 +189,8 @@ func (h *inboundHandler) fetch(ctx context.Context, evt *events.Message, att att
 // customer arrived as "111222333444555" and was thrown away for not looking
 // Indonesian.
 func senderPhone(src types.MessageSource) string {
-	if src.Sender.Server == types.DefaultUserServer {
-		return src.Sender.User
-	}
-	if src.SenderAlt.Server == types.DefaultUserServer {
-		return src.SenderAlt.User
+	if phone := senderPhoneJID(src); !phone.IsEmpty() {
+		return phone.User
 	}
 	// Neither is a phone number: keep the LID so the thread still has a label.
 	return src.Sender.User
