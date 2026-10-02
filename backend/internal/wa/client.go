@@ -205,9 +205,11 @@ func (c *Client) route(rawEvt any) {
 				zap.String("wa_message_id", evt.Info.ID), zap.Error(err))
 			break
 		}
-		if !evt.Info.IsFromMe {
-			// Off the event goroutine: it is a round trip to WhatsApp, and whatsmeow
-			// delivers nothing else on this number while a handler is busy.
+		// Off the event goroutine: it is a round trip to WhatsApp, and whatsmeow
+		// delivers nothing else on this number while a handler is busy.
+		if evt.Info.IsFromMe {
+			go c.contacts.ensureBilled(c.ctx, evt)
+		} else {
 			go c.contacts.ensure(c.ctx, evt)
 		}
 	case *events.Receipt:

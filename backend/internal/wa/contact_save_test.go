@@ -52,6 +52,30 @@ func TestTheContactFallsBackToTheWhatsAppNameThenTheNumber(t *testing.T) {
 	assert.Equal(t, "+628111222333", contactName(db, conv, ""))
 }
 
+// The billing app's receipt is the only place that names the subscriber when
+// TikMan has never heard from them.
+func TestTheSubscriberIsNamedFromTheBillingGreeting(t *testing.T) {
+	receipt := "Terima Kasih atas Pembayaran Anda\n\n" +
+		"Yth. Bapak/Ibu ooy,\n" +
+		"Pembayaran invoice *INV-992633031813* telah berhasil kami terima."
+
+	assert.Equal(t, "ooy", billedName(receipt))
+	assert.Equal(t, "Siti Aminah", billedName("Yth. Bapak/Ibu  Siti Aminah ,\ntagihan bulan ini"))
+	assert.Empty(t, billedName("sudah kami cek, Bapak/Ibu"))
+}
+
+// The billing app sends from its own linked device, so its message arrives as
+// ours, addressed by Chat — or by LID with the number in RecipientAlt.
+func TestTheBilledNumberIsTheRecipientNotTheSender(t *testing.T) {
+	number := types.JID{User: "628111222333", Server: types.DefaultUserServer}
+	lid := types.JID{User: "111222333444555", Server: types.HiddenUserServer}
+	us := types.JID{User: "6285133124350", Server: types.DefaultUserServer}
+
+	assert.Equal(t, number, recipientPhoneJID(types.MessageSource{Chat: number, Sender: us}))
+	assert.Equal(t, number, recipientPhoneJID(types.MessageSource{Chat: lid, Sender: us, RecipientAlt: number}))
+	assert.True(t, recipientPhoneJID(types.MessageSource{Chat: lid, Sender: us}).IsEmpty())
+}
+
 // WhatsApp increasingly names the sender by LID and puts the number in
 // SenderAlt. Only a number can go into an address book.
 func TestTheSendersNumberIsFoundBehindALID(t *testing.T) {

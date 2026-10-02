@@ -2,6 +2,8 @@ package wa
 
 import (
 	"context"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -22,9 +24,9 @@ import (
 // what WhatsApp Web sends (Baileys' addOrEditContact uses the same).
 const contactMutationVersion = 2
 
-// contactSaver puts a customer who writes in into the address book of the phone
-// holding the number, the way "Add contact" on WhatsApp Web does with "sync to
-// phone" ticked. A status posted to "My contacts" reaches only numbers saved
+// contactSaver puts a customer who writes in, or a subscriber the billing app
+// writes to, into the address book of the phone holding the number, the way
+// "Add contact" on WhatsApp Web does with "sync to phone" ticked. A status posted to "My contacts" reaches only numbers saved
 // there, and a CS on the phone sees a name instead of a bare number.
 type contactSaver struct {
 	wa            *whatsmeow.Client
@@ -40,9 +42,53 @@ type contactSaver struct {
 	mu sync.Mutex
 }
 
-// ensure saves the customer behind evt unless the phone already has them.
+// billedGreeting is the salutation the billing app opens every message to a
+// subscriber with ("Yth. Bapak/Ibu ooy,"). It is the one place those messages
+// say who the number belongs to.
+var billedGreeting = regexp.MustCompile(`(?i)Yth\.?\s+Bapak/Ibu\s+([^,\n]+),`)
+
+// ensure saves the customer who sent evt unless the phone already has them.
 func (s *contactSaver) ensure(ctx context.Context, evt *events.Message) {
-	phone := senderPhoneJID(evt.Info.MessageSource)
+	s.save(ctx, senderPhoneJID(evt.Info.MessageSource), func() string {
+		conv, err := s.conversations.FindByPeer(s.accountID, evt.Info.Chat.ToNonAD().String())
+		if err != nil || conv == nil {
+			// No thread means this is not a customer of the inbox: a group, a
+			// channel, or a message attachmentFor turned away.
+			return ""
+		}
+		return contactName(s.db, conv, evt.Info.PushName)
+	})
+}
+
+// ensureBilled saves the subscriber a billing message from another device on
+// this number was addressed to, under the name its greeting uses. The billing
+// app sends from its own linked device, so these reach TikMan only as the
+// number's own messages, usually to people with no thread here.
+func (s *contactSaver) ensureBilled(ctx context.Context, evt *events.Message) {
+	if evt.Info.IsGroup || evt.Info.Chat.Server == types.NewsletterServer {
+		return
+	}
+	name := billedName(textBody(evt.Message))
+	if name == "" {
+		return
+	}
+	s.save(ctx, recipientPhoneJID(evt.Info.MessageSource), func() string { return name })
+}
+
+// billedName answers the subscriber's name from a billing greeting, or "" when
+// the text is not one.
+func billedName(text string) string {
+	m := billedGreeting.FindStringSubmatch(text)
+	if m == nil {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
+}
+
+// save adds phone to the address book under the name nameFor answers, unless
+// the phone already has it. nameFor runs only once that check has passed, and
+// answering "" means the number should not be saved after all.
+func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func() string) {
 	if phone.IsEmpty() {
 		// A LID with no number behind it cannot go into an Android address
 		// book: there is nothing to dial.
@@ -63,14 +109,10 @@ func (s *contactSaver) ensure(ctx context.Context, evt *events.Message) {
 		return
 	}
 
-	conv, err := s.conversations.FindByPeer(s.accountID, evt.Info.Chat.ToNonAD().String())
-	if err != nil || conv == nil {
-		// No thread means this is not a customer of the inbox: a group, a
-		// channel, or a message attachmentFor turned away.
+	name := nameFor()
+	if name == "" {
 		return
 	}
-
-	name := contactName(s.db, conv, evt.Info.PushName)
 	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, name)); err != nil {
 		s.logger.Warn("Could not save the customer to the phone's contacts",
 			zap.String("phone", phone.User), zap.Error(err))
@@ -117,7 +159,16 @@ func buildContactPatch(phone types.JID, name string) appstate.PatchInfo {
 // senderPhoneJID answers the sender's phone-number address, whichever of the
 // two WhatsApp put it in, and the empty JID when it gave only a LID.
 func senderPhoneJID(src types.MessageSource) types.JID {
-	for _, jid := range []types.JID{src.Sender, src.SenderAlt} {
+	return phoneJID(src.Sender, src.SenderAlt)
+}
+
+// recipientPhoneJID is senderPhoneJID for a message this number sent.
+func recipientPhoneJID(src types.MessageSource) types.JID {
+	return phoneJID(src.Chat, src.RecipientAlt)
+}
+
+func phoneJID(addresses ...types.JID) types.JID {
+	for _, jid := range addresses {
 		if jid.Server == types.DefaultUserServer {
 			return jid.ToNonAD()
 		}
