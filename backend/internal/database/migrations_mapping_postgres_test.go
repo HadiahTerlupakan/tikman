@@ -76,6 +76,7 @@ func freshPostgresBeforeMapping(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS timescaledb").Error)
 	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm").Error)
+	stopTimescaleJobs(t, setup)
 	require.NoError(t, setup.Exec("DROP SCHEMA IF EXISTS "+mappingBackfillSchema+" CASCADE").Error)
 	require.NoError(t, setup.Exec("CREATE SCHEMA "+mappingBackfillSchema).Error)
 	if sqlDB, err := setup.DB(); err == nil {

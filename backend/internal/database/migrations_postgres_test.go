@@ -59,6 +59,18 @@ func testPostgresDSN(t *testing.T) string {
 	return dsn
 }
 
+// stopTimescaleJobs stops TimescaleDB's job scheduler for the test database.
+// The migrations add refresh and retention policies whose first run starts at
+// once, and migration 24 drops ont_metrics_5min moments after 22 gave it one;
+// a job caught refreshing it fails the drop with "tuple concurrently deleted".
+// Production applies each migration once, years apart. A test rebuilds them
+// all in seconds, schema after schema, and the mapping backfill tests do it
+// once per test, so the window was hit in two CI runs out of three.
+func stopTimescaleJobs(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	require.NoError(t, db.Exec("SELECT _timescaledb_functions.stop_background_workers()").Error)
+}
+
 // freshPostgres builds the schema the way startup does — AutoMigrate first,
 // then the versioned SQL — in an empty schema of its own, once per run.
 //
@@ -86,6 +98,7 @@ func buildMigrationSchema(t *testing.T, dsn string) *gorm.DB {
 	// where gin_trgm_ops is invisible to every other test that later runs the
 	// migrations against public — and IF NOT EXISTS then skips the repair.
 	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm").Error)
+	stopTimescaleJobs(t, setup)
 	require.NoError(t, setup.Exec(
 		"DROP SCHEMA IF EXISTS "+migrationCheckSchema+" CASCADE").Error)
 	require.NoError(t, setup.Exec("CREATE SCHEMA "+migrationCheckSchema).Error)
