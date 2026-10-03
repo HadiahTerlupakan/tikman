@@ -27,8 +27,9 @@ const contactMutationVersion = 2
 
 // contactSaver puts a customer who writes in, or a subscriber the billing app
 // writes to, into the address book of the phone holding the number, the way
-// "Add contact" on WhatsApp Web does with "sync to phone" ticked. A status posted to "My contacts" reaches only numbers saved
-// there, and a CS on the phone sees a name instead of a bare number.
+// "Add contact" on WhatsApp Web does with "sync to phone" ticked. A status
+// posted to "My contacts" reaches only numbers saved there, and a CS on the
+// phone sees a name instead of a bare number.
 type contactSaver struct {
 	wa            *whatsmeow.Client
 	db            *gorm.DB
@@ -41,6 +42,12 @@ type contactSaver struct {
 	// a 409 conflict. Behind the lock the second one finds the name the first
 	// one's post-send fetch wrote, and stops.
 	mu sync.Mutex
+	// relinked holds the numbers this process has saved again with their LID.
+	// Saves made before the patch carried one were recorded by the server and
+	// ignored by the phone, so the server now calls those numbers saved while
+	// the phone shows a bare number; each is sent once more the first time a
+	// billing message names it exactly as it was saved.
+	relinked map[types.JID]bool
 }
 
 // billedGreeting is the salutation the billing app opens every message to a
@@ -83,10 +90,28 @@ func (s *contactSaver) ensureBilled(ctx context.Context, evt *events.Message) {
 			append(fields, zap.String("lid", evt.Info.Chat.User))...)
 		return
 	}
-	if savedAs := s.save(ctx, phone, func() string { return name }); savedAs != "" {
-		s.logger.Info("Skipped a billed subscriber already in the phone's contacts",
-			append(fields, zap.String("phone", phone.User), zap.String("saved_as", savedAs))...)
+	savedAs := s.save(ctx, phone, func() string { return name })
+	if savedAs == "" || (savedAs == name && s.relink(ctx, phone, name)) {
+		return
 	}
+	s.logger.Info("Skipped a billed subscriber already in the phone's contacts",
+		append(fields, zap.String("phone", phone.User), zap.String("saved_as", savedAs))...)
+}
+
+// relink sends phone's contact again, with its LID, unless this process
+// already has; see relinked.
+func (s *contactSaver) relink(ctx context.Context, phone types.JID, name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.relinked[phone] {
+		return false
+	}
+	if s.relinked == nil {
+		s.relinked = map[types.JID]bool{}
+	}
+	s.relinked[phone] = true
+	s.send(ctx, phone, name)
+	return true
 }
 
 // billedName answers the subscriber's name from a billing greeting, or "" when
@@ -124,23 +149,48 @@ func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func()
 		return cmp.Or(known.FullName, known.FirstName)
 	}
 
-	name := nameFor()
-	if name == "" {
-		return ""
+	if name := nameFor(); name != "" {
+		s.send(ctx, phone, name)
 	}
+	return ""
+}
+
+// send pushes the contact patch for phone. The caller holds mu.
+func (s *contactSaver) send(ctx context.Context, phone types.JID, name string) {
 	fields := []zap.Field{
 		zap.String("account_id", s.accountID.String()),
 		zap.String("phone", phone.User),
 		zap.String("name", name),
 	}
-	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, name)); err != nil {
-		s.logger.Warn("Could not save the customer to the phone's contacts", append(fields, zap.Error(err))...)
-		return ""
+	lid := s.lidFor(ctx, phone)
+	if lid.IsEmpty() {
+		// Sent without one, the server records the name and the phone ignores
+		// it, after which the number reads as saved and is never tried again.
+		s.logger.Warn("Not saving the customer: WhatsApp gave no LID for the number", fields...)
+		return
 	}
-	// Logged on success too: the patch's shape is copied from WhatsApp Web, not
-	// documented, and this line is the only record of how many numbers it saved.
+	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, lid, name)); err != nil {
+		s.logger.Warn("Could not save the customer to the phone's contacts", append(fields, zap.Error(err))...)
+		return
+	}
+	// Logged on success too: the patch's shape is copied from WhatsApp's own
+	// clients, not documented, and this line is the only record of how many
+	// numbers it saved.
 	s.logger.Info("Saved the customer to the phone's contacts", fields...)
-	return ""
+}
+
+// lidFor answers phone's LID: from the store, which has it for anyone this
+// number has messaged, else from WhatsApp itself.
+func (s *contactSaver) lidFor(ctx context.Context, phone types.JID) types.JID {
+	if lid, err := s.wa.Store.LIDs.GetLIDForPN(ctx, phone); err == nil && !lid.IsEmpty() {
+		return lid
+	}
+	info, err := s.wa.GetUserInfo(ctx, []types.JID{phone})
+	if err != nil {
+		s.logger.Warn("Could not ask WhatsApp for the customer's LID", zap.String("phone", phone.User), zap.Error(err))
+		return types.EmptyJID
+	}
+	return info[phone].LID
 }
 
 // contactName picks what the customer is saved as: the subscriber name on
@@ -159,10 +209,12 @@ func contactName(db *gorm.DB, conv *models.CSConversation, pushName string) stri
 	return "+" + conv.CustomerPhone
 }
 
-// buildContactPatch is the app-state mutation WhatsApp Web sends for "Add
-// contact". SaveOnPrimaryAddressbook is what carries it past WhatsApp into the
-// phone's own contacts; without it the contact exists only inside WhatsApp.
-func buildContactPatch(phone types.JID, name string) appstate.PatchInfo {
+// buildContactPatch is the app-state mutation the phone itself sends when a
+// contact is saved on it: indexed by number, carrying the contact's LID and
+// no pnJid. The LID is what the phone acts on; a patch without one is stored
+// by the server and silently ignored by the phone. SaveOnPrimaryAddressbook
+// carries it past WhatsApp into the phone's own contacts.
+func buildContactPatch(phone, lid types.JID, name string) appstate.PatchInfo {
 	return appstate.PatchInfo{
 		Type: appstate.WAPatchCriticalUnblockLow,
 		Mutations: []appstate.MutationInfo{{
@@ -172,7 +224,7 @@ func buildContactPatch(phone types.JID, name string) appstate.PatchInfo {
 				ContactAction: &waSyncAction.ContactAction{
 					FullName:                 proto.String(name),
 					FirstName:                proto.String(name),
-					PnJID:                    proto.String(phone.String()),
+					LidJID:                   proto.String(lid.String()),
 					SaveOnPrimaryAddressbook: proto.Bool(true),
 				},
 			},
@@ -198,28 +250,4 @@ func phoneJID(addresses ...types.JID) types.JID {
 		}
 	}
 	return types.EmptyJID
-}
-
-// logContactShape records which fields a contact edit from another device
-// carried, never the name or number in them. The phone accepts our patch on
-// the server yet never shows the name, so its own "add contact" is the
-// reference for what ours is missing.
-func logContactShape(logger *zap.Logger, evt *events.Contact) {
-	act := evt.Action
-	logger.Info("A contact was edited on another device",
-		zap.String("index_server", evt.JID.Server),
-		zap.Bool("full_name", act.GetFullName() != ""),
-		zap.Bool("first_name", act.GetFirstName() != ""),
-		zap.String("lid_jid_server", jidServer(act.GetLidJID())),
-		zap.String("pn_jid_server", jidServer(act.GetPnJID())),
-		zap.Bool("save_on_primary_set", act.SaveOnPrimaryAddressbook != nil),
-		zap.Bool("save_on_primary", act.GetSaveOnPrimaryAddressbook()),
-		zap.Bool("username", act.GetUsername() != ""),
-		zap.Bool("from_full_sync", evt.FromFullSync))
-}
-
-// jidServer answers the server half of a JID string, "" when there is none.
-func jidServer(jid string) string {
-	_, server, _ := strings.Cut(jid, "@")
-	return server
 }

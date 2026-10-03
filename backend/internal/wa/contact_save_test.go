@@ -17,14 +17,13 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// Without SaveOnPrimaryAddressbook the contact lives only inside WhatsApp and
-// never reaches the Android address book, which is the whole point. The index,
-// collection and version are what WhatsApp Web sends; any other shape is
-// rejected or silently ignored by the phone.
-func TestTheContactPatchAsksForThePhonesAddressBook(t *testing.T) {
+// The patch must match what the phone itself sends when a contact is saved on
+// it. The first version carried pnJid and no lidJid: the server recorded every
+// one and the phone showed none of them.
+func TestTheContactPatchMatchesWhatThePhoneSends(t *testing.T) {
 	phone := types.JID{User: "628111222333", Server: types.DefaultUserServer}
 
-	patch := buildContactPatch(phone, "Budi")
+	patch := buildContactPatch(phone, customerLID, "Budi")
 
 	assert.Equal(t, appstate.WAPatchCriticalUnblockLow, patch.Type)
 	require.Len(t, patch.Mutations, 1)
@@ -34,7 +33,8 @@ func TestTheContactPatchAsksForThePhonesAddressBook(t *testing.T) {
 	act := m.Value.GetContactAction()
 	assert.True(t, act.GetSaveOnPrimaryAddressbook())
 	assert.Equal(t, "Budi", act.GetFullName())
-	assert.Equal(t, "628111222333@s.whatsapp.net", act.GetPnJID())
+	assert.Equal(t, customerLID.String(), act.GetLidJID())
+	assert.Nil(t, act.PnJID)
 }
 
 // The ISP knows a subscriber by the name on their ONT, not by whatever they
