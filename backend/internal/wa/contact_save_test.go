@@ -1,14 +1,20 @@
 package wa
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // Without SaveOnPrimaryAddressbook the contact lives only inside WhatsApp and
@@ -85,4 +91,52 @@ func TestTheSendersNumberIsFoundBehindALID(t *testing.T) {
 	assert.Equal(t, number, senderPhoneJID(types.MessageSource{Sender: lid, SenderAlt: number}))
 	assert.Equal(t, number, senderPhoneJID(types.MessageSource{Sender: number, SenderAlt: lid}))
 	assert.True(t, senderPhoneJID(types.MessageSource{Sender: lid}).IsEmpty())
+}
+
+// knownContacts is a contact store holding the numbers in names. Only
+// GetContact is implemented: a skip never reaches anything else.
+type knownContacts struct {
+	store.ContactStore
+	names map[string]string
+}
+
+func (k knownContacts) GetContact(_ context.Context, jid types.JID) (types.ContactInfo, error) {
+	name, ok := k.names[jid.User]
+	return types.ContactInfo{Found: ok, FullName: name}, nil
+}
+
+func billedSaver(t *testing.T, names map[string]string) (*contactSaver, *observer.ObservedLogs) {
+	t.Helper()
+	core, logs := observer.New(zap.InfoLevel)
+	wac := &whatsmeow.Client{Store: &store.Device{Contacts: knownContacts{names: names}}}
+	return &contactSaver{wa: wac, accountID: uuid.New(), logger: zap.New(core)}, logs
+}
+
+func billingSends(chat, recipientAlt types.JID) *events.Message {
+	return phoneSends("3EB0BILL", "Invoice Telah Tersedia\n\nYth. Bapak/Ibu Eti Sulastri,\n", chat, recipientAlt)
+}
+
+// A billed subscriber the phone already has is the commonest skip, and without
+// a line saying so nobody can tell it from a save that never happened.
+func TestABilledSubscriberAlreadySavedIsLoggedWithTheNameTheyHave(t *testing.T) {
+	saver, logs := billedSaver(t, map[string]string{customerNumber.User: "Bu Eti RT 03"})
+
+	saver.ensureBilled(context.Background(), billingSends(customerNumber, types.EmptyJID))
+
+	entries := logs.FilterMessage("Skipped a billed subscriber already in the phone's contacts").All()
+	require.Len(t, entries, 1)
+	fields := entries[0].ContextMap()
+	assert.Equal(t, "Eti Sulastri", fields["name"])
+	assert.Equal(t, "Bu Eti RT 03", fields["saved_as"])
+	assert.Equal(t, customerNumber.User, fields["phone"])
+}
+
+func TestABilledSubscriberKnownOnlyByLIDIsLogged(t *testing.T) {
+	saver, logs := billedSaver(t, nil)
+
+	saver.ensureBilled(context.Background(), billingSends(customerLID, types.EmptyJID))
+
+	entries := logs.FilterMessage("Skipped a billed subscriber: WhatsApp gave only a LID, no phone number").All()
+	require.Len(t, entries, 1)
+	assert.Equal(t, customerLID.User, entries[0].ContextMap()["lid"])
 }

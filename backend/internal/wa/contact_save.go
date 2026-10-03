@@ -1,6 +1,7 @@
 package wa
 
 import (
+	"cmp"
 	"context"
 	"regexp"
 	"strings"
@@ -72,7 +73,20 @@ func (s *contactSaver) ensureBilled(ctx context.Context, evt *events.Message) {
 	if name == "" {
 		return
 	}
-	s.save(ctx, recipientPhoneJID(evt.Info.MessageSource), func() string { return name })
+	// Skips are logged here and not for customers who write in: a billing run
+	// is the one place someone looks for a name that never reached the phone,
+	// while a saved customer would log a line on every message they send.
+	fields := []zap.Field{zap.String("account_id", s.accountID.String()), zap.String("name", name)}
+	phone := recipientPhoneJID(evt.Info.MessageSource)
+	if phone.IsEmpty() {
+		s.logger.Info("Skipped a billed subscriber: WhatsApp gave only a LID, no phone number",
+			append(fields, zap.String("lid", evt.Info.Chat.User))...)
+		return
+	}
+	if savedAs := s.save(ctx, phone, func() string { return name }); savedAs != "" {
+		s.logger.Info("Skipped a billed subscriber already in the phone's contacts",
+			append(fields, zap.String("phone", phone.User), zap.String("saved_as", savedAs))...)
+	}
 }
 
 // billedName answers the subscriber's name from a billing greeting, or "" when
@@ -86,13 +100,14 @@ func billedName(text string) string {
 }
 
 // save adds phone to the address book under the name nameFor answers, unless
-// the phone already has it. nameFor runs only once that check has passed, and
-// answering "" means the number should not be saved after all.
-func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func() string) {
+// the phone already has it, and answers the name it is already saved under when
+// it does. nameFor runs only once that check has passed, and answering "" means
+// the number should not be saved after all.
+func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func() string) (savedAs string) {
 	if phone.IsEmpty() {
 		// A LID with no number behind it cannot go into an Android address
 		// book: there is nothing to dial.
-		return
+		return ""
 	}
 
 	s.mu.Lock()
@@ -101,17 +116,17 @@ func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func()
 	known, err := s.wa.Store.Contacts.GetContact(ctx, phone)
 	if err != nil {
 		s.logger.Warn("Could not read the WhatsApp contact store", zap.Error(err))
-		return
+		return ""
 	}
 	if known.FullName != "" || known.FirstName != "" {
 		// Already in the address book, perhaps under a name somebody chose on
 		// the phone. Overwriting it would undo their work.
-		return
+		return cmp.Or(known.FullName, known.FirstName)
 	}
 
 	name := nameFor()
 	if name == "" {
-		return
+		return ""
 	}
 	fields := []zap.Field{
 		zap.String("account_id", s.accountID.String()),
@@ -120,11 +135,12 @@ func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func()
 	}
 	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, name)); err != nil {
 		s.logger.Warn("Could not save the customer to the phone's contacts", append(fields, zap.Error(err))...)
-		return
+		return ""
 	}
 	// Logged on success too: the patch's shape is copied from WhatsApp Web, not
 	// documented, and this line is the only record of how many numbers it saved.
 	s.logger.Info("Saved the customer to the phone's contacts", fields...)
+	return ""
 }
 
 // contactName picks what the customer is saved as: the subscriber name on
