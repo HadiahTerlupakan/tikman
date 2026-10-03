@@ -11,10 +11,13 @@ permissions:
   packages: write
   security-events: write
 
+# Runners are pinned rather than ubuntu-latest, which moves to Ubuntu 26 from
+# 2026-10-19: a runner upgrade should land as a change of its own, not as a red
+# build nobody pushed.
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
@@ -34,7 +37,7 @@ jobs:
   # Backend Jobs
   backend-test:
     name: Backend Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.backend == 'true'
 
@@ -102,7 +105,7 @@ jobs:
 
   backend-lint:
     name: Backend Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.backend == 'true'
 
@@ -146,7 +149,7 @@ jobs:
 
   backend-build:
     name: Backend Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, backend-test, backend-lint]
     if: needs.changes.outputs.backend == 'true'
 
@@ -170,7 +173,7 @@ jobs:
   # Frontend Jobs
   frontend-test:
     name: Frontend Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
 
@@ -195,7 +198,7 @@ jobs:
 
   frontend-lint:
     name: Frontend Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
 
@@ -224,7 +227,7 @@ jobs:
 
   frontend-build:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, frontend-test, frontend-lint]
     if: needs.changes.outputs.frontend == 'true'
 
@@ -250,7 +253,7 @@ jobs:
   # Security Scanning
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
 
     steps:
@@ -274,7 +277,7 @@ jobs:
   # Docker Build & Push (only on main)
   docker-build:
     name: Docker Build & Push
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [changes, backend-build]
     permissions:
