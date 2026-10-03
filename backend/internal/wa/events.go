@@ -44,6 +44,10 @@ const (
 	// administers. The mirror refreshes hourly on its own; this is the button
 	// for an admin who has just been given a channel and does not want to wait.
 	ControlSyncChannels = "sync-channels"
+	// ControlRescanContacts asks this process to save every subscriber its
+	// stored billing messages name (see Client.RescanBilledContacts). Nothing
+	// in the API sends it; an admin publishes it by hand with redis-cli.
+	ControlRescanContacts = "rescan-contacts"
 )
 
 // ControlMessage is one admin action on ControlChannel. The API is the only

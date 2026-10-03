@@ -227,6 +227,10 @@ func applyControl(ctx context.Context, payload string, live *sessions, logger *z
 		live.restart(accountID)
 	case wa.ControlSyncChannels:
 		syncChannels(ctx, client, live.deps.channels, accountID, logger)
+	case wa.ControlRescanContacts:
+		// Minutes long by design (see rescanPause); run inline it would hold
+		// every other number's control messages until it finished.
+		go client.RescanBilledContacts(ctx)
 	default:
 		logger.Warn("Unknown WhatsApp control action", zap.String("action", msg.Action))
 	}

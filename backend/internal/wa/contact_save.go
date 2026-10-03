@@ -80,14 +80,20 @@ func (s *contactSaver) ensureBilled(ctx context.Context, evt *events.Message) {
 	if name == "" {
 		return
 	}
-	// Skips are logged here and not for customers who write in: a billing run
-	// is the one place someone looks for a name that never reached the phone,
-	// while a saved customer would log a line on every message they send.
+	s.saveBilled(ctx, recipientPhoneJID(evt.Info.MessageSource), name, evt.Info.Chat.User)
+}
+
+// saveBilled saves phone under the name a billing greeting gave it. lid is
+// what WhatsApp addressed the subscriber by, logged when it gave no number.
+//
+// Skips are logged here and not for customers who write in: a billing run is
+// the one place someone looks for a name that never reached the phone, while
+// a saved customer would log a line on every message they send.
+func (s *contactSaver) saveBilled(ctx context.Context, phone types.JID, name, lid string) {
 	fields := []zap.Field{zap.String("account_id", s.accountID.String()), zap.String("name", name)}
-	phone := recipientPhoneJID(evt.Info.MessageSource)
 	if phone.IsEmpty() {
 		s.logger.Info("Skipped a billed subscriber: WhatsApp gave only a LID, no phone number",
-			append(fields, zap.String("lid", evt.Info.Chat.User))...)
+			append(fields, zap.String("lid", lid))...)
 		return
 	}
 	savedAs := s.save(ctx, phone, func() string { return name })
