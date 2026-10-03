@@ -113,10 +113,18 @@ func (s *contactSaver) save(ctx context.Context, phone types.JID, nameFor func()
 	if name == "" {
 		return
 	}
-	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, name)); err != nil {
-		s.logger.Warn("Could not save the customer to the phone's contacts",
-			zap.String("phone", phone.User), zap.Error(err))
+	fields := []zap.Field{
+		zap.String("account_id", s.accountID.String()),
+		zap.String("phone", phone.User),
+		zap.String("name", name),
 	}
+	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, name)); err != nil {
+		s.logger.Warn("Could not save the customer to the phone's contacts", append(fields, zap.Error(err))...)
+		return
+	}
+	// Logged on success too: the patch's shape is copied from WhatsApp Web, not
+	// documented, and this line is the only record of how many numbers it saved.
+	s.logger.Info("Saved the customer to the phone's contacts", fields...)
 }
 
 // contactName picks what the customer is saved as: the subscriber name on
