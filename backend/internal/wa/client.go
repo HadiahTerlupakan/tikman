@@ -126,6 +126,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 	}
 	client.contacts = &contactSaver{
 		wa:            wac,
+		push:          wac.SendAppState,
 		db:            opt.DB,
 		accountID:     opt.AccountID,
 		conversations: opt.Conversations,

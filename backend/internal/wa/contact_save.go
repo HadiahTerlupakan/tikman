@@ -42,12 +42,18 @@ type contactSaver struct {
 	// a 409 conflict. Behind the lock the second one finds the name the first
 	// one's post-send fetch wrote, and stops.
 	mu sync.Mutex
-	// relinked holds the numbers this process has saved again with their LID.
-	// Saves made before the patch carried one were recorded by the server and
-	// ignored by the phone, so the server now calls those numbers saved while
-	// the phone shows a bare number; each is sent once more the first time a
-	// billing message names it exactly as it was saved.
+	// relinked holds the billed numbers this process has saved again, with
+	// their LID and the billing name. The server's contact list cannot be
+	// trusted to match the phone: a save without a LID, ours before the fix
+	// or another linked device's, is recorded by the server and ignored by
+	// the phone, which goes on showing a bare number. So a billed number the
+	// server calls saved is sent once more per process, whatever it is saved
+	// as; the billing name replacing one typed on the phone is the price the
+	// owner chose over numbers that never get a name.
 	relinked map[types.JID]bool
+	// push sends a patch to WhatsApp: the client's SendAppState, replaced in
+	// tests, which have no connection to send one over.
+	push func(context.Context, appstate.PatchInfo) error
 }
 
 // billedGreeting is the salutation the billing app opens every message to a
@@ -83,41 +89,38 @@ func (s *contactSaver) ensureBilled(ctx context.Context, evt *events.Message) {
 	s.saveBilled(ctx, recipientPhoneJID(evt.Info.MessageSource), name, evt.Info.Chat.User)
 }
 
-// saveBilled saves phone under the name a billing greeting gave it. lid is
-// what WhatsApp addressed the subscriber by, logged when it gave no number.
-//
-// Skips are logged here and not for customers who write in: a billing run is
-// the one place someone looks for a name that never reached the phone, while
-// a saved customer would log a line on every message they send.
+// saveBilled saves phone under the name a billing greeting gave it, replacing
+// whatever the server has it saved as (see relinked). lid is what WhatsApp
+// addressed the subscriber by, logged when it gave no number.
 func (s *contactSaver) saveBilled(ctx context.Context, phone types.JID, name, lid string) {
-	fields := []zap.Field{zap.String("account_id", s.accountID.String()), zap.String("name", name)}
 	if phone.IsEmpty() {
 		s.logger.Info("Skipped a billed subscriber: WhatsApp gave only a LID, no phone number",
-			append(fields, zap.String("lid", lid))...)
+			zap.String("account_id", s.accountID.String()), zap.String("name", name), zap.String("lid", lid))
 		return
 	}
-	savedAs := s.save(ctx, phone, func() string { return name })
-	if savedAs == "" || (savedAs == name && s.relink(ctx, phone, name)) {
-		return
+	if savedAs := s.save(ctx, phone, func() string { return name }); savedAs != "" {
+		s.relink(ctx, phone, name, savedAs)
 	}
-	s.logger.Info("Skipped a billed subscriber already in the phone's contacts",
-		append(fields, zap.String("phone", phone.User), zap.String("saved_as", savedAs))...)
 }
 
-// relink sends phone's contact again, with its LID, unless this process
-// already has; see relinked.
-func (s *contactSaver) relink(ctx context.Context, phone types.JID, name string) bool {
+// relink sends phone's contact again under name, with its LID, unless this
+// process already has; see relinked.
+func (s *contactSaver) relink(ctx context.Context, phone types.JID, name, savedAs string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.relinked[phone] {
-		return false
+		return
 	}
 	if s.relinked == nil {
 		s.relinked = map[types.JID]bool{}
 	}
 	s.relinked[phone] = true
+	if savedAs != name {
+		s.logger.Info("Replacing a billed subscriber's contact name with the billing name",
+			zap.String("account_id", s.accountID.String()), zap.String("phone", phone.User),
+			zap.String("name", name), zap.String("saved_as", savedAs))
+	}
 	s.send(ctx, phone, name)
-	return true
 }
 
 // billedName answers the subscriber's name from a billing greeting, or "" when
@@ -175,7 +178,7 @@ func (s *contactSaver) send(ctx context.Context, phone types.JID, name string) {
 		s.logger.Warn("Not saving the customer: WhatsApp gave no LID for the number", fields...)
 		return
 	}
-	if err := s.wa.SendAppState(ctx, buildContactPatch(phone, lid, name)); err != nil {
+	if err := s.push(ctx, buildContactPatch(phone, lid, name)); err != nil {
 		s.logger.Warn("Could not save the customer to the phone's contacts", append(fields, zap.Error(err))...)
 		return
 	}

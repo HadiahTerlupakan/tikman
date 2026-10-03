@@ -94,7 +94,7 @@ func TestTheSendersNumberIsFoundBehindALID(t *testing.T) {
 }
 
 // knownContacts is a contact store holding the numbers in names. Only
-// GetContact is implemented: a skip never reaches anything else.
+// GetContact is implemented: nothing a billed save does reaches the rest.
 type knownContacts struct {
 	store.ContactStore
 	names map[string]string
@@ -105,37 +105,59 @@ func (k knownContacts) GetContact(_ context.Context, jid types.JID) (types.Conta
 	return types.ContactInfo{Found: ok, FullName: name}, nil
 }
 
-func billedSaver(t *testing.T, names map[string]string) (*contactSaver, *observer.ObservedLogs) {
+// lidOf is a LID store that knows customerNumber as customerLID.
+type lidOf struct{ store.LIDStore }
+
+func (lidOf) GetLIDForPN(_ context.Context, pn types.JID) (types.JID, error) {
+	if pn.User == customerNumber.User {
+		return customerLID, nil
+	}
+	return types.EmptyJID, nil
+}
+
+// billedSaver answers a saver over a store holding names, and the patches it
+// pushes to WhatsApp.
+func billedSaver(t *testing.T, names map[string]string) (*contactSaver, *[]appstate.PatchInfo, *observer.ObservedLogs) {
 	t.Helper()
 	core, logs := observer.New(zap.InfoLevel)
-	wac := &whatsmeow.Client{Store: &store.Device{Contacts: knownContacts{names: names}}}
-	return &contactSaver{wa: wac, accountID: uuid.New(), logger: zap.New(core)}, logs
+	wac := &whatsmeow.Client{Store: &store.Device{Contacts: knownContacts{names: names}, LIDs: lidOf{}}}
+	var pushed []appstate.PatchInfo
+	push := func(_ context.Context, p appstate.PatchInfo) error {
+		pushed = append(pushed, p)
+		return nil
+	}
+	return &contactSaver{wa: wac, push: push, accountID: uuid.New(), logger: zap.New(core)}, &pushed, logs
 }
 
 func billingSends(chat, recipientAlt types.JID) *events.Message {
-	return phoneSends("3EB0BILL", "Invoice Telah Tersedia\n\nYth. Bapak/Ibu Eti Sulastri,\n", chat, recipientAlt)
+	return phoneSends("3EB0BILL", "Invoice Telah Tersedia\n\nYth. Bapak/Ibu Bayu Alif Anggoro,\n", chat, recipientAlt)
 }
 
-// A billed subscriber the phone already has is the commonest skip, and without
-// a line saying so nobody can tell it from a save that never happened.
-func TestABilledSubscriberAlreadySavedIsLoggedWithTheNameTheyHave(t *testing.T) {
-	saver, logs := billedSaver(t, map[string]string{customerNumber.User: "Bu Eti RT 03"})
+// The server can call a number saved that the phone shows bare: a save without
+// a LID is recorded and ignored. So a billed number saved under another name is
+// sent again under the billing name, once per process.
+func TestABilledSubscriberSavedUnderAnotherNameIsSavedAgainUnderTheBillingName(t *testing.T) {
+	saver, pushed, logs := billedSaver(t, map[string]string{customerNumber.User: "Bayu Anggoro"})
 
 	saver.ensureBilled(context.Background(), billingSends(customerNumber, types.EmptyJID))
+	saver.ensureBilled(context.Background(), billingSends(customerNumber, types.EmptyJID))
 
-	entries := logs.FilterMessage("Skipped a billed subscriber already in the phone's contacts").All()
+	require.Len(t, *pushed, 1)
+	act := (*pushed)[0].Mutations[0].Value.GetContactAction()
+	assert.Equal(t, "Bayu Alif Anggoro", act.GetFullName())
+	assert.Equal(t, customerLID.String(), act.GetLidJID())
+
+	entries := logs.FilterMessage("Replacing a billed subscriber's contact name with the billing name").All()
 	require.Len(t, entries, 1)
-	fields := entries[0].ContextMap()
-	assert.Equal(t, "Eti Sulastri", fields["name"])
-	assert.Equal(t, "Bu Eti RT 03", fields["saved_as"])
-	assert.Equal(t, customerNumber.User, fields["phone"])
+	assert.Equal(t, "Bayu Anggoro", entries[0].ContextMap()["saved_as"])
 }
 
 func TestABilledSubscriberKnownOnlyByLIDIsLogged(t *testing.T) {
-	saver, logs := billedSaver(t, nil)
+	saver, pushed, logs := billedSaver(t, nil)
 
 	saver.ensureBilled(context.Background(), billingSends(customerLID, types.EmptyJID))
 
+	assert.Empty(t, *pushed)
 	entries := logs.FilterMessage("Skipped a billed subscriber: WhatsApp gave only a LID, no phone number").All()
 	require.Len(t, entries, 1)
 	assert.Equal(t, customerLID.User, entries[0].ContextMap()["lid"])
