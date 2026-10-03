@@ -199,3 +199,27 @@ func phoneJID(addresses ...types.JID) types.JID {
 	}
 	return types.EmptyJID
 }
+
+// logContactShape records which fields a contact edit from another device
+// carried, never the name or number in them. The phone accepts our patch on
+// the server yet never shows the name, so its own "add contact" is the
+// reference for what ours is missing.
+func logContactShape(logger *zap.Logger, evt *events.Contact) {
+	act := evt.Action
+	logger.Info("A contact was edited on another device",
+		zap.String("index_server", evt.JID.Server),
+		zap.Bool("full_name", act.GetFullName() != ""),
+		zap.Bool("first_name", act.GetFirstName() != ""),
+		zap.String("lid_jid_server", jidServer(act.GetLidJID())),
+		zap.String("pn_jid_server", jidServer(act.GetPnJID())),
+		zap.Bool("save_on_primary_set", act.SaveOnPrimaryAddressbook != nil),
+		zap.Bool("save_on_primary", act.GetSaveOnPrimaryAddressbook()),
+		zap.Bool("username", act.GetUsername() != ""),
+		zap.Bool("from_full_sync", evt.FromFullSync))
+}
+
+// jidServer answers the server half of a JID string, "" when there is none.
+func jidServer(jid string) string {
+	_, server, _ := strings.Cut(jid, "@")
+	return server
+}

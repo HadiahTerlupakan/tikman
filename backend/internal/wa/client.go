@@ -273,6 +273,8 @@ func (c *Client) routeSession(rawEvt any) {
 	case *events.TemporaryBan:
 		c.logger.Error("WhatsApp temporarily banned this number", zap.Stringer("ban", evt))
 		c.setStatus(c.ctx, models.WAAccountBanned)
+	case *events.Contact:
+		logContactShape(c.logger, evt)
 	}
 }
 
