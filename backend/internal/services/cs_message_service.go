@@ -89,7 +89,10 @@ func (s *CSMessageService) customerMessageStored(tx *gorm.DB, msg *models.CSMess
 // the transaction are shared so the two directions cannot drift apart on them.
 //
 // The lookup is done here as well as by the partial unique index in migration
-// 41, because SQLite tests never get that index.
+// 41, because SQLite tests never get that index. On Postgres the index is the
+// authority: the lookup sees only what was committed when it ran, so a second
+// delivery that commits after it answers nothing is caught by the index, and
+// that violation means the same thing the lookup means.
 func (s *CSMessageService) saveArrived(
 	in InboundMessage,
 	row func(*gorm.DB, InboundMessage) models.CSMessage,
@@ -118,6 +121,9 @@ func (s *CSMessageService) saveArrived(
 
 		stored = row(tx, in)
 		if err := tx.Create(&stored).Error; err != nil {
+			if storedByAnother(err) {
+				return errStoredByAnother
+			}
 			return fmt.Errorf("store message from whatsapp: %w", err)
 		}
 		if err := touch(tx, &stored); err != nil {
@@ -128,6 +134,10 @@ func (s *CSMessageService) saveArrived(
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, errStoredByAnother) {
+			existing, lookup := s.messageByWAID(in.WAMessageID)
+			return existing, false, lookup
+		}
 		return nil, false, err
 	}
 	return &stored, created, nil
