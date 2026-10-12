@@ -162,6 +162,23 @@ func TestDiffBGPCatchesADropShorterThanThePollInterval(t *testing.T) {
 	assert.Equal(t, *at("2026-10-11 16:06:43"), events[1].OccurredAt)
 }
 
+// A last-stopped older than the start already stored belongs to an earlier
+// outage; dating this restart's drop by it would place the drop before the
+// session's previous start.
+func TestDiffBGPIgnoresALastStoppedFromAnEarlierOutage(t *testing.T) {
+	stored := []models.RouterBGPSession{storedSession("peer-transit", models.BGPStateEstablished, at("2026-10-10 10:00:00"))}
+	current := []BGPPeerState{{
+		Name: "peer-transit", State: models.BGPStateEstablished,
+		LastStoppedAt: at("2026-10-09 08:00:00"), LastStartedAt: at("2026-10-11 16:06:43"),
+	}}
+
+	events := DiffBGP(uuid.New(), stored, current, time.Now())
+
+	require.Len(t, events, 2)
+	assert.Equal(t, models.BGPStateDown, events[0].ToState)
+	assert.Equal(t, *at("2026-10-11 16:06:43"), events[0].OccurredAt)
+}
+
 func TestDiffBGPRecordsThreeSessionsDroppingInTheSameSecond(t *testing.T) {
 	started := at("2026-10-10 10:00:00")
 	stored := []models.RouterBGPSession{

@@ -90,7 +90,7 @@ func TestRouterFailBacksOffAndCaps(t *testing.T) {
 	require.NotNil(t, stored.LastError)
 	assert.Equal(t, "timeout", *stored.LastError)
 
-	assert.Equal(t, RouterBGPInterval*32, routerBackoff(models.RouterPollKindBGP, 40))
+	assert.Equal(t, RouterBGPInterval*4, routerBackoff(models.RouterPollKindBGP, 40))
 }
 
 func TestRouterRunNowMakesTheGivenTiersDue(t *testing.T) {

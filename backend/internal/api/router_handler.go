@@ -143,11 +143,12 @@ func (h *RouterHandler) TrustCertificate(c *gin.Context) {
 		respondRouterError(c, err)
 		return
 	}
+	// The pin has changed by now, so it is audited even if scheduling fails.
+	h.record(c, "trust_certificate", id, map[string]interface{}{"fingerprint": router.TLSFingerprint})
 	if err := h.jobs.RunNow(id, models.RouterPollKindBGP, models.RouterPollKindDiscovery); err != nil {
 		respondRouterError(c, err)
 		return
 	}
-	h.record(c, "trust_certificate", id, map[string]interface{}{"fingerprint": router.TLSFingerprint})
 	c.JSON(http.StatusOK, RouterResponse{MikrotikRouter: *router})
 }
 

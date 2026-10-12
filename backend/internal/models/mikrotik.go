@@ -143,6 +143,10 @@ func (RouterInterface) TableName() string { return "router_interfaces" }
 // RouterInterfaceMetric is one per-minute traffic sample. The table is a
 // TimescaleDB hypertable; it has no primary key because a hypertable's unique
 // keys must include the time column and nothing reads a sample by key.
+//
+// Its columns feed continuous aggregates, so change them in SQL migrations
+// only: a changed tag makes AutoMigrate issue ALTER COLUMN, which Postgres
+// refuses on a column a view depends on, and that aborts startup.
 type RouterInterfaceMetric struct {
 	Time        time.Time `gorm:"not null;index:idx_router_interface_metrics_if_time,priority:2" json:"time"`
 	InterfaceID uuid.UUID `gorm:"type:uuid;not null;index:idx_router_interface_metrics_if_time,priority:1" json:"interface_id"`

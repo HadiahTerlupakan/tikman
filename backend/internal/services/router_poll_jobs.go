@@ -126,10 +126,15 @@ func (s *RouterPollJobService) release(job *models.RouterPollJob, updates map[st
 		Updates(updates).Error
 }
 
+// maxRouterBackoffShift caps router backoff at 4 intervals, far below the
+// OLT's 32: a failed router poll costs at most a 10s timeout, and an operator
+// watching an upstream recover must see it within minutes, not half an hour.
+const maxRouterBackoffShift = 2
+
 func routerBackoff(kind models.RouterPollKind, failures int) time.Duration {
 	shift := failures - 1
-	if shift > maxBackoffShift {
-		shift = maxBackoffShift
+	if shift > maxRouterBackoffShift {
+		shift = maxRouterBackoffShift
 	}
 	return RouterIntervalFor(kind) * time.Duration(1<<shift)
 }

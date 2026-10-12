@@ -26,7 +26,7 @@ func SNMPTest(ipAddress string, port int, community string, timeout time.Duratio
 		timeout = snmpTestTimeout
 	}
 
-	log.Printf("[SNMP] Testing %s:%d with community '%s' (timeout: %v)", ipAddress, port, community, timeout)
+	log.Printf("[SNMP] Testing %s:%d (timeout: %v)", ipAddress, port, timeout)
 
 	client := &gosnmp.GoSNMP{
 		Target:    ipAddress,

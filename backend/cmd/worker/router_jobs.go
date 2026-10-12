@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // runNextRouterJob claims one router job and runs it, reporting whether there
@@ -22,6 +24,14 @@ func runNextRouterJob(rt *workerRuntime) bool {
 	}
 
 	router, err := rt.routers.Get(job.RouterID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// A database error says nothing about the router; completing the job
+		// would hide the error and wait a whole interval before trying again.
+		rt.logger.Warn("Failed to load the router for its poll job",
+			zap.String("router_id", job.RouterID.String()), zap.Error(err))
+		failRouterJob(rt, job, err)
+		return true
+	}
 	if err != nil || !router.Enabled {
 		// Gone (its jobs follow by foreign key) or switched off: either way
 		// there is nothing to read, and that is not a failure to back off over.
@@ -35,15 +45,19 @@ func runNextRouterJob(rt *workerRuntime) bool {
 	if err := runRouterJob(rt, job, router); err != nil {
 		rt.logger.Warn("Router poll job failed",
 			zap.String("router", router.Name), zap.String("kind", string(job.Kind)), zap.Error(err))
-		if failErr := rt.routerJobs.Fail(job, err); failErr != nil {
-			rt.logger.Error("Failed to record a router job failure", zap.Error(failErr))
-		}
+		failRouterJob(rt, job, err)
 		return true
 	}
 	if err := rt.routerJobs.Complete(job, time.Since(started)); err != nil {
 		rt.logger.Error("Failed to record a router job completion", zap.Error(err))
 	}
 	return true
+}
+
+func failRouterJob(rt *workerRuntime, job *models.RouterPollJob, cause error) {
+	if err := rt.routerJobs.Fail(job, cause); err != nil {
+		rt.logger.Error("Failed to record a router job failure", zap.Error(err))
+	}
 }
 
 func runRouterJob(rt *workerRuntime, job *models.RouterPollJob, router *models.MikrotikRouter) error {

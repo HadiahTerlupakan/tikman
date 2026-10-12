@@ -47,8 +47,11 @@ ALTER TABLE router_interface_metrics SET (
 SELECT add_compression_policy('router_interface_metrics', INTERVAL '2 days', if_not_exists => TRUE);
 SELECT add_retention_policy('router_interface_metrics', INTERVAL '7 days', if_not_exists => TRUE);
 
+-- Real-time aggregates: a read unions the materialized buckets with raw rows
+-- past the last refresh, so the right edge of a graph is not up to an hour
+-- behind the per-minute samples it rolls up.
 CREATE MATERIALIZED VIEW IF NOT EXISTS router_interface_metrics_5min
-WITH (timescaledb.continuous) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT
     time_bucket('5 minutes', time) AS bucket,
     interface_id,
@@ -68,7 +71,7 @@ SELECT add_continuous_aggregate_policy('router_interface_metrics_5min',
 SELECT add_retention_policy('router_interface_metrics_5min', INTERVAL '30 days', if_not_exists => TRUE);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS router_interface_metrics_hourly
-WITH (timescaledb.continuous) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT
     time_bucket('1 hour', time) AS bucket,
     interface_id,

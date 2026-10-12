@@ -164,7 +164,7 @@ func DiffBGP(routerID uuid.UUID, stored []models.RouterBGPSession, current []BGP
 		case old.State != peer.State:
 			events = append(events, bgpEvent(routerID, peer.Name, old.State, peer.State, transitionTime(peer, now)))
 		case peer.State == models.BGPStateEstablished && restarted(old, peer):
-			events = append(events, restartEvents(routerID, peer)...)
+			events = append(events, restartEvents(routerID, old, peer)...)
 		}
 	}
 	return events
@@ -176,10 +176,11 @@ func restarted(old models.RouterBGPSession, peer BGPPeerState) bool {
 
 // restartEvents records a session that went down and came back between two
 // polls. Only last-started moving shows it, and an outage of seconds is still
-// an outage.
-func restartEvents(routerID uuid.UUID, peer BGPPeerState) []models.RouterBGPEvent {
+// an outage. A last-stopped no later than the start already stored is from an
+// earlier outage, so the drop is then dated at the new start instead.
+func restartEvents(routerID uuid.UUID, old models.RouterBGPSession, peer BGPPeerState) []models.RouterBGPEvent {
 	downAt := *peer.LastStartedAt
-	if peer.LastStoppedAt != nil {
+	if peer.LastStoppedAt != nil && peer.LastStoppedAt.After(*old.LastStartedAt) {
 		downAt = *peer.LastStoppedAt
 	}
 	return []models.RouterBGPEvent{
