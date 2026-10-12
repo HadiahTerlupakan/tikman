@@ -326,8 +326,9 @@ lebih dulu.
 
 ## Memantau router MikroTik border
 
-TikMan membaca router lewat SNMP (trafik interface dan VLAN) dan REST API
-RouterOS v7 (status BGP, daftar interface, CPU/RAM). Aksesnya hanya baca.
+TikMan membaca router lewat SNMP (trafik interface dan VLAN) dan, untuk status
+BGP, daftar interface, dan CPU/RAM, lewat REST API, API-SSL, atau API RouterOS v7
+(dipilih per router). Aksesnya hanya baca.
 Jalankan perintah berikut di router, ganti `IP_VPS`, `IP_ROUTER`, `PASSWORD`,
 dan `COMMUNITY`:
 
@@ -346,6 +347,43 @@ di atasnya. Batasi juga `addresses` setiap community SNMP lain ke pemakainya:
 community yang terbuka ke `::/0` bisa dibaca siapa saja dan dipakai untuk
 serangan amplifikasi.
 
+### Memilih protokol
+
+Di form router, **Protokol** menentukan cara TikMan membaca BGP, daftar
+interface, dan CPU/RAM. SNMP tetap dipakai untuk trafik di ketiganya.
+
+| Protokol | Service router | Port default | Sertifikat |
+|---|---|---|---|
+| REST (disarankan) | `www-ssl` | 8443 | wajib, fingerprint dicocokkan |
+| API-SSL | `api-ssl` | 8729 | wajib, fingerprint dicocokkan |
+| API | `api` | 8728 | tidak ada — password lewat tanpa enkripsi |
+
+Untuk **API-SSL**, pakai sertifikat yang sama seperti REST:
+
+```
+/ip service set api-ssl certificate=tikman-rest address=IP_VPS/32 disabled=no
+```
+
+`api-ssl` dengan `certificate=none` tidak bisa dipakai: RouterOS lalu hanya
+menawarkan cipher anonim, yang ditolak TikMan karena tidak melindungi dari
+penyadapan.
+
+Untuk **API**, cukup batasi service-nya ke VPS:
+
+```
+/ip service set api address=IP_VPS/32 disabled=no
+```
+
+API mengirim username dan password tanpa enkripsi, jadi siapa pun di jalur
+antara VPS dan router bisa membacanya. Pakai hanya bila REST atau API-SSL
+tidak memungkinkan, dan tetap dengan user grup `tikman-ro` yang read-only.
+Uji koneksi untuk API hanya satu langkah karena tidak ada sertifikat yang
+dicocokkan.
+
+Mengganti protokol router yang sudah ada dari API ke REST atau API-SSL membuat
+TikMan menampilkan fingerprint sertifikat di tab Router pada poll berikutnya;
+Admin menerimanya dengan **Terima** setelah mencocokkannya di router.
+
 ### Menambah router
 
 Menambah, mengubah, dan menghapus router, serta menerima sertifikat baru,
@@ -354,12 +392,14 @@ semua peran bisa melihat.
 
 Buka **MikroTik → Tambah router**, isi data, lalu uji koneksi dua langkah:
 
-1. Klik **Uji koneksi**. Langkah ini hanya menguji SNMP dan menampilkan
-   fingerprint sertifikat router. Password belum dikirim ke mana pun.
+1. Klik **Uji koneksi**. Untuk REST dan API-SSL, langkah ini hanya menguji
+   SNMP dan menampilkan fingerprint sertifikat router. Password belum dikirim ke mana pun.
 2. Cocokkan fingerprint itu dengan
    `/certificate print detail where name=tikman-rest` di router. Bila sama,
    klik **Fingerprint cocok, uji REST**. TikMan lalu menguji REST hanya
    terhadap sertifikat tersebut.
+
+Untuk API, uji koneksi langsung login dan membaca board dalam satu langkah.
 
 Saat menambah router, tombol **Simpan** baru aktif setelah kedua langkah lulus;
 mengubah router yang sudah ada tidak memakai uji ini. Kalau sertifikat
