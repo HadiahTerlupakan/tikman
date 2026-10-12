@@ -39,15 +39,7 @@ func (e *trapError) Error() string { return "router refused: " + e.message }
 // password is written.
 func dialAPI(cfg Config) (*apiTransport, error) {
 	address := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
-	dialer := &net.Dialer{Timeout: apiCallTimeout}
-	var conn net.Conn
-	var err error
-	if cfg.Protocol == ProtocolAPISSL {
-		// DialWithDialer applies the dialer's Timeout to the handshake too.
-		conn, err = tls.DialWithDialer(dialer, "tcp", address, pinnedTLS(cfg.Fingerprint))
-	} else {
-		conn, err = dialer.Dial("tcp", address)
-	}
+	conn, err := dialConn(cfg, address)
 	if err != nil {
 		if errors.Is(err, ErrCertificateChanged) {
 			return nil, ErrCertificateChanged
@@ -60,6 +52,26 @@ func dialAPI(cfg Config) (*apiTransport, error) {
 		return nil, err
 	}
 	return t, nil
+}
+
+// dialConn picks the wire explicitly. Anything but the two API protocols is
+// refused before a socket opens, so a mislabelled router can never fall
+// through to cleartext and send its password unencrypted.
+func dialConn(cfg Config, address string) (net.Conn, error) {
+	dialer := &net.Dialer{Timeout: apiCallTimeout}
+	switch cfg.Protocol {
+	case ProtocolAPISSL:
+		// DialWithDialer applies the dialer's Timeout to the handshake too.
+		conn, err := tls.DialWithDialer(dialer, "tcp", address, pinnedTLS(cfg.Fingerprint))
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
+	case ProtocolAPI:
+		return dialer.Dial("tcp", address)
+	default:
+		return nil, fmt.Errorf("unknown RouterOS API protocol %q", cfg.Protocol)
+	}
 }
 
 func (t *apiTransport) login(username, password string) error {

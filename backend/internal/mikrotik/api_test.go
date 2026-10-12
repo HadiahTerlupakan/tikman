@@ -266,3 +266,22 @@ func TestProtocolDefaults(t *testing.T) {
 	assert.False(t, Protocol("telnet").Valid())
 	assert.False(t, Protocol("").Valid())
 }
+
+// dialAPI must not depend on its caller for this: a protocol that is not an
+// API protocol would otherwise fall through to cleartext with the password.
+func TestDialAPIRefusesNonAPIProtocolsBeforeDialing(t *testing.T) {
+	for _, protocol := range []Protocol{ProtocolREST, ""} {
+		router := &fakeAPIRouter{username: "tikman", password: "secret"}
+		cfg := apiConfig(router.start(t, nil))
+		cfg.Protocol = protocol
+
+		_, err := dialAPI(cfg)
+
+		assert.Error(t, err, "protocol %q", protocol)
+		select {
+		case words := <-router.received:
+			t.Fatalf("protocol %q sent %v", protocol, words)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
