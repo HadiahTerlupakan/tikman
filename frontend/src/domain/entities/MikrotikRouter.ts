@@ -4,6 +4,7 @@ export type RouterApiStatus =
   | "ok"
   | "error"
   | "certificate_changed";
+export type RouterApiProtocol = "rest" | "api-ssl" | "api";
 export type BgpState = "established" | "down";
 
 export interface MikrotikRouter {
@@ -14,6 +15,7 @@ export interface MikrotikRouter {
   snmpPort: number;
   apiUsername: string;
   apiPort: number;
+  apiProtocol: RouterApiProtocol;
   enabled: boolean;
   tlsFingerprint: string;
   presentedFingerprint: string | null;
@@ -100,12 +102,12 @@ export interface TestRouterConnectionDto {
   apiUsername: string;
   apiPassword: string;
   apiPort?: number;
+  apiProtocol?: RouterApiProtocol;
   tlsFingerprint?: string;
 }
 
 export interface CreateRouterDto extends TestRouterConnectionDto {
   name: string;
-  tlsFingerprint: string;
 }
 
 export interface UpdateRouterDto {
@@ -116,6 +118,7 @@ export interface UpdateRouterDto {
   apiUsername?: string;
   apiPassword?: string;
   apiPort?: number;
+  apiProtocol?: RouterApiProtocol;
   enabled?: boolean;
 }
 

@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { message, type FormInstance } from "antd";
-import type { RouterConnectionTestResult } from "@/domain/entities";
+import type {
+  RouterApiProtocol,
+  RouterConnectionTestResult,
+} from "@/domain/entities";
 import { useTestRouterConnection } from "@/application/hooks/useMikrotikRouters";
-import { confirmedFingerprint, requestErrorText } from "./routerTestSteps";
+import { requestErrorText, savableFingerprint } from "./routerTestSteps";
 
 export interface RouterFormValues {
   name: string;
@@ -12,13 +15,18 @@ export interface RouterFormValues {
   apiUsername: string;
   apiPassword: string;
   apiPort: number;
+  apiProtocol: RouterApiProtocol;
 }
 
 /**
- * The two-step connection test of a new router: step 1 reads the certificate,
- * step 2 sends the REST password only to the fingerprint step 1 showed.
+ * The connection test of a new router: over TLS, step 1 reads the certificate
+ * and step 2 sends the password only to the fingerprint step 1 showed; plain
+ * API is a single step.
  */
-export function useRouterTestSteps(form: FormInstance<RouterFormValues>) {
+export function useRouterTestSteps(
+  form: FormInstance<RouterFormValues>,
+  protocol: RouterApiProtocol,
+) {
   const test = useTestRouterConnection();
   const [first, setFirst] = useState<RouterConnectionTestResult | null>(null);
   const [second, setSecond] = useState<RouterConnectionTestResult | null>(null);
@@ -54,7 +62,7 @@ export function useRouterTestSteps(form: FormInstance<RouterFormValues>) {
   return {
     first,
     second,
-    fingerprint: confirmedFingerprint(first, second),
+    fingerprint: savableFingerprint(protocol, first, second),
     testing: test.isPending,
     runFirstStep,
     runSecondStep,

@@ -22,7 +22,7 @@ const columns: ColumnsType<MikrotikRouter> = [
       r.apiStatus === "ok" ? (
         bgpSummary(r)
       ) : (
-        <Tooltip title="REST sedang gagal; jumlah sesi terakhir sudah usang">
+        <Tooltip title="API router sedang gagal; jumlah sesi terakhir sudah usang">
           <span>{bgpSummary(r)}</span>
         </Tooltip>
       ),

@@ -9,6 +9,7 @@ import {
 } from "antd";
 import type {
   MikrotikRouter,
+  RouterApiProtocol,
   RouterConnectionTestResult,
 } from "@/domain/entities";
 import {
@@ -16,6 +17,11 @@ import {
   useUpdateMikrotikRouter,
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterFormFields } from "./RouterFormFields";
+import {
+  PROTOCOL_DEFAULT_PORT,
+  PROTOCOL_LABEL,
+  usesTls,
+} from "./routerProtocol";
 import { requestErrorText } from "./routerTestSteps";
 import {
   useRouterTestSteps,
@@ -23,7 +29,6 @@ import {
 } from "./useRouterTestSteps";
 
 const DEFAULT_SNMP_PORT = 161;
-const DEFAULT_API_PORT = 8443;
 
 interface Props {
   router?: MikrotikRouter;
@@ -39,13 +44,15 @@ function snmpAlert(result: RouterConnectionTestResult) {
   );
 }
 
-// Step 1 only reads the certificate: it must not claim REST worked.
+// Step 1 over TLS only reads the certificate: it must not claim the API worked.
 function FingerprintStep({
   result,
+  label,
   onConfirm,
   confirming,
 }: {
   result: RouterConnectionTestResult;
+  label: string;
   onConfirm: () => void;
   confirming: boolean;
 }) {
@@ -56,31 +63,37 @@ function FingerprintStep({
         <Alert
           type="warning"
           message={`Fingerprint sertifikat: ${result.fingerprint}`}
-          description="Cocokkan dengan hasil `/certificate print detail where name=tikman-rest` di router. Password REST baru dikirim setelah Anda mengonfirmasi."
+          description={`Cocokkan dengan hasil \`/certificate print detail\` di router. Password ${label} baru dikirim setelah Anda mengonfirmasi.`}
           action={
             <Button size="small" loading={confirming} onClick={onConfirm}>
-              Fingerprint cocok, uji REST
+              Fingerprint cocok, uji {label}
             </Button>
           }
         />
       ) : (
         <Alert
           type="error"
-          message={`REST: ${result.apiError ?? "sertifikat tidak terbaca"}`}
+          message={`${label}: ${result.apiError ?? "sertifikat tidak terbaca"}`}
         />
       )}
     </Space>
   );
 }
 
-function RestStep({ result }: { result: RouterConnectionTestResult }) {
+function ApiStep({
+  result,
+  label,
+}: {
+  result: RouterConnectionTestResult;
+  label: string;
+}) {
   return (
     <Alert
       type={result.apiError ? "error" : "success"}
       message={
         result.apiError
-          ? `REST: ${result.apiError}`
-          : `REST: ${result.boardName} · RouterOS ${result.version}`
+          ? `${label}: ${result.apiError}`
+          : `${label}: ${result.boardName} · RouterOS ${result.version}`
       }
     />
   );
@@ -88,15 +101,27 @@ function RestStep({ result }: { result: RouterConnectionTestResult }) {
 
 function TestStepResults({
   steps,
+  protocol,
 }: {
   steps: ReturnType<typeof useRouterTestSteps>;
+  protocol: RouterApiProtocol;
 }) {
+  const label = PROTOCOL_LABEL[protocol];
   const { first, second } = steps;
   if (!first) return null;
+  if (!usesTls(protocol)) {
+    return (
+      <Space direction="vertical" style={{ width: "100%" }}>
+        {snmpAlert(first)}
+        <ApiStep result={first} label={label} />
+      </Space>
+    );
+  }
   if (!second) {
     return (
       <FingerprintStep
         result={first}
+        label={label}
         onConfirm={steps.runSecondStep}
         confirming={steps.testing}
       />
@@ -105,22 +130,25 @@ function TestStepResults({
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
       {snmpAlert(second)}
-      <RestStep result={second} />
+      <ApiStep result={second} label={label} />
     </Space>
   );
 }
 
 function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
+  const apiProtocol = router?.apiProtocol ?? "rest";
   return {
     name: router?.name,
     host: router?.host,
     snmpPort: router?.snmpPort ?? DEFAULT_SNMP_PORT,
     apiUsername: router?.apiUsername,
-    apiPort: router?.apiPort ?? DEFAULT_API_PORT,
+    apiProtocol,
+    apiPort: router?.apiPort ?? PROTOCOL_DEFAULT_PORT[apiProtocol],
   };
 }
 
-// A new router is saved only with the fingerprint both test steps passed on.
+// A new router is saved only once the test passed; "" means plain API, which
+// has no fingerprint to send.
 function useSaveRouter(
   form: FormInstance<RouterFormValues>,
   router: MikrotikRouter | undefined,
@@ -134,8 +162,11 @@ function useSaveRouter(
       const values = await form.validateFields();
       if (router) {
         await update.mutateAsync({ id: router.id, data: values });
-      } else if (fingerprint) {
-        await create.mutateAsync({ ...values, tlsFingerprint: fingerprint });
+      } else if (fingerprint !== null) {
+        await create.mutateAsync({
+          ...values,
+          tlsFingerprint: fingerprint || undefined,
+        });
       }
       onClose();
     } catch (error) {
@@ -147,7 +178,9 @@ function useSaveRouter(
 
 export function RouterFormModal({ router, onClose }: Props) {
   const [form] = Form.useForm<RouterFormValues>();
-  const steps = useRouterTestSteps(form);
+  const protocol: RouterApiProtocol =
+    Form.useWatch("apiProtocol", form) ?? router?.apiProtocol ?? "rest";
+  const steps = useRouterTestSteps(form, protocol);
   const { save, saving } = useSaveRouter(
     form,
     router,
@@ -155,6 +188,17 @@ export function RouterFormModal({ router, onClose }: Props) {
     onClose,
   );
   const editing = router !== undefined;
+
+  // A protocol change moves the port to that protocol's default, unless the
+  // operator already typed one.
+  const onValuesChange = (changed: Partial<RouterFormValues>) => {
+    if (changed.apiProtocol && !form.isFieldTouched("apiPort")) {
+      form.setFieldsValue({
+        apiPort: PROTOCOL_DEFAULT_PORT[changed.apiProtocol],
+      });
+    }
+    if (!editing) steps.reset();
+  };
 
   return (
     <Modal
@@ -174,7 +218,7 @@ export function RouterFormModal({ router, onClose }: Props) {
         <Button
           key="save"
           type="primary"
-          disabled={!editing && !steps.fingerprint}
+          disabled={!editing && steps.fingerprint === null}
           loading={saving}
           onClick={save}
         >
@@ -185,12 +229,12 @@ export function RouterFormModal({ router, onClose }: Props) {
       <Form
         form={form}
         layout="vertical"
-        onValuesChange={() => !editing && steps.reset()}
+        onValuesChange={onValuesChange}
         initialValues={initialValues(router)}
       >
         <RouterFormFields editing={editing} />
       </Form>
-      <TestStepResults steps={steps} />
+      <TestStepResults steps={steps} protocol={protocol} />
     </Modal>
   );
 }

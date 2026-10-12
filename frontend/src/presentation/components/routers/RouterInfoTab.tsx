@@ -10,6 +10,7 @@ import {
   useTrustRouterCertificate,
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterFormModal } from "./RouterFormModal";
+import { PROTOCOL_LABEL } from "./routerProtocol";
 import { RouterStatusTag } from "./RouterStatusTag";
 import { formatUptime, memoryUsedPercent } from "./routerTraffic";
 
@@ -33,7 +34,7 @@ export function RouterInfoTab({ router }: { router: MikrotikRouter }) {
       {presented && (
         <Alert
           type="warning"
-          message="Sertifikat REST router berubah. Polling BGP berhenti sampai sertifikat baru diterima."
+          message="Sertifikat API router berubah. Polling BGP berhenti sampai sertifikat baru diterima."
           description={`Fingerprint baru: ${presented}. Cocokkan dengan /certificate print di router sebelum menerima.`}
           action={
             isAdmin && (
@@ -74,7 +75,10 @@ export function RouterInfoTab({ router }: { router: MikrotikRouter }) {
             ? dayjs(router.lastSeenAt).format("DD MMM YYYY HH:mm:ss")
             : "—"}
         </Descriptions.Item>
-        <Descriptions.Item label="Error REST terakhir">
+        <Descriptions.Item label="Protokol">
+          {PROTOCOL_LABEL[router.apiProtocol]} · port {router.apiPort}
+        </Descriptions.Item>
+        <Descriptions.Item label="Error API terakhir">
           {router.apiError ?? "—"}
         </Descriptions.Item>
         <Descriptions.Item label="Fingerprint sertifikat">

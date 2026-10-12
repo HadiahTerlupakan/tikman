@@ -46,7 +46,7 @@ export function BgpSessionTable({ groups, stale, lastReadAt }: Props) {
         <Alert
           type="warning"
           showIcon
-          message={`Data BGP terakhir terbaca ${readAt} — REST sedang gagal`}
+          message={`Data BGP terakhir terbaca ${readAt} — API router sedang gagal`}
         />
       )}
       {groups.map((group) => (
