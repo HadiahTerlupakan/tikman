@@ -152,3 +152,17 @@ func TestMappingExportIsOpenToEveryRole(t *testing.T) {
 		})
 	}
 }
+
+func TestRouterWritesFollowTheirRoles(t *testing.T) {
+	router, store := rbacTestRouter(t)
+	id := uuid.NewString()
+
+	assert.Equal(t, http.StatusOK, requestAs(t, router, store, models.UserRoleViewer, http.MethodGet, "/api/v1/routers"))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleViewer, http.MethodPost, "/api/v1/routers"))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPost, "/api/v1/routers"))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodDelete, "/api/v1/routers/"+id))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPost, "/api/v1/routers/"+id+"/trust-certificate"))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleViewer, http.MethodPost, "/api/v1/routers/"+id+"/refresh"))
+	assert.NotEqual(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPost, "/api/v1/routers/"+id+"/refresh"))
+	assert.NotEqual(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPut, "/api/v1/routers/"+id))
+}
