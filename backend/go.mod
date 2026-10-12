@@ -29,7 +29,7 @@ require (
 	firebase.google.com/go/v4 v4.21.0
 	github.com/jackc/pgx/v5 v5.11.0
 	golang.org/x/image v0.46.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	google.golang.org/api v0.299.0
 )
 
