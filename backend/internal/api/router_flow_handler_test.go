@@ -69,6 +69,24 @@ func TestFlowReadsRefuseMalformedRequests(t *testing.T) {
 	}
 }
 
+func TestPeeringNeedsAnASN(t *testing.T) {
+	flows, created, _ := setupRouterFlowHandlerTest(t)
+	hour := rangeQuery(time.Hour)
+	for name, query := range map[string]string{
+		"missing":  hour,
+		"text":     hour + "&asn=facebook",
+		"negative": hour + "&asn=-1",
+		"too big":  hour + "&asn=4294967296",
+	} {
+		w, c := flowContext(created.ID.String(), query)
+
+		flows.Peering(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code, name)
+		assert.Contains(t, w.Body.String(), "INVALID_FILTER", name)
+	}
+}
+
 func TestFlowReadsOfAnUnknownRouterAre404(t *testing.T) {
 	flows, _, _ := setupRouterFlowHandlerTest(t)
 	w, c := flowContext(uuid.NewString(), rangeQuery(time.Hour))

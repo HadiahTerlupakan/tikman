@@ -175,7 +175,7 @@ func TestEveryRoleReadsFlows(t *testing.T) {
 	id := uuid.NewString()
 
 	for _, role := range []models.UserRole{models.UserRoleViewer, models.UserRoleTechnician, models.UserRoleAdmin} {
-		for _, read := range []string{"destinations", "summary", "pops", "top-ips"} {
+		for _, read := range []string{"destinations", "summary", "pops", "top-ips", "peering"} {
 			code := requestAs(t, router, store, role, http.MethodGet, "/api/v1/routers/"+id+"/flows/"+read)
 			assert.Equal(t, http.StatusBadRequest, code, "%s %s", role, read)
 		}

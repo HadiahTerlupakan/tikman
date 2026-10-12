@@ -68,6 +68,21 @@ func (h *RouterFlowHandler) POPs(c *gin.Context) {
 	respondFlow(c, out, err)
 }
 
+// Peering splits one destination ASN over the upstreams that carried it.
+func (h *RouterFlowHandler) Peering(c *gin.Context) {
+	id, filter, ok := h.flowRequest(c)
+	if !ok {
+		return
+	}
+	asn, err := strconv.ParseUint(c.Query("asn"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "asn must be an AS number", Code: "INVALID_FILTER"})
+		return
+	}
+	out, err := h.flows.Peering(id, filter, int64(asn))
+	respondFlow(c, out, err)
+}
+
 // TopIPs lists the largest destination addresses of the last 7 days.
 func (h *RouterFlowHandler) TopIPs(c *gin.Context) {
 	id, filter, ok := h.flowRequest(c)
