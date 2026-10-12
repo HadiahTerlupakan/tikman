@@ -361,6 +361,7 @@ Buka **MikroTik → Tambah router**, isi data, lalu uji koneksi dua langkah:
    klik **Fingerprint cocok, uji REST**. TikMan lalu menguji REST hanya
    terhadap sertifikat tersebut.
 
-Tombol **Simpan** baru aktif setelah kedua langkah lulus. Kalau sertifikat
+Saat menambah router, tombol **Simpan** baru aktif setelah kedua langkah lulus;
+mengubah router yang sudah ada tidak memakai uji ini. Kalau sertifikat
 router diganti, TikMan berhenti membaca BGP dan menampilkan fingerprint baru
 di tab Router sampai Admin menerimanya.
