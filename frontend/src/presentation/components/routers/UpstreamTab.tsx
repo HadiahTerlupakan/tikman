@@ -45,13 +45,11 @@ export function UpstreamTab({ routerId, apiStatus }: Props) {
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <TrafficRangePicker value={range} onChange={setRange} />
       <TrafficChart
-        stacked
         title="Download per upstream"
         series={labels}
         data={stackSeries(traffic, "inBps")}
       />
       <TrafficChart
-        stacked
         title="Upload per upstream"
         series={labels}
         data={stackSeries(traffic, "outBps")}

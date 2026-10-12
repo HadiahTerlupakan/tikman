@@ -132,7 +132,6 @@ export function FlowPeeringDrawer(props: Props) {
           )}
           <PeeringTable {...props} />
           <TrafficChart
-            stacked
             title="Per peering (bit/s)"
             series={chart.series}
             data={chart.rows}

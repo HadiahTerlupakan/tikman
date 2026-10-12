@@ -55,9 +55,14 @@ func TestTrafficReturningClearsSilence(t *testing.T) {
 	stored, next := pollInbound(t, f, "vlan-pop-a", start, 0, 1_000_000, 0, 0, 0)
 	require.NotNil(t, stored.SilentSince)
 
-	stored, _ = pollInbound(t, f, "vlan-pop-a", next, 5_000)
+	busySince := *stored.LastTrafficAt
 
+	// Any traffic at all ends the silence, but only real traffic dates it.
+	stored, next = pollInbound(t, f, "vlan-pop-a", next, 5_000)
 	assert.Nil(t, stored.SilentSince)
+	assert.Equal(t, busySince.UTC(), stored.LastTrafficAt.UTC())
+
+	stored, _ = pollInbound(t, f, "vlan-pop-a", next, 1_000_000)
 	assert.Equal(t, next.UTC(), stored.LastTrafficAt.UTC())
 }
 
@@ -73,6 +78,19 @@ func TestAnInterfaceTheRouterReportsDownIsNotMarkedSilent(t *testing.T) {
 
 	assert.Nil(t, stored.SilentSince)
 	assert.Equal(t, "down", stored.OperStatus)
+}
+
+// A management VLAN or loopback sees a few packets now and then and is
+// mostly at zero; only an interface that has carried real traffic (a POP)
+// is marked when it falls silent.
+func TestAnInterfaceThatOnlyEverTrickledIsNotMarked(t *testing.T) {
+	f, start := silenceFixture(t)
+
+	// 6 KB in a minute is 800 bit/s: a trickle, below silentBusyBps.
+	stored, _ := pollInbound(t, f, "vlan-pop-a", start, 0, 6_000, 0, 0, 0, 0)
+
+	assert.Nil(t, stored.SilentSince)
+	assert.Nil(t, stored.LastTrafficAt)
 }
 
 // A spare VLAN that has never carried traffic is quiet, not down.

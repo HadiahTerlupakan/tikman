@@ -88,7 +88,6 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
         <LoadError what="data tujuan trafik" />
       ) : (
         <TrafficChart
-          stacked
           title="Tujuan trafik (bit/s)"
           series={chart.series}
           data={chart.rows}

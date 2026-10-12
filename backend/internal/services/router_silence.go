@@ -11,14 +11,20 @@ import (
 // exactly zero three minutes running is a stop rather than a quiet moment.
 const silentAfterPolls = 3
 
+// silentBusyBps is the inbound rate that counts as carrying traffic. A POP
+// serving customers is far above it; a management VLAN or the loopback sees
+// a few packets now and then and is mostly at zero, and would otherwise flap
+// between silent and not. Must match migration 60.
+const silentBusyBps = 64_000
+
 // trackSilence adds to updates what one inbound rate means for the
-// interface's silence. An interface that has never carried traffic is spare,
-// not down, and is never marked. One the router reports down already says so
-// plainly; marking it silent too would hide that and count every VLAN above
-// a failed port.
+// interface's silence. Only an interface that has carried real traffic is
+// ever marked; any traffic at all clears the mark. One the router reports
+// down already says so plainly; marking it silent too would hide that and
+// count every VLAN above a failed port.
 func trackSilence(iface models.RouterInterface, inBps float64, operUp bool, now time.Time, updates map[string]interface{}) {
 	if inBps > 0 || !operUp {
-		if inBps > 0 {
+		if inBps >= silentBusyBps {
 			updates["last_traffic_at"] = now
 		}
 		updates["zero_in_polls"] = 0
