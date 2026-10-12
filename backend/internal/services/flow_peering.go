@@ -32,6 +32,7 @@ type FlowPeering struct {
 	PeakWindowSeconds int64               `json:"peak_window_seconds"`
 	Rows              []FlowPeeringRow    `json:"rows"`
 	Series            []FlowPeeringSeries `json:"series"`
+	POPs              []FlowPeeringPOP    `json:"pops"`
 }
 
 type upstreamTotal struct {
@@ -64,6 +65,10 @@ func (s *FlowQueryService) Peering(routerID uuid.UUID, f FlowFilter, asn int64) 
 	if err != nil {
 		return nil, err
 	}
+	cells, err := s.popUpstreamBytes(res.source.table, where, args)
+	if err != nil {
+		return nil, err
+	}
 	names, err := s.asnNames([]int64{asn})
 	if err != nil {
 		return nil, err
@@ -75,6 +80,7 @@ func (s *FlowQueryService) Peering(routerID uuid.UUID, f FlowFilter, asn int64) 
 	}
 	out.Rows = peeringRows(totals, out.TotalBytes, f.To.Sub(f.From), res.source.step)
 	out.Series = peeringSeries(totals, buckets, res.step)
+	out.POPs = peeringPOPs(cells, out.TotalBytes)
 	return out, nil
 }
 

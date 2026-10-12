@@ -130,6 +130,15 @@ type RouterInterface struct {
 	LastOutBps   *float64   `json:"last_out_bps"`
 	LastPolledAt *time.Time `json:"last_polled_at"`
 
+	// A VLAN to a POP stays up while the site behind the carrier is gone, so
+	// a stop shows only as nothing coming in. LastTrafficAt is the last
+	// sample with inbound traffic; SilentSince is set, from the first silent
+	// sample, once enough silent samples follow an interface that had any.
+	LastTrafficAt *time.Time `json:"last_traffic_at"`
+	SilentSince   *time.Time `json:"silent_since"`
+	ZeroInSince   *time.Time `json:"-"`
+	ZeroInPolls   int        `gorm:"not null;default:0" json:"-"`
+
 	// Counter64 values stored as int64. The conversion keeps every bit, so
 	// uint64(stored) gives back the exact counter even past 2^63.
 	PrevInOctets  *int64     `json:"-"`

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -154,6 +155,28 @@ func TestListRoutersCarriesTheBGPTally(t *testing.T) {
 	require.Len(t, out, 1)
 	assert.Equal(t, 1, out[0].BGPEstablished)
 	assert.Equal(t, 2, out[0].BGPTotal)
+}
+
+func TestListRoutersCountsSilentInterfaces(t *testing.T) {
+	handler, db := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+	since := time.Now().Add(-time.Hour)
+	for _, iface := range []models.RouterInterface{
+		{RouterID: created.ID, Name: "vlan-pop-a", Type: "vlan", OperStatus: "up", SilentSince: &since},
+		{RouterID: created.ID, Name: "vlan-pop-b", Type: "vlan", OperStatus: "up"},
+		{RouterID: created.ID, Name: "vlan-off", Type: "vlan", OperStatus: "up", SilentSince: &since, Disabled: true},
+	} {
+		require.NoError(t, db.Create(&iface).Error)
+	}
+	w, c := SetupTestContext(http.MethodGet, "/api/v1/routers", nil)
+
+	handler.List(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var out []RouterResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+	require.Len(t, out, 1)
+	assert.Equal(t, 1, out[0].SilentInterfaces, "a disabled interface is not counted")
 }
 
 func TestDeleteUnknownRouterIs404(t *testing.T) {

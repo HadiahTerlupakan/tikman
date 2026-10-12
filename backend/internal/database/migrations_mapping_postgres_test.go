@@ -70,6 +70,14 @@ const mappingBackfillSchema = "mapping_backfill_check"
 // so never migrated at all.
 func freshPostgresBeforeMapping(t *testing.T) *gorm.DB {
 	t.Helper()
+	return freshPostgresBefore(t, mappingBackfillSchema, "53")
+}
+
+// freshPostgresBefore builds, in a schema of its own, AutoMigrate plus every
+// SQL migration older than stopVersion, so a test can seed rows that only a
+// backfill in stopVersion itself will see.
+func freshPostgresBefore(t *testing.T, schema, stopVersion string) *gorm.DB {
+	t.Helper()
 	dsn := testPostgresDSN(t)
 
 	setup, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
@@ -77,21 +85,21 @@ func freshPostgresBeforeMapping(t *testing.T) *gorm.DB {
 	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS timescaledb").Error)
 	require.NoError(t, setup.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm").Error)
 	stopTimescaleJobs(t, setup)
-	require.NoError(t, setup.Exec("DROP SCHEMA IF EXISTS "+mappingBackfillSchema+" CASCADE").Error)
-	require.NoError(t, setup.Exec("CREATE SCHEMA "+mappingBackfillSchema).Error)
+	require.NoError(t, setup.Exec("DROP SCHEMA IF EXISTS "+schema+" CASCADE").Error)
+	require.NoError(t, setup.Exec("CREATE SCHEMA "+schema).Error)
 	if sqlDB, err := setup.DB(); err == nil {
 		require.NoError(t, sqlDB.Close())
 	}
 
 	db, err := gorm.Open(
 		postgres.New(postgres.Config{
-			DSN:                  withSearchPath(dsn, mappingBackfillSchema),
+			DSN:                  withSearchPath(dsn, schema),
 			PreferSimpleProtocol: true,
 		}),
 		&gorm.Config{Logger: logger.Discard})
 	require.NoError(t, err)
 	require.NoError(t, models.AutoMigrate(db))
-	require.NoError(t, applyMigrationsBefore(db, "../../migrations", "53"))
+	require.NoError(t, applyMigrationsBefore(db, "../../migrations", stopVersion))
 	return db
 }
 

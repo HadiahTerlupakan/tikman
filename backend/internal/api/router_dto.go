@@ -88,4 +88,7 @@ type RouterResponse struct {
 	models.MikrotikRouter
 	BGPEstablished int `json:"bgp_established"`
 	BGPTotal       int `json:"bgp_total"`
+	// SilentInterfaces is how many enabled interfaces receive nothing although
+	// they carried traffic before: a POP gone behind a VLAN that stays up.
+	SilentInterfaces int `json:"silent_interfaces"`
 }

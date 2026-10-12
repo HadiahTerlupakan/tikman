@@ -108,6 +108,27 @@ func (s *RouterQueryService) InterfaceTraffic(routerID, interfaceID uuid.UUID, f
 	return points, s.db.Raw(query, interfaceID, from, to).Scan(&points).Error
 }
 
+// SilentInterfaces counts each router's enabled interfaces marked silent, for
+// the router list.
+func (s *RouterQueryService) SilentInterfaces() (map[uuid.UUID]int, error) {
+	var rows []struct {
+		RouterID uuid.UUID
+		Silent   int
+	}
+	err := s.db.Model(&models.RouterInterface{}).
+		Select("router_id, COUNT(*) AS silent").
+		Where("silent_since IS NOT NULL AND disabled = ?", false).
+		Group("router_id").Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		counts[row.RouterID] = row.Silent
+	}
+	return counts, nil
+}
+
 // BGPSummary tallies sessions per router for the router list.
 func (s *RouterQueryService) BGPSummary() (map[uuid.UUID]BGPCount, error) {
 	var rows []BGPCount

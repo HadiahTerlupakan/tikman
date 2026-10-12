@@ -40,10 +40,16 @@ func (h *RouterHandler) List(c *gin.Context) {
 		respondRouterError(c, err)
 		return
 	}
+	silent, err := h.queries.SilentInterfaces()
+	if err != nil {
+		respondRouterError(c, err)
+		return
+	}
 	out := make([]RouterResponse, len(routers))
 	for i := range routers {
 		tally := summary[routers[i].ID]
-		out[i] = RouterResponse{MikrotikRouter: routers[i], BGPEstablished: tally.Established, BGPTotal: tally.Total}
+		out[i] = RouterResponse{MikrotikRouter: routers[i], BGPEstablished: tally.Established, BGPTotal: tally.Total,
+			SilentInterfaces: silent[routers[i].ID]}
 	}
 	c.JSON(http.StatusOK, out)
 }
