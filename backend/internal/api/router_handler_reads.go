@@ -97,14 +97,13 @@ func routerTimeRange(c *gin.Context) (time.Time, time.Time, bool) {
 	return timeRangeWithin(c, maxRouterRange)
 }
 
-// timeRangeWithin reads from and to, refusing a range longer than maxSpan or
-// one that starts in the future (it can hold no data and only wastes a scan).
+// timeRangeWithin reads from and to, refusing a range longer than maxSpan.
 func timeRangeWithin(c *gin.Context, maxSpan time.Duration) (time.Time, time.Time, bool) {
 	from, errFrom := time.Parse(time.RFC3339, c.Query("from"))
 	to, errTo := time.Parse(time.RFC3339, c.Query("to"))
-	if errFrom != nil || errTo != nil || !to.After(from) || to.Sub(from) > maxSpan || from.After(time.Now()) {
+	if errFrom != nil || errTo != nil || !to.After(from) || to.Sub(from) > maxSpan {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: fmt.Sprintf("from and to must be RFC3339, with to after from, from not in the future, and at most %d days apart",
+			Error: fmt.Sprintf("from and to must be RFC3339, with to after from and at most %d days apart",
 				int(maxSpan.Hours()/24)),
 			Code: "INVALID_RANGE",
 		})

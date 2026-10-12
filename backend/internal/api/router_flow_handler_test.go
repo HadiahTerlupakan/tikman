@@ -47,7 +47,6 @@ func TestTopIPsRefusesARangeBeyondSevenDays(t *testing.T) {
 func TestFlowReadsRefuseMalformedRequests(t *testing.T) {
 	flows, created, _ := setupRouterFlowHandlerTest(t)
 	hour := rangeQuery(time.Hour)
-	future := time.Now().UTC().Add(time.Hour)
 	cases := map[string]struct{ query, code string }{
 		"direction":   {hour + "&direction=sideways", "INVALID_FILTER"},
 		"pop":         {hour + "&pop=vlan-pop-a", "INVALID_FILTER"},
@@ -59,8 +58,6 @@ func TestFlowReadsRefuseMalformedRequests(t *testing.T) {
 		"no range":    {"", "INVALID_RANGE"},
 		"reversed":    {"from=2026-10-02T00:00:00Z&to=2026-10-01T00:00:00Z", "INVALID_RANGE"},
 		"not rfc3339": {"from=yesterday&to=today", "INVALID_RANGE"},
-		"from in the future": {"from=" + future.Format(time.RFC3339) + "&to=" +
-			future.Add(time.Hour).Format(time.RFC3339), "INVALID_RANGE"},
 	}
 	for name, tc := range cases {
 		w, c := flowContext(created.ID.String(), tc.query)
@@ -92,4 +89,18 @@ func TestFlowStatusReportsTheASNDataset(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), `"asn_count":1`)
 	assert.Contains(t, w.Body.String(), `"asn_dataset_updated_at":"2026-10-12T00:00:00`)
+}
+
+// Graphs and event lists have always accepted a range reaching past now (a
+// browser clock a little ahead of the server); sharing the parser with flows
+// must not change that.
+func TestRouterTimeRangeAcceptsAFromSlightlyInTheFuture(t *testing.T) {
+	from := time.Now().UTC().Add(time.Minute)
+	query := "from=" + from.Format(time.RFC3339) + "&to=" + from.Add(time.Hour).Format(time.RFC3339)
+	w, c := flowContext(uuid.NewString(), query)
+
+	_, _, ok := routerTimeRange(c)
+
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
