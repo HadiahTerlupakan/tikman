@@ -52,6 +52,26 @@ func TestPeeringSplitsOneDestinationOverItsUpstreams(t *testing.T) {
 	assert.InDelta(t, 9000*8/60.0, out.Series[0].Points[1].Bps, 0.001)
 }
 
+// The tab may have one upstream selected; the split is across upstreams, so
+// that filter must not narrow it to a single 100% row.
+func TestPeeringIgnoresTheUpstreamFilter(t *testing.T) {
+	db := setupPostgresTestDB(t)
+	flows := NewFlowQueryService(db)
+	routerID, ix, transit := uuid.New(), uuid.New(), uuid.New()
+	at := time.Now().UTC().Truncate(time.Minute).Add(-5 * time.Minute)
+	for upstream, bytes := range map[uuid.UUID]int64{ix: 3000, transit: 1000} {
+		seedFlowMinute(t, db, models.RouterFlowMinute{Time: at, RouterID: routerID,
+			UpstreamInterfaceID: upstream, Direction: "download", ASN: 64496, Bytes: bytes})
+	}
+
+	out, err := flows.Peering(routerID, FlowFilter{From: at.Add(-time.Minute), To: at.Add(time.Minute),
+		Direction: "download", Upstream: &transit}, 64496)
+
+	require.NoError(t, err)
+	require.Len(t, out.Rows, 2)
+	assert.EqualValues(t, 4000, out.TotalBytes)
+}
+
 func TestPeeringOfADestinationWithNoTrafficIsEmpty(t *testing.T) {
 	db := setupPostgresTestDB(t)
 	flows := NewFlowQueryService(db)

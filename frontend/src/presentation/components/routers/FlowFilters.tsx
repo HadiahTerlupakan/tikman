@@ -17,9 +17,17 @@ interface Props {
   onChange: (filter: FlowFilter) => void;
   pops: RouterInterface[];
   upstreams: RouterInterface[];
+  /** Upstreams by their BGP sessions, as the tables name them. */
+  labels: Map<string, string>;
 }
 
-export function FlowFilters({ filter, onChange, pops, upstreams }: Props) {
+export function FlowFilters({
+  filter,
+  onChange,
+  pops,
+  upstreams,
+  labels,
+}: Props) {
   const popOptions = [
     ...pops.map((i) => ({ label: interfaceLabel(i), value: i.id })),
     { label: "Lainnya (di luar blok POP)", value: OTHER_POP },
@@ -48,7 +56,7 @@ export function FlowFilters({ filter, onChange, pops, upstreams }: Props) {
         style={{ minWidth: 220 }}
         value={filter.upstream}
         options={upstreams.map((i) => ({
-          label: interfaceLabel(i),
+          label: labels.get(i.id) ?? interfaceLabel(i),
           value: i.id,
         }))}
         onChange={(upstream: string | undefined) =>

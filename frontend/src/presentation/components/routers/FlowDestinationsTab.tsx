@@ -82,6 +82,7 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
         onChange={setFilter}
         pops={pops}
         upstreams={upstreams}
+        labels={labels}
       />
       {destinations.isError ? (
         <LoadError what="data tujuan trafik" />

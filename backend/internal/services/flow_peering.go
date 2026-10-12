@@ -49,6 +49,9 @@ type upstreamBucket struct {
 // Peering splits one destination ASN's traffic over the upstreams it used,
 // largest first, as totals for the range and as bit/s per step.
 func (s *FlowQueryService) Peering(routerID uuid.UUID, f FlowFilter, asn int64) (*FlowPeering, error) {
+	// The split is across upstreams: an upstream picked in the tab would
+	// narrow it to one row at 100% and say nothing about the peering.
+	f.Upstream = nil
 	res := resolveFlowRange(f.From, f.To, time.Now())
 	where, args := f.where(routerID, res.source.timeColumn)
 	where += " AND asn = ?"
@@ -114,7 +117,12 @@ func peeringSeries(totals []upstreamTotal, buckets []upstreamBucket, step time.D
 		series[i] = FlowPeeringSeries{UpstreamInterfaceID: t.UpstreamInterfaceID, Points: []FlowPoint{}}
 	}
 	for _, b := range buckets {
-		i := index[b.UpstreamInterfaceID]
+		// The two queries share no snapshot: an upstream first seen between
+		// them has no row, and must not be folded into the largest series.
+		i, ok := index[b.UpstreamInterfaceID]
+		if !ok {
+			continue
+		}
 		series[i].Points = append(series[i].Points, FlowPoint{Time: b.Time, Bps: bitsPerSecond(b.Bytes, step)})
 	}
 	return series
