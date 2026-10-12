@@ -1,28 +1,15 @@
 package mikrotik
 
 import (
-	"crypto/sha256"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"strconv"
-	"strings"
 	"time"
 )
 
-// requestTimeout bounds one REST call. The router answers these in tens of
-// milliseconds; anything near this long means it is unreachable, and the job
-// should give up rather than hold a worker.
+// requestTimeout bounds one call to the router. The router answers these in
+// tens of milliseconds; anything near this long means it is unreachable, and
+// the job should give up rather than hold a worker.
 const requestTimeout = 5 * time.Second
-
-// errorBodyLimit is how much of a failed response is kept for the message.
-const errorBodyLimit = 512
 
 var (
 	// ErrCertificateChanged means the router presented a certificate other
@@ -32,141 +19,84 @@ var (
 	ErrUnauthorized = errors.New("router rejected the API credentials")
 )
 
-// Client reads one router's REST API.
+// Transport reads one RouterOS menu. Paths are the menu paths both REST and
+// the API use, such as "/routing/bgp/session".
+type Transport interface {
+	List(path string, out interface{}) error
+	Close() error
+}
+
+// Client reads a router through whichever transport its protocol uses. A new
+// read is one method here, and it works over every protocol.
 type Client struct {
-	baseURL  string
-	username string
-	password string
-	http     *http.Client
+	transport Transport
 }
 
-// NewClient builds a client that only talks to a router presenting the
-// certificate with the given SHA-256 fingerprint.
-func NewClient(host string, port int, username, password, fingerprint string) *Client {
-	return &Client{
-		baseURL:  "https://" + net.JoinHostPort(host, strconv.Itoa(port)) + "/rest",
-		username: username,
-		password: password,
-		http: &http.Client{
-			Timeout: requestTimeout,
-			// A client lives for one poll. A kept-alive connection would outlive
-			// it with nothing left to close it, so each request closes its own.
-			Transport: &http.Transport{
-				TLSClientConfig:   pinnedTLS(fingerprint),
-				DisableKeepAlives: true,
-			},
-		},
-	}
-}
-
-// pinnedTLS trusts exactly one certificate. The router's is self-signed, so
-// there is no CA to verify against; the pin replaces that check rather than
-// dropping it.
-func pinnedTLS(fingerprint string) *tls.Config {
-	return &tls.Config{
-		InsecureSkipVerify: true, //nolint:gosec // verification is VerifyPeerCertificate's pin below
-		VerifyPeerCertificate: func(raw [][]byte, _ [][]*x509.Certificate) error {
-			if len(raw) == 0 || Fingerprint(raw[0]) != strings.ToLower(fingerprint) {
-				return ErrCertificateChanged
-			}
-			return nil
-		},
-	}
-}
-
-// Fingerprint is the lowercase hex SHA-256 of a DER certificate, the form the
-// operator compares against Winbox.
-func Fingerprint(der []byte) string {
-	sum := sha256.Sum256(der)
-	return hex.EncodeToString(sum[:])
-}
-
-// FetchFingerprint reads the certificate a router presents, for an operator to
-// confirm before it is pinned. Nothing is sent over the connection.
-func FetchFingerprint(host string, port int) (string, error) {
-	dialer := &net.Dialer{Timeout: requestTimeout}
-	address := net.JoinHostPort(host, strconv.Itoa(port))
-	conn, err := tls.DialWithDialer(dialer, "tcp", address,
-		&tls.Config{InsecureSkipVerify: true}) //nolint:gosec // reading the certificate is the point
-	if err != nil {
-		return "", fmt.Errorf("TLS handshake with %s: %w", address, err)
-	}
-	defer func() { _ = conn.Close() }()
-
-	certificates := conn.ConnectionState().PeerCertificates
-	if len(certificates) == 0 {
-		return "", fmt.Errorf("%s presented no certificate", address)
-	}
-	return Fingerprint(certificates[0].Raw), nil
-}
-
-func (c *Client) get(path string, out interface{}) error {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.SetBasicAuth(c.username, c.password)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		if errors.Is(err, ErrCertificateChanged) {
-			return ErrCertificateChanged
+// Open builds a client for cfg. REST does no I/O until the first read; the
+// API protocols connect and log in here, so refused credentials surface now.
+func Open(cfg Config) (*Client, error) {
+	switch cfg.Protocol {
+	case ProtocolREST:
+		return &Client{transport: newRESTTransport(cfg)}, nil
+	case ProtocolAPI, ProtocolAPISSL:
+		transport, err := dialAPI(cfg)
+		if err != nil {
+			return nil, err
 		}
-		return fmt.Errorf("GET %s: %w", path, err)
+		return &Client{transport: transport}, nil
+	default:
+		return nil, fmt.Errorf("unknown router protocol %q", cfg.Protocol)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return ErrUnauthorized
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, errorBodyLimit))
-		return fmt.Errorf("GET %s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
-	}
-	return nil
 }
+
+// Close releases the connection, if the transport holds one.
+func (c *Client) Close() error { return c.transport.Close() }
 
 // SystemResource reads uptime, version, CPU load, memory and board name.
 func (c *Client) SystemResource() (SystemResource, error) {
 	var out SystemResource
-	return out, c.get("/system/resource", &out)
+	err := c.transport.List("/system/resource", &out)
+	return out, err
 }
 
 // Clock reads the router's clock settings.
 func (c *Client) Clock() (Clock, error) {
 	var out Clock
-	return out, c.get("/system/clock", &out)
+	err := c.transport.List("/system/clock", &out)
+	return out, err
 }
 
 // Interfaces lists every interface, dynamic ones included.
 func (c *Client) Interfaces() ([]Interface, error) {
 	var out []Interface
-	return out, c.get("/interface", &out)
+	err := c.transport.List("/interface", &out)
+	return out, err
 }
 
 // VLANs lists VLAN interfaces with their ID and parent.
 func (c *Client) VLANs() ([]VLAN, error) {
 	var out []VLAN
-	return out, c.get("/interface/vlan", &out)
+	err := c.transport.List("/interface/vlan", &out)
+	return out, err
 }
 
 // Addresses lists IPv4 addresses and the interface each sits on.
 func (c *Client) Addresses() ([]Address, error) {
 	var out []Address
-	return out, c.get("/ip/address", &out)
+	err := c.transport.List("/ip/address", &out)
+	return out, err
 }
 
 // BGPConnections lists configured BGP peers.
 func (c *Client) BGPConnections() ([]BGPConnection, error) {
 	var out []BGPConnection
-	return out, c.get("/routing/bgp/connection", &out)
+	err := c.transport.List("/routing/bgp/connection", &out)
+	return out, err
 }
 
 // BGPSessions lists running BGP sessions.
 func (c *Client) BGPSessions() ([]BGPSession, error) {
 	var out []BGPSession
-	return out, c.get("/routing/bgp/session", &out)
+	err := c.transport.List("/routing/bgp/session", &out)
+	return out, err
 }

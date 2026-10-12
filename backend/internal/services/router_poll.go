@@ -50,7 +50,9 @@ func NewRouterPollService(db *gorm.DB, routers *RouterService) *RouterPollServic
 		db:      db,
 		routers: routers,
 		newAPI: func(router *models.MikrotikRouter, password string) RouterAPI {
-			return mikrotik.NewClient(router.Host, router.APIPort, router.APIUsername, password, router.TLSFingerprint)
+			client, _ := mikrotik.Open(mikrotik.Config{Protocol: mikrotik.ProtocolREST, Host: router.Host,
+				Port: router.APIPort, Username: router.APIUsername, Password: password, Fingerprint: router.TLSFingerprint})
+			return client
 		},
 		readCounters:     connectivity.WalkIfCounters,
 		fetchFingerprint: mikrotik.FetchFingerprint,

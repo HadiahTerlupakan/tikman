@@ -1,8 +1,9 @@
 package mikrotik
 
-// The REST API sends every value as a string, flags included ("true"), and
-// keeps RouterOS's dotted property names ("remote.address"). These structs
-// mirror that; parse.go turns the strings into values.
+// RouterOS sends every value as a string over REST and the API alike, flags
+// included ("true"), and keeps RouterOS's dotted property names
+// ("remote.address"). These structs mirror that; parse.go turns the strings
+// into values.
 
 // SystemResource is /rest/system/resource.
 type SystemResource struct {

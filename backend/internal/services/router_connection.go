@@ -75,7 +75,13 @@ func (s *RouterService) readBoard(result ConnectionTestResult, in ConnectionTest
 	fingerprint := strings.ToLower(in.TLSFingerprint)
 	result.Fingerprint = fingerprint
 
-	resource, err := mikrotik.NewClient(in.Host, apiPort, in.APIUsername, in.APIPassword, fingerprint).SystemResource()
+	client, err := mikrotik.Open(mikrotik.Config{Protocol: mikrotik.ProtocolREST, Host: in.Host, Port: apiPort,
+		Username: in.APIUsername, Password: in.APIPassword, Fingerprint: fingerprint})
+	if err != nil {
+		result.APIError = err.Error()
+		return result
+	}
+	resource, err := client.SystemResource()
 	if err != nil {
 		result.APIError = err.Error()
 		return result

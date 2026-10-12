@@ -44,7 +44,7 @@ func TestClientReadsSessionsFromAPinnedRouter(t *testing.T) {
 		_, _ = w.Write([]byte(sessionsJSON))
 	})
 
-	client := NewClient(host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw))
+	client := openREST(t, host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw))
 	sessions, err := client.BGPSessions()
 
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestClientRefusesARouterWhoseCertificateChanged(t *testing.T) {
 	})
 
 	pinned := "0000000000000000000000000000000000000000000000000000000000000000"
-	_, err := NewClient(host, port, "tikman", "secret", pinned).SystemResource()
+	_, err := openREST(t, host, port, "tikman", "secret", pinned).SystemResource()
 
 	assert.True(t, errors.Is(err, ErrCertificateChanged), "got %v", err)
 	assert.False(t, called, "credentials must not reach a router that failed the pin")
@@ -82,7 +82,7 @@ func TestClientDoesNotKeepConnectionsAlive(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	})
 
-	_, err := NewClient(host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).SystemResource()
+	_, err := openREST(t, host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).SystemResource()
 
 	require.NoError(t, err)
 	assert.True(t, <-closes, "request must carry Connection: close")
@@ -93,7 +93,7 @@ func TestClientReportsRejectedCredentials(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	})
 
-	_, err := NewClient(host, port, "tikman", "wrong", Fingerprint(server.Certificate().Raw)).SystemResource()
+	_, err := openREST(t, host, port, "tikman", "wrong", Fingerprint(server.Certificate().Raw)).SystemResource()
 
 	assert.True(t, errors.Is(err, ErrUnauthorized), "got %v", err)
 }
@@ -104,7 +104,7 @@ func TestClientReportsAnHTTPErrorWithItsBody(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":400,"message":"no such command"}`))
 	})
 
-	_, err := NewClient(host, port, "u", "p", Fingerprint(server.Certificate().Raw)).Clock()
+	_, err := openREST(t, host, port, "u", "p", Fingerprint(server.Certificate().Raw)).Clock()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HTTP 400")
@@ -124,4 +124,50 @@ func TestFetchFingerprintReturnsWhatTheRouterPresents(t *testing.T) {
 func TestFetchFingerprintFailsWhenNothingListens(t *testing.T) {
 	_, err := FetchFingerprint("127.0.0.1", 1)
 	assert.Error(t, err)
+}
+
+func openREST(t *testing.T, host string, port int, username, password, fingerprint string) *Client {
+	t.Helper()
+	client, err := Open(Config{Protocol: ProtocolREST, Host: host, Port: port,
+		Username: username, Password: password, Fingerprint: fingerprint})
+	require.NoError(t, err)
+	return client
+}
+
+func TestOpenRejectsAnUnknownProtocol(t *testing.T) {
+	_, err := Open(Config{Protocol: "telnet", Host: "127.0.0.1", Port: 1})
+	assert.Error(t, err)
+}
+
+// The typed reads are shared by every transport: what works over REST works
+// over the API without a second implementation.
+func TestOpenWithAPIReadsThroughTheSameMethods(t *testing.T) {
+	router := &fakeAPIRouter{username: "tikman", password: "secret", replies: map[string][][]string{
+		"/routing/bgp/session/print": {{"!re", "=name=peer-transit-1", "=prefix-count=1093192"}, {"!done"}},
+	}}
+	client, err := Open(apiConfig(router.start(t, nil)))
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	sessions, err := client.BGPSessions()
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, "1093192", sessions[0].PrefixCount)
+}
+
+// Review Focus 4: a router edited from api to rest keeps an empty pin. It
+// must be refused as a changed certificate, which hands it to the existing
+// accept-certificate flow, and never be read unpinned.
+func TestOpenRESTWithNoPinnedFingerprintRefusesTheRouter(t *testing.T) {
+	called := false
+	_, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	_, err := openREST(t, host, port, "tikman", "secret", "").SystemResource()
+
+	assert.True(t, errors.Is(err, ErrCertificateChanged), "got %v", err)
+	assert.False(t, called)
 }
