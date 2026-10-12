@@ -164,5 +164,6 @@ func TestRouterWritesFollowTheirRoles(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPost, "/api/v1/routers/"+id+"/trust-certificate"))
 	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleViewer, http.MethodPost, "/api/v1/routers/"+id+"/refresh"))
 	assert.NotEqual(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPost, "/api/v1/routers/"+id+"/refresh"))
-	assert.NotEqual(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPut, "/api/v1/routers/"+id))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPut, "/api/v1/routers/"+id))
+	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleViewer, http.MethodPut, "/api/v1/routers/"+id))
 }

@@ -7,7 +7,9 @@ import (
 )
 
 // registerMikrotikRoutes covers the MikroTik border routers. Reads are open to
-// every role; adding, deleting and trusting a certificate are admin decisions.
+// every role; adding, editing, deleting and trusting a certificate are admin
+// decisions, because editing the host would let a technician point the poller,
+// and the SNMP community it sends in cleartext, at a machine they control.
 func (h *handlers) registerMikrotikRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
 	admin := middleware.RequireRole(models.UserRoleAdmin)
 	operator := middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician)
@@ -18,7 +20,7 @@ func (h *handlers) registerMikrotikRoutes(api *gin.RouterGroup, authenticated gi
 		routers.GET("", h.routerHandler.List)
 		routers.POST("", admin, h.routerHandler.Create)
 		routers.POST("/test-connection", admin, h.routerHandler.TestConnection)
-		routers.PUT("/:id", operator, h.routerHandler.Update)
+		routers.PUT("/:id", admin, h.routerHandler.Update)
 		routers.DELETE("/:id", admin, h.routerHandler.Delete)
 		routers.POST("/:id/refresh", operator, h.routerHandler.Refresh)
 		routers.POST("/:id/trust-certificate", admin, h.routerHandler.TrustCertificate)
