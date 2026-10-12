@@ -323,3 +323,44 @@ konfirmasi sebelum benar-benar menghapus. Menghapus node yang masih ditunjuk
 oleh satu atau lebih ONT ditolak, dengan pesan yang menyebutkan berapa ONT
 yang masih memakainya — node itu harus dilepaskan dari ONT-ONT tersebut
 lebih dulu.
+
+## Memantau router MikroTik border
+
+TikMan membaca router lewat SNMP (trafik interface dan VLAN) dan REST API
+RouterOS v7 (status BGP, daftar interface, CPU/RAM). Aksesnya hanya baca.
+Jalankan perintah berikut di router, ganti `IP_VPS`, `IP_ROUTER`, `PASSWORD`,
+dan `COMMUNITY`:
+
+```
+/user group add name=tikman-ro policy=read,api,rest-api
+/user add name=tikman group=tikman-ro password="PASSWORD" address=IP_VPS/32
+/certificate add name=tikman-rest common-name=IP_ROUTER subject-alt-name=IP:IP_ROUTER days-valid=3650 key-usage=digital-signature,key-encipherment,tls-server
+/certificate sign tikman-rest
+/ip service set www-ssl certificate=tikman-rest port=8443 address=IP_VPS/32 disabled=no
+/snmp community add name="COMMUNITY" addresses=IP_VPS/32 read-access=yes write-access=no
+```
+
+REST memakai port 8443 karena 443 biasanya dipakai `reverse-proxy` RouterOS 7.
+Bila chain input punya rule drop, izinkan tcp/8443 dan udp/161 dari `IP_VPS`
+di atasnya. Batasi juga `addresses` setiap community SNMP lain ke pemakainya:
+community yang terbuka ke `::/0` bisa dibaca siapa saja dan dipakai untuk
+serangan amplifikasi.
+
+### Menambah router
+
+Menambah, mengubah, dan menghapus router, serta menerima sertifikat baru,
+hanya bisa dilakukan Admin. Teknisi bisa menjalankan **Refresh discovery**;
+semua peran bisa melihat.
+
+Buka **MikroTik → Tambah router**, isi data, lalu uji koneksi dua langkah:
+
+1. Klik **Uji koneksi**. Langkah ini hanya menguji SNMP dan menampilkan
+   fingerprint sertifikat router. Password belum dikirim ke mana pun.
+2. Cocokkan fingerprint itu dengan
+   `/certificate print detail where name=tikman-rest` di router. Bila sama,
+   klik **Fingerprint cocok, uji REST**. TikMan lalu menguji REST hanya
+   terhadap sertifikat tersebut.
+
+Tombol **Simpan** baru aktif setelah kedua langkah lulus. Kalau sertifikat
+router diganti, TikMan berhenti membaca BGP dan menampilkan fingerprint baru
+di tab Router sampai Admin menerimanya.

@@ -54,6 +54,9 @@ go test -v -run TestFunctionName ./internal/services/
   and traffic) and a `discovery` job (6 hours, inventory). Run more than one with
   `docker compose up -d --scale worker=N worker`; they share the queue through
   `FOR UPDATE SKIP LOCKED`, and a claim keeps two workers off one chassis.
+  The same loop also claims `router_poll_jobs` for MikroTik border routers:
+  `interfaces` (1 min, SNMP IF-MIB), `bgp` (1 min, RouterOS REST) and
+  `discovery` (6 hours, REST inventory). Both queues are tried every pass.
 - `cmd/seed-events/main.go` — development event seeding utility
 - `cmd/probe_hsgq/main.go` — device probe utility
 - `cmd/snmpbench/main.go` — measures what an OLT's SNMP agent will serve (GETNEXT vs GETBULK at several repetition counts); must run from inside the WireGuard namespace, so it ships in the worker image
