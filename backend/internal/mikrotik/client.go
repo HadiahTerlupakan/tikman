@@ -3,6 +3,8 @@ package mikrotik
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -20,9 +22,10 @@ var (
 )
 
 // Transport reads one RouterOS menu. Paths are the menu paths both REST and
-// the API use, such as "/routing/bgp/session".
+// the API use, such as "/routing/bgp/session". Each where is "key=value", a
+// filter the router applies before replying.
 type Transport interface {
-	List(path string, out interface{}) error
+	List(path string, out interface{}, where ...string) error
 	Close() error
 }
 
@@ -99,4 +102,24 @@ func (c *Client) BGPSessions() ([]BGPSession, error) {
 	var out []BGPSession
 	err := c.transport.List("/routing/bgp/session", &out)
 	return out, err
+}
+
+// StaticRoutes lists active static routes, filtered on the router.
+func (c *Client) StaticRoutes() ([]Route, error) {
+	var out []Route
+	err := c.transport.List("/ip/route", &out, "static=true", "active=true")
+	return out, err
+}
+
+// filterKey is what a RouterOS property name looks like. Checking it keeps a
+// caller's filter from smuggling a second query word or parameter in.
+var filterKey = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// splitFilter splits a "key=value" filter, rejecting any other shape.
+func splitFilter(where string) (key, value string, err error) {
+	key, value, ok := strings.Cut(where, "=")
+	if !ok || !filterKey.MatchString(key) || strings.ContainsAny(value, "\r\n\x00") {
+		return "", "", fmt.Errorf("mikrotik: filter %q is not key=value", where)
+	}
+	return key, value, nil
 }

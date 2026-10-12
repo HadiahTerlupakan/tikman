@@ -19,6 +19,7 @@ type routerInventory struct {
 	interfaces []mikrotik.Interface
 	vlans      []mikrotik.VLAN
 	addresses  []mikrotik.Address
+	routes     []mikrotik.Route
 }
 
 // Discover brings the stored interfaces in line with the router's, then
@@ -41,7 +42,10 @@ func (s *RouterPollService) Discover(router *models.MikrotikRouter) error {
 		if err := upsertInterfaces(tx, router.ID, rows); err != nil {
 			return err
 		}
-		return rematchSessions(tx, router.ID)
+		if err := rematchSessions(tx, router.ID); err != nil {
+			return err
+		}
+		return replaceRoutedPrefixes(tx, router.ID, inventory.routes)
 	})
 }
 
@@ -54,7 +58,10 @@ func readInventory(api RouterAPI) (routerInventory, error) {
 	if inventory.vlans, err = api.VLANs(); err != nil {
 		return inventory, err
 	}
-	inventory.addresses, err = api.Addresses()
+	if inventory.addresses, err = api.Addresses(); err != nil {
+		return inventory, err
+	}
+	inventory.routes, err = api.StaticRoutes()
 	return inventory, err
 }
 

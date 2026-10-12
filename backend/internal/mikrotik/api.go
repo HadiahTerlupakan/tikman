@@ -143,10 +143,18 @@ func sentenceBytes(words []string) int {
 	return total
 }
 
-// List reads a menu with "<path>/print". Its rows carry the same property
-// names REST uses, so they decode into the same structs.
-func (t *apiTransport) List(path string, out interface{}) error {
-	rows, err := t.run(path + "/print")
+// List reads a menu with "<path>/print". Each where becomes a "?" query word;
+// RouterOS ANDs them and returns only matching rows. The rows carry the same
+// property names REST uses, so they decode into the same structs.
+func (t *apiTransport) List(path string, out interface{}, where ...string) error {
+	words := []string{path + "/print"}
+	for _, w := range where {
+		if _, _, err := splitFilter(w); err != nil {
+			return err
+		}
+		words = append(words, "?"+w)
+	}
+	rows, err := t.run(words...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}

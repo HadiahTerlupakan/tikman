@@ -306,3 +306,24 @@ func TestAPIRefusesMoreRowsThanTheCap(t *testing.T) {
 
 	assert.True(t, errors.Is(err, errBadReply), "got %v", err)
 }
+
+func TestAPIStaticRoutesSendTheFilterAsQueryWords(t *testing.T) {
+	router := &fakeAPIRouter{username: "tikman", password: "secret", replies: map[string][][]string{
+		"/ip/route/print": {
+			{"!re", "=dst-address=203.0.113.64/27", "=gateway=192.0.2.34", "=static=true", "=active=true"},
+			{"!done"},
+		},
+	}}
+	client, err := Open(apiConfig(router.start(t, nil)))
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+
+	routes, err := client.StaticRoutes()
+
+	require.NoError(t, err)
+	require.Len(t, routes, 1)
+	assert.Equal(t, "203.0.113.64/27", routes[0].DstAddress)
+	assert.Equal(t, "true", routes[0].Static)
+	<-router.received // login
+	assert.Equal(t, []string{"/ip/route/print", "?static=true", "?active=true"}, <-router.received)
+}

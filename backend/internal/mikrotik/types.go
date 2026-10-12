@@ -67,3 +67,16 @@ type BGPSession struct {
 	LastStarted   string `json:"last-started"`
 	LastStopped   string `json:"last-stopped"`
 }
+
+// Route is one row of /ip/route. It is only ever read filtered: a border
+// router's full BGP table is a million rows.
+type Route struct {
+	DstAddress  string `json:"dst-address"`
+	Gateway     string `json:"gateway"`
+	ImmediateGW string `json:"immediate-gw"`
+	Active      string `json:"active"`
+	Static      string `json:"static"`
+	Connect     string `json:"connect"`
+	BGP         string `json:"bgp"`
+	Disabled    string `json:"disabled"`
+}

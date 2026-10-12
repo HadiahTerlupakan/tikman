@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -43,9 +44,18 @@ func newRESTTransport(cfg Config) *restTransport {
 	}
 }
 
-// List is GET /rest<path>.
-func (t *restTransport) List(path string, out interface{}) error {
-	req, err := http.NewRequest(http.MethodGet, t.baseURL+path, nil)
+// List is GET /rest<path>, with each where as a query filter the router
+// applies itself.
+func (t *restTransport) List(path string, out interface{}, where ...string) error {
+	target := t.baseURL + path
+	if len(where) > 0 {
+		query, err := restFilter(where)
+		if err != nil {
+			return err
+		}
+		target += "?" + query
+	}
+	req, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		return err
 	}
@@ -96,6 +106,18 @@ func pinnedTLS(fingerprint string) *tls.Config {
 func Fingerprint(der []byte) string {
 	sum := sha256.Sum256(der)
 	return hex.EncodeToString(sum[:])
+}
+
+func restFilter(where []string) (string, error) {
+	query := url.Values{}
+	for _, w := range where {
+		key, value, err := splitFilter(w)
+		if err != nil {
+			return "", err
+		}
+		query.Set(key, value)
+	}
+	return query.Encode(), nil
 }
 
 // FetchFingerprint reads the certificate a router presents, for an operator to

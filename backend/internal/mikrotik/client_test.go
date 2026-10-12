@@ -171,3 +171,33 @@ func TestOpenRESTWithNoPinnedFingerprintRefusesTheRouter(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrCertificateChanged), "got %v", err)
 	assert.False(t, called)
 }
+
+// A border router's /ip/route holds the full BGP table: the filter has to
+// travel to the router, not run here over a million rows.
+func TestStaticRoutesAskTheRouterToFilterOverREST(t *testing.T) {
+	server, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/ip/route", r.URL.Path)
+		assert.Equal(t, "true", r.URL.Query().Get("static"))
+		assert.Equal(t, "true", r.URL.Query().Get("active"))
+		_, _ = w.Write([]byte(`[{"dst-address":"203.0.113.64/27","gateway":"192.0.2.34",
+			"immediate-gw":"192.0.2.34%vlan-pop-a","active":"true","static":"true"}]`))
+	})
+
+	routes, err := openREST(t, host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).StaticRoutes()
+
+	require.NoError(t, err)
+	require.Len(t, routes, 1)
+	assert.Equal(t, "203.0.113.64/27", routes[0].DstAddress)
+	assert.Equal(t, "192.0.2.34%vlan-pop-a", routes[0].ImmediateGW)
+}
+
+func TestFilterMustBeKeyEqualsValue(t *testing.T) {
+	for _, bad := range []string{"static", "=true", "Static=true", "a b=c", "x=1\n=cmd=/system/reboot"} {
+		_, _, err := splitFilter(bad)
+		assert.Error(t, err, bad)
+	}
+	key, value, err := splitFilter("dst-address=203.0.113.0/24")
+	require.NoError(t, err)
+	assert.Equal(t, "dst-address", key)
+	assert.Equal(t, "203.0.113.0/24", value)
+}

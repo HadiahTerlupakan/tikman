@@ -30,6 +30,7 @@ type RouterAPI interface {
 	Addresses() ([]mikrotik.Address, error)
 	BGPConnections() ([]mikrotik.BGPConnection, error)
 	BGPSessions() ([]mikrotik.BGPSession, error)
+	StaticRoutes() ([]mikrotik.Route, error)
 }
 
 // IfCounterReader reads IF-MIB counters; connectivity.WalkIfCounters in
