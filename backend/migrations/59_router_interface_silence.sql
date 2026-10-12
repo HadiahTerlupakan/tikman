@@ -18,3 +18,19 @@ FROM (
     GROUP BY interface_id
 ) m
 WHERE m.interface_id = i.id AND i.last_traffic_at IS NULL;
+
+-- A silence already under way is dated from its first stored sample, not
+-- from the first poll after this migration: every sample after the last
+-- traffic is a silent one, so they are counted from there.
+UPDATE router_interfaces i
+SET zero_in_since = z.first_zero,
+    zero_in_polls = z.zeros,
+    silent_since = CASE WHEN z.zeros >= 3 THEN z.first_zero END
+FROM (
+    SELECT m.interface_id, MIN(m.time) AS first_zero, COUNT(*) AS zeros
+    FROM router_interface_metrics m
+    JOIN router_interfaces ri ON ri.id = m.interface_id
+    WHERE ri.last_traffic_at IS NOT NULL AND m.time > ri.last_traffic_at AND m.in_bps = 0
+    GROUP BY m.interface_id
+) z
+WHERE z.interface_id = i.id AND i.zero_in_since IS NULL AND i.oper_status = 'up' AND NOT i.disabled;

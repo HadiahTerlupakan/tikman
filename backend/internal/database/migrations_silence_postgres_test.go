@@ -32,19 +32,31 @@ func TestMigration59DatesLastTrafficFromStoredSamples(t *testing.T) {
 	lastTraffic := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
 	insertMetric(t, db, pop, lastTraffic.Add(-time.Minute), 9_000_000)
 	insertMetric(t, db, pop, lastTraffic, 10_000_000)
-	insertMetric(t, db, pop, lastTraffic.Add(time.Minute), 0)
+	for i := 1; i <= 4; i++ {
+		insertMetric(t, db, pop, lastTraffic.Add(time.Duration(i)*time.Minute), 0)
+	}
 	insertMetric(t, db, spare, lastTraffic, 0)
 
 	require.NoError(t, RunSQLMigrations(db, "../../migrations"))
 
 	var got struct {
-		Pop   *time.Time
-		Spare *time.Time
+		Pop         *time.Time
+		Spare       *time.Time
+		SilentSince *time.Time
+		ZeroInPolls int
 	}
 	require.NoError(t, db.Raw(`SELECT
 		(SELECT last_traffic_at FROM router_interfaces WHERE id = ?) AS pop,
-		(SELECT last_traffic_at FROM router_interfaces WHERE id = ?) AS spare`, pop, spare).Scan(&got).Error)
+		(SELECT last_traffic_at FROM router_interfaces WHERE id = ?) AS spare,
+		(SELECT silent_since FROM router_interfaces WHERE id = ?) AS silent_since,
+		(SELECT zero_in_polls FROM router_interfaces WHERE id = ?) AS zero_in_polls`,
+		pop, spare, pop, pop).Scan(&got).Error)
 	require.NotNil(t, got.Pop)
 	assert.True(t, lastTraffic.Equal(*got.Pop), "got %v", got.Pop)
 	assert.Nil(t, got.Spare)
+	// The silence already under way is dated from its first stored sample,
+	// not from the first poll after the deploy.
+	require.NotNil(t, got.SilentSince)
+	assert.True(t, lastTraffic.Add(time.Minute).Equal(*got.SilentSince), "got %v", got.SilentSince)
+	assert.Equal(t, 4, got.ZeroInPolls)
 }

@@ -218,4 +218,14 @@ describe("FlowDestinationsTab", () => {
     expect(drawer.getByText("75.0%")).toBeTruthy();
     expect(drawer.getByText("Lainnya (di luar blok POP)")).toBeTruthy();
   });
+
+  it("drops the per-POP table while the tab is filtered to one POP", async () => {
+    render(<FlowDestinationsTab routerId="r1" flowEnabled />);
+    fireEvent.click(screen.getByText("POP A"));
+
+    fireEvent.click(screen.getByText("EXAMPLE-NET-0 (AS64496)"));
+
+    await screen.findByText("EXAMPLE-NET-0 (AS64496) — per peering");
+    expect(screen.queryByText("Per POP (VLAN)")).toBeNull();
+  });
 });

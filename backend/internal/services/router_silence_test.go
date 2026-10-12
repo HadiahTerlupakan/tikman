@@ -61,6 +61,20 @@ func TestTrafficReturningClearsSilence(t *testing.T) {
 	assert.Equal(t, next.UTC(), stored.LastTrafficAt.UTC())
 }
 
+// A link the router itself reports down says so plainly; marking it silent as
+// well would hide the clearer "down" and count every VLAN above it.
+func TestAnInterfaceTheRouterReportsDownIsNotMarkedSilent(t *testing.T) {
+	f, start := silenceFixture(t)
+	stored, next := pollInbound(t, f, "vlan-pop-a", start, 0, 1_000_000)
+	require.NotNil(t, stored.LastTrafficAt)
+
+	f.counters[0].OperUp = false
+	stored, _ = pollInbound(t, f, "vlan-pop-a", next, 0, 0, 0, 0)
+
+	assert.Nil(t, stored.SilentSince)
+	assert.Equal(t, "down", stored.OperStatus)
+}
+
 // A spare VLAN that has never carried traffic is quiet, not down.
 func TestAnInterfaceThatNeverHadTrafficIsNotMarked(t *testing.T) {
 	f, start := silenceFixture(t)

@@ -14,11 +14,14 @@ function routerTag(router: MikrotikRouter) {
 
 // A router can be up while a POP behind one of its VLANs is gone; that VLAN
 // still reports up, so its silence is shown next to the router's status.
+// While SNMP itself fails the marks are only the last poll's, so they wait.
 export function RouterStatusTag({ router }: { router: MikrotikRouter }) {
+  const showSilent =
+    router.enabled && router.status !== "down" && router.silentInterfaces > 0;
   return (
     <Space size={4} wrap>
       {routerTag(router)}
-      {router.enabled && router.silentInterfaces > 0 && (
+      {showSilent && (
         <Tag color="red">{`${router.silentInterfaces} VLAN tanpa trafik`}</Tag>
       )}
     </Space>

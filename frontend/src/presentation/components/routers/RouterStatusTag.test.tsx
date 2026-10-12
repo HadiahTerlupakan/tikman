@@ -13,6 +13,17 @@ describe("RouterStatusTag", () => {
     expect(screen.getByText("2 VLAN tanpa trafik")).toBeTruthy();
   });
 
+  it("leaves the count out while the router itself does not answer", () => {
+    render(
+      <RouterStatusTag
+        router={mikrotikRouter({ status: "down", silentInterfaces: 2 })}
+      />,
+    );
+
+    expect(screen.getByText("SNMP tidak menjawab")).toBeTruthy();
+    expect(screen.queryByText(/tanpa trafik/)).toBeNull();
+  });
+
   it("stays quiet when every interface receives", () => {
     render(<RouterStatusTag router={mikrotikRouter()} />);
 

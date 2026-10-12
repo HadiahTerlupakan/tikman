@@ -223,7 +223,9 @@ describe("interfaceStatus", () => {
     );
 
     expect(status.color).toBe("red");
-    expect(status.text).toMatch(/^Tidak ada trafik masuk sejak /);
+    expect(status.text).toMatch(
+      /^Tidak ada trafik masuk sejak .+ — kemungkinan down$/,
+    );
   });
 
   it("keeps the router's own word otherwise", () => {
@@ -232,6 +234,11 @@ describe("interfaceStatus", () => {
       color: "green",
     });
     expect(interfaceStatus(iface({ operStatus: "down" })).text).toBe("Down");
+    expect(
+      interfaceStatus(
+        iface({ operStatus: "down", silentSince: "2026-10-12T11:55:45Z" }),
+      ).text,
+    ).toBe("Down");
     expect(
       interfaceStatus(
         iface({ disabled: true, silentSince: "2026-10-12T11:55:45Z" }),

@@ -124,7 +124,7 @@ func recordCounters(tx *gorm.DB, iface models.RouterInterface, c connectivity.If
 				return err
 			}
 			updates["last_in_bps"], updates["last_out_bps"] = inBps, outBps
-			trackSilence(iface, inBps, now, updates)
+			trackSilence(iface, inBps, c.OperUp, now, updates)
 		}
 	}
 	return tx.Model(&models.RouterInterface{}).Where("id = ?", iface.ID).Updates(updates).Error

@@ -13,10 +13,14 @@ const silentAfterPolls = 3
 
 // trackSilence adds to updates what one inbound rate means for the
 // interface's silence. An interface that has never carried traffic is spare,
-// not down, and is never marked.
-func trackSilence(iface models.RouterInterface, inBps float64, now time.Time, updates map[string]interface{}) {
-	if inBps > 0 {
-		updates["last_traffic_at"] = now
+// not down, and is never marked. One the router reports down already says so
+// plainly; marking it silent too would hide that and count every VLAN above
+// a failed port.
+func trackSilence(iface models.RouterInterface, inBps float64, operUp bool, now time.Time, updates map[string]interface{}) {
+	if inBps > 0 || !operUp {
+		if inBps > 0 {
+			updates["last_traffic_at"] = now
+		}
 		updates["zero_in_polls"] = 0
 		updates["zero_in_since"] = nil
 		updates["silent_since"] = nil

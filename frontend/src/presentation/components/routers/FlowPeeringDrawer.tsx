@@ -21,29 +21,101 @@ import { formatBps } from "./routerTraffic";
 const FOLD_NOTE =
   "Tujuan yang tidak selalu masuk 20 besar per POP per menit sebagian tercatat sebagai Lainnya, jadi angkanya bisa sedikit lebih kecil dari sebenarnya.";
 
-interface Props {
-  asn: number;
-  name: string;
+const percentColumn = {
+  title: "% dari tujuan ini",
+  dataIndex: "percent",
+  render: (p: number) => `${p.toFixed(1)}%`,
+};
+
+const totalColumn = {
+  title: "Total",
+  dataIndex: "bytes",
+  render: (b: number) => formatBytes(b),
+};
+
+interface TableProps {
   data?: FlowPeering;
   loading: boolean;
-  failed: boolean;
   labels: Map<string, string>;
-  onClose: () => void;
 }
 
-export function FlowPeeringDrawer({
-  asn,
-  name,
-  data,
-  loading,
-  failed,
-  labels,
-  onClose,
-}: Props) {
-  const chart = peeringChartRows(data, labels);
+function PeeringTable({ data, loading, labels }: TableProps) {
   const peakTitle = data
     ? `Puncak per ${peakWindowLabel(data.peakWindowSeconds)}`
     : "Puncak";
+  return (
+    <Table<FlowPeeringRow>
+      size="small"
+      rowKey="upstreamInterfaceId"
+      loading={loading}
+      pagination={false}
+      dataSource={data?.rows ?? []}
+      columns={[
+        {
+          title: "Peering / upstream",
+          render: (_, r) =>
+            labels.get(r.upstreamInterfaceId) ?? r.upstreamInterfaceId,
+        },
+        totalColumn,
+        percentColumn,
+        {
+          title: "Rata-rata",
+          dataIndex: "avgBps",
+          render: (v: number) => formatBps(v),
+        },
+        {
+          title: peakTitle,
+          dataIndex: "peakBps",
+          render: (v: number) => formatBps(v),
+        },
+      ]}
+    />
+  );
+}
+
+function PopTable({ data, loading, labels }: TableProps) {
+  return (
+    <>
+      <Typography.Title level={5} style={{ margin: 0 }}>
+        Per POP (VLAN)
+      </Typography.Title>
+      <Table<FlowPeeringPop>
+        size="small"
+        rowKey={(r) => r.popInterfaceId ?? OTHER_POP}
+        loading={loading}
+        pagination={false}
+        dataSource={data?.pops ?? []}
+        columns={[
+          {
+            title: "POP",
+            render: (_, r) => popLabel(r.popInterfaceId, labels),
+          },
+          totalColumn,
+          percentColumn,
+          {
+            title: "Per peering",
+            render: (_, r) => (
+              <UpstreamShareBar shares={r.upstreams} labels={labels} />
+            ),
+          },
+        ]}
+      />
+    </>
+  );
+}
+
+interface Props extends TableProps {
+  asn: number;
+  name: string;
+  failed: boolean;
+  /** The tab is filtered to one POP, so a per-POP split would be one row. */
+  popFiltered: boolean;
+  onClose: () => void;
+}
+
+export function FlowPeeringDrawer(props: Props) {
+  const { asn, name, data, labels, failed, popFiltered, onClose } = props;
+  const chart = peeringChartRows(data, labels);
   return (
     <Drawer
       open
@@ -58,78 +130,14 @@ export function FlowPeeringDrawer({
           {data && (
             <Typography.Text>{`Total: ${formatBytes(data.totalBytes)}`}</Typography.Text>
           )}
-          <Table<FlowPeeringRow>
-            size="small"
-            rowKey="upstreamInterfaceId"
-            loading={loading}
-            pagination={false}
-            dataSource={data?.rows ?? []}
-            columns={[
-              {
-                title: "Peering / upstream",
-                render: (_, r) =>
-                  labels.get(r.upstreamInterfaceId) ?? r.upstreamInterfaceId,
-              },
-              {
-                title: "Total",
-                dataIndex: "bytes",
-                render: (b: number) => formatBytes(b),
-              },
-              {
-                title: "% dari tujuan ini",
-                dataIndex: "percent",
-                render: (p: number) => `${p.toFixed(1)}%`,
-              },
-              {
-                title: "Rata-rata",
-                dataIndex: "avgBps",
-                render: (v: number) => formatBps(v),
-              },
-              {
-                title: peakTitle,
-                dataIndex: "peakBps",
-                render: (v: number) => formatBps(v),
-              },
-            ]}
-          />
+          <PeeringTable {...props} />
           <TrafficChart
             stacked
             title="Per peering (bit/s)"
             series={chart.series}
             data={chart.rows}
           />
-          <Typography.Title level={5} style={{ margin: 0 }}>
-            Per POP (VLAN)
-          </Typography.Title>
-          <Table<FlowPeeringPop>
-            size="small"
-            rowKey={(r) => r.popInterfaceId ?? OTHER_POP}
-            loading={loading}
-            pagination={false}
-            dataSource={data?.pops ?? []}
-            columns={[
-              {
-                title: "POP",
-                render: (_, r) => popLabel(r.popInterfaceId, labels),
-              },
-              {
-                title: "Total",
-                dataIndex: "bytes",
-                render: (b: number) => formatBytes(b),
-              },
-              {
-                title: "% dari tujuan ini",
-                dataIndex: "percent",
-                render: (p: number) => `${p.toFixed(1)}%`,
-              },
-              {
-                title: "Per peering",
-                render: (_, r) => (
-                  <UpstreamShareBar shares={r.upstreams} labels={labels} />
-                ),
-              },
-            ]}
-          />
+          {!popFiltered && <PopTable {...props} />}
           {asn !== 0 && <Alert type="info" showIcon message={FOLD_NOTE} />}
         </Space>
       )}

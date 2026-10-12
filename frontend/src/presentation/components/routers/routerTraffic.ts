@@ -39,13 +39,13 @@ export function interfaceStatus(iface: RouterInterface): {
   color?: string;
 } {
   if (iface.disabled) return { text: "Disabled" };
+  if (iface.operStatus === "down") return { text: "Down", color: "red" };
   if (iface.silentSince)
     return {
-      text: `Tidak ada trafik masuk sejak ${dayjs(iface.silentSince).format("DD MMM HH:mm")}`,
+      text: `Tidak ada trafik masuk sejak ${dayjs(iface.silentSince).format("DD MMM HH:mm")} — kemungkinan down`,
       color: "red",
     };
   if (iface.operStatus === "up") return { text: "Up", color: "green" };
-  if (iface.operStatus === "down") return { text: "Down", color: "red" };
   return { text: "—" };
 }
 

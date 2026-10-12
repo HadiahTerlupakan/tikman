@@ -128,6 +128,7 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
           loading={peering.isLoading}
           failed={peering.isError}
           labels={labels}
+          popFiltered={filter.pop !== undefined}
           onClose={() => setSelected(null)}
         />
       )}
