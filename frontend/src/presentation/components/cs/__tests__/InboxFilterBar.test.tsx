@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterFor, isInboxView } from "../InboxFilterBar";
+import { filterFor, isInboxView } from "../inboxView";
 
 describe("filterFor", () => {
   // The backend checks mine, then awaiting-reply, then closed, and the first one

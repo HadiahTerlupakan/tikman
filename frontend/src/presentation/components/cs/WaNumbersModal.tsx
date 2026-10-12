@@ -18,6 +18,7 @@ import {
 } from "@ant-design/icons";
 import type { WaAccount, WaAccountStatus } from "@/domain/entities";
 import type { WaStreamStatus } from "@/application/hooks/useCsStream";
+import { liveStatus } from "./waStatus";
 import { colors } from "@/shared/theme/colors";
 import { ConfirmByTypingModal } from "./ConfirmByTypingModal";
 
@@ -39,15 +40,6 @@ const STATUS_COLOR: Record<WaAccountStatus, string> = {
   pairing: "processing",
   banned: "error",
 };
-
-/** The number's state as of right now: a live event beats the list this page
- * loaded with, which may be minutes old. */
-export function liveStatus(
-  account: WaAccount,
-  stream: WaStreamStatus,
-): WaAccountStatus {
-  return stream[account.id]?.waStatus ?? account.status;
-}
 
 interface WaNumbersModalProps {
   open: boolean;

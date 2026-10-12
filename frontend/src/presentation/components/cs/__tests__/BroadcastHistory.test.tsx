@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { statusHasExpired } from "../BroadcastHistory";
+import { statusHasExpired } from "../broadcastStatus";
 import type { BroadcastPost } from "@/domain/entities";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

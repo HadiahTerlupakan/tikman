@@ -35,7 +35,7 @@ import {
   filterFor,
   isInboxView,
   type InboxView,
-} from "@/presentation/components/cs/InboxFilterBar";
+} from "@/presentation/components/cs/inboxView";
 import { inboxLayout, type InboxPane } from "./inboxLayout";
 import { colors } from "@/shared/theme/colors";
 import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";

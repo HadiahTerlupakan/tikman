@@ -2,7 +2,7 @@ import { Tag } from "antd";
 import { CheckCircleOutlined, WarningOutlined } from "@ant-design/icons";
 import type { WaAccount } from "@/domain/entities";
 import type { WaStreamStatus } from "@/application/hooks/useCsStream";
-import { liveStatus } from "./WaNumbersModal";
+import { liveStatus } from "./waStatus";
 
 interface WaConnectionBadgeProps {
   accounts?: WaAccount[];
