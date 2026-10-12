@@ -1,45 +1,50 @@
-import { DatePicker } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
-import type { TimeRange } from "@/domain/entities";
+import { DatePicker, Radio, Space } from "antd";
+import dayjs from "dayjs";
+import type { TrafficRange } from "@/domain/entities";
+import { resolveTrafficRange } from "@/application/hooks/trafficRange";
 
 const { RangePicker } = DatePicker;
 
-export const DEFAULT_RANGE_HOURS = 6;
-
-export function lastHours(hours: number): TimeRange {
-  const to = dayjs();
-  return {
-    from: to.subtract(hours, "hour").toISOString(),
-    to: to.toISOString(),
-  };
-}
-
-const presets: { label: string; value: () => [Dayjs, Dayjs] }[] = [
-  { label: "6 jam", value: () => [dayjs().subtract(6, "hour"), dayjs()] },
-  { label: "24 jam", value: () => [dayjs().subtract(1, "day"), dayjs()] },
-  { label: "7 hari", value: () => [dayjs().subtract(7, "day"), dayjs()] },
-  { label: "30 hari", value: () => [dayjs().subtract(30, "day"), dayjs()] },
+// Presets live outside the RangePicker because its own presets arrive through
+// onChange exactly like a manual pick, and only a preset should follow the clock.
+const presets = [
+  { label: "6 jam", value: 6 },
+  { label: "24 jam", value: 24 },
+  { label: "7 hari", value: 7 * 24 },
+  { label: "30 hari", value: 30 * 24 },
 ];
 
 interface Props {
-  value: TimeRange;
-  onChange: (range: TimeRange) => void;
+  value: TrafficRange;
+  onChange: (range: TrafficRange) => void;
 }
 
 export function TrafficRangePicker({ value, onChange }: Props) {
+  const shown = resolveTrafficRange(value);
   return (
-    <RangePicker
-      showTime
-      presets={presets}
-      value={[dayjs(value.from), dayjs(value.to)]}
-      onChange={(dates) => {
-        if (dates?.[0] && dates[1]) {
-          onChange({
-            from: dates[0].toISOString(),
-            to: dates[1].toISOString(),
-          });
+    <Space wrap>
+      <Radio.Group
+        optionType="button"
+        buttonStyle="solid"
+        options={presets}
+        value={value.kind === "relative" ? value.hours : null}
+        onChange={(e) =>
+          onChange({ kind: "relative", hours: Number(e.target.value) })
         }
-      }}
-    />
+      />
+      <RangePicker
+        showTime
+        value={[dayjs(shown.from), dayjs(shown.to)]}
+        onChange={(dates) => {
+          if (dates?.[0] && dates[1]) {
+            onChange({
+              kind: "absolute",
+              from: dates[0].toISOString(),
+              to: dates[1].toISOString(),
+            });
+          }
+        }}
+      />
+    </Space>
   );
 }

@@ -10,9 +10,14 @@ import type {
   RouterInterface,
   RouterTrafficPoint,
   TestRouterConnectionDto,
-  TimeRange,
+  TrafficRange,
   UpdateRouterDto,
 } from "@/domain/entities";
+import {
+  liveRefetchInterval,
+  resolveTrafficRange,
+  trafficRangeKey,
+} from "./trafficRange";
 
 const repository = new MikrotikRouterRepository();
 
@@ -46,49 +51,51 @@ export function useRouterBgpSessions(routerId: string) {
   });
 }
 
-export function useRouterBgpEvents(routerId: string, range: TimeRange) {
+export function useRouterBgpEvents(routerId: string, range: TrafficRange) {
   return useQuery({
-    queryKey: ["mikrotik", routerId, "events", range.from, range.to],
-    queryFn: () => repository.events(routerId, range),
+    queryKey: ["mikrotik", routerId, "events", ...trafficRangeKey(range)],
+    queryFn: () => repository.events(routerId, resolveTrafficRange(range)),
+    refetchInterval: liveRefetchInterval(range, POLL_INTERVAL_MS),
   });
 }
 
-export function useInterfaceTraffic(
+function trafficQuery(
   routerId: string,
   interfaceId: string,
-  range: TimeRange,
+  range: TrafficRange,
 ) {
-  return useQuery({
+  return {
     queryKey: [
       "mikrotik",
       routerId,
       "traffic",
       interfaceId,
-      range.from,
-      range.to,
+      ...trafficRangeKey(range),
     ],
-    queryFn: () => repository.traffic(routerId, interfaceId, range),
-  });
+    queryFn: () =>
+      repository.traffic(routerId, interfaceId, resolveTrafficRange(range)),
+    refetchInterval: liveRefetchInterval(range, POLL_INTERVAL_MS),
+  };
+}
+
+export function useInterfaceTraffic(
+  routerId: string,
+  interfaceId: string,
+  range: TrafficRange,
+) {
+  return useQuery(trafficQuery(routerId, interfaceId, range));
 }
 
 /** Traffic of several interfaces at once, keyed by the label each is drawn under. */
 export function useInterfacesTraffic(
   routerId: string,
   interfaces: { iface: RouterInterface; label: string }[],
-  range: TimeRange,
+  range: TrafficRange,
 ): Record<string, RouterTrafficPoint[]> {
   const results = useQueries({
-    queries: interfaces.map(({ iface }) => ({
-      queryKey: [
-        "mikrotik",
-        routerId,
-        "traffic",
-        iface.id,
-        range.from,
-        range.to,
-      ],
-      queryFn: () => repository.traffic(routerId, iface.id, range),
-    })),
+    queries: interfaces.map(({ iface }) =>
+      trafficQuery(routerId, iface.id, range),
+    ),
   });
   const series: Record<string, RouterTrafficPoint[]> = {};
   interfaces.forEach(({ label }, i) => {

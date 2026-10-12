@@ -1,28 +1,32 @@
 import { useMemo, useState } from "react";
 import { Space } from "antd";
+import type { RouterApiStatus } from "@/domain/entities";
 import {
   useInterfacesTraffic,
   useRouterBgpEvents,
   useRouterBgpSessions,
   useRouterInterfaces,
 } from "@/application/hooks/useMikrotikRouters";
+import { DEFAULT_TRAFFIC_RANGE } from "@/application/hooks/trafficRange";
 import { BgpEventList } from "./BgpEventList";
 import { BgpSessionTable } from "./BgpSessionTable";
 import { TrafficChart } from "./TrafficChart";
-import {
-  DEFAULT_RANGE_HOURS,
-  TrafficRangePicker,
-  lastHours,
-} from "./TrafficRangePicker";
+import { TrafficRangePicker } from "./TrafficRangePicker";
 import {
   groupSessionsByInterface,
   interfaceLabel,
   isUpstream,
+  lastBgpRead,
   stackSeries,
 } from "./routerTraffic";
 
-export function UpstreamTab({ routerId }: { routerId: string }) {
-  const [range, setRange] = useState(() => lastHours(DEFAULT_RANGE_HOURS));
+interface Props {
+  routerId: string;
+  apiStatus: RouterApiStatus;
+}
+
+export function UpstreamTab({ routerId, apiStatus }: Props) {
+  const [range, setRange] = useState(DEFAULT_TRAFFIC_RANGE);
   const { data: interfaces = [] } = useRouterInterfaces(routerId);
   const { data: sessions = [] } = useRouterBgpSessions(routerId);
   const { data: events = [] } = useRouterBgpEvents(routerId, range);
@@ -54,6 +58,8 @@ export function UpstreamTab({ routerId }: { routerId: string }) {
       />
       <BgpSessionTable
         groups={groupSessionsByInterface(sessions, interfaces)}
+        stale={apiStatus !== "ok"}
+        lastReadAt={lastBgpRead(sessions)}
       />
       <BgpEventList events={events} />
     </Space>

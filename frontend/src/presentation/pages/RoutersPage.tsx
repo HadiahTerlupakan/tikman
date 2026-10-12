@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card, Table } from "antd";
+import { Button, Card, Table, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Link } from "react-router-dom";
 import { UserRole, type MikrotikRouter } from "@/domain/entities";
@@ -7,6 +7,7 @@ import { useAuthStore } from "@/application/stores";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
 import { RouterFormModal } from "@/presentation/components/routers/RouterFormModal";
 import { RouterStatusTag } from "@/presentation/components/routers/RouterStatusTag";
+import { bgpSummary } from "@/presentation/components/routers/routerTraffic";
 
 const columns: ColumnsType<MikrotikRouter> = [
   {
@@ -17,7 +18,14 @@ const columns: ColumnsType<MikrotikRouter> = [
   { title: "Status", render: (_, r) => <RouterStatusTag router={r} /> },
   {
     title: "BGP",
-    render: (_, r) => `${r.bgpEstablished}/${r.bgpTotal} Established`,
+    render: (_, r) =>
+      r.apiStatus === "ok" ? (
+        bgpSummary(r)
+      ) : (
+        <Tooltip title="REST sedang gagal; jumlah sesi terakhir sudah usang">
+          <span>{bgpSummary(r)}</span>
+        </Tooltip>
+      ),
   },
   {
     title: "CPU",

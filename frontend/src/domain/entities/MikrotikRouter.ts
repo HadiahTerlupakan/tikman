@@ -62,6 +62,7 @@ export interface RouterBgpSession {
   lastStartedAt: string | null;
   lastStoppedAt: string | null;
   interfaceId: string | null;
+  updatedAt: string;
 }
 
 export interface RouterBgpEvent {
@@ -83,6 +84,14 @@ export interface TimeRange {
   from: string;
   to: string;
 }
+
+/**
+ * A graph's range as the operator chose it: a preset counts back from now and
+ * follows the clock, a span picked by hand stays where it was put.
+ */
+export type TrafficRange =
+  | { kind: "relative"; hours: number }
+  | { kind: "absolute"; from: string; to: string };
 
 export interface TestRouterConnectionDto {
   host: string;

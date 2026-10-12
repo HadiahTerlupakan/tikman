@@ -5,6 +5,7 @@ import type {
   RouterTrafficPoint,
 } from "@/domain/entities";
 import {
+  bgpSummary,
   directionLabels,
   filterInterfaces,
   formatBps,
@@ -14,6 +15,7 @@ import {
   interfaceLabel,
   interfaceSeries,
   isUpstream,
+  lastBgpRead,
   memoryUsedPercent,
   stackSeries,
 } from "./routerTraffic";
@@ -50,7 +52,44 @@ const session = (over: Partial<RouterBgpSession>): RouterBgpSession => ({
   lastStartedAt: null,
   lastStoppedAt: null,
   interfaceId: null,
+  updatedAt: "2026-10-12T08:00:00Z",
   ...over,
+});
+
+describe("lastBgpRead", () => {
+  it("is the newest time any session was written", () => {
+    expect(
+      lastBgpRead([
+        session({ updatedAt: "2026-10-12T08:00:00Z" }),
+        session({ updatedAt: "2026-10-12T08:05:00Z" }),
+        session({ updatedAt: "2026-10-12T07:55:00Z" }),
+      ]),
+    ).toBe("2026-10-12T08:05:00Z");
+  });
+
+  it("is null for a router never read", () => {
+    expect(lastBgpRead([])).toBeNull();
+  });
+});
+
+describe("bgpSummary", () => {
+  it("tallies sessions while REST answers", () => {
+    expect(
+      bgpSummary({ apiStatus: "ok", bgpEstablished: 3, bgpTotal: 5 }),
+    ).toBe("3/5 Established");
+  });
+
+  it("claims nothing once REST stops answering, the tally being stale", () => {
+    for (const apiStatus of [
+      "error",
+      "certificate_changed",
+      "unknown",
+    ] as const) {
+      expect(bgpSummary({ apiStatus, bgpEstablished: 3, bgpTotal: 5 })).toBe(
+        "—",
+      );
+    }
+  });
 });
 
 describe("interfaceLabel", () => {

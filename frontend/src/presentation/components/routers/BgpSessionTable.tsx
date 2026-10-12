@@ -1,4 +1,4 @@
-import { Card, Space, Table, Tag } from "antd";
+import { Alert, Card, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import type { RouterBgpSession } from "@/domain/entities";
@@ -32,9 +32,23 @@ const columns: ColumnsType<RouterBgpSession> = [
   },
 ];
 
-export function BgpSessionTable({ groups }: { groups: SessionGroup[] }) {
+interface Props {
+  groups: SessionGroup[];
+  stale: boolean;
+  lastReadAt: string | null;
+}
+
+export function BgpSessionTable({ groups, stale, lastReadAt }: Props) {
+  const readAt = lastReadAt ? dayjs(lastReadAt).format("DD MMM HH:mm:ss") : "—";
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
+      {stale && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`Data BGP terakhir terbaca ${readAt} — REST sedang gagal`}
+        />
+      )}
       {groups.map((group) => (
         <Card
           key={group.iface?.id ?? "unmatched"}

@@ -1,4 +1,5 @@
 import type {
+  MikrotikRouter,
   RouterBgpSession,
   RouterInterface,
   RouterTrafficPoint,
@@ -154,6 +155,28 @@ export function formatUptime(seconds: number | null | undefined): string {
     `${minutes}m`,
   ];
   return parts.filter(Boolean).join(" ");
+}
+
+/** When the poller last wrote any of these sessions, null if it never has. */
+export function lastBgpRead(sessions: RouterBgpSession[]): string | null {
+  let newest: string | null = null;
+  for (const s of sessions) {
+    if (newest === null || Date.parse(s.updatedAt) > Date.parse(newest)) {
+      newest = s.updatedAt;
+    }
+  }
+  return newest;
+}
+
+/**
+ * The BGP tally for the router list. Sessions are read over REST, so while REST
+ * fails the stored tally is whatever it was last time and is not shown as now.
+ */
+export function bgpSummary(
+  router: Pick<MikrotikRouter, "apiStatus" | "bgpEstablished" | "bgpTotal">,
+): string {
+  if (router.apiStatus !== "ok") return "—";
+  return `${router.bgpEstablished}/${router.bgpTotal} Established`;
 }
 
 export function memoryUsedPercent(

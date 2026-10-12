@@ -21,7 +21,9 @@ export function RouterDetailPage() {
           {
             key: "upstream",
             label: "Upstream & BGP",
-            children: <UpstreamTab routerId={router.id} />,
+            children: (
+              <UpstreamTab routerId={router.id} apiStatus={router.apiStatus} />
+            ),
           },
           {
             key: "interfaces",

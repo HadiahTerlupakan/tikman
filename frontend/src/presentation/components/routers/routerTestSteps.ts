@@ -1,4 +1,12 @@
+import type { AxiosError } from "axios";
 import type { RouterConnectionTestResult } from "@/domain/entities";
+
+export function requestErrorText(error: unknown): string {
+  return (
+    (error as AxiosError<{ error?: string }>).response?.data?.error ??
+    "Permintaan gagal"
+  );
+}
 
 /**
  * The backend only sends REST credentials to a certificate the operator has

@@ -1,49 +1,33 @@
-import { useState } from "react";
 import {
   Alert,
   Button,
   Form,
-  Input,
-  InputNumber,
   Modal,
   Space,
   message,
+  type FormInstance,
 } from "antd";
-import type { AxiosError } from "axios";
 import type {
   MikrotikRouter,
   RouterConnectionTestResult,
 } from "@/domain/entities";
 import {
   useCreateMikrotikRouter,
-  useTestRouterConnection,
   useUpdateMikrotikRouter,
 } from "@/application/hooks/useMikrotikRouters";
-import { confirmedFingerprint } from "./routerTestSteps";
+import { RouterFormFields } from "./RouterFormFields";
+import { requestErrorText } from "./routerTestSteps";
+import {
+  useRouterTestSteps,
+  type RouterFormValues,
+} from "./useRouterTestSteps";
 
 const DEFAULT_SNMP_PORT = 161;
 const DEFAULT_API_PORT = 8443;
 
-interface FormValues {
-  name: string;
-  host: string;
-  snmpCommunity: string;
-  snmpPort: number;
-  apiUsername: string;
-  apiPassword: string;
-  apiPort: number;
-}
-
 interface Props {
   router?: MikrotikRouter;
   onClose: () => void;
-}
-
-function errorText(error: unknown): string {
-  return (
-    (error as AxiosError<{ error?: string }>).response?.data?.error ??
-    "Permintaan gagal"
-  );
 }
 
 function snmpAlert(result: RouterConnectionTestResult) {
@@ -102,59 +86,76 @@ function RestStep({ result }: { result: RouterConnectionTestResult }) {
   );
 }
 
-export function RouterFormModal({ router, onClose }: Props) {
-  const [form] = Form.useForm<FormValues>();
+function TestStepResults({
+  steps,
+}: {
+  steps: ReturnType<typeof useRouterTestSteps>;
+}) {
+  const { first, second } = steps;
+  if (!first) return null;
+  if (!second) {
+    return (
+      <FingerprintStep
+        result={first}
+        onConfirm={steps.runSecondStep}
+        confirming={steps.testing}
+      />
+    );
+  }
+  return (
+    <Space direction="vertical" style={{ width: "100%" }}>
+      {snmpAlert(second)}
+      <RestStep result={second} />
+    </Space>
+  );
+}
+
+function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
+  return {
+    name: router?.name,
+    host: router?.host,
+    snmpPort: router?.snmpPort ?? DEFAULT_SNMP_PORT,
+    apiUsername: router?.apiUsername,
+    apiPort: router?.apiPort ?? DEFAULT_API_PORT,
+  };
+}
+
+// A new router is saved only with the fingerprint both test steps passed on.
+function useSaveRouter(
+  form: FormInstance<RouterFormValues>,
+  router: MikrotikRouter | undefined,
+  fingerprint: string | null,
+  onClose: () => void,
+) {
   const create = useCreateMikrotikRouter();
   const update = useUpdateMikrotikRouter();
-  const test = useTestRouterConnection();
-  const [first, setFirst] = useState<RouterConnectionTestResult | null>(null);
-  const [second, setSecond] = useState<RouterConnectionTestResult | null>(null);
-  const editing = router !== undefined;
-  const fingerprint = confirmedFingerprint(first, second);
-
-  const runFirstStep = async () => {
-    try {
-      setSecond(null);
-      setFirst(await test.mutateAsync(await form.validateFields()));
-    } catch (error) {
-      message.error(errorText(error));
-    }
-  };
-
-  const runSecondStep = async () => {
-    try {
-      const values = await form.validateFields();
-      setSecond(
-        await test.mutateAsync({
-          ...values,
-          tlsFingerprint: first?.fingerprint,
-        }),
-      );
-    } catch (error) {
-      message.error(errorText(error));
-    }
-  };
-
   const save = async () => {
     try {
       const values = await form.validateFields();
-      if (editing) {
+      if (router) {
         await update.mutateAsync({ id: router.id, data: values });
       } else if (fingerprint) {
         await create.mutateAsync({ ...values, tlsFingerprint: fingerprint });
       }
       onClose();
     } catch (error) {
-      message.error(errorText(error));
+      message.error(requestErrorText(error));
     }
   };
+  return { save, saving: create.isPending || update.isPending };
+}
 
-  const resetSteps = () => {
-    setFirst(null);
-    setSecond(null);
-  };
+export function RouterFormModal({ router, onClose }: Props) {
+  const [form] = Form.useForm<RouterFormValues>();
+  const steps = useRouterTestSteps(form);
+  const { save, saving } = useSaveRouter(
+    form,
+    router,
+    steps.fingerprint,
+    onClose,
+  );
+  const editing = router !== undefined;
 
-  const secretRule = editing ? [] : [{ required: true }];
   return (
     <Modal
       open
@@ -164,8 +165,8 @@ export function RouterFormModal({ router, onClose }: Props) {
         !editing && (
           <Button
             key="test"
-            onClick={runFirstStep}
-            loading={test.isPending && !first}
+            onClick={steps.runFirstStep}
+            loading={steps.testing && !steps.first}
           >
             Uji koneksi
           </Button>
@@ -173,8 +174,8 @@ export function RouterFormModal({ router, onClose }: Props) {
         <Button
           key="save"
           type="primary"
-          disabled={!editing && !fingerprint}
-          loading={create.isPending || update.isPending}
+          disabled={!editing && !steps.fingerprint}
+          loading={saving}
           onClick={save}
         >
           Simpan
@@ -184,76 +185,12 @@ export function RouterFormModal({ router, onClose }: Props) {
       <Form
         form={form}
         layout="vertical"
-        onValuesChange={() => !editing && resetSteps()}
-        initialValues={{
-          name: router?.name,
-          host: router?.host,
-          snmpPort: router?.snmpPort ?? DEFAULT_SNMP_PORT,
-          apiUsername: router?.apiUsername,
-          apiPort: router?.apiPort ?? DEFAULT_API_PORT,
-        }}
+        onValuesChange={() => !editing && steps.reset()}
+        initialValues={initialValues(router)}
       >
-        <Form.Item
-          name="name"
-          label="Nama"
-          rules={[{ required: true, min: 2 }]}
-        >
-          <Input />
-        </Form.Item>
-        <Form.Item
-          name="host"
-          label="IP atau hostname"
-          rules={[{ required: true }]}
-        >
-          <Input />
-        </Form.Item>
-        <Form.Item
-          name="snmpCommunity"
-          label="SNMP community"
-          rules={secretRule}
-          extra={
-            editing ? "Kosongkan untuk tetap memakai yang tersimpan" : undefined
-          }
-        >
-          <Input.Password autoComplete="off" />
-        </Form.Item>
-        <Form.Item name="snmpPort" label="Port SNMP">
-          <InputNumber min={1} max={65535} />
-        </Form.Item>
-        <Form.Item
-          name="apiUsername"
-          label="User REST (read-only)"
-          rules={[{ required: true }]}
-        >
-          <Input autoComplete="off" />
-        </Form.Item>
-        <Form.Item
-          name="apiPassword"
-          label="Password REST"
-          rules={secretRule}
-          extra={
-            editing ? "Kosongkan untuk tetap memakai yang tersimpan" : undefined
-          }
-        >
-          <Input.Password autoComplete="new-password" />
-        </Form.Item>
-        <Form.Item name="apiPort" label="Port REST (www-ssl)">
-          <InputNumber min={1} max={65535} />
-        </Form.Item>
+        <RouterFormFields editing={editing} />
       </Form>
-      {first && !second && (
-        <FingerprintStep
-          result={first}
-          onConfirm={runSecondStep}
-          confirming={test.isPending}
-        />
-      )}
-      {first && second && (
-        <Space direction="vertical" style={{ width: "100%" }}>
-          {snmpAlert(second)}
-          <RestStep result={second} />
-        </Space>
-      )}
+      <TestStepResults steps={steps} />
     </Modal>
   );
 }

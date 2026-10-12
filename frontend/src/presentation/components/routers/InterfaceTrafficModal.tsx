@@ -3,11 +3,8 @@ import { Modal, Space } from "antd";
 import type { RouterInterface } from "@/domain/entities";
 import { useInterfaceTraffic } from "@/application/hooks/useMikrotikRouters";
 import { TrafficChart } from "./TrafficChart";
-import {
-  DEFAULT_RANGE_HOURS,
-  TrafficRangePicker,
-  lastHours,
-} from "./TrafficRangePicker";
+import { DEFAULT_TRAFFIC_RANGE } from "@/application/hooks/trafficRange";
+import { TrafficRangePicker } from "./TrafficRangePicker";
 import {
   directionLabels,
   interfaceLabel,
@@ -27,7 +24,7 @@ export function InterfaceTrafficModal({
   upstream,
   onClose,
 }: Props) {
-  const [range, setRange] = useState(() => lastHours(DEFAULT_RANGE_HOURS));
+  const [range, setRange] = useState(DEFAULT_TRAFFIC_RANGE);
   const { data: points = [] } = useInterfaceTraffic(routerId, iface.id, range);
   const labels = directionLabels(upstream);
 
