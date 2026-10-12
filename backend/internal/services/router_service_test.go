@@ -220,3 +220,27 @@ func TestUpdateToAPISSLKeepsThePin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testFingerprint, updated.TLSFingerprint)
 }
+
+func TestUpdateRouterSetsFlowCollection(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+	enabled, sampling := true, 512
+
+	updated, err := service.Update(router.ID, RouterUpdate{FlowEnabled: &enabled, FlowSampling: &sampling})
+
+	require.NoError(t, err)
+	assert.True(t, updated.FlowEnabled)
+	assert.Equal(t, 512, updated.FlowSampling)
+}
+
+func TestUpdateRouterRejectsASamplingRatioOutOfRange(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+
+	for _, ratio := range []int{0, 10001} {
+		_, err := service.Update(router.ID, RouterUpdate{FlowSampling: &ratio})
+		assert.ErrorIs(t, err, ErrValidation, ratio)
+	}
+}

@@ -81,6 +81,7 @@ func (h *RouterHandler) Update(c *gin.Context) {
 	}
 	// Which fields changed, never the secret values themselves.
 	h.record(c, "update", id, map[string]interface{}{"name": router.Name, "host": router.Host, "api_protocol": router.APIProtocol,
+		"flow_enabled": router.FlowEnabled, "flow_sampling": router.FlowSampling,
 		"community_changed": req.SNMPCommunity != nil && *req.SNMPCommunity != "",
 		"password_changed":  req.APIPassword != nil && *req.APIPassword != ""})
 	c.JSON(http.StatusOK, RouterResponse{MikrotikRouter: *router})

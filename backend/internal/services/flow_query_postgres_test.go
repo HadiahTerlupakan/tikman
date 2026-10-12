@@ -193,3 +193,19 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Bytes: 120},
 	}, rows)
 }
+
+// The POP and upstream filters take UUIDs from the query string, so one that
+// belongs to another router must answer with nothing, not that router's rows.
+func TestDestinationsFilteredByAnotherRoutersPOPIsEmpty(t *testing.T) {
+	db := setupPostgresTestDB(t)
+	flows := NewFlowQueryService(db)
+	mine, theirs, theirPOP, transit := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	at := time.Now().UTC().Truncate(time.Minute).Add(-5 * time.Minute)
+	seedFlowMinute(t, db, models.RouterFlowMinute{Time: at, RouterID: theirs, POPInterfaceID: &theirPOP,
+		UpstreamInterfaceID: transit, Direction: "download", ASN: 64496, Bytes: 1000})
+
+	f := FlowFilter{From: at.Add(-time.Minute), To: at.Add(time.Minute), POP: &theirPOP}
+	assert.Zero(t, bytesIn(t, flows, mine, f))
+	f.POP, f.Upstream = nil, &transit
+	assert.Zero(t, bytesIn(t, flows, mine, f))
+}

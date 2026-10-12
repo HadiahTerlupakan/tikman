@@ -42,13 +42,15 @@ type UpdateRouterRequest struct {
 	APIPort       *int       `json:"api_port" binding:"omitempty,min=1,max=65535"`
 	APIProtocol   *string    `json:"api_protocol" binding:"omitempty,oneof=rest api-ssl api"`
 	Enabled       *bool      `json:"enabled"`
+	FlowEnabled   *bool      `json:"flow_enabled"`
+	FlowSampling  *int       `json:"flow_sampling" binding:"omitempty,min=1,max=10000"`
 }
 
 func (r UpdateRouterRequest) toUpdate() services.RouterUpdate {
 	return services.RouterUpdate{
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, ClearSite: r.ClearSite, SNMPCommunity: r.SNMPCommunity,
 		SNMPPort: r.SNMPPort, APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort,
-		APIProtocol: r.APIProtocol, Enabled: r.Enabled,
+		APIProtocol: r.APIProtocol, Enabled: r.Enabled, FlowEnabled: r.FlowEnabled, FlowSampling: r.FlowSampling,
 	}
 }
 

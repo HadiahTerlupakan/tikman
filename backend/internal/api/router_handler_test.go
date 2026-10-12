@@ -218,3 +218,31 @@ func TestRefreshMakesDiscoveryDue(t *testing.T) {
 	require.NoError(t, db.First(&job, "router_id = ? AND kind = ?", created.ID, models.RouterPollKindDiscovery).Error)
 	assert.Less(t, job.DueAt.Year(), 2099)
 }
+
+func TestUpdateRouterSetsFlowCollection(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+	w, c := SetupTestContext(http.MethodPut, "/api/v1/routers/"+created.ID.String(),
+		map[string]interface{}{"flow_enabled": true, "flow_sampling": 512})
+	c.Params = gin.Params{{Key: "id", Value: created.ID.String()}}
+
+	handler.Update(c)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"flow_enabled":true`)
+	assert.Contains(t, w.Body.String(), `"flow_sampling":512`)
+}
+
+func TestUpdateRouterRefusesASamplingRatioOutOfRange(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+	for _, ratio := range []int{0, 10001} {
+		w, c := SetupTestContext(http.MethodPut, "/api/v1/routers/"+created.ID.String(),
+			map[string]interface{}{"flow_sampling": ratio})
+		c.Params = gin.Params{{Key: "id", Value: created.ID.String()}}
+
+		handler.Update(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code, ratio)
+	}
+}

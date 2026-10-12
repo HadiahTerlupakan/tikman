@@ -167,3 +167,19 @@ func TestRouterWritesFollowTheirRoles(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleTechnician, http.MethodPut, "/api/v1/routers/"+id))
 	assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, models.UserRoleViewer, http.MethodPut, "/api/v1/routers/"+id))
 }
+
+// Every role reads traffic destinations. A missing route would answer 404; a
+// present one refuses a request without a range with 400, whatever the role.
+func TestEveryRoleReadsFlows(t *testing.T) {
+	router, store := rbacTestRouter(t)
+	id := uuid.NewString()
+
+	for _, role := range []models.UserRole{models.UserRoleViewer, models.UserRoleTechnician, models.UserRoleAdmin} {
+		for _, read := range []string{"destinations", "summary", "pops", "top-ips"} {
+			code := requestAs(t, router, store, role, http.MethodGet, "/api/v1/routers/"+id+"/flows/"+read)
+			assert.Equal(t, http.StatusBadRequest, code, "%s %s", role, read)
+		}
+		code := requestAs(t, router, store, role, http.MethodGet, "/api/v1/routers/"+id+"/flows/status")
+		assert.NotEqual(t, http.StatusForbidden, code, role)
+	}
+}

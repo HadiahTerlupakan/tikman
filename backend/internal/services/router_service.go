@@ -19,6 +19,12 @@ const DefaultRouterSNMPPort = 161
 // fingerprintLength is a hex SHA-256.
 const fingerprintLength = 64
 
+// The sampling ratio's bounds, as migration 58's CHECK enforces them.
+const (
+	minFlowSampling = 1
+	maxFlowSampling = 10000
+)
+
 // RouterService stores MikroTik routers and their credentials.
 type RouterService struct {
 	db            *gorm.DB
@@ -59,6 +65,8 @@ type RouterUpdate struct {
 	SiteID        *uuid.UUID
 	ClearSite     bool
 	Enabled       *bool
+	FlowEnabled   *bool
+	FlowSampling  *int
 }
 
 // Create stores a router and makes all its poll tiers due at once, so the
@@ -194,6 +202,11 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 	setIfGiven(updates, "snmp_port", upd.SNMPPort)
 	setIfGiven(updates, "api_port", upd.APIPort)
 	setIfGiven(updates, "enabled", upd.Enabled)
+	if upd.FlowSampling != nil && (*upd.FlowSampling < minFlowSampling || *upd.FlowSampling > maxFlowSampling) {
+		return nil, fmt.Errorf("%w: flow_sampling must be between %d and %d", ErrValidation, minFlowSampling, maxFlowSampling)
+	}
+	setIfGiven(updates, "flow_enabled", upd.FlowEnabled)
+	setIfGiven(updates, "flow_sampling", upd.FlowSampling)
 	setIfGiven(updates, "site_id", upd.SiteID)
 	if upd.ClearSite {
 		updates["site_id"] = nil

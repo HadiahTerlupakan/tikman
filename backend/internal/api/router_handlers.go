@@ -41,6 +41,7 @@ type handlers struct {
 	zteProvisionHandler    *ZTEProvisionHandler
 	mappingHandler         *MappingHandler
 	routerHandler          *RouterHandler
+	routerFlowHandler      *RouterFlowHandler
 }
 
 // newHandlers builds the services and handlers one API process needs, and
@@ -88,6 +89,8 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		mappingHandler:         NewMappingHandler(services.NewMappingService(db)),
 		routerHandler: NewRouterHandler(services.NewRouterService(db, cfg.EncryptionKey),
 			services.NewRouterPollJobService(db), services.NewRouterQueryService(db), auditService),
+		routerFlowHandler: NewRouterFlowHandler(services.NewRouterService(db, cfg.EncryptionKey),
+			services.NewFlowQueryService(db)),
 	}, cs.notifier, cs.listener
 }
 
