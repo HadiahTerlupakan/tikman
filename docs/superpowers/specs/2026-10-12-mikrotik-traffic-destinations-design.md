@@ -17,8 +17,9 @@ bagaimana trennya dari menit ke tahun. Dipakai untuk dua hal:
 
 ## Batas yang ditentukan topologi
 
-Router border tidak melakukan NAT. Setiap POP menerima satu prefix publik
-kecil (/29) dari blok milik operator dan me-NAT pelanggannya sendiri. Jadi di
+Router border tidak melakukan NAT. Setiap POP menerima satu atau beberapa
+blok publik dari prefix milik operator — panjang prefix bebas, ditentukan
+operator — dan me-NAT pelanggannya sendiri. Jadi di
 border, alamat sumber sebuah flow adalah salah satu IP publik POP, bukan IP
 pelanggan. Konsekuensinya:
 
@@ -82,9 +83,20 @@ log; collector tidak boleh menumpuk memori karena database lambat.
 - **Rasio sampling:** dari kolom router `flow_sampling` (1:N) yang diisi Admin
   dan harus sama dengan konfigurasi router. Byte dan paket dikalikan N.
 - **POP:** IP sisi lokal (sumber untuk upload, tujuan untuk download)
-  dicocokkan ke subnet di `router_interfaces.addresses` milik interface yang
-  **bukan** upstream. Hasilnya `pop_interface_id`; tidak cocok → `NULL`
-  ("lainnya"). Tabel subnet dimuat ulang dari database tiap 5 menit.
+  dicocokkan dengan **longest-prefix match** ke semua blok milik interface
+  yang **bukan** upstream. Panjang prefix tidak diasumsikan; satu interface
+  boleh punya banyak blok. Blok sebuah interface berasal dari dua sumber:
+  - alamat yang terpasang di interface (`router_interfaces.addresses`, sudah
+    ada dari discovery);
+  - **rute statis** yang gateway-nya berada di subnet interface itu, misalnya
+    blok /27 yang di-route ke router POP. Discovery membaca `/ip/route` yang
+    statis dan aktif (bukan BGP, bukan connected) dan menyimpannya di tabel
+    baru `router_routed_prefixes` (router, prefix, interface).
+
+  Hasilnya `pop_interface_id`; tidak cocok → `NULL` ("lainnya"). Tabel
+  prefix dimuat ulang dari database tiap 5 menit, jadi blok yang baru
+  ditambahkan di router dikenali setelah discovery berikutnya (paling lama
+  6 jam, atau segera lewat tombol Refresh discovery).
 - **Upstream:** interface upstream = interface yang dicocokkan ke sesi BGP
   (`router_bgp_sessions.interface_id`, sudah ada dari sub-proyek 1). Flow
   download: upstream = `ingressInterface`; upload: upstream =
@@ -154,6 +166,10 @@ tetap tepat.
 
 **`asn_names`** — `asn` (PK), `name`, `country`, `updated_at`.
 
+**`router_routed_prefixes`** — `router_id`, `prefix cidr`, `interface_id`
+(interface yang subnetnya memuat gateway rute), `updated_at`; unik per
+(router, prefix). Diisi ulang setiap discovery; rute yang hilang dihapus.
+
 **`mikrotik_routers`** mendapat `flow_enabled bool` dan `flow_sampling int`
 (default 100), serta `flow_last_seen_at timestamptz`.
 
@@ -214,8 +230,13 @@ namespace `api`, jadi cukup `up -d --no-deps flowd`.
 - Parser IPFIX: paket contoh (template + data, rentang dokumentasi), template
   datang setelah data, panjang variabel, paket terpotong, template melebihi
   batas, sumber tidak dikenal.
-- Pemetaan: IP → POP lewat subnet, ifIndex → upstream, arah, IP → ASN
-  (batas rentang, tidak ditemukan), perkalian sampling.
+- Pemetaan: IP → POP dengan longest-prefix match untuk berbagai panjang
+  prefix (mis. /30, /29, /27, /24), beberapa blok per interface, blok yang
+  di-route statis ke gateway di subnet POP, dan blok yang lebih spesifik
+  menang atas yang lebih luas; ifIndex → upstream, arah, IP → ASN (batas
+  rentang, tidak ditemukan), perkalian sampling.
+- Discovery: rute statis aktif dipetakan ke interface gateway-nya; rute BGP
+  dan connected diabaikan; rute yang dihapus di router hilang dari tabel.
 - Agregasi: 20 ASN + "lainnya" menjaga total; batas 50.000 kunci; 100 IP
   teratas.
 - Postgres: rollup dan retensi; API memilih resolusi yang benar per rentang;
