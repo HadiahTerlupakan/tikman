@@ -72,3 +72,16 @@ func TestParseSentenceRejectsAnEmptySentence(t *testing.T) {
 	_, err := parseSentence(nil)
 	assert.True(t, errors.Is(err, errBadReply))
 }
+
+// Each word is under maxWordLength, so only the sentence total can reject
+// this; a peer without a pinned certificate could otherwise grow a sentence
+// without bound inside the read deadline.
+func TestReadSentenceRejectsAWholeSentenceOverTheLimit(t *testing.T) {
+	word := string(bytes.Repeat([]byte("x"), 300<<10))
+	var buf bytes.Buffer
+	require.NoError(t, writeSentence(&buf, word, word, word, word))
+
+	_, err := readSentence(reader(buf.Bytes()))
+
+	assert.True(t, errors.Is(err, errBadReply), "sentence total: %v", err)
+}

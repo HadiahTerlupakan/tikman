@@ -9,9 +9,10 @@ import (
 	"strings"
 )
 
-// maxWordLength bounds one word of a reply. RouterOS words are property
-// values; anything this long means the stream is not the API, and reading it
-// would only allocate what a wrong port sent.
+// maxWordLength bounds the bytes of one word and of one whole sentence. A
+// sentence is capped as well, since a word-count bound alone would let a peer
+// grow memory without limit within the read deadline; anything this large means
+// the stream is not the API.
 const maxWordLength = 1 << 20
 
 // errBadReply means the bytes read cannot be a RouterOS API sentence.
@@ -67,8 +68,8 @@ func readLength(r *bufio.Reader) (int, error) {
 	return n, nil
 }
 
-// writeSentence sends words as one sentence, ended by an empty word, in a
-// single write so a sentence is never interleaved with a half-sent one.
+// writeSentence builds the sentence, ended by an empty word, in one buffer and
+// sends it with a single Write call.
 func writeSentence(w io.Writer, words ...string) error {
 	var buf bytes.Buffer
 	for _, word := range words {
@@ -82,6 +83,7 @@ func writeSentence(w io.Writer, words ...string) error {
 
 func readSentence(r *bufio.Reader) ([]string, error) {
 	var words []string
+	total := 0
 	for {
 		n, err := readLength(r)
 		if err != nil {
@@ -90,9 +92,10 @@ func readSentence(r *bufio.Reader) ([]string, error) {
 		if n == 0 {
 			return words, nil
 		}
-		if n > maxWordLength {
-			return nil, fmt.Errorf("%w: word of %d bytes", errBadReply, n)
+		if n > maxWordLength-total {
+			return nil, fmt.Errorf("%w: sentence over %d bytes", errBadReply, maxWordLength)
 		}
+		total += n
 		word := make([]byte, n)
 		if _, err := io.ReadFull(r, word); err != nil {
 			return nil, err
