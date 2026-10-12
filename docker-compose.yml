@@ -220,6 +220,41 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  flowd:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: tikman-flowd
+    # Its own network namespace, unlike trapd: the border routers send IPFIX
+    # to the VPS's public address, and recreating api must not stop
+    # collection. Docker's DNAT keeps the routers' source addresses, which is
+    # what flowd recognises them by.
+    entrypoint: ["./flowd"]
+    ports:
+      - "2055:2055/udp"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=tikman
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=tikman
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - LOG_LEVEL=info
+    volumes:
+      # The ASN dataset survives a restart, so flowd does not download it
+      # again unless it is a day old.
+      - asn_data:/data/asn
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # api applies migration 58, which creates the tables flowd writes.
+      api:
+        condition: service_healthy
+    networks:
+      - tikman-network
+    restart: unless-stopped
+
 
 networks:
   tikman-network:
@@ -229,3 +264,4 @@ volumes:
   postgres_data:
   redis_data:
   cs_media:
+  asn_data:

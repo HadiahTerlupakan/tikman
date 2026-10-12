@@ -26,6 +26,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o trapd ./cmd/trapd
 # has no config file to read. Needs CAP_NET_ADMIN and the API's namespace.
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o wgstat ./cmd/wgstat
 
+# flowd ships here too, but runs as its own container: IPFIX arrives on the
+# VPS's public address, not through the tunnel trapd listens on.
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o flowd ./cmd/flowd
+
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates openssh-client
@@ -36,5 +40,6 @@ COPY --from=builder /app/worker .
 COPY --from=builder /app/snmpbench .
 COPY --from=builder /app/trapd .
 COPY --from=builder /app/wgstat .
+COPY --from=builder /app/flowd .
 
 CMD ["./worker"]

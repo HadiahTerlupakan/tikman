@@ -1,5 +1,6 @@
 # Override for the VPS, where the web UI is reached through a Cloudflare Tunnel.
-# Nothing but the WireGuard port is published to the internet.
+# Nothing but the WireGuard port and flowd's IPFIX port is published to the
+# internet.
 #
 #   docker compose --env-file /opt/tikman/.env \
 #     -f docker-compose.yml -f docker-compose.vps.yml up -d
@@ -23,6 +24,12 @@ services:
     # silently, with nothing in the logs to say why the OLTs went stale.
     deploy:
       replicas: 3
+
+  flowd:
+    # IPFIX from the border routers arrives on the public address. Restrict
+    # 2055/udp to the routers' IPs in the VPS provider's firewall.
+    ports: !override
+      - "2055:2055/udp"
 
   frontend:
     # Reached only by cloudflared, over the compose network.
