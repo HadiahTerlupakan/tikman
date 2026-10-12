@@ -12,7 +12,7 @@ const SHARE_COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#eb2f96", "#722ed1"];
 const BAR_WIDTH = 160;
 const BAR_HEIGHT = 10;
 
-function UpstreamShareBar({
+export function UpstreamShareBar({
   shares,
   labels,
 }: {

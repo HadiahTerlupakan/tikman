@@ -34,6 +34,8 @@ export interface MikrotikRouter {
   flowLastSeenAt: string | null;
   bgpEstablished: number;
   bgpTotal: number;
+  /** Enabled interfaces that receive nothing although they carried traffic. */
+  silentInterfaces: number;
 }
 
 export interface RouterInterface {
@@ -52,6 +54,9 @@ export interface RouterInterface {
   lastInBps: number | null;
   lastOutBps: number | null;
   lastPolledAt: string | null;
+  lastTrafficAt: string | null;
+  /** Set while the interface receives nothing although the router reports it up. */
+  silentSince: string | null;
 }
 
 export interface RouterBgpSession {

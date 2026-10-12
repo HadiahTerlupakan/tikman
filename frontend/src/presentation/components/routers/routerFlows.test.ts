@@ -181,6 +181,8 @@ function vlan(id: string, comment: string): RouterInterface {
     lastInBps: null,
     lastOutBps: null,
     lastPolledAt: null,
+    lastTrafficAt: null,
+    silentSince: null,
   };
 }
 
@@ -212,6 +214,7 @@ describe("peeringChartRows", () => {
       asn: 64496,
       name: "EXAMPLE-NET-A",
       totalBytes: 0,
+      pops: [],
       stepSeconds: 60,
       peakWindowSeconds: 60,
       rows: [],

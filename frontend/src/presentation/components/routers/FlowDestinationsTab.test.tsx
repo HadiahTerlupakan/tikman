@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { RouterInterface } from "@/domain/entities";
 import { FlowDestinationsTab } from "./FlowDestinationsTab";
 
@@ -45,6 +51,8 @@ function iface(id: string, comment: string): RouterInterface {
     lastInBps: null,
     lastOutBps: null,
     lastPolledAt: null,
+    lastTrafficAt: null,
+    silentSince: null,
   };
 }
 
@@ -85,6 +93,20 @@ vi.mock("@/application/hooks/useRouterFlows", () => ({
                 },
               ],
               series: [],
+              pops: [
+                {
+                  popInterfaceId: "pop-a",
+                  bytes: 1500,
+                  percent: 75,
+                  upstreams: [{ upstreamInterfaceId: "transit", bytes: 1500 }],
+                },
+                {
+                  popInterfaceId: null,
+                  bytes: 500,
+                  percent: 25,
+                  upstreams: [],
+                },
+              ],
             },
       isLoading: false,
       isError: false,
@@ -180,5 +202,20 @@ describe("FlowDestinationsTab", () => {
     expect(
       screen.getAllByText("peer-transit (Transit)").length,
     ).toBeGreaterThan(0);
+  });
+
+  it("lists the POPs that use the destination with their share", async () => {
+    render(<FlowDestinationsTab routerId="r1" flowEnabled />);
+
+    fireEvent.click(screen.getByText("EXAMPLE-NET-0 (AS64496)"));
+
+    const drawer = within(
+      (await screen.findByText("Per POP (VLAN)")).closest(
+        ".ant-drawer-content",
+      ) as HTMLElement,
+    );
+    expect(drawer.getByText("POP A")).toBeTruthy();
+    expect(drawer.getByText("75.0%")).toBeTruthy();
+    expect(drawer.getByText("Lainnya (di luar blok POP)")).toBeTruthy();
   });
 });

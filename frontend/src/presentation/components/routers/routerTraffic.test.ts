@@ -14,6 +14,7 @@ import {
   groupSessionsByInterface,
   interfaceLabel,
   interfaceSeries,
+  interfaceStatus,
   isUpstream,
   lastBgpRead,
   memoryUsedPercent,
@@ -36,6 +37,8 @@ const iface = (over: Partial<RouterInterface>): RouterInterface => ({
   lastInBps: null,
   lastOutBps: null,
   lastPolledAt: null,
+  lastTrafficAt: null,
+  silentSince: null,
   ...over,
 });
 
@@ -210,5 +213,29 @@ describe("formatting", () => {
     expect(memoryUsedPercent(16, 12)).toBe(25);
     expect(memoryUsedPercent(null, 12)).toBeNull();
     expect(memoryUsedPercent(0, 0)).toBeNull();
+  });
+});
+
+describe("interfaceStatus", () => {
+  it("reads a VLAN the router calls up but that receives nothing as down", () => {
+    const status = interfaceStatus(
+      iface({ operStatus: "up", silentSince: "2026-10-12T11:55:45Z" }),
+    );
+
+    expect(status.color).toBe("red");
+    expect(status.text).toMatch(/^Tidak ada trafik masuk sejak /);
+  });
+
+  it("keeps the router's own word otherwise", () => {
+    expect(interfaceStatus(iface({ operStatus: "up" }))).toEqual({
+      text: "Up",
+      color: "green",
+    });
+    expect(interfaceStatus(iface({ operStatus: "down" })).text).toBe("Down");
+    expect(
+      interfaceStatus(
+        iface({ disabled: true, silentSince: "2026-10-12T11:55:45Z" }),
+      ).text,
+    ).toBe("Disabled");
   });
 });

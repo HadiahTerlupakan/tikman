@@ -4,6 +4,7 @@ import type {
   RouterInterface,
   RouterTrafficPoint,
 } from "@/domain/entities";
+import dayjs from "dayjs";
 import { formatSpeed } from "../trafficFormat";
 
 const BITS_PER_MEGABIT = 1_000_000;
@@ -27,6 +28,26 @@ export interface InterfaceGroup {
 }
 
 export type ChartRow = Record<string, string | number>;
+
+/**
+ * What the Interface & VLAN tab says about an interface. A VLAN to a POP
+ * stays up while the site behind the carrier is gone, so silence outranks
+ * the router's "up".
+ */
+export function interfaceStatus(iface: RouterInterface): {
+  text: string;
+  color?: string;
+} {
+  if (iface.disabled) return { text: "Disabled" };
+  if (iface.silentSince)
+    return {
+      text: `Tidak ada trafik masuk sejak ${dayjs(iface.silentSince).format("DD MMM HH:mm")}`,
+      color: "red",
+    };
+  if (iface.operStatus === "up") return { text: "Up", color: "green" };
+  if (iface.operStatus === "down") return { text: "Down", color: "red" };
+  return { text: "—" };
+}
 
 /** The comment is what operators named the link; the name is the fallback. */
 export function interfaceLabel(iface: RouterInterface): string {

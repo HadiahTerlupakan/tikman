@@ -31,6 +31,7 @@ export function mikrotikRouter(
     flowLastSeenAt: null,
     bgpEstablished: 0,
     bgpTotal: 0,
+    silentInterfaces: 0,
     ...over,
   };
 }

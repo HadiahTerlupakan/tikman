@@ -59,6 +59,14 @@ export interface FlowPeeringSeries {
   points: FlowPoint[];
 }
 
+/** One POP's part of a destination; a null POP is addresses in no POP's blocks. */
+export interface FlowPeeringPop {
+  popInterfaceId: string | null;
+  bytes: number;
+  percent: number;
+  upstreams: FlowUpstreamShare[];
+}
+
 /** Which upstreams carry one destination AS, largest first. */
 export interface FlowPeering {
   asn: number;
@@ -68,6 +76,7 @@ export interface FlowPeering {
   peakWindowSeconds: number;
   rows: FlowPeeringRow[];
   series: FlowPeeringSeries[];
+  pops: FlowPeeringPop[];
 }
 
 export interface FlowAsnBytes {

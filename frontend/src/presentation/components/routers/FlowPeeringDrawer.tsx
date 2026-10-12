@@ -1,8 +1,19 @@
 import { Alert, Drawer, Space, Table, Typography } from "antd";
-import type { FlowPeering, FlowPeeringRow } from "@/domain/entities";
+import type {
+  FlowPeering,
+  FlowPeeringPop,
+  FlowPeeringRow,
+} from "@/domain/entities";
 import { formatBytes } from "../trafficFormat";
+import { UpstreamShareBar } from "./FlowSummaryTable";
 import { TrafficChart } from "./TrafficChart";
-import { asnLabel, peakWindowLabel, peeringChartRows } from "./routerFlows";
+import {
+  OTHER_POP,
+  asnLabel,
+  peakWindowLabel,
+  peeringChartRows,
+  popLabel,
+} from "./routerFlows";
 import { formatBps } from "./routerTraffic";
 
 // Per POP and minute only the 20 largest destinations keep their own rows, so
@@ -86,6 +97,38 @@ export function FlowPeeringDrawer({
             title="Per peering (bit/s)"
             series={chart.series}
             data={chart.rows}
+          />
+          <Typography.Title level={5} style={{ margin: 0 }}>
+            Per POP (VLAN)
+          </Typography.Title>
+          <Table<FlowPeeringPop>
+            size="small"
+            rowKey={(r) => r.popInterfaceId ?? OTHER_POP}
+            loading={loading}
+            pagination={false}
+            dataSource={data?.pops ?? []}
+            columns={[
+              {
+                title: "POP",
+                render: (_, r) => popLabel(r.popInterfaceId, labels),
+              },
+              {
+                title: "Total",
+                dataIndex: "bytes",
+                render: (b: number) => formatBytes(b),
+              },
+              {
+                title: "% dari tujuan ini",
+                dataIndex: "percent",
+                render: (p: number) => `${p.toFixed(1)}%`,
+              },
+              {
+                title: "Per peering",
+                render: (_, r) => (
+                  <UpstreamShareBar shares={r.upstreams} labels={labels} />
+                ),
+              },
+            ]}
           />
           {asn !== 0 && <Alert type="info" showIcon message={FOLD_NOTE} />}
         </Space>

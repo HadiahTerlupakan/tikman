@@ -13,14 +13,13 @@ import {
   formatBps,
   groupInterfacesByParent,
   interfaceLabel,
+  interfaceStatus,
   isUpstream,
 } from "./routerTraffic";
 
 const statusTag = (iface: RouterInterface) => {
-  if (iface.disabled) return <Tag>Disabled</Tag>;
-  if (iface.operStatus === "up") return <Tag color="green">Up</Tag>;
-  if (iface.operStatus === "down") return <Tag color="red">Down</Tag>;
-  return <Tag>—</Tag>;
+  const { text, color } = interfaceStatus(iface);
+  return <Tag color={color}>{text}</Tag>;
 };
 
 const columns: ColumnsType<RouterInterface> = [
