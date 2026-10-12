@@ -54,16 +54,20 @@ func main() {
 	// ont_events was the /admin/seed-events endpoint, so an ONT's Events tab and
 	// its availability figure were empty unless someone had seeded demo data.
 	eventService := services.NewEventService(db)
+	routerService := services.NewRouterService(db, cfg.EncryptionKey)
 
 	rt := &workerRuntime{
-		db:      db,
-		id:      newWorkerID(),
-		jobs:    services.NewPollJobService(db),
-		onts:    ontService,
-		olts:    oltService,
-		metrics: metricsService,
-		events:  eventService,
-		logger:  zapLogger,
+		db:         db,
+		id:         newWorkerID(),
+		jobs:       services.NewPollJobService(db),
+		onts:       ontService,
+		olts:       oltService,
+		metrics:    metricsService,
+		events:     eventService,
+		routers:    routerService,
+		routerJobs: services.NewRouterPollJobService(db),
+		routerPoll: services.NewRouterPollService(db, routerService),
+		logger:     zapLogger,
 	}
 
 	zapLogger.Info("Starting Worker service", zap.String("worker", rt.id))
@@ -93,7 +97,11 @@ func main() {
 			zapLogger.Error("Failed to ensure poll jobs", zap.Error(err))
 		}
 
-		if !runNextJob(rt) {
+		// Both queues every pass, so a busy OLT queue cannot starve the
+		// routers' minute-level polls, nor the reverse.
+		ranOLTJob := runNextJob(rt)
+		ranRouterJob := runNextRouterJob(rt)
+		if !ranOLTJob && !ranRouterJob {
 			// Nothing is due. Sleeping here rather than spinning is what keeps
 			// an idle worker off the database.
 			time.Sleep(idleWait)

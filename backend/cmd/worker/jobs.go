@@ -26,14 +26,17 @@ const errorWait = 30 * time.Second
 // startup and passed to each job rather than threaded through as eight
 // arguments.
 type workerRuntime struct {
-	db      *gorm.DB
-	id      string
-	jobs    *services.PollJobService
-	onts    *services.ONTService
-	olts    *services.OLTService
-	metrics *services.MetricsService
-	events  *services.EventService
-	logger  *zap.Logger
+	db         *gorm.DB
+	id         string
+	jobs       *services.PollJobService
+	onts       *services.ONTService
+	olts       *services.OLTService
+	metrics    *services.MetricsService
+	events     *services.EventService
+	routers    *services.RouterService
+	routerJobs *services.RouterPollJobService
+	routerPoll *services.RouterPollService
+	logger     *zap.Logger
 }
 
 // newWorkerID names this process in the queue. The hostname alone is not
