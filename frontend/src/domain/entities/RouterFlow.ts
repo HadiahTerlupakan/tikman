@@ -45,6 +45,31 @@ export interface FlowSummary {
   rows: FlowSummaryRow[];
 }
 
+/** One upstream's part of one destination over the range. */
+export interface FlowPeeringRow {
+  upstreamInterfaceId: string;
+  bytes: number;
+  percent: number;
+  avgBps: number;
+  peakBps: number;
+}
+
+export interface FlowPeeringSeries {
+  upstreamInterfaceId: string;
+  points: FlowPoint[];
+}
+
+/** Which upstreams carry one destination AS, largest first. */
+export interface FlowPeering {
+  asn: number;
+  name: string;
+  totalBytes: number;
+  stepSeconds: number;
+  peakWindowSeconds: number;
+  rows: FlowPeeringRow[];
+  series: FlowPeeringSeries[];
+}
+
 export interface FlowAsnBytes {
   asn: number;
   name: string;

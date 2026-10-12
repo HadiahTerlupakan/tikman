@@ -5,6 +5,27 @@ import { FlowDestinationsTab } from "./FlowDestinationsTab";
 
 const destinations = vi.fn();
 const topIps = vi.fn();
+const peering = vi.fn();
+
+function summaryRow(asn: number, name: string, bytes: number) {
+  return {
+    asn,
+    name,
+    bytes,
+    percent: 1,
+    avgBps: 1,
+    peakBps: 1,
+    upstreams: [],
+  };
+}
+
+const SUMMARY = {
+  totalBytes: 1_000_000,
+  peakWindowSeconds: 60,
+  rows: Array.from({ length: 12 }, (_, i) =>
+    summaryRow(64496 + i, `EXAMPLE-NET-${i}`, 1000 - i),
+  ),
+};
 const state = { destinationsError: false };
 
 function iface(id: string, comment: string): RouterInterface {
@@ -31,7 +52,9 @@ vi.mock("@/application/hooks/useMikrotikRouters", () => ({
   useRouterInterfaces: () => ({
     data: [iface("pop-a", "POP A"), iface("transit", "Transit")],
   }),
-  useRouterBgpSessions: () => ({ data: [{ interfaceId: "transit" }] }),
+  useRouterBgpSessions: () => ({
+    data: [{ name: "peer-transit", interfaceId: "transit" }],
+  }),
 }));
 
 vi.mock("@/application/hooks/useRouterFlows", () => ({
@@ -39,7 +62,34 @@ vi.mock("@/application/hooks/useRouterFlows", () => ({
     destinations(...args);
     return { data: undefined, isError: state.destinationsError };
   },
-  useFlowSummary: () => ({ data: undefined, isLoading: false }),
+  useFlowSummary: () => ({ data: SUMMARY, isLoading: false }),
+  useFlowPeering: (...args: unknown[]) => {
+    peering(...args);
+    return {
+      data:
+        args[3] === null
+          ? undefined
+          : {
+              asn: 64496,
+              name: "EXAMPLE-NET-0",
+              totalBytes: 2000,
+              stepSeconds: 60,
+              peakWindowSeconds: 60,
+              rows: [
+                {
+                  upstreamInterfaceId: "transit",
+                  bytes: 2000,
+                  percent: 100,
+                  avgBps: 26.7,
+                  peakBps: 40,
+                },
+              ],
+              series: [],
+            },
+      isLoading: false,
+      isError: false,
+    };
+  },
   useFlowPops: () => ({
     data: [{ popInterfaceId: "pop-a", bytes: 1000, topAsns: [] }],
     isLoading: false,
@@ -54,6 +104,7 @@ describe("FlowDestinationsTab", () => {
   beforeEach(() => {
     destinations.mockReset();
     topIps.mockReset();
+    peering.mockReset();
     state.destinationsError = false;
   });
 
@@ -103,5 +154,31 @@ describe("FlowDestinationsTab", () => {
 
     render(<FlowDestinationsTab routerId="r1" flowEnabled />);
     expect(screen.queryByText(/NetFlow belum diaktifkan/)).toBeNull();
+  });
+
+  it("pages the destination table ten rows at a time", () => {
+    render(<FlowDestinationsTab routerId="r1" flowEnabled />);
+
+    expect(screen.getByText("EXAMPLE-NET-9 (AS64505)")).toBeTruthy();
+    expect(screen.queryByText("EXAMPLE-NET-10 (AS64506)")).toBeNull();
+  });
+
+  it("opens the per-peering split of the destination whose row is clicked", async () => {
+    render(<FlowDestinationsTab routerId="r1" flowEnabled />);
+
+    fireEvent.click(screen.getByText("EXAMPLE-NET-0 (AS64496)"));
+
+    expect(
+      await screen.findByText("EXAMPLE-NET-0 (AS64496) — per peering"),
+    ).toBeTruthy();
+    expect(peering).toHaveBeenLastCalledWith(
+      "r1",
+      expect.anything(),
+      expect.objectContaining({ direction: "download" }),
+      64496,
+    );
+    expect(
+      screen.getAllByText("peer-transit (Transit)").length,
+    ).toBeGreaterThan(0);
   });
 });

@@ -7,11 +7,13 @@ import {
 } from "@/application/hooks/useMikrotikRouters";
 import {
   useFlowDestinations,
+  useFlowPeering,
   useFlowPops,
   useFlowSummary,
   useFlowTopIps,
 } from "@/application/hooks/useRouterFlows";
 import { FlowFilters } from "./FlowFilters";
+import { FlowPeeringDrawer } from "./FlowPeeringDrawer";
 import { FlowPopTable } from "./FlowPopTable";
 import { FlowSummaryTable } from "./FlowSummaryTable";
 import { FlowTopIpsPanel } from "./FlowTopIpsPanel";
@@ -21,9 +23,10 @@ import {
   DEFAULT_FLOW_RANGE,
   FLOW_RANGE_PRESETS,
   flowChartRows,
+  peeringLabels,
   topIpsAvailable,
 } from "./routerFlows";
-import { interfaceLabel, isUpstream } from "./routerTraffic";
+import { isUpstream } from "./routerTraffic";
 
 const NOT_ENABLED =
   "NetFlow belum diaktifkan untuk router ini. Admin dapat mengaktifkannya lewat Ubah di tab Router, lalu nyalakan traffic-flow di router (lihat panduan operator).";
@@ -43,9 +46,13 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
   const { data: interfaces = [] } = useRouterInterfaces(routerId);
   const { data: sessions = [] } = useRouterBgpSessions(routerId);
   const labels = useMemo(
-    () => new Map(interfaces.map((i) => [i.id, interfaceLabel(i)])),
-    [interfaces],
+    () => peeringLabels(interfaces, sessions),
+    [interfaces, sessions],
   );
+  const [selected, setSelected] = useState<{
+    asn: number;
+    name: string;
+  } | null>(null);
   const upstreams = interfaces.filter((i) => isUpstream(i, sessions));
   const pops = interfaces.filter((i) => !isUpstream(i, sessions));
 
@@ -54,6 +61,12 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
   const popRows = useFlowPops(routerId, range, filter.direction);
   const ipsAvailable = topIpsAvailable(range);
   const topIps = useFlowTopIps(routerId, range, filter, ipsAvailable);
+  const peering = useFlowPeering(
+    routerId,
+    range,
+    filter,
+    selected?.asn ?? null,
+  );
   const chart = flowChartRows(destinations.data);
 
   return (
@@ -87,6 +100,7 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
           data={summary.data}
           labels={labels}
           loading={summary.isLoading}
+          onSelect={(row) => setSelected({ asn: row.asn, name: row.name })}
         />
       )}
       {popRows.isError ? (
@@ -105,6 +119,17 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
         loading={topIps.isLoading}
         failed={topIps.isError}
       />
+      {selected && (
+        <FlowPeeringDrawer
+          asn={selected.asn}
+          name={selected.name}
+          data={peering.data}
+          loading={peering.isLoading}
+          failed={peering.isError}
+          labels={labels}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </Space>
   );
 }

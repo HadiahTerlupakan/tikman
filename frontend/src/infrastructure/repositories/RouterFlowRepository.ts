@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from "../http/endpoints";
 import type {
   FlowDestinations,
   FlowFilter,
+  FlowPeering,
   FlowPopRow,
   FlowStatus,
   FlowSummary,
@@ -49,6 +50,15 @@ export class RouterFlowRepository {
     filter: FlowFilter,
   ): Promise<FlowTopIp[]> {
     return this.read(id, "top-ips", { ...range, ...filter });
+  }
+
+  peering(
+    id: string,
+    range: TimeRange,
+    filter: FlowFilter,
+    asn: number,
+  ): Promise<FlowPeering> {
+    return this.read(id, "peering", { ...range, ...filter, asn });
   }
 
   status(id: string): Promise<FlowStatus> {

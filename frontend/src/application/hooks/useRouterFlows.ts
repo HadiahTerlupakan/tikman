@@ -90,6 +90,27 @@ export function useFlowTopIps(
   });
 }
 
+/** Runs only while a destination is selected. */
+export function useFlowPeering(
+  routerId: string,
+  range: TrafficRange,
+  filter: FlowFilter,
+  asn: number | null,
+) {
+  return useQuery({
+    queryKey: [...flowKey(routerId, "peering", range, filter), asn ?? ""],
+    queryFn: () =>
+      repository.peering(
+        routerId,
+        resolveTrafficRange(range),
+        filter,
+        asn ?? 0,
+      ),
+    refetchInterval: liveRefetchInterval(range, FLOW_POLL_MS),
+    enabled: asn !== null,
+  });
+}
+
 export function useFlowStatus(routerId: string) {
   return useQuery({
     queryKey: ["mikrotik", routerId, "flows", "status"],

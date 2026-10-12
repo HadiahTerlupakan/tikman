@@ -1,10 +1,14 @@
 import type {
   FlowDestinations,
+  FlowPeering,
+  FlowPoint,
   MikrotikRouter,
+  RouterBgpSession,
+  RouterInterface,
   TrafficRange,
 } from "@/domain/entities";
 import { resolveTrafficRange } from "@/application/hooks/trafficRange";
-import type { ChartRow } from "./routerTraffic";
+import { interfaceLabel, type ChartRow } from "./routerTraffic";
 
 const HOURS_PER_DAY = 24;
 const MINUTE_MS = 60_000;
@@ -54,8 +58,60 @@ export function flowChartRows(data: FlowDestinations | undefined): {
   series: string[];
 } {
   if (!data) return { rows: [], series: [] };
-  const drawn = data.series.filter((s) => s.points.length > 0);
-  const names = drawn.map((s) => asnLabel(s.asn, s.name));
+  return pivotByTime(
+    data.series.map((s) => ({
+      name: asnLabel(s.asn, s.name),
+      points: s.points,
+    })),
+  );
+}
+
+/** The per-peering chart of one destination, pivoted like flowChartRows. */
+export function peeringChartRows(
+  data: FlowPeering | undefined,
+  labels: Map<string, string>,
+): { rows: ChartRow[]; series: string[] } {
+  if (!data) return { rows: [], series: [] };
+  return pivotByTime(
+    data.series.map((s) => ({
+      name: labels.get(s.upstreamInterfaceId) ?? s.upstreamInterfaceId,
+      points: s.points,
+    })),
+  );
+}
+
+/**
+ * Names each interface for the flow views: an upstream by the BGP sessions
+ * it carries, since the peering is what an operator judges, with the
+ * interface after; every other interface by its usual label.
+ */
+export function peeringLabels(
+  interfaces: RouterInterface[],
+  sessions: RouterBgpSession[],
+): Map<string, string> {
+  const byInterface = new Map<string, string[]>();
+  for (const s of sessions) {
+    if (s.interfaceId === null) continue;
+    byInterface.set(s.interfaceId, [
+      ...(byInterface.get(s.interfaceId) ?? []),
+      s.name,
+    ]);
+  }
+  return new Map(
+    interfaces.map((i) => {
+      const names = byInterface.get(i.id);
+      const label = interfaceLabel(i);
+      return [i.id, names ? `${names.join(", ")} (${label})` : label];
+    }),
+  );
+}
+
+function pivotByTime(all: { name: string; points: FlowPoint[] }[]): {
+  rows: ChartRow[];
+  series: string[];
+} {
+  const drawn = all.filter((s) => s.points.length > 0);
+  const names = drawn.map((s) => s.name);
   const emptyRow = (time: string): ChartRow => {
     const row: ChartRow = { time };
     for (const name of names) row[name] = 0;

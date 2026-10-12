@@ -40,22 +40,33 @@ function UpstreamShareBar({
   );
 }
 
+const PAGE_SIZE = 10;
+const PAGE_SIZES = [10, 20, 50];
+
 interface Props {
   data?: FlowSummary;
   labels: Map<string, string>;
   loading: boolean;
+  onSelect: (row: FlowSummaryRow) => void;
 }
 
 // The rows are the top 50 ASNs, so their percentages need not add up to 100:
 // the total is shown on its own and the column is never summed.
-export function FlowSummaryTable({ data, labels, loading }: Props) {
+export function FlowSummaryTable({ data, labels, loading, onSelect }: Props) {
   const peakTitle = data
     ? `Puncak per ${peakWindowLabel(data.peakWindowSeconds)}`
     : "Puncak";
   return (
     <Card
       size="small"
-      title="Tujuan"
+      title={
+        <span>
+          Tujuan{" "}
+          <Typography.Text type="secondary" style={{ fontWeight: "normal" }}>
+            — klik baris untuk melihat per peering
+          </Typography.Text>
+        </span>
+      }
       extra={
         data && (
           <Typography.Text>{`Total: ${formatBytes(data.totalBytes)}`}</Typography.Text>
@@ -66,7 +77,16 @@ export function FlowSummaryTable({ data, labels, loading }: Props) {
         size="small"
         rowKey="asn"
         loading={loading}
-        pagination={false}
+        pagination={{
+          defaultPageSize: PAGE_SIZE,
+          pageSizeOptions: PAGE_SIZES,
+          showSizeChanger: true,
+          hideOnSinglePage: true,
+        }}
+        onRow={(row) => ({
+          onClick: () => onSelect(row),
+          style: { cursor: "pointer" },
+        })}
         dataSource={data?.rows ?? []}
         columns={[
           { title: "Organisasi", render: (_, r) => asnLabel(r.asn, r.name) },

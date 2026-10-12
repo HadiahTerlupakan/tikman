@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { FlowDestinations, MikrotikRouter } from "@/domain/entities";
+import type {
+  FlowDestinations,
+  FlowPeering,
+  MikrotikRouter,
+  RouterBgpSession,
+  RouterInterface,
+} from "@/domain/entities";
 import {
   asnLabel,
   flowChartRows,
   flowStale,
   peakWindowLabel,
+  peeringChartRows,
+  peeringLabels,
   popLabel,
   topIpsAvailable,
 } from "./routerFlows";
@@ -153,5 +161,87 @@ describe("peakWindowLabel", () => {
     expect(peakWindowLabel(300)).toBe("5 menit");
     expect(peakWindowLabel(3_600)).toBe("1 jam");
     expect(peakWindowLabel(86_400)).toBe("1 hari");
+  });
+});
+
+function vlan(id: string, comment: string): RouterInterface {
+  return {
+    id,
+    routerId: "r1",
+    name: id,
+    comment,
+    type: "vlan",
+    vlanId: null,
+    parentName: null,
+    ifIndex: null,
+    speedMbps: null,
+    disabled: false,
+    operStatus: "up",
+    addresses: "",
+    lastInBps: null,
+    lastOutBps: null,
+    lastPolledAt: null,
+  };
+}
+
+function session(name: string, interfaceId: string | null): RouterBgpSession {
+  return { name, interfaceId } as RouterBgpSession;
+}
+
+describe("peeringLabels", () => {
+  it("names an upstream by its BGP sessions, with the interface after", () => {
+    const labels = peeringLabels(
+      [vlan("ix", ""), vlan("transit", "Transit A"), vlan("pop", "POP A")],
+      [
+        session("peer-ix-rs1", "ix"),
+        session("peer-ix-rs2", "ix"),
+        session("peer-transit", "transit"),
+        session("unmatched", null),
+      ],
+    );
+
+    expect(labels.get("ix")).toBe("peer-ix-rs1, peer-ix-rs2 (ix)");
+    expect(labels.get("transit")).toBe("peer-transit (Transit A)");
+    expect(labels.get("pop")).toBe("POP A");
+  });
+});
+
+describe("peeringChartRows", () => {
+  it("stacks upstreams by name and aligns their points by time", () => {
+    const data: FlowPeering = {
+      asn: 64496,
+      name: "EXAMPLE-NET-A",
+      totalBytes: 0,
+      stepSeconds: 60,
+      peakWindowSeconds: 60,
+      rows: [],
+      series: [
+        {
+          upstreamInterfaceId: "ix",
+          points: [
+            { time: "2026-10-12T00:01:00Z", bps: 30 },
+            { time: "2026-10-12T00:00:00Z", bps: 10 },
+          ],
+        },
+        {
+          upstreamInterfaceId: "transit",
+          points: [{ time: "2026-10-12T00:01:00Z", bps: 5 }],
+        },
+      ],
+    };
+
+    const chart = peeringChartRows(
+      data,
+      new Map([
+        ["ix", "IX"],
+        ["transit", "Transit"],
+      ]),
+    );
+
+    expect(chart.series).toEqual(["IX", "Transit"]);
+    expect(chart.rows).toEqual([
+      { time: "2026-10-12T00:00:00Z", IX: 10, Transit: 0 },
+      { time: "2026-10-12T00:01:00Z", IX: 30, Transit: 5 },
+    ]);
   });
 });
