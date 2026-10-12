@@ -29,6 +29,9 @@ export interface MikrotikRouter {
   rosVersion: string | null;
   boardName: string | null;
   lastSeenAt: string | null;
+  flowEnabled: boolean;
+  flowSampling: number;
+  flowLastSeenAt: string | null;
   bgpEstablished: number;
   bgpTotal: number;
 }
@@ -120,6 +123,8 @@ export interface UpdateRouterDto {
   apiPort?: number;
   apiProtocol?: RouterApiProtocol;
   enabled?: boolean;
+  flowEnabled?: boolean;
+  flowSampling?: number;
 }
 
 export interface RouterConnectionTestResult {

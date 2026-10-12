@@ -85,6 +85,8 @@ export const API_ENDPOINTS = {
   MIKROTIK_ROUTER_SESSIONS: (id: string) =>
     `/api/v1/routers/${id}/bgp/sessions`,
   MIKROTIK_ROUTER_EVENTS: (id: string) => `/api/v1/routers/${id}/bgp/events`,
+  MIKROTIK_ROUTER_FLOWS: (id: string, read: string) =>
+    `/api/v1/routers/${id}/flows/${read}`,
 
   // Fibre plant: where a subscriber's drop lands. The cabinet/feed/route
   // endpoints that used to live here (ODCS, ODPS, ODC_FEED_LIST,

@@ -1,0 +1,147 @@
+import { describe, expect, it } from "vitest";
+import type { FlowDestinations, MikrotikRouter } from "@/domain/entities";
+import {
+  asnLabel,
+  flowChartRows,
+  flowStale,
+  popLabel,
+  topIpsAvailable,
+} from "./routerFlows";
+
+const NOW = new Date("2026-10-12T12:00:00Z");
+const DAY_HOURS = 24;
+
+describe("asnLabel", () => {
+  it("names ASN 0 Lainnya and shows the number beside a name", () => {
+    expect(asnLabel(0, "Lainnya")).toBe("Lainnya");
+    expect(asnLabel(64496, "EXAMPLE-NET-A")).toBe("EXAMPLE-NET-A (AS64496)");
+    expect(asnLabel(64497, "")).toBe("AS64497");
+  });
+});
+
+describe("popLabel", () => {
+  it("names the POP by its interface, and null as outside every POP", () => {
+    const labels = new Map([["pop-a", "POP A"]]);
+    expect(popLabel("pop-a", labels)).toBe("POP A");
+    expect(popLabel(null, labels)).toBe("Lainnya (di luar blok POP)");
+  });
+});
+
+describe("flowChartRows", () => {
+  const data: FlowDestinations = {
+    stepSeconds: 60,
+    series: [
+      {
+        asn: 64496,
+        name: "EXAMPLE-NET-A",
+        points: [
+          { time: "2026-10-12T03:01:00Z", bps: 200 },
+          { time: "2026-10-12T03:00:00Z", bps: 100 },
+        ],
+      },
+      { asn: 64497, name: "", points: [] },
+      {
+        asn: 0,
+        name: "Lainnya",
+        points: [{ time: "2026-10-12T03:01:00Z", bps: 5 }],
+      },
+    ],
+  };
+
+  it("pivots series into time-ordered rows, zero where a series has no point", () => {
+    const { rows, series } = flowChartRows(data);
+
+    expect(series).toEqual(["EXAMPLE-NET-A (AS64496)", "Lainnya"]);
+    expect(rows).toEqual([
+      {
+        time: "2026-10-12T03:00:00Z",
+        "EXAMPLE-NET-A (AS64496)": 100,
+        Lainnya: 0,
+      },
+      {
+        time: "2026-10-12T03:01:00Z",
+        "EXAMPLE-NET-A (AS64496)": 200,
+        Lainnya: 5,
+      },
+    ]);
+  });
+
+  it("aligns by timestamp, not index, when series have partly different times", () => {
+    const { rows } = flowChartRows({
+      stepSeconds: 60,
+      series: [
+        {
+          asn: 64496,
+          name: "A",
+          points: [
+            { time: "2026-10-12T03:00:00Z", bps: 1 },
+            { time: "2026-10-12T03:01:00Z", bps: 2 },
+          ],
+        },
+        {
+          asn: 64497,
+          name: "B",
+          points: [
+            { time: "2026-10-12T03:01:00Z", bps: 20 },
+            { time: "2026-10-12T03:02:00Z", bps: 30 },
+          ],
+        },
+      ],
+    });
+
+    expect(rows).toEqual([
+      { time: "2026-10-12T03:00:00Z", "A (AS64496)": 1, "B (AS64497)": 0 },
+      { time: "2026-10-12T03:01:00Z", "A (AS64496)": 2, "B (AS64497)": 20 },
+      { time: "2026-10-12T03:02:00Z", "A (AS64496)": 0, "B (AS64497)": 30 },
+    ]);
+  });
+
+  it("draws nothing before data arrives", () => {
+    expect(flowChartRows(undefined)).toEqual({ rows: [], series: [] });
+  });
+});
+
+describe("topIpsAvailable", () => {
+  it("allows the 7-day preset and nothing reaching further back", () => {
+    expect(
+      topIpsAvailable({ kind: "relative", hours: 7 * DAY_HOURS }, NOW),
+    ).toBe(true);
+    expect(
+      topIpsAvailable({ kind: "relative", hours: 30 * DAY_HOURS }, NOW),
+    ).toBe(false);
+    expect(
+      topIpsAvailable(
+        {
+          kind: "absolute",
+          from: "2026-10-04T12:00:00Z",
+          to: "2026-10-05T12:00:00Z",
+        },
+        NOW,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("flowStale", () => {
+  const router = (over: Partial<MikrotikRouter>) =>
+    ({
+      flowEnabled: true,
+      flowLastSeenAt: null,
+      ...over,
+    }) as MikrotikRouter;
+  const minutesAgo = (m: number) =>
+    new Date(NOW.getTime() - m * 60_000).toISOString();
+
+  it("warns only when collection is on and nothing arrived for 5 minutes", () => {
+    expect(flowStale(router({ flowEnabled: false }), NOW.getTime())).toBe(
+      false,
+    );
+    expect(flowStale(router({}), NOW.getTime())).toBe(true);
+    expect(
+      flowStale(router({ flowLastSeenAt: minutesAgo(2) }), NOW.getTime()),
+    ).toBe(false);
+    expect(
+      flowStale(router({ flowLastSeenAt: minutesAgo(6) }), NOW.getTime()),
+    ).toBe(true);
+  });
+});
