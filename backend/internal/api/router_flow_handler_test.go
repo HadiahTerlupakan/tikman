@@ -97,10 +97,11 @@ func TestFlowStatusReportsTheASNDataset(t *testing.T) {
 func TestRouterTimeRangeAcceptsAFromSlightlyInTheFuture(t *testing.T) {
 	from := time.Now().UTC().Add(time.Minute)
 	query := "from=" + from.Format(time.RFC3339) + "&to=" + from.Add(time.Hour).Format(time.RFC3339)
-	w, c := flowContext(uuid.NewString(), query)
+	_, c := flowContext(uuid.NewString(), query)
 
-	_, _, ok := routerTimeRange(c)
+	gotFrom, gotTo, ok := routerTimeRange(c)
 
 	assert.True(t, ok)
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, from.Truncate(time.Second).Equal(gotFrom))
+	assert.True(t, from.Add(time.Hour).Truncate(time.Second).Equal(gotTo))
 }

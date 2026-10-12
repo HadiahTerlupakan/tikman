@@ -430,6 +430,11 @@ Di router, mulai dengan sampling 1:100 (ganti `IP_VPS` dan `IP_ROUTER`):
 - `src-address` harus sama dengan IP router di TikMan. `flowd` mengenali
   router dari alamat pengirim dan membuang paket dari alamat lain; karena itu
   router harus didaftarkan dengan IP, bukan hostname.
+- **Host** router di TikMan harus alamat publik tempat IPFIX router sampai ke
+  VPS, yaitu alamat yang sama dengan `src-address`. `flowd` mendengarkan
+  `2055/udp` di alamat publik VPS, di luar namespace WireGuard, jadi router yang
+  didaftarkan dengan alamat tunnel/privat belum bisa memakai NetFlow sampai ada
+  ekspor tunnel yang terautentikasi.
 - `active-flow-timeout=1m`: tanpa ini RouterOS mengirim flow yang panjang
   setelah 30 menit sekaligus, dan grafik menampilkannya sebagai lonjakan.
 - Rasio sampling = (sampling-interval + sampling-space) / sampling-interval;
@@ -449,6 +454,19 @@ menit), atau sebentar mengganggu pembacaan sampai router mengirim ulang
 template-nya. Karena itu data ini untuk pemantauan dan perencanaan, bukan
 penagihan. Jalur ekspor yang terautentikasi, misalnya lewat tunnel, akan
 menjadi perubahan tersendiri.
+
+#### Memulihkan rollup setelah database mati
+
+Rollup dihitung ulang dari menit mentah, dan menit mentah dihapus setelah 7
+hari. Bila database atau job TimescaleDB mati lebih lama dari jendela refresh
+sebuah rollup, jalankan perintah berikut dalam 7 hari, sebelum menit mentahnya
+hilang:
+
+```sql
+CALL refresh_continuous_aggregate('router_flow_5min', now() - interval '7 days', now() - interval '1 hour');
+CALL refresh_continuous_aggregate('router_flow_hourly', now() - interval '7 days', now() - interval '1 hour');
+CALL refresh_continuous_aggregate('router_flow_daily', now() - interval '7 days', now() - interval '1 day');
+```
 
 #### Memastikan data masuk
 

@@ -67,8 +67,13 @@ func TestFlowRetentionMatchesTheSpec(t *testing.T) {
 func TestFlowRollupsAddUpTheMinutes(t *testing.T) {
 	db := freshPostgres(t)
 	routerID, upstream := uuid.New(), uuid.New()
-	// 01:00 WIB on the 12th: a UTC day bucket would file this under the 11th.
-	hour := time.Date(2026, 10, 11, 18, 0, 0, 0, time.UTC)
+	// 01:00 WIB yesterday, relative to now so the sample stays inside the
+	// 7-day raw retention: a UTC day bucket would file it under the day before.
+	wib, err := time.LoadLocation("Asia/Jakarta")
+	require.NoError(t, err)
+	yesterday := time.Now().In(wib).AddDate(0, 0, -1)
+	wibMidnight := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, wib)
+	hour := wibMidnight.Add(time.Hour).UTC()
 	for i := 0; i < 3; i++ {
 		require.NoError(t, db.Exec(`INSERT INTO router_flow_minute
 			(time, router_id, upstream_interface_id, direction, asn, bytes, packets)
@@ -79,7 +84,7 @@ func TestFlowRollupsAddUpTheMinutes(t *testing.T) {
 	buckets := map[string]time.Time{
 		"router_flow_5min":   hour,
 		"router_flow_hourly": hour,
-		"router_flow_daily":  time.Date(2026, 10, 11, 17, 0, 0, 0, time.UTC),
+		"router_flow_daily":  wibMidnight.UTC(),
 	}
 	for view, bucket := range buckets {
 		require.NoError(t, db.Exec("CALL refresh_continuous_aggregate('"+view+"', NULL, NULL)").Error, view)
@@ -155,4 +160,38 @@ func TestAutoMigrateIsANoOpOnTheMigratedSchema(t *testing.T) {
 	db := freshPostgres(t)
 
 	require.NoError(t, models.AutoMigrate(db))
+}
+
+func TestFlowRollupsAreCompressedAndStoreBigints(t *testing.T) {
+	db := freshPostgres(t)
+
+	var compression []struct {
+		Name          string
+		CompressAfter string
+	}
+	// Unlike retention, a rollup's compression job reports the view's own name.
+	require.NoError(t, db.Raw(`SELECT hypertable_name AS name, config->>'compress_after' AS compress_after
+		FROM timescaledb_information.jobs
+		WHERE proc_name = 'policy_compression' AND hypertable_schema = current_schema()
+		AND hypertable_name IN ('router_flow_5min', 'router_flow_hourly', 'router_flow_daily')`).Scan(&compression).Error)
+	got := map[string]string{}
+	for _, r := range compression {
+		got[r.Name] = r.CompressAfter
+	}
+	assert.Equal(t, map[string]string{
+		"router_flow_5min":   "2 days",
+		"router_flow_hourly": "7 days",
+		"router_flow_daily":  "30 days",
+	}, got)
+
+	var types []struct{ ViewName, ColumnName, DataType string }
+	require.NoError(t, db.Raw(`SELECT table_name AS view_name, column_name, data_type
+		FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name LIKE 'router_flow_%'
+		AND table_name IN ('router_flow_5min', 'router_flow_hourly', 'router_flow_daily')
+		AND column_name IN ('bytes', 'packets')`).Scan(&types).Error)
+	assert.Len(t, types, 6)
+	for _, c := range types {
+		assert.Equal(t, "bigint", c.DataType, c.ViewName+"."+c.ColumnName)
+	}
 }

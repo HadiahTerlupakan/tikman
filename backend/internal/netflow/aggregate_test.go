@@ -60,9 +60,9 @@ func TestCloseMinuteKeepsTheTopASNsAndPreservesTheTotal(t *testing.T) {
 		total += 2 * bytes
 	}
 
-	rows, dropped := agg.CloseMinute(minute0.Add(time.Minute))
+	rows, folded := agg.CloseMinute(minute0.Add(time.Minute))
 
-	assert.Empty(t, dropped)
+	assert.Empty(t, folded)
 	assert.Equal(t, total, sumBytes(rows), "folding into ASN 0 loses no bytes")
 	kept := map[uint32]bool{}
 	var other uint64
@@ -106,9 +106,9 @@ func TestKeyCapFoldsNewKeysIntoOtherPerRouter(t *testing.T) {
 	agg.Add(routerA, download(pops[0], transit, "198.51.100.7", 5), docASN(1))
 	agg.Add(routerB, download(popA, transit, "198.51.100.7", 7), docASN(1))
 
-	rows, dropped := agg.CloseMinute(minute0.Add(time.Minute))
+	rows, folded := agg.CloseMinute(minute0.Add(time.Minute))
 
-	assert.Equal(t, map[uuid.UUID]uint64{routerA: 1}, dropped)
+	assert.Equal(t, map[uuid.UUID]uint64{routerA: 1}, folded)
 	assert.Equal(t, uint64(MaxKeysPerRouter+5+7), sumBytes(rows))
 	assert.Contains(t, rows, MinuteRow{Time: minute0, MinuteKey: MinuteKey{RouterID: routerA, POP: pops[0],
 		Upstream: transit, Direction: Download, ASN: OtherASN}, Bytes: 5, Packets: 1})

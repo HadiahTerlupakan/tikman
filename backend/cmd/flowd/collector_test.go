@@ -48,14 +48,14 @@ func TestHandleCountsAKnownRoutersFlows(t *testing.T) {
 	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
 
 	c.handle(routerAddr, flowPacket())
-	rows, seen, dropped := c.closeMinute(minute0.Add(time.Minute))
+	rows, seen, folded := c.closeMinute(minute0.Add(time.Minute))
 
 	require.Len(t, rows, 1)
 	assert.Equal(t, netflow.MinuteRow{Time: minute0, MinuteKey: netflow.MinuteKey{RouterID: testRouterID,
 		POP: testPOP, Upstream: testTransit, Direction: netflow.Download, ASN: 64497},
 		Bytes: 150_000, Packets: 300}, rows[0])
 	assert.Equal(t, []uuid.UUID{testRouterID}, seen)
-	assert.Empty(t, dropped)
+	assert.Empty(t, folded)
 }
 
 // A dual-stack socket reports an IPv4 sender as ::ffff:a.b.c.d.

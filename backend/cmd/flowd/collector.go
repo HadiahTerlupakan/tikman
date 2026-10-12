@@ -144,13 +144,13 @@ func (c *collector) closeMinute(now time.Time) ([]netflow.MinuteRow, []uuid.UUID
 		return nil, nil, nil
 	}
 	c.openMinute = now.Truncate(time.Minute)
-	rows, dropped := c.agg.CloseMinute(now)
+	rows, folded := c.agg.CloseMinute(now)
 	seen := make([]uuid.UUID, 0, len(c.seen))
 	for id := range c.seen {
 		seen = append(seen, id)
 	}
 	c.seen = map[uuid.UUID]bool{}
-	return rows, seen, dropped
+	return rows, seen, folded
 }
 
 // closeWindowIfDue returns the top-IP rows once now is past their window,

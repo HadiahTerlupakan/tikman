@@ -109,7 +109,29 @@ func listen(logger *zap.Logger) *net.UDPConn {
 	if err := conn.SetReadBuffer(socketBuffer); err != nil {
 		logger.Warn("Could not enlarge the socket buffer", zap.Error(err))
 	}
+	logReceiveBuffer(conn, logger)
 	return conn
+}
+
+// logReceiveBuffer reports what the kernel granted: net.core.rmem_max silently
+// clamps SetReadBuffer, and a small buffer drops bursts without any error.
+func logReceiveBuffer(conn *net.UDPConn, logger *zap.Logger) {
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return
+	}
+	var size int
+	var sockErr error
+	if err := raw.Control(func(fd uintptr) {
+		size, sockErr = syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF)
+	}); err != nil || sockErr != nil {
+		return
+	}
+	logger.Info("UDP receive buffer",
+		zap.Int("requested_bytes", socketBuffer), zap.Int("effective_bytes", size))
+	if size < socketBuffer {
+		logger.Warn("Receive buffer smaller than requested; raise net.core.rmem_max on the host")
+	}
 }
 
 func every(interval time.Duration, run func()) {
@@ -160,10 +182,10 @@ func nextMinuteTick(now time.Time) time.Time {
 }
 
 func finishMinute(c *collector, w *retryWriter, sink flowSink, logger *zap.Logger, now time.Time) {
-	rows, seen, dropped := c.closeMinute(now)
-	for routerID, n := range dropped {
+	rows, seen, folded := c.closeMinute(now)
+	for routerID, n := range folded {
 		logger.Warn("Keys over the per-router cap folded into ASN 0",
-			zap.String("router_id", routerID.String()), zap.Uint64("dropped_keys", n))
+			zap.String("router_id", routerID.String()), zap.Uint64("folded_flows", n))
 	}
 	w.flush(pendingBatch{minute: rows, topIPs: c.closeWindowIfDue(now)})
 	ctx, cancel := context.WithTimeout(context.Background(), markSeenTimeout)

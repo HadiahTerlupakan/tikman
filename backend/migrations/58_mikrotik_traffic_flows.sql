@@ -62,8 +62,8 @@ SELECT
     upstream_interface_id,
     direction,
     asn,
-    SUM(bytes) AS bytes,
-    SUM(packets) AS packets
+    SUM(bytes)::bigint AS bytes,
+    SUM(packets)::bigint AS packets
 FROM router_flow_minute
 GROUP BY bucket, router_id, pop_interface_id, upstream_interface_id, direction, asn
 WITH NO DATA;
@@ -75,6 +75,11 @@ SELECT add_continuous_aggregate_policy('router_flow_5min',
     if_not_exists => TRUE);
 SELECT add_retention_policy('router_flow_5min', INTERVAL '90 days', if_not_exists => TRUE);
 
+-- Rollup rows grow with POPs x upstreams x ASNs on a shared VPS, so each
+-- rollup is compressed once its refresh window (start_offset) is behind it.
+ALTER MATERIALIZED VIEW router_flow_5min SET (timescaledb.compress = true);
+SELECT add_compression_policy('router_flow_5min', INTERVAL '2 days', if_not_exists => TRUE);
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS router_flow_hourly
 WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT
@@ -84,8 +89,8 @@ SELECT
     upstream_interface_id,
     direction,
     asn,
-    SUM(bytes) AS bytes,
-    SUM(packets) AS packets
+    SUM(bytes)::bigint AS bytes,
+    SUM(packets)::bigint AS packets
 FROM router_flow_minute
 GROUP BY bucket, router_id, pop_interface_id, upstream_interface_id, direction, asn
 WITH NO DATA;
@@ -96,6 +101,9 @@ SELECT add_continuous_aggregate_policy('router_flow_hourly',
     schedule_interval => INTERVAL '30 minutes',
     if_not_exists => TRUE);
 SELECT add_retention_policy('router_flow_hourly', INTERVAL '2 years', if_not_exists => TRUE);
+
+ALTER MATERIALIZED VIEW router_flow_hourly SET (timescaledb.compress = true);
+SELECT add_compression_policy('router_flow_hourly', INTERVAL '7 days', if_not_exists => TRUE);
 
 -- Kept forever: years of planning data at one row per day per key. A refresh
 -- window must span at least two buckets, hence three days back to one.
@@ -111,8 +119,8 @@ SELECT
     upstream_interface_id,
     direction,
     asn,
-    SUM(bytes) AS bytes,
-    SUM(packets) AS packets
+    SUM(bytes)::bigint AS bytes,
+    SUM(packets)::bigint AS packets
 FROM router_flow_minute
 GROUP BY bucket, router_id, pop_interface_id, upstream_interface_id, direction, asn
 WITH NO DATA;
@@ -122,3 +130,6 @@ SELECT add_continuous_aggregate_policy('router_flow_daily',
     end_offset => INTERVAL '1 day',
     schedule_interval => INTERVAL '1 hour',
     if_not_exists => TRUE);
+
+ALTER MATERIALIZED VIEW router_flow_daily SET (timescaledb.compress = true);
+SELECT add_compression_policy('router_flow_daily', INTERVAL '30 days', if_not_exists => TRUE);

@@ -577,7 +577,9 @@ them fails.
 `flowd` comes along with `up -d --build`. It does not share `api`'s namespace,
 so it can be recreated alone with `up -d --no-deps --force-recreate flowd`; it
 shows in `docker ps` as `tikman-flowd`. Its `2055/udp` must be open in the VPS
-provider's firewall, ideally only to the border routers.
+provider's firewall, ideally only to the border routers. It asks for a
+large UDP receive buffer and logs the size the kernel granted at startup; raise
+`net.core.rmem_max` on the host if the log says it was clamped.
 
 **Check before deploying:** the `wireguard` kernel module is loaded on the host,
 and `/opt/tikman/.env` is readable under sudo. A kernel upgrade that leaves the

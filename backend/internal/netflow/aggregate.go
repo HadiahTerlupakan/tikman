@@ -82,7 +82,7 @@ type Aggregator struct {
 	minute        time.Time
 	keys          map[MinuteKey]*counter
 	keysPerRouter map[uuid.UUID]int
-	droppedKeys   map[uuid.UUID]uint64
+	foldedFlows   map[uuid.UUID]uint64
 
 	window    time.Time
 	ips       map[ipKey]*ipCounter
@@ -101,7 +101,7 @@ func (a *Aggregator) resetMinute(now time.Time) {
 	a.minute = now.Truncate(time.Minute)
 	a.keys = map[MinuteKey]*counter{}
 	a.keysPerRouter = map[uuid.UUID]int{}
-	a.droppedKeys = map[uuid.UUID]uint64{}
+	a.foldedFlows = map[uuid.UUID]uint64{}
 }
 
 func (a *Aggregator) resetWindow(now time.Time) {
@@ -123,7 +123,7 @@ func (a *Aggregator) Add(routerID uuid.UUID, c Classified, asn uint32) {
 func (a *Aggregator) addMinute(key MinuteKey, c Classified) {
 	cnt, ok := a.keys[key]
 	if !ok && key.ASN != OtherASN && a.keysPerRouter[key.RouterID] >= MaxKeysPerRouter {
-		a.droppedKeys[key.RouterID]++
+		a.foldedFlows[key.RouterID]++
 		key.ASN = OtherASN
 		cnt, ok = a.keys[key]
 	}
@@ -154,8 +154,9 @@ func (a *Aggregator) addIP(g groupKey, ip netip.Addr, asn uint32, bytes uint64) 
 }
 
 // CloseMinute returns the open minute's rows, keeping TopASNs per (router,
-// POP, direction) and folding the rest into OtherASN, with the keys each
-// router had to fold for the cap. It then opens the minute holding now.
+// POP, direction) and folding the rest into OtherASN, with how many flows each
+// router had folded into OtherASN by the key cap (flows, not distinct keys:
+// every flow past the cap counts once). It then opens the minute holding now.
 func (a *Aggregator) CloseMinute(now time.Time) ([]MinuteRow, map[uuid.UUID]uint64) {
 	keep := topASNs(a.keys)
 	merged := make(map[MinuteKey]*counter, len(a.keys))
@@ -169,9 +170,9 @@ func (a *Aggregator) CloseMinute(now time.Time) ([]MinuteRow, map[uuid.UUID]uint
 	for key, cnt := range merged {
 		rows = append(rows, MinuteRow{Time: a.minute, MinuteKey: key, Bytes: cnt.bytes, Packets: cnt.packets})
 	}
-	dropped := a.droppedKeys
+	folded := a.foldedFlows
 	a.resetMinute(now)
-	return rows, dropped
+	return rows, folded
 }
 
 func addCounter(into map[MinuteKey]*counter, key MinuteKey, cnt *counter) {
