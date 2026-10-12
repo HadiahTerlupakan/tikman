@@ -64,13 +64,64 @@ func TestCreateRouterRejectsAFingerprintThatIsNotOne(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreateRouterOverPlainAPINeedsNoFingerprint(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	req := createRouterRequest()
+	req.APIProtocol, req.TLSFingerprint = "api", ""
+	w, c := SetupTestContext(http.MethodPost, "/api/v1/routers", req)
+
+	handler.Create(c)
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"api_protocol":"api"`)
+	assert.Contains(t, w.Body.String(), `"api_port":8728`)
+}
+
+func TestCreateRouterRefusesAnUnknownProtocol(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	req := createRouterRequest()
+	req.APIProtocol = "telnet"
+	w, c := SetupTestContext(http.MethodPost, "/api/v1/routers", req)
+
+	handler.Create(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateRESTRouterStillNeedsAFingerprint(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	req := createRouterRequest()
+	req.TLSFingerprint = ""
+	w, c := SetupTestContext(http.MethodPost, "/api/v1/routers", req)
+
+	handler.Create(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+}
+
+func TestUpdateRouterSwitchesItsProtocol(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+	w, c := SetupTestContext(http.MethodPut, "/api/v1/routers/"+created.ID.String(),
+		map[string]string{"api_protocol": "api-ssl"})
+	c.Params = gin.Params{{Key: "id", Value: created.ID.String()}}
+
+	handler.Update(c)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"api_protocol":"api-ssl"`)
+}
+
 func TestTestRouterConnectionBindsItsBody(t *testing.T) {
 	full := TestRouterConnectionRequest{Host: "192.0.2.1", SNMPCommunity: "c", APIUsername: "u", APIPassword: "p"}
 	badFingerprint := full
 	badFingerprint.TLSFingerprint = "xyz"
+	unknownProtocol := full
+	unknownProtocol.APIProtocol = "telnet"
 	cases := map[string]interface{}{
 		"no api fields":       map[string]string{"host": "192.0.2.1", "snmp_community": "c"},
 		"invalid fingerprint": badFingerprint,
+		"unknown protocol":    unknownProtocol,
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

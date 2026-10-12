@@ -59,7 +59,8 @@ func (h *RouterHandler) Create(c *gin.Context) {
 		respondRouterError(c, err)
 		return
 	}
-	h.record(c, "create", router.ID, map[string]interface{}{"name": router.Name, "host": router.Host})
+	h.record(c, "create", router.ID, map[string]interface{}{"name": router.Name, "host": router.Host,
+		"api_protocol": router.APIProtocol})
 	c.JSON(http.StatusCreated, RouterResponse{MikrotikRouter: *router})
 }
 
@@ -79,7 +80,7 @@ func (h *RouterHandler) Update(c *gin.Context) {
 		return
 	}
 	// Which fields changed, never the secret values themselves.
-	h.record(c, "update", id, map[string]interface{}{"name": router.Name, "host": router.Host,
+	h.record(c, "update", id, map[string]interface{}{"name": router.Name, "host": router.Host, "api_protocol": router.APIProtocol,
 		"community_changed": req.SNMPCommunity != nil && *req.SNMPCommunity != "",
 		"password_changed":  req.APIPassword != nil && *req.APIPassword != ""})
 	c.JSON(http.StatusOK, RouterResponse{MikrotikRouter: *router})

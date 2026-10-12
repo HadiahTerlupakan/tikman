@@ -7,7 +7,7 @@ import (
 )
 
 // CreateRouterRequest adds a router. TLSFingerprint is the one the connection
-// test returned.
+// test returned; plain api has none.
 type CreateRouterRequest struct {
 	Name           string     `json:"name" binding:"required,min=2,max=255"`
 	Host           string     `json:"host" binding:"required,max=255"`
@@ -17,13 +17,14 @@ type CreateRouterRequest struct {
 	APIUsername    string     `json:"api_username" binding:"required,max=64"`
 	APIPassword    string     `json:"api_password" binding:"required"`
 	APIPort        int        `json:"api_port" binding:"omitempty,min=1,max=65535"`
-	TLSFingerprint string     `json:"tls_fingerprint" binding:"required,len=64,hexadecimal"`
+	APIProtocol    string     `json:"api_protocol" binding:"omitempty,oneof=rest api-ssl api"`
+	TLSFingerprint string     `json:"tls_fingerprint" binding:"omitempty,len=64,hexadecimal"`
 }
 
 func (r CreateRouterRequest) toInput() services.RouterInput {
 	return services.RouterInput{
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, SNMPCommunity: r.SNMPCommunity, SNMPPort: r.SNMPPort,
-		APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort, TLSFingerprint: r.TLSFingerprint,
+		APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort, APIProtocol: r.APIProtocol, TLSFingerprint: r.TLSFingerprint,
 	}
 }
 
@@ -39,6 +40,7 @@ type UpdateRouterRequest struct {
 	APIUsername   *string    `json:"api_username" binding:"omitempty,max=64"`
 	APIPassword   *string    `json:"api_password"`
 	APIPort       *int       `json:"api_port" binding:"omitempty,min=1,max=65535"`
+	APIProtocol   *string    `json:"api_protocol" binding:"omitempty,oneof=rest api-ssl api"`
 	Enabled       *bool      `json:"enabled"`
 }
 
@@ -46,14 +48,15 @@ func (r UpdateRouterRequest) toUpdate() services.RouterUpdate {
 	return services.RouterUpdate{
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, ClearSite: r.ClearSite, SNMPCommunity: r.SNMPCommunity,
 		SNMPPort: r.SNMPPort, APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort,
-		Enabled: r.Enabled,
+		APIProtocol: r.APIProtocol, Enabled: r.Enabled,
 	}
 }
 
 // TestRouterConnectionRequest is the add-router form before anything is
-// stored. Without TLSFingerprint only SNMP runs and the router's certificate
-// fingerprint comes back; with the fingerprint the operator confirmed, the API
-// credentials are sent to a router presenting that certificate.
+// stored. For the TLS protocols, without TLSFingerprint only SNMP runs and the
+// router's certificate fingerprint comes back; with the fingerprint the operator
+// confirmed, the API credentials are sent to a router presenting that
+// certificate.
 type TestRouterConnectionRequest struct {
 	Host           string `json:"host" binding:"required,max=255"`
 	SNMPCommunity  string `json:"snmp_community" binding:"required"`
@@ -61,6 +64,7 @@ type TestRouterConnectionRequest struct {
 	APIUsername    string `json:"api_username" binding:"required"`
 	APIPassword    string `json:"api_password" binding:"required"`
 	APIPort        int    `json:"api_port" binding:"omitempty,min=1,max=65535"`
+	APIProtocol    string `json:"api_protocol" binding:"omitempty,oneof=rest api-ssl api"`
 	TLSFingerprint string `json:"tls_fingerprint" binding:"omitempty,len=64,hexadecimal"`
 }
 
@@ -68,7 +72,7 @@ func (r TestRouterConnectionRequest) toInput() services.ConnectionTestInput {
 	return services.ConnectionTestInput{
 		Host: r.Host, SNMPPort: r.SNMPPort, SNMPCommunity: r.SNMPCommunity,
 		APIPort: r.APIPort, APIUsername: r.APIUsername, APIPassword: r.APIPassword,
-		TLSFingerprint: r.TLSFingerprint,
+		APIProtocol: r.APIProtocol, TLSFingerprint: r.TLSFingerprint,
 	}
 }
 
