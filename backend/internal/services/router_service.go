@@ -31,7 +31,7 @@ func NewRouterService(db *gorm.DB, encryptionKey string) *RouterService {
 }
 
 // RouterInput is a new router. TLSFingerprint is the one the connection test
-// returned and the operator confirmed.
+// returned and the operator confirmed; plain api ignores it.
 type RouterInput struct {
 	Name           string
 	Host           string
@@ -187,11 +187,8 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 		}
 		updates["host"] = strings.TrimSpace(*upd.Host)
 	}
-	if upd.APIProtocol != nil {
-		if !mikrotik.Protocol(*upd.APIProtocol).Valid() {
-			return nil, fmt.Errorf("%w: %s", ErrValidation, errProtocolText)
-		}
-		updates["api_protocol"] = *upd.APIProtocol
+	if err := protocolColumns(updates, upd.APIProtocol); err != nil {
+		return nil, err
 	}
 	setIfGiven(updates, "api_username", upd.APIUsername)
 	setIfGiven(updates, "snmp_port", upd.SNMPPort)
@@ -202,6 +199,23 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 		updates["site_id"] = nil
 	}
 	return updates, s.encryptGivenSecrets(updates, upd)
+}
+
+// protocolColumns also drops the pin when the new protocol is plain api, which
+// has no certificate, so the row never shows a pin for a router that has none.
+func protocolColumns(updates map[string]interface{}, protocol *string) error {
+	if protocol == nil {
+		return nil
+	}
+	if !mikrotik.Protocol(*protocol).Valid() {
+		return fmt.Errorf("%w: %s", ErrValidation, errProtocolText)
+	}
+	updates["api_protocol"] = *protocol
+	if mikrotik.Protocol(*protocol) == mikrotik.ProtocolAPI {
+		updates["tls_fingerprint"] = ""
+		updates["presented_fingerprint"] = nil
+	}
+	return nil
 }
 
 func setIfGiven[T any](updates map[string]interface{}, column string, value *T) {

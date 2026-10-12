@@ -187,3 +187,28 @@ func TestUpdateRouterChangesItsProtocol(t *testing.T) {
 	_, err = service.Update(router.ID, RouterUpdate{APIProtocol: &bad})
 	assert.ErrorIs(t, err, ErrValidation)
 }
+
+func TestUpdateToPlainAPIDropsThePin(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+
+	protocol := "api"
+	updated, err := service.Update(router.ID, RouterUpdate{APIProtocol: &protocol})
+
+	require.NoError(t, err)
+	assert.Equal(t, "api", updated.APIProtocol)
+	assert.Empty(t, updated.TLSFingerprint)
+}
+
+func TestUpdateToAPISSLKeepsThePin(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+
+	protocol := "api-ssl"
+	updated, err := service.Update(router.ID, RouterUpdate{APIProtocol: &protocol})
+
+	require.NoError(t, err)
+	assert.Equal(t, testFingerprint, updated.TLSFingerprint)
+}
