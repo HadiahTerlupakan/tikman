@@ -29,5 +29,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&WABroadcastPost{},
 		&PushSubscription{},
 		&CSWait{},
+		&MikrotikRouter{},
+		&RouterInterface{},
+		&RouterInterfaceMetric{},
+		&RouterBGPSession{},
+		&RouterBGPEvent{},
+		&RouterPollJob{},
 	)
 }
