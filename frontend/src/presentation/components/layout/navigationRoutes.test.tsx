@@ -13,6 +13,12 @@ describe("buildNavigationRoutes", () => {
     expect(paths(UserRole.VIEWER)).toContain("/vpn");
   });
 
+  it("lists MikroTik for every role, since reading routers is open to all", () => {
+    expect(paths(UserRole.ADMIN)).toContain("/routers");
+    expect(paths(UserRole.TECHNICIAN)).toContain("/routers");
+    expect(paths(UserRole.VIEWER)).toContain("/routers");
+  });
+
   it("shows Users only to an admin", () => {
     expect(paths(UserRole.ADMIN)).toContain("/users");
     expect(paths(UserRole.TECHNICIAN)).not.toContain("/users");

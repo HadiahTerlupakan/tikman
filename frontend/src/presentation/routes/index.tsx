@@ -15,6 +15,7 @@ import TroubledOntsPage from "../pages/TroubledOntsPage";
 import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
 import CsInboxPage from "../pages/CsInboxPage";
 import VpnPage from "../pages/VpnPage";
+import RoutersPage from "../pages/RoutersPage";
 import SettingsPage from "../pages/SettingsPage";
 import NotFoundPage from "../pages/NotFound";
 
@@ -31,6 +32,11 @@ const CsPerformancePage = lazy(() =>
 const NetworkMapPage = lazy(() =>
   import("../pages/NetworkMapPage").then((m) => ({
     default: m.NetworkMapPage,
+  })),
+);
+const RouterDetailPage = lazy(() =>
+  import("../pages/RouterDetailPage").then((m) => ({
+    default: m.RouterDetailPage,
   })),
 );
 
@@ -103,6 +109,24 @@ export const router = createBrowserRouter([
           {
             path: "vpn",
             element: <VpnPage />,
+          },
+          {
+            path: "routers",
+            element: <RoutersPage />,
+          },
+          {
+            path: "routers/:id",
+            element: (
+              <Suspense
+                fallback={
+                  <div style={{ padding: 24, textAlign: "center" }}>
+                    <Spin />
+                  </div>
+                }
+              >
+                <RouterDetailPage />
+              </Suspense>
+            ),
           },
           {
             path: "settings",
