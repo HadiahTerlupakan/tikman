@@ -15,9 +15,9 @@ import (
 	"github.com/tikman/olt-provisioning/internal/models"
 )
 
-// fakeRouterAPI serves a RouterOS-like REST endpoint over TLS and counts the
+// fakeRouterTLSServer serves a RouterOS-like REST endpoint over TLS and counts the
 // requests it receives, so a test can prove that no credentials were sent.
-func fakeRouterAPI(t *testing.T) (*httptest.Server, *atomic.Int32, int) {
+func fakeRouterTLSServer(t *testing.T) (*httptest.Server, *atomic.Int32, int) {
 	t.Helper()
 	var hits atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +31,7 @@ func fakeRouterAPI(t *testing.T) (*httptest.Server, *atomic.Int32, int) {
 }
 
 func TestConnectionTestSendsNoCredentialsBeforeTheFingerprintIsConfirmed(t *testing.T) {
-	server, hits, port := fakeRouterAPI(t)
+	server, hits, port := fakeRouterTLSServer(t)
 	service, _ := newRouterServiceForTest(t)
 
 	result := service.TestConnection(ConnectionTestInput{
@@ -45,7 +45,7 @@ func TestConnectionTestSendsNoCredentialsBeforeTheFingerprintIsConfirmed(t *test
 }
 
 func TestConnectionTestReadsTheBoardWithTheConfirmedFingerprint(t *testing.T) {
-	server, hits, port := fakeRouterAPI(t)
+	server, hits, port := fakeRouterTLSServer(t)
 	service, _ := newRouterServiceForTest(t)
 
 	result := service.TestConnection(ConnectionTestInput{
@@ -61,7 +61,7 @@ func TestConnectionTestReadsTheBoardWithTheConfirmedFingerprint(t *testing.T) {
 }
 
 func TestConnectionTestRefusesAWrongFingerprintWithoutSendingCredentials(t *testing.T) {
-	_, hits, port := fakeRouterAPI(t)
+	_, hits, port := fakeRouterTLSServer(t)
 	service, _ := newRouterServiceForTest(t)
 
 	result := service.TestConnection(ConnectionTestInput{
@@ -75,7 +75,7 @@ func TestConnectionTestRefusesAWrongFingerprintWithoutSendingCredentials(t *test
 }
 
 func TestConnectionTestRejectsAMalformedFingerprint(t *testing.T) {
-	_, hits, port := fakeRouterAPI(t)
+	_, hits, port := fakeRouterTLSServer(t)
 	service, _ := newRouterServiceForTest(t)
 
 	result := service.TestConnection(ConnectionTestInput{
