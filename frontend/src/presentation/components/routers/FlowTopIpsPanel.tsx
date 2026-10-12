@@ -9,12 +9,15 @@ interface Props {
   available: boolean;
   rows: FlowTopIp[];
   loading: boolean;
+  failed: boolean;
 }
 
-export function FlowTopIpsPanel({ available, rows, loading }: Props) {
+export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
   return (
     <Card size="small" title="IP tujuan teratas">
-      {available ? (
+      {available && failed ? (
+        <Alert type="error" showIcon message="Gagal memuat IP tujuan teratas" />
+      ) : available ? (
         <Table<FlowTopIp>
           size="small"
           rowKey="ip"

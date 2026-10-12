@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Space } from "antd";
+import { Alert, Space } from "antd";
 import type { FlowFilter } from "@/domain/entities";
 import {
   useRouterBgpSessions,
@@ -25,7 +25,19 @@ import {
 } from "./routerFlows";
 import { interfaceLabel, isUpstream } from "./routerTraffic";
 
-export function FlowDestinationsTab({ routerId }: { routerId: string }) {
+const NOT_ENABLED =
+  "NetFlow belum diaktifkan untuk router ini. Admin dapat mengaktifkannya lewat Ubah di tab Router, lalu nyalakan traffic-flow di router (lihat panduan operator).";
+
+function LoadError({ what }: { what: string }) {
+  return <Alert type="error" showIcon message={`Gagal memuat ${what}`} />;
+}
+
+interface Props {
+  routerId: string;
+  flowEnabled: boolean;
+}
+
+export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
   const [range, setRange] = useState(DEFAULT_FLOW_RANGE);
   const [filter, setFilter] = useState<FlowFilter>({ direction: "download" });
   const { data: interfaces = [] } = useRouterInterfaces(routerId);
@@ -46,6 +58,7 @@ export function FlowDestinationsTab({ routerId }: { routerId: string }) {
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      {!flowEnabled && <Alert type="info" showIcon message={NOT_ENABLED} />}
       <TrafficRangePicker
         value={range}
         onChange={setRange}
@@ -57,27 +70,40 @@ export function FlowDestinationsTab({ routerId }: { routerId: string }) {
         pops={pops}
         upstreams={upstreams}
       />
-      <TrafficChart
-        stacked
-        title="Tujuan trafik (bit/s)"
-        series={chart.series}
-        data={chart.rows}
-      />
-      <FlowSummaryTable
-        data={summary.data}
-        labels={labels}
-        loading={summary.isLoading}
-      />
-      <FlowPopTable
-        rows={popRows.data ?? []}
-        labels={labels}
-        loading={popRows.isLoading}
-        onSelect={(pop) => setFilter({ ...filter, pop })}
-      />
+      {destinations.isError ? (
+        <LoadError what="data tujuan trafik" />
+      ) : (
+        <TrafficChart
+          stacked
+          title="Tujuan trafik (bit/s)"
+          series={chart.series}
+          data={chart.rows}
+        />
+      )}
+      {summary.isError ? (
+        <LoadError what="ringkasan tujuan" />
+      ) : (
+        <FlowSummaryTable
+          data={summary.data}
+          labels={labels}
+          loading={summary.isLoading}
+        />
+      )}
+      {popRows.isError ? (
+        <LoadError what="data per POP" />
+      ) : (
+        <FlowPopTable
+          rows={popRows.data ?? []}
+          labels={labels}
+          loading={popRows.isLoading}
+          onSelect={(pop) => setFilter({ ...filter, pop })}
+        />
+      )}
       <FlowTopIpsPanel
         available={ipsAvailable}
         rows={topIps.data ?? []}
         loading={topIps.isLoading}
+        failed={topIps.isError}
       />
     </Space>
   );

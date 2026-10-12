@@ -1,7 +1,7 @@
-import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDestinationsTab";
 import { Card, Result, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
+import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDestinationsTab";
 import { InterfacesTab } from "@/presentation/components/routers/InterfacesTab";
 import { RouterInfoTab } from "@/presentation/components/routers/RouterInfoTab";
 import { RouterStatusTag } from "@/presentation/components/routers/RouterStatusTag";
@@ -29,7 +29,12 @@ export function RouterDetailPage() {
           {
             key: "flows",
             label: "Tujuan Trafik",
-            children: <FlowDestinationsTab routerId={router.id} />,
+            children: (
+              <FlowDestinationsTab
+                routerId={router.id}
+                flowEnabled={router.flowEnabled}
+              />
+            ),
           },
           {
             key: "interfaces",
