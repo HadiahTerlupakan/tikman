@@ -40,6 +40,8 @@ func TestLookupFindsTheRangeHoldingAnAddress(t *testing.T) {
 		"198.51.100.128": 0, // announced by nobody
 		"203.0.113.77":   64498,
 		"127.0.0.1":      0, // before the first range
+		"198.51.99.255":  0, // in the gap between two ranges
+		"203.0.114.0":    0, // above the last range
 		"2001:db8::1":    0, // IPv4 only
 	}
 	for ip, want := range cases {
@@ -64,6 +66,19 @@ func TestParseRefusesAMalformedDataset(t *testing.T) {
 		_, err := ParseASNTable(strings.NewReader(text))
 		assert.Error(t, err, name)
 	}
+}
+
+// Lookup's binary search is only right for disjoint ranges, so a table whose
+// ranges overlap is refused rather than answering 0 for some covered addresses.
+func TestParseRefusesOverlappingRanges(t *testing.T) {
+	text := "192.0.2.0\t192.0.2.255\t64496\tZZ\tWIDE\n" +
+		"192.0.2.64\t192.0.2.127\t64497\tZZ\tNARROW\n"
+
+	_, err := ParseASNTable(strings.NewReader(text))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "192.0.2.64")
+	assert.Contains(t, err.Error(), "192.0.2.255")
 }
 
 func TestLoadASNFileReadsTheGzippedDataset(t *testing.T) {

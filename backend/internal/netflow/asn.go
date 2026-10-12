@@ -58,7 +58,29 @@ func ParseASNTable(r io.Reader) (*ASNTable, error) {
 		return nil, errors.New("ip2asn: no announced ranges")
 	}
 	sort.Slice(t.ranges, func(i, j int) bool { return t.ranges[i].start < t.ranges[j].start })
+	if err := t.checkDisjoint(); err != nil {
+		return nil, err
+	}
 	return t, nil
+}
+
+// checkDisjoint guards Lookup's binary search, which finds the last range
+// starting at or before an address and would miss it inside a wider earlier one.
+func (t *ASNTable) checkDisjoint() error {
+	for i := 1; i < len(t.ranges); i++ {
+		prev, cur := t.ranges[i-1], t.ranges[i]
+		if cur.start <= prev.end {
+			return fmt.Errorf("ip2asn: range starting %s overlaps the one ending %s",
+				ipv4String(cur.start), ipv4String(prev.end))
+		}
+	}
+	return nil
+}
+
+func ipv4String(v uint32) string {
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:], v)
+	return netip.AddrFrom4(b).String()
 }
 
 func (t *ASNTable) addLine(line string) error {
