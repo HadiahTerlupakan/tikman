@@ -48,8 +48,13 @@ func NewClient(host string, port int, username, password, fingerprint string) *C
 		username: username,
 		password: password,
 		http: &http.Client{
-			Timeout:   requestTimeout,
-			Transport: &http.Transport{TLSClientConfig: pinnedTLS(fingerprint)},
+			Timeout: requestTimeout,
+			// A client lives for one poll. A kept-alive connection would outlive
+			// it with nothing left to close it, so each request closes its own.
+			Transport: &http.Transport{
+				TLSClientConfig:   pinnedTLS(fingerprint),
+				DisableKeepAlives: true,
+			},
 		},
 	}
 }

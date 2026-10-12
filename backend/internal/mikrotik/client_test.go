@@ -73,6 +73,21 @@ func TestClientRefusesARouterWhoseCertificateChanged(t *testing.T) {
 	assert.False(t, called, "credentials must not reach a router that failed the pin")
 }
 
+// A client lives for one poll. A kept-alive connection would outlive it with
+// nothing left to close it, so every request must ask the router to close.
+func TestClientDoesNotKeepConnectionsAlive(t *testing.T) {
+	closes := make(chan bool, 1)
+	server, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
+		closes <- r.Close
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	_, err := NewClient(host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).SystemResource()
+
+	require.NoError(t, err)
+	assert.True(t, <-closes, "request must carry Connection: close")
+}
+
 func TestClientReportsRejectedCredentials(t *testing.T) {
 	server, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
