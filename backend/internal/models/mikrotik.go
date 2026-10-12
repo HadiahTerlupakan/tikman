@@ -84,6 +84,13 @@ type MikrotikRouter struct {
 	BoardName     *string    `gorm:"type:varchar(64)" json:"board_name"`
 	LastSeenAt    *time.Time `json:"last_seen_at"`
 
+	// FlowEnabled makes flowd accept IPFIX arriving from Host.
+	FlowEnabled bool `gorm:"not null;default:false" json:"flow_enabled"`
+	// FlowSampling is the router's 1:N packet sampling. It must match
+	// /ip traffic-flow, or every byte count is off by the difference.
+	FlowSampling   int        `gorm:"not null;default:100" json:"flow_sampling"`
+	FlowLastSeenAt *time.Time `json:"flow_last_seen_at"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
