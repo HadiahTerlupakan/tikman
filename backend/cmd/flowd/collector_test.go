@@ -13,6 +13,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/netflow"
 	"github.com/tikman/olt-provisioning/internal/netflow/ipfixtest"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 var (
@@ -139,6 +140,59 @@ func TestHandleSafelyKeepsTheReadLoopAliveThroughAPanic(t *testing.T) {
 	assert.NotPanics(t, func() { c.handleSafely(routerAddr, flowPacket(), zap.NewNop()) })
 	assert.EqualValues(t, 1, c.malformed.Load())
 	assert.True(t, c.mu.TryLock(), "a panic must not leave the aggregator locked")
+}
+
+// A router whose flows keep tripping a bug would otherwise write an error
+// line per datagram; the malformed counter already carries the total.
+func TestHandleSafelyLogsOnePanicPerInterval(t *testing.T) {
+	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
+	(*c.routers.Load())[routerAddr].POPs = nil
+	core, logs := observer.New(zap.ErrorLevel)
+	logger := zap.New(core)
+
+	c.handleSafely(routerAddr, flowPacket(), logger)
+	c.handleSafely(routerAddr, flowPacket(), logger)
+	assert.Equal(t, 1, logs.Len())
+	c.panicLoggedAt = c.panicLoggedAt.Add(-panicLogInterval)
+	c.handleSafely(routerAddr, flowPacket(), logger)
+
+	assert.Equal(t, 2, logs.Len())
+	assert.EqualValues(t, 3, c.malformed.Load())
+	assert.Equal(t, routerAddr.String(), logs.All()[0].ContextMap()["source"])
+}
+
+func dataOnlyPacket() []byte {
+	return ipfixtest.Message(1,
+		ipfixtest.DataSet(256, ipfixtest.FlowRecord("198.51.100.7", "203.0.113.5", 10, 20, 1500, 3)))
+}
+
+// A router dropped from the mapping takes its templates with it, so removed
+// or renumbered routers do not accumulate state; one that stays keeps them
+// and still decodes data sent without a fresh template.
+func TestReloadPrunesTemplatesOfRemovedRoutersOnly(t *testing.T) {
+	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
+	otherAddr := netip.MustParseAddr("192.0.2.2")
+	otherID := uuid.MustParse("00000000-0000-0000-0000-0000000000c2")
+	other := &netflow.RouterMap{RouterID: otherID, Sampling: 1, POPs: netflow.NewPrefixTable(nil)}
+	kept := *c.routers.Load()
+	c.handle(routerAddr, flowPacket())
+	c.setRouters(map[netip.Addr]*netflow.RouterMap{otherAddr: other})
+	c.handle(otherAddr, flowPacket())
+
+	assert.NotContains(t, c.templates, testRouterID)
+	assert.Contains(t, c.templates, otherID)
+
+	c.setRouters(map[netip.Addr]*netflow.RouterMap{routerAddr: kept[routerAddr], otherAddr: other})
+	c.handle(otherAddr, dataOnlyPacket())
+	c.handle(routerAddr, flowPacket())
+	c.closeMinute(minute0.Add(time.Minute))
+	c.setRouters(map[netip.Addr]*netflow.RouterMap{routerAddr: kept[routerAddr]})
+	c.handle(routerAddr, dataOnlyPacket())
+	rows, _, _ := c.closeMinute(minute0.Add(2 * time.Minute))
+
+	assert.NotContains(t, c.templates, otherID)
+	require.Len(t, rows, 1)
+	assert.EqualValues(t, 150_000, rows[0].Bytes)
 }
 
 // Review Focus 4: a clock stepped back, or a tick that lands in the minute

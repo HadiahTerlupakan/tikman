@@ -17,6 +17,10 @@ import (
 // collection path, so a slow or failed save delays only the names.
 const asnSaveTimeout = 10 * time.Minute
 
+// asnRetryInterval is how soon a download is tried again while no table is
+// loaded.
+const asnRetryInterval = mappingRefresh
+
 type asnNameSaver interface {
 	SaveASNNames(ctx context.Context, names map[uint32]netflow.ASNInfo, updatedAt time.Time) error
 }
@@ -37,6 +41,17 @@ func (s *asnSource) lookup(ip netip.Addr) uint32 {
 		return netflow.OtherASN
 	}
 	return table.Lookup(ip)
+}
+
+// nextRefresh is how long until the next download. With no table at all every
+// destination is stored as ASN 0, and the daily rollup keeps those rows
+// forever, so a first start without network or a copy on disk retries on the
+// mapping's interval rather than waiting a day.
+func (s *asnSource) nextRefresh() time.Duration {
+	if s.table.Load() == nil {
+		return asnRetryInterval
+	}
+	return netflow.ASNMaxAge
 }
 
 // start loads the copy on disk, downloading first when it is missing or a

@@ -11,13 +11,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// panicLogInterval is how often a recovered panic is logged, matching how
+// often refreshRouters reports the malformed count.
+const panicLogInterval = mappingRefresh
+
 // collector turns datagrams into aggregator counts. handle runs on the one
-// goroutine reading the socket, which alone touches templates; the
-// aggregator is shared with the minute ticker, hence the mutex.
+// goroutine reading the socket, which alone touches templates, prunedFor and
+// panicLoggedAt; the aggregator is shared with the minute ticker, hence the
+// mutex.
 type collector struct {
-	routers   atomic.Pointer[map[netip.Addr]*netflow.RouterMap]
-	asns      *asnSource
-	templates map[uuid.UUID]*netflow.Templates
+	routers       atomic.Pointer[map[netip.Addr]*netflow.RouterMap]
+	asns          *asnSource
+	templates     map[uuid.UUID]*netflow.Templates
+	prunedFor     *map[netip.Addr]*netflow.RouterMap
+	panicLoggedAt time.Time
 
 	mu         sync.Mutex
 	agg        *netflow.Aggregator
@@ -46,7 +53,12 @@ func (c *collector) setRouters(routers map[netip.Addr]*netflow.RouterMap) {
 // handle decodes one datagram from src. Anything not from a router collecting
 // flows is dropped before parsing: the port is open to the internet.
 func (c *collector) handle(src netip.Addr, packet []byte) {
-	router, ok := (*c.routers.Load())[src.Unmap()]
+	routers := c.routers.Load()
+	if routers != c.prunedFor {
+		c.pruneTemplates(*routers)
+		c.prunedFor = routers
+	}
+	router, ok := (*routers)[src.Unmap()]
 	if !ok {
 		c.unknownSources.Add(1)
 		return
@@ -70,15 +82,40 @@ func (c *collector) handle(src netip.Addr, packet []byte) {
 // handleSafely is handle for the read loop. The decoder bounds-checks every
 // length it reads; this only makes a bug it still has cost one datagram
 // instead of the listener, since one goroutine reads for every router.
+// Only the first panic per panicLogInterval is logged: a router that keeps
+// tripping the same bug would otherwise write a line per datagram, and the
+// malformed counter refreshRouters reports already carries the rest.
 func (c *collector) handleSafely(src netip.Addr, packet []byte, logger *zap.Logger) {
 	defer func() {
-		if r := recover(); r != nil {
-			c.malformed.Add(1)
-			logger.Error("Recovered from a panic handling an IPFIX datagram",
-				zap.Any("panic", r), zap.String("source", src.String()), zap.Int("bytes", len(packet)))
+		r := recover()
+		if r == nil {
+			return
 		}
+		c.malformed.Add(1)
+		if time.Since(c.panicLoggedAt) < panicLogInterval {
+			return
+		}
+		c.panicLoggedAt = time.Now()
+		logger.Error("Recovered from a panic handling an IPFIX datagram; further ones this interval are only counted",
+			zap.Any("panic", r), zap.String("source", src.String()), zap.Int("bytes", len(packet)))
 	}()
 	c.handle(src, packet)
+}
+
+// pruneTemplates forgets the templates of routers no longer collecting flows,
+// so routers removed or disabled over months leave nothing behind. It runs on
+// the read goroutine, which owns templates, the first time a datagram meets a
+// newly loaded mapping.
+func (c *collector) pruneTemplates(routers map[netip.Addr]*netflow.RouterMap) {
+	current := make(map[uuid.UUID]bool, len(routers))
+	for _, m := range routers {
+		current[m.RouterID] = true
+	}
+	for id := range c.templates {
+		if !current[id] {
+			delete(c.templates, id)
+		}
+	}
 }
 
 // templatesFor keeps each router's templates across mapping reloads, keyed by
@@ -96,7 +133,10 @@ func (c *collector) templatesFor(routerID uuid.UUID) *netflow.Templates {
 // and the keys each router had to fold for the cap. A now that is not past
 // the open minute closes nothing: the Aggregator would close it again under
 // a Time already stored, so the flows wait for the open minute's own close.
-// That happens when the clock steps back or a tick lands early.
+// That happens when the clock steps back or a tick lands early. A clock that
+// ran ahead and is then corrected stalls closes for as long as it was ahead:
+// everything received meanwhile lands in one later row. Totals stay exact;
+// only their placement in time is coarser for that stretch.
 func (c *collector) closeMinute(now time.Time) ([]netflow.MinuteRow, []uuid.UUID, map[uuid.UUID]uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

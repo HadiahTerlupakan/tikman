@@ -151,6 +151,30 @@ func TestAFailedNameSaveStillInstallsTheTable(t *testing.T) {
 	assert.EqualValues(t, 64497, source.lookup(probe))
 }
 
+// With no table at all, every destination is stored as ASN 0 and the daily
+// rollup keeps it forever: a first start without network retries soon, and
+// goes back to daily once a dataset is in.
+func TestRefreshIsRetriedSoonUntilATableLoads(t *testing.T) {
+	status := &atomic.Int32{}
+	status.Store(http.StatusBadGateway)
+	body := gzipText(t, datasetC)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(int(status.Load()))
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(server.Close)
+	source, _ := testSource(server, filepath.Join(t.TempDir(), asnFileName))
+
+	source.start(time.Now())
+	assert.Equal(t, asnRetryInterval, source.nextRefresh())
+
+	status.Store(http.StatusOK)
+	source.refresh()
+
+	assert.EqualValues(t, 64498, source.lookup(probe))
+	assert.Equal(t, netflow.ASNMaxAge, source.nextRefresh())
+}
+
 // The full dataset's names are hundreds of thousands of rows: the upsert gets
 // a deadline of its own, far beyond the one a minute's write gets.
 func TestNameSaveGetsTheDatasetDeadline(t *testing.T) {

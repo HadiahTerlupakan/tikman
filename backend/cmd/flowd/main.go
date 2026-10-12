@@ -41,6 +41,9 @@ const (
 	// socketBuffer gives bursts room while a minute is being closed.
 	socketBuffer    = 4 << 20
 	markSeenTimeout = 10 * time.Second
+	// minuteTickOffset puts each close a little past the boundary, so a sleep
+	// that wakes a hair early by the wall clock still lands in the new minute.
+	minuteTickOffset = 500 * time.Millisecond
 )
 
 func main() {
@@ -68,7 +71,10 @@ func main() {
 	// destination counts as ASN 0.
 	go func() {
 		asns.start(time.Now())
-		every(netflow.ASNMaxAge, asns.refresh)
+		for {
+			time.Sleep(asns.nextRefresh())
+			asns.refresh()
+		}
 	}()
 
 	coll := newCollector(asns, time.Now())
@@ -133,15 +139,24 @@ func refreshRouters(c *collector, mappings *services.FlowMappingService, logger 
 		zap.Uint64("malformed_packets", c.malformed.Swap(0)))
 }
 
-// runMinutes closes each minute on the clock's boundary and writes it. The
-// minute open at shutdown is lost; a restart costs at most that minute.
+// runMinutes closes each minute just after the clock's boundary and writes
+// it. The minute open at shutdown is lost; a restart costs at most that
+// minute.
+//
+// Each wait is computed afresh from the wall clock rather than kept by a
+// Ticker: a Ticker runs on the monotonic clock while rows are stamped from
+// the wall clock, so once NTP slewed the two apart every close would land on
+// the wrong side of its boundary and every row be stamped a minute early.
 func runMinutes(c *collector, w *retryWriter, sink flowSink, logger *zap.Logger) {
-	time.Sleep(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for now := time.Now(); ; now = <-ticker.C {
-		finishMinute(c, w, sink, logger, now)
+	for {
+		time.Sleep(time.Until(nextMinuteTick(time.Now())))
+		finishMinute(c, w, sink, logger, time.Now())
 	}
+}
+
+// nextMinuteTick is minuteTickOffset past the next minute boundary after now.
+func nextMinuteTick(now time.Time) time.Time {
+	return now.Truncate(time.Minute).Add(time.Minute + minuteTickOffset)
 }
 
 func finishMinute(c *collector, w *retryWriter, sink flowSink, logger *zap.Logger, now time.Time) {
