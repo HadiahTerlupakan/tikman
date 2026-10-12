@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,11 +16,18 @@ import (
 // interface and the history hanging off it would go with that one reply.
 var errNoInterfaces = errors.New("router reported no interfaces; keeping the ones already known")
 
+// ErrStaticRoutesUnread means discovery refreshed the interfaces but could not
+// read the static routes, so the stored routed prefixes were left as they
+// were. On a border router the filtered read can outlast the call budget, and
+// that must not stop interface discovery.
+var ErrStaticRoutesUnread = errors.New("static routes not read; keeping the routed prefixes already known")
+
 type routerInventory struct {
 	interfaces []mikrotik.Interface
 	vlans      []mikrotik.VLAN
 	addresses  []mikrotik.Address
 	routes     []mikrotik.Route
+	routesErr  error
 }
 
 // Discover brings the stored interfaces in line with the router's, then
@@ -38,15 +46,22 @@ func (s *RouterPollService) Discover(router *models.MikrotikRouter) error {
 	if len(rows) == 0 {
 		return errNoInterfaces
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if err := upsertInterfaces(tx, router.ID, rows); err != nil {
 			return err
 		}
 		if err := rematchSessions(tx, router.ID); err != nil {
 			return err
 		}
+		if inventory.routesErr != nil {
+			return nil
+		}
 		return replaceRoutedPrefixes(tx, router.ID, inventory.routes)
 	})
+	if err == nil && inventory.routesErr != nil {
+		return fmt.Errorf("%w: %v", ErrStaticRoutesUnread, inventory.routesErr)
+	}
+	return err
 }
 
 func readInventory(api RouterAPI) (routerInventory, error) {
@@ -61,8 +76,8 @@ func readInventory(api RouterAPI) (routerInventory, error) {
 	if inventory.addresses, err = api.Addresses(); err != nil {
 		return inventory, err
 	}
-	inventory.routes, err = api.StaticRoutes()
-	return inventory, err
+	inventory.routes, inventory.routesErr = api.StaticRoutes()
+	return inventory, nil
 }
 
 func buildInterfaceRows(routerID uuid.UUID, inventory routerInventory) []models.RouterInterface {

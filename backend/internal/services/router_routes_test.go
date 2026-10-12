@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -71,4 +72,35 @@ func TestDiscoverDropsRoutesGoneFromTheRouter(t *testing.T) {
 	require.NoError(t, f.service.Discover(f.router))
 
 	assert.Equal(t, map[string]string{"203.0.113.64/27": "vlan-pop-a"}, storedPrefixes(t, f))
+}
+
+func TestDiscoverKeepsPrefixesButRefreshesInterfacesWhenRoutesCannotBeRead(t *testing.T) {
+	f := newPollFixture(t)
+	borderInventory(f.api)
+	f.api.routes = popRoutes()
+	require.NoError(t, f.service.Discover(f.router))
+
+	f.api.interfaces = append(f.api.interfaces, mikrotik.Interface{Name: "vlan-pop-b", Type: "vlan", Running: "true"})
+	f.api.routesErr = errors.New("timeout")
+	err := f.service.Discover(f.router)
+
+	require.ErrorIs(t, err, ErrStaticRoutesUnread)
+	var added int64
+	require.NoError(t, f.db.Model(&models.RouterInterface{}).
+		Where("router_id = ? AND name = ?", f.router.ID, "vlan-pop-b").Count(&added).Error)
+	assert.EqualValues(t, 1, added)
+	assert.Equal(t, map[string]string{
+		"203.0.113.64/27":  "vlan-pop-a",
+		"203.0.113.128/26": "vlan-pop-a",
+	}, storedPrefixes(t, f))
+}
+
+func TestRouteGatewayWithAZoneNamesItsInterface(t *testing.T) {
+	id := uuid.New()
+	rows := buildRoutedPrefixes(uuid.New(), []mikrotik.Route{
+		{DstAddress: "203.0.113.64/27", Gateway: "192.0.2.34%vlan-pop-a", Static: "true", Active: "true"},
+	}, []models.RouterInterface{{ID: id, Name: "vlan-pop-a"}})
+
+	require.Len(t, rows, 1)
+	assert.Equal(t, id, rows[0].InterfaceID)
 }

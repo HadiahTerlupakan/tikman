@@ -24,6 +24,7 @@ type fakeRouterAPI struct {
 	connections []mikrotik.BGPConnection
 	sessions    []mikrotik.BGPSession
 	routes      []mikrotik.Route
+	routesErr   error
 	err         error
 	closed      int
 }
@@ -39,7 +40,7 @@ func (f *fakeRouterAPI) BGPConnections() ([]mikrotik.BGPConnection, error) {
 	return f.connections, f.err
 }
 func (f *fakeRouterAPI) BGPSessions() ([]mikrotik.BGPSession, error) { return f.sessions, f.err }
-func (f *fakeRouterAPI) StaticRoutes() ([]mikrotik.Route, error)     { return f.routes, f.err }
+func (f *fakeRouterAPI) StaticRoutes() ([]mikrotik.Route, error)     { return f.routes, f.routesErr }
 
 type pollFixture struct {
 	service  *RouterPollService

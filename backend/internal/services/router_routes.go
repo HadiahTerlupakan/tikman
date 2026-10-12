@@ -74,17 +74,22 @@ func routedPrefix(r mikrotik.Route) (string, bool) {
 
 // routeInterface finds the interface a route leaves through: the one
 // immediate-gw names ("192.0.2.34%vlan-pop-a"), else the one whose subnet
-// holds the gateway, else a gateway that is itself an interface name.
+// holds the gateway (a "%iface" zone on the gateway counts as naming it), else
+// a gateway that is itself an interface name.
 func routeInterface(r mikrotik.Route, byName map[string]uuid.UUID, ifaces []models.RouterInterface) *uuid.UUID {
 	if _, name, ok := strings.Cut(r.ImmediateGW, "%"); ok {
 		if id, known := byName[name]; known {
 			return &id
 		}
 	}
-	if id := MatchInterface(r.Gateway, ifaces); id != nil {
+	gateway, zone, _ := strings.Cut(r.Gateway, "%")
+	if id, known := byName[zone]; known && zone != "" {
+		return &id
+	}
+	if id := MatchInterface(gateway, ifaces); id != nil {
 		return id
 	}
-	if id, known := byName[r.Gateway]; known {
+	if id, known := byName[gateway]; known {
 		return &id
 	}
 	return nil
