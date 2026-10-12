@@ -24,12 +24,13 @@ var ErrFingerprintMismatch = errors.New("fingerprint does not match the certific
 // ConnectionTestInput is what the add-router form has before anything is
 // stored.
 type ConnectionTestInput struct {
-	Host          string
-	SNMPPort      int
-	SNMPCommunity string
-	APIPort       int
-	APIUsername   string
-	APIPassword   string
+	Host           string
+	SNMPPort       int
+	SNMPCommunity  string
+	APIPort        int
+	APIUsername    string
+	APIPassword    string
+	TLSFingerprint string
 }
 
 // ConnectionTestResult reports SNMP and REST separately: either can work while
@@ -42,8 +43,11 @@ type ConnectionTestResult struct {
 	Version     string `json:"version,omitempty"`
 }
 
-// TestConnection probes SNMP and REST, and returns the certificate fingerprint
-// for the operator to confirm before it is pinned.
+// TestConnection runs in two steps. Without a fingerprint it only reads the
+// certificate the router presents, so the operator can compare it with Winbox
+// before any password is sent. With the confirmed fingerprint it pins REST to
+// that certificate and reads the board. Splitting the steps keeps a
+// man-in-the-middle at add time from receiving the API password.
 func (s *RouterService) TestConnection(in ConnectionTestInput) ConnectionTestResult {
 	var result ConnectionTestResult
 	snmpPort := portOr(in.SNMPPort, DefaultRouterSNMPPort)
@@ -52,11 +56,23 @@ func (s *RouterService) TestConnection(in ConnectionTestInput) ConnectionTestRes
 	}
 
 	apiPort := portOr(in.APIPort, DefaultRouterAPIPort)
-	fingerprint, err := mikrotik.FetchFingerprint(in.Host, apiPort)
-	if err != nil {
-		result.APIError = err.Error()
+	if in.TLSFingerprint == "" {
+		fingerprint, err := mikrotik.FetchFingerprint(in.Host, apiPort)
+		if err != nil {
+			result.APIError = err.Error()
+		}
+		result.Fingerprint = fingerprint
 		return result
 	}
+	return s.readBoard(result, in, apiPort)
+}
+
+func (s *RouterService) readBoard(result ConnectionTestResult, in ConnectionTestInput, apiPort int) ConnectionTestResult {
+	if !validFingerprint(in.TLSFingerprint) {
+		result.APIError = "tls_fingerprint must be the 64-character SHA-256 the connection test returned"
+		return result
+	}
+	fingerprint := strings.ToLower(in.TLSFingerprint)
 	result.Fingerprint = fingerprint
 
 	resource, err := mikrotik.NewClient(in.Host, apiPort, in.APIUsername, in.APIPassword, fingerprint).SystemResource()
