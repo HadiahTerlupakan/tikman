@@ -189,9 +189,14 @@ func TestUpdateRouterChangesItsProtocol(t *testing.T) {
 }
 
 func TestUpdateToPlainAPIDropsThePin(t *testing.T) {
-	service, _ := newRouterServiceForTest(t)
+	service, db := newRouterServiceForTest(t)
 	router, err := service.Create(validRouterInput())
 	require.NoError(t, err)
+
+	require.NoError(t, db.Model(&models.MikrotikRouter{}).Where("id = ?", router.ID).Updates(map[string]interface{}{
+		"api_status":            models.RouterAPIStatusCertificateChanged,
+		"presented_fingerprint": "aa:bb",
+	}).Error)
 
 	protocol := "api"
 	updated, err := service.Update(router.ID, RouterUpdate{APIProtocol: &protocol})
@@ -199,6 +204,9 @@ func TestUpdateToPlainAPIDropsThePin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "api", updated.APIProtocol)
 	assert.Empty(t, updated.TLSFingerprint)
+	assert.Nil(t, updated.PresentedFingerprint)
+	assert.Equal(t, models.RouterAPIStatusUnknown, updated.APIStatus)
+	assert.Nil(t, updated.APIError)
 }
 
 func TestUpdateToAPISSLKeepsThePin(t *testing.T) {

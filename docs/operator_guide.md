@@ -342,8 +342,9 @@ dan `COMMUNITY`:
 ```
 
 REST memakai port 8443 karena 443 biasanya dipakai `reverse-proxy` RouterOS 7.
-Bila chain input punya rule drop, izinkan tcp/8443 dan udp/161 dari `IP_VPS`
-di atasnya. Batasi juga `addresses` setiap community SNMP lain ke pemakainya:
+Bila chain input punya rule drop, izinkan port API yang dipilih (tcp/8443
+REST, tcp/8729 API-SSL, atau tcp/8728 API) dan udp/161 dari `IP_VPS` di
+atasnya. Batasi juga `addresses` setiap community SNMP lain ke pemakainya:
 community yang terbuka ke `::/0` bisa dibaca siapa saja dan dipakai untuk
 serangan amplifikasi.
 
@@ -393,15 +394,16 @@ semua peran bisa melihat.
 Buka **MikroTik → Tambah router**, isi data, lalu uji koneksi dua langkah:
 
 1. Klik **Uji koneksi**. Untuk REST dan API-SSL, langkah ini hanya menguji
-   SNMP dan menampilkan fingerprint sertifikat router. Password belum dikirim ke mana pun.
+   SNMP dan menampilkan fingerprint sertifikat router. Password belum
+   dikirim ke mana pun.
 2. Cocokkan fingerprint itu dengan
    `/certificate print detail where name=tikman-rest` di router. Bila sama,
-   klik **Fingerprint cocok, uji REST**. TikMan lalu menguji REST hanya
-   terhadap sertifikat tersebut.
+   klik **Fingerprint cocok, uji REST** (atau **uji API-SSL**). TikMan lalu
+   menguji protokol itu hanya terhadap sertifikat tersebut.
 
 Untuk API, uji koneksi langsung login dan membaca board dalam satu langkah.
 
-Saat menambah router, tombol **Simpan** baru aktif setelah kedua langkah lulus;
-mengubah router yang sudah ada tidak memakai uji ini. Kalau sertifikat
-router diganti, TikMan berhenti membaca BGP dan menampilkan fingerprint baru
-di tab Router sampai Admin menerimanya.
+Saat menambah router, tombol **Simpan** baru aktif setelah kedua langkah lulus
+(untuk API, satu langkah sudah cukup); mengubah router yang sudah ada tidak
+memakai uji ini. Kalau sertifikat router diganti, TikMan berhenti membaca BGP
+dan menampilkan fingerprint baru di tab Router sampai Admin menerimanya.

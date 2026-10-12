@@ -136,6 +136,7 @@ func TestAPIRefusesWrongCredentials(t *testing.T) {
 	_, err := dialAPI(apiConfig(router.start(t, nil)))
 
 	assert.True(t, errors.Is(err, ErrUnauthorized), "got %v", err)
+	assert.Contains(t, err.Error(), "invalid user name or password")
 }
 
 func TestAPIReportsATrapWithItsMessage(t *testing.T) {
@@ -284,4 +285,24 @@ func TestDialAPIRefusesNonAPIProtocolsBeforeDialing(t *testing.T) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+// Empty sentences add no word bytes, so only a row cap stops a peer streaming
+// them to exhaust memory.
+func TestAPIRefusesMoreRowsThanTheCap(t *testing.T) {
+	reply := make([][]string, 0, maxReplyRows+2)
+	for i := 0; i <= maxReplyRows; i++ {
+		reply = append(reply, []string{"!re"})
+	}
+	reply = append(reply, []string{"!done"})
+	router := &fakeAPIRouter{username: "tikman", password: "secret", replies: map[string][][]string{
+		"/interface/print": reply,
+	}}
+	transport, err := dialAPI(apiConfig(router.start(t, nil)))
+	require.NoError(t, err)
+
+	var ifaces []Interface
+	err = transport.List("/interface", &ifaces)
+
+	assert.True(t, errors.Is(err, errBadReply), "got %v", err)
 }

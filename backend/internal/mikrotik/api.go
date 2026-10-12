@@ -23,6 +23,15 @@ var apiCallTimeout = requestTimeout
 // the whole deadline and growing worker memory.
 const maxReplyBytes = 16 << 20
 
+// maxReplyRows caps the rows of one reply, far above any border router's
+// /interface or BGP listing. Bare !re sentences carry no word bytes, so the
+// byte budget alone would let a peer allocate a row each without limit.
+const maxReplyRows = 100_000
+
+// sentenceOverhead is charged against the byte budget per word, and once more
+// per sentence: a decoded row costs memory well beyond the bytes it arrived in.
+const sentenceOverhead = 64
+
 // apiTransport is one logged-in RouterOS API connection. It lives for one poll.
 type apiTransport struct {
 	conn   net.Conn
@@ -78,7 +87,7 @@ func (t *apiTransport) login(username, password string) error {
 	_, err := t.run("/login", "=name="+username, "=password="+password)
 	var trap *trapError
 	if errors.As(err, &trap) {
-		return ErrUnauthorized
+		return fmt.Errorf("%w: %s", ErrUnauthorized, trap.message)
 	}
 	return err
 }
@@ -100,7 +109,7 @@ func (t *apiTransport) run(words ...string) ([]map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read %s reply: %w", words[0], err)
 		}
-		if received += sentenceBytes(sentence); received > maxReplyBytes {
+		if received += sentenceBytes(sentence) + sentenceOverhead*(len(sentence)+1); received > maxReplyBytes {
 			return nil, fmt.Errorf("%w: %s reply over %d bytes", errBadReply, words[0], maxReplyBytes)
 		}
 		r, err := parseSentence(sentence)
@@ -109,6 +118,9 @@ func (t *apiTransport) run(words ...string) ([]map[string]string, error) {
 		}
 		switch r.kind {
 		case "!re":
+			if len(rows) >= maxReplyRows {
+				return nil, fmt.Errorf("%w: %s reply over %d rows", errBadReply, words[0], maxReplyRows)
+			}
 			rows = append(rows, r.attrs)
 		case "!trap":
 			trap = &trapError{message: r.attrs["message"]}

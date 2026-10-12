@@ -202,7 +202,8 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 }
 
 // protocolColumns also drops the pin when the new protocol is plain api, which
-// has no certificate, so the row never shows a pin for a router that has none.
+// has no certificate, so the row never shows a pin, or a certificate-changed
+// status, for a router that has none.
 func protocolColumns(updates map[string]interface{}, protocol *string) error {
 	if protocol == nil {
 		return nil
@@ -214,6 +215,8 @@ func protocolColumns(updates map[string]interface{}, protocol *string) error {
 	if mikrotik.Protocol(*protocol) == mikrotik.ProtocolAPI {
 		updates["tls_fingerprint"] = ""
 		updates["presented_fingerprint"] = nil
+		updates["api_status"] = models.RouterAPIStatusUnknown
+		updates["api_error"] = nil
 	}
 	return nil
 }

@@ -276,3 +276,18 @@ func TestPollBGPRecordsAFailedOpen(t *testing.T) {
 	require.NotNil(t, stored.APIError)
 	assert.Contains(t, *stored.APIError, "rejected")
 }
+
+// A router switched from api to a TLS protocol has no pin, so the open itself
+// reports the certificate and the admin must be able to accept it.
+func TestPollBGPRecordsAChangedCertificateRaisedByTheOpen(t *testing.T) {
+	f := newPollFixture(t)
+	f.openErr = mikrotik.ErrCertificateChanged
+
+	err := f.service.PollBGP(f.router, time.Now())
+
+	require.ErrorIs(t, err, mikrotik.ErrCertificateChanged)
+	var stored models.MikrotikRouter
+	require.NoError(t, f.db.First(&stored, "id = ?", f.router.ID).Error)
+	assert.Equal(t, models.RouterAPIStatusCertificateChanged, stored.APIStatus)
+	require.NotNil(t, stored.PresentedFingerprint)
+}
