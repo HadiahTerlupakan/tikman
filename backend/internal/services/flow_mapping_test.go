@@ -165,3 +165,31 @@ func TestLoadNeverReturnsAZeroSampling(t *testing.T) {
 
 	assert.Equal(t, uint64(1), f.load(t).Sampling)
 }
+
+// A stale upstream keeps its old ifIndex; when a reboot gives that number to
+// a POP interface, the flows are the POP's, not the upstream's.
+func TestLoadDropsAnIndexAPOPInterfaceAlsoClaims(t *testing.T) {
+	f := newMappingFixture(t)
+	require.NoError(t, f.db.Model(&f.popA).Update("if_index", 19).Error)
+
+	m := f.load(t)
+
+	assert.NotContains(t, m.Upstreams, uint32(19))
+	assert.Equal(t, f.ix.ID, m.Upstreams[20])
+}
+
+// Two routers claiming one source address cannot be told apart.
+func TestLoadExcludesAnAddressTwoRoutersShare(t *testing.T) {
+	f := newMappingFixture(t)
+	twin := validRouterInput()
+	twin.Name = "border-2"
+	other, err := f.routers.Create(twin)
+	require.NoError(t, err)
+	require.NoError(t, f.db.Model(other).Update("flow_enabled", true).Error)
+
+	maps, skipped, err := NewFlowMappingService(f.db).Load()
+
+	require.NoError(t, err)
+	assert.Empty(t, maps)
+	assert.ElementsMatch(t, []string{f.router.Name, "border-2"}, skipped)
+}

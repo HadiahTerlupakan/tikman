@@ -23,13 +23,15 @@ func NewFlowMappingService(db *gorm.DB) *FlowMappingService {
 
 // Load returns a map for every enabled router collecting flows, keyed by the
 // address its IPFIX arrives from, and the names of those whose host is not an
-// address: IPFIX carries only the sender's address, so they cannot be matched.
+// address, or share one with another router: IPFIX carries only the sender's
+// address, so they cannot be matched.
 func (s *FlowMappingService) Load() (map[netip.Addr]*netflow.RouterMap, []string, error) {
 	var routers []models.MikrotikRouter
 	if err := s.db.Where("enabled = ? AND flow_enabled = ?", true, true).Order("name").Find(&routers).Error; err != nil {
 		return nil, nil, err
 	}
 	maps := make(map[netip.Addr]*netflow.RouterMap, len(routers))
+	owner := make(map[netip.Addr]string, len(routers))
 	var skipped []string
 	for i := range routers {
 		addr, err := netip.ParseAddr(routers[i].Host)
@@ -37,11 +39,22 @@ func (s *FlowMappingService) Load() (map[netip.Addr]*netflow.RouterMap, []string
 			skipped = append(skipped, routers[i].Name)
 			continue
 		}
+		addr = addr.Unmap()
+		if first, shared := owner[addr]; shared {
+			// A datagram carries only its source address, so neither router's
+			// flows can be credited to the right one.
+			if maps[addr] != nil {
+				skipped = append(skipped, first)
+				delete(maps, addr)
+			}
+			skipped = append(skipped, routers[i].Name)
+			continue
+		}
 		m, err := s.routerMap(&routers[i])
 		if err != nil {
 			return nil, nil, err
 		}
-		maps[addr.Unmap()] = m
+		owner[addr], maps[addr] = routers[i].Name, m
 	}
 	return maps, skipped, nil
 }
@@ -85,18 +98,21 @@ func (s *FlowMappingService) upstreamIDs(routerID uuid.UUID) (map[uuid.UUID]bool
 
 // upstreamIndexes maps each enabled upstream's ifIndex to it. A disabled
 // interface is not polled, so its stored index may since have been given to
-// another interface; an index two upstreams both claim is dropped rather
+// another interface. Claims are counted over every enabled interface, so a
+// stale upstream whose number a POP interface now holds is dropped rather
 // than guessed.
 func upstreamIndexes(ifaces []models.RouterInterface, upstream map[uuid.UUID]bool) map[uint32]uuid.UUID {
 	out := map[uint32]uuid.UUID{}
 	claims := map[uint32]int{}
 	for _, i := range ifaces {
-		if !upstream[i.ID] || i.Disabled || i.IfIndex == nil || *i.IfIndex <= 0 {
+		if i.Disabled || i.IfIndex == nil || *i.IfIndex <= 0 {
 			continue
 		}
 		index := uint32(*i.IfIndex)
 		claims[index]++
-		out[index] = i.ID
+		if upstream[i.ID] {
+			out[index] = i.ID
+		}
 	}
 	for index, n := range claims {
 		if n > 1 {
