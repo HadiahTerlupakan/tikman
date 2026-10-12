@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -42,16 +43,28 @@ func runNextRouterJob(rt *workerRuntime) bool {
 	}
 
 	started := time.Now()
-	if err := runRouterJob(rt, job, router); err != nil {
+	settleRouterJob(rt, job, router, runRouterJob(rt, job, router), time.Since(started))
+	return true
+}
+
+// settleRouterJob records how a run ended. An unread route table is not a
+// failure: discovery still refreshed the interfaces, and failing the job would
+// push it from 6 h to 24 h on a router whose route read keeps timing out.
+func settleRouterJob(rt *workerRuntime, job *models.RouterPollJob, router *models.MikrotikRouter, err error, took time.Duration) {
+	if errors.Is(err, services.ErrStaticRoutesUnread) {
+		rt.logger.Warn("Router discovery could not read static routes",
+			zap.String("router", router.Name), zap.String("router_id", router.ID.String()), zap.Error(err))
+		err = nil
+	}
+	if err != nil {
 		rt.logger.Warn("Router poll job failed",
 			zap.String("router", router.Name), zap.String("kind", string(job.Kind)), zap.Error(err))
 		failRouterJob(rt, job, err)
-		return true
+		return
 	}
-	if err := rt.routerJobs.Complete(job, time.Since(started)); err != nil {
+	if err := rt.routerJobs.Complete(job, took); err != nil {
 		rt.logger.Error("Failed to record a router job completion", zap.Error(err))
 	}
-	return true
 }
 
 func failRouterJob(rt *workerRuntime, job *models.RouterPollJob, cause error) {
