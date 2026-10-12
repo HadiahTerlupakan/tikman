@@ -51,13 +51,16 @@ func (f *fakeOLT) serve(t *testing.T, listener net.Listener) {
 		return
 	}
 	password, _ := reader.ReadString('\n')
-	_, _ = conn.Write([]byte("\r\nBRAS-PANCORANMAS-DPK#"))
 
+	// Recorded before the prompt goes out: the prompt is what lets the login
+	// return, and the test reads these fields as soon as it does.
 	f.mu.Lock()
 	f.negotiation = answers
 	f.username = strings.TrimSpace(username)
 	f.password = strings.TrimSpace(password)
 	f.mu.Unlock()
+
+	_, _ = conn.Write([]byte("\r\nBRAS-PANCORANMAS-DPK#"))
 }
 
 // Before this was handled the client read the negotiation bytes as though they
