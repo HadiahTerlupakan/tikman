@@ -99,10 +99,13 @@ SELECT add_retention_policy('router_flow_hourly', INTERVAL '2 years', if_not_exi
 
 -- Kept forever: years of planning data at one row per day per key. A refresh
 -- window must span at least two buckets, hence three days back to one.
+-- Days are WIB days: the operator reads "per hari" in WIB, and a continuous
+-- aggregate's definition cannot change once data has accumulated, so the zone
+-- is fixed here rather than corrected later.
 CREATE MATERIALIZED VIEW IF NOT EXISTS router_flow_daily
 WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT
-    time_bucket('1 day', time) AS bucket,
+    time_bucket('1 day', time, 'Asia/Jakarta') AS bucket,
     router_id,
     pop_interface_id,
     upstream_interface_id,

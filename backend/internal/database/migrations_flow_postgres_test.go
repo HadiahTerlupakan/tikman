@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -66,7 +67,8 @@ func TestFlowRetentionMatchesTheSpec(t *testing.T) {
 func TestFlowRollupsAddUpTheMinutes(t *testing.T) {
 	db := freshPostgres(t)
 	routerID, upstream := uuid.New(), uuid.New()
-	hour := time.Now().UTC().Add(-48 * time.Hour).Truncate(time.Hour)
+	// 01:00 WIB on the 12th: a UTC day bucket would file this under the 11th.
+	hour := time.Date(2026, 10, 11, 18, 0, 0, 0, time.UTC)
 	for i := 0; i < 3; i++ {
 		require.NoError(t, db.Exec(`INSERT INTO router_flow_minute
 			(time, router_id, upstream_interface_id, direction, asn, bytes, packets)
@@ -77,7 +79,7 @@ func TestFlowRollupsAddUpTheMinutes(t *testing.T) {
 	buckets := map[string]time.Time{
 		"router_flow_5min":   hour,
 		"router_flow_hourly": hour,
-		"router_flow_daily":  hour.Truncate(24 * time.Hour),
+		"router_flow_daily":  time.Date(2026, 10, 11, 17, 0, 0, 0, time.UTC),
 	}
 	for view, bucket := range buckets {
 		require.NoError(t, db.Exec("CALL refresh_continuous_aggregate('"+view+"', NULL, NULL)").Error, view)
@@ -145,4 +147,12 @@ func TestRoutedPrefixMustBeANetwork(t *testing.T) {
 		VALUES (?, ?, '203.0.113.70/27', ?, now())`, uuid.New(), routerID, interfaceID).Error
 
 	assert.Error(t, err)
+}
+
+// Startup runs AutoMigrate on every boot against tables the continuous
+// aggregates depend on; a refused ALTER would abort it.
+func TestAutoMigrateIsANoOpOnTheMigratedSchema(t *testing.T) {
+	db := freshPostgres(t)
+
+	require.NoError(t, models.AutoMigrate(db))
 }
