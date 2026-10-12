@@ -16,6 +16,8 @@ export interface RouterFormValues {
   apiPassword: string;
   apiPort: number;
   apiProtocol: RouterApiProtocol;
+  flowEnabled?: boolean;
+  flowSampling?: number;
 }
 
 /**

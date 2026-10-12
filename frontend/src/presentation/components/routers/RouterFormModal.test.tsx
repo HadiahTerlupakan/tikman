@@ -1,9 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { mikrotikRouter } from "@/test/mikrotikRouterFixture";
 import { RouterFormModal } from "./RouterFormModal";
 
 const testMutate = vi.fn();
 const createMutate = vi.fn();
+const updateMutate = vi.fn();
 
 vi.mock("@/application/hooks/useMikrotikRouters", () => ({
   useTestRouterConnection: () => ({
@@ -14,7 +16,10 @@ vi.mock("@/application/hooks/useMikrotikRouters", () => ({
     mutateAsync: createMutate,
     isPending: false,
   }),
-  useUpdateMikrotikRouter: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateMikrotikRouter: () => ({
+    mutateAsync: updateMutate,
+    isPending: false,
+  }),
 }));
 
 function portInput(): HTMLInputElement {
@@ -43,6 +48,7 @@ describe("RouterFormModal protocol", () => {
   beforeEach(() => {
     testMutate.mockReset();
     createMutate.mockReset();
+    updateMutate.mockReset();
   });
 
   it("moves the port to the protocol's default", async () => {
@@ -78,5 +84,28 @@ describe("RouterFormModal protocol", () => {
     await waitFor(() => expect(createMutate).toHaveBeenCalled());
     expect(createMutate.mock.calls[0][0]).toMatchObject({ apiProtocol: "api" });
     expect(createMutate.mock.calls[0][0].tlsFingerprint).toBeUndefined();
+  });
+
+  it("lets an admin turn on NetFlow with its sampling ratio when editing", async () => {
+    updateMutate.mockResolvedValue({});
+    render(<RouterFormModal router={mikrotikRouter()} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText("Kumpulkan NetFlow"));
+    fireEvent.change(screen.getByLabelText("Rasio sampling (1:N)"), {
+      target: { value: "512" },
+    });
+    fireEvent.click(screen.getByText("Simpan"));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalled());
+    expect(updateMutate.mock.calls[0][0].data).toMatchObject({
+      flowEnabled: true,
+      flowSampling: 512,
+    });
+  });
+
+  it("does not offer NetFlow while adding a router", () => {
+    render(<RouterFormModal onClose={vi.fn()} />);
+
+    expect(screen.queryByLabelText("Kumpulkan NetFlow")).toBeNull();
   });
 });

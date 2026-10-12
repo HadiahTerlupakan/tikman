@@ -1,3 +1,4 @@
+import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDestinationsTab";
 import { Card, Result, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
@@ -24,6 +25,11 @@ export function RouterDetailPage() {
             children: (
               <UpstreamTab routerId={router.id} apiStatus={router.apiStatus} />
             ),
+          },
+          {
+            key: "flows",
+            label: "Tujuan Trafik",
+            children: <FlowDestinationsTab routerId={router.id} />,
           },
           {
             key: "interfaces",

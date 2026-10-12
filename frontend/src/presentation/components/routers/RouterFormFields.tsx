@@ -1,4 +1,4 @@
-import { Alert, Form, Input, InputNumber, Radio } from "antd";
+import { Alert, Form, Input, InputNumber, Radio, Switch } from "antd";
 import type { RouterApiProtocol } from "@/domain/entities";
 
 const KEEP_STORED = "Kosongkan untuk tetap memakai yang tersimpan";
@@ -35,6 +35,30 @@ function ProtocolNotice() {
     );
   }
   return null;
+}
+
+// Only an existing router is offered NetFlow: the add flow is about reaching
+// the router at all, and flow collection is switched on once it is in place.
+function FlowFields() {
+  return (
+    <>
+      <Form.Item
+        name="flowEnabled"
+        label="Kumpulkan NetFlow"
+        valuePropName="checked"
+      >
+        <Switch />
+      </Form.Item>
+      <Form.Item
+        name="flowSampling"
+        label="Rasio sampling (1:N)"
+        rules={[{ required: true, type: "number", min: 1, max: 10000 }]}
+        extra="Harus sama dengan sampling di /ip traffic-flow router: N = (sampling-interval + sampling-space) / sampling-interval."
+      >
+        <InputNumber min={1} max={10000} />
+      </Form.Item>
+    </>
+  );
 }
 
 // Editing never shows the stored secrets, so an empty field means "unchanged"
@@ -87,6 +111,7 @@ export function RouterFormFields({ editing }: { editing: boolean }) {
       <Form.Item name="apiPort" label="Port API">
         <InputNumber min={1} max={65535} />
       </Form.Item>
+      {editing && <FlowFields />}
     </>
   );
 }

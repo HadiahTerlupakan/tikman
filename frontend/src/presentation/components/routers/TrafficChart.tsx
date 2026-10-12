@@ -19,6 +19,11 @@ const COLORS = [
   "#eb2f96",
   "#722ed1",
   "#13c2c2",
+  "#2f54eb",
+  "#a0d911",
+  "#faad14",
+  "#f5222d",
+  "#8c8c8c",
 ];
 const CHART_HEIGHT = 280;
 

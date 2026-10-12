@@ -88,3 +88,14 @@ export function flowStale(router: MikrotikRouter, nowMs: number): boolean {
   if (router.flowLastSeenAt === null) return true;
   return nowMs - Date.parse(router.flowLastSeenAt) > FLOW_STALE_MS;
 }
+
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3_600;
+const SECONDS_PER_DAY = 86_400;
+
+/** The step a summary's peak was measured over, in words. */
+export function peakWindowLabel(seconds: number): string {
+  if (seconds >= SECONDS_PER_DAY) return `${seconds / SECONDS_PER_DAY} hari`;
+  if (seconds >= SECONDS_PER_HOUR) return `${seconds / SECONDS_PER_HOUR} jam`;
+  return `${seconds / SECONDS_PER_MINUTE} menit`;
+}

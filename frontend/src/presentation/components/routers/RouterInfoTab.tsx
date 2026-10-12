@@ -9,6 +9,7 @@ import {
   useRefreshRouter,
   useTrustRouterCertificate,
 } from "@/application/hooks/useMikrotikRouters";
+import { RouterFlowStatus } from "./RouterFlowStatus";
 import { RouterFormModal } from "./RouterFormModal";
 import { PROTOCOL_LABEL } from "./routerProtocol";
 import { RouterStatusTag } from "./RouterStatusTag";
@@ -85,6 +86,7 @@ export function RouterInfoTab({ router }: { router: MikrotikRouter }) {
           {router.tlsFingerprint}
         </Descriptions.Item>
       </Descriptions>
+      <RouterFlowStatus router={router} />
       {canOperate && (
         <Space>
           <Button

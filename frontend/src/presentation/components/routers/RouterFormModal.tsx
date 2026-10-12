@@ -29,6 +29,7 @@ import {
 } from "./useRouterTestSteps";
 
 const DEFAULT_SNMP_PORT = 161;
+const DEFAULT_FLOW_SAMPLING = 100;
 
 interface Props {
   router?: MikrotikRouter;
@@ -144,6 +145,8 @@ function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
     apiUsername: router?.apiUsername,
     apiProtocol,
     apiPort: router?.apiPort ?? PROTOCOL_DEFAULT_PORT[apiProtocol],
+    flowEnabled: router?.flowEnabled ?? false,
+    flowSampling: router?.flowSampling ?? DEFAULT_FLOW_SAMPLING,
   };
 }
 

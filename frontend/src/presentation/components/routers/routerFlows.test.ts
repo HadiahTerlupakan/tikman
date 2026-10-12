@@ -4,6 +4,7 @@ import {
   asnLabel,
   flowChartRows,
   flowStale,
+  peakWindowLabel,
   popLabel,
   topIpsAvailable,
 } from "./routerFlows";
@@ -143,5 +144,14 @@ describe("flowStale", () => {
     expect(
       flowStale(router({ flowLastSeenAt: minutesAgo(6) }), NOW.getTime()),
     ).toBe(true);
+  });
+});
+
+describe("peakWindowLabel", () => {
+  it("names the step the peak was measured over", () => {
+    expect(peakWindowLabel(60)).toBe("1 menit");
+    expect(peakWindowLabel(300)).toBe("5 menit");
+    expect(peakWindowLabel(3_600)).toBe("1 jam");
+    expect(peakWindowLabel(86_400)).toBe("1 hari");
   });
 });

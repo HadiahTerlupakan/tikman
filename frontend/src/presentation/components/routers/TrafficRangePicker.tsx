@@ -5,9 +5,15 @@ import { resolveTrafficRange } from "@/application/hooks/trafficRange";
 
 const { RangePicker } = DatePicker;
 
+/** A preset range, in hours back from now. */
+export interface RangePreset {
+  label: string;
+  value: number;
+}
+
 // Presets live outside the RangePicker because its own presets arrive through
 // onChange exactly like a manual pick, and only a preset should follow the clock.
-const presets = [
+const DEFAULT_PRESETS: RangePreset[] = [
   { label: "6 jam", value: 6 },
   { label: "24 jam", value: 24 },
   { label: "7 hari", value: 7 * 24 },
@@ -17,9 +23,14 @@ const presets = [
 interface Props {
   value: TrafficRange;
   onChange: (range: TrafficRange) => void;
+  presets?: RangePreset[];
 }
 
-export function TrafficRangePicker({ value, onChange }: Props) {
+export function TrafficRangePicker({
+  value,
+  onChange,
+  presets = DEFAULT_PRESETS,
+}: Props) {
   const shown = resolveTrafficRange(value);
   return (
     <Space wrap>
