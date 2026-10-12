@@ -71,6 +71,21 @@ export const API_ENDPOINTS = {
   WIREGUARD_SUGGESTED_SUBNETS: (siteId: string) =>
     `/api/v1/wireguard/sites/${siteId}/suggested-subnets`,
 
+  // MikroTik border routers
+  MIKROTIK_ROUTERS: "/api/v1/routers",
+  MIKROTIK_ROUTER_BY_ID: (id: string) => `/api/v1/routers/${id}`,
+  MIKROTIK_ROUTER_TEST: "/api/v1/routers/test-connection",
+  MIKROTIK_ROUTER_REFRESH: (id: string) => `/api/v1/routers/${id}/refresh`,
+  MIKROTIK_ROUTER_TRUST: (id: string) =>
+    `/api/v1/routers/${id}/trust-certificate`,
+  MIKROTIK_ROUTER_INTERFACES: (id: string) =>
+    `/api/v1/routers/${id}/interfaces`,
+  MIKROTIK_ROUTER_TRAFFIC: (id: string, interfaceId: string) =>
+    `/api/v1/routers/${id}/interfaces/${interfaceId}/traffic`,
+  MIKROTIK_ROUTER_SESSIONS: (id: string) =>
+    `/api/v1/routers/${id}/bgp/sessions`,
+  MIKROTIK_ROUTER_EVENTS: (id: string) => `/api/v1/routers/${id}/bgp/events`,
+
   // Fibre plant: where a subscriber's drop lands. The cabinet/feed/route
   // endpoints that used to live here (ODCS, ODPS, ODC_FEED_LIST,
   // ODC_FEED_ROUTE, ODP_ROUTE) were removed along with their last frontend

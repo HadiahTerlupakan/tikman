@@ -20,3 +20,4 @@ export * from "./CsPerformance";
 export * from "./WaAccount";
 export * from "./WaChannel";
 export * from "./Mapping";
+export * from "./MikrotikRouter";

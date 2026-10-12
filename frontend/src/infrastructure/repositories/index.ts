@@ -13,3 +13,4 @@ export * from "./CsRepository";
 export * from "./CsPerformanceRepository";
 export * from "./PushRepository";
 export * from "./MappingRepository";
+export * from "./MikrotikRouterRepository";
