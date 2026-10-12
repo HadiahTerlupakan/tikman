@@ -13,10 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const asnFixture = "192.0.2.0\t192.0.2.255\t64496\tZZ\tEXAMPLE-NET-A\n" +
+const asnFixture = "192.0.2.0\t192.0.2.63\t64496\tZZ\tEXAMPLE-NET-A\n" +
+	"192.0.2.128\t192.0.2.255\t64496\tZZ\tEXAMPLE-NET-A\n" +
 	"198.51.100.0\t198.51.100.127\t64497\tZZ\tEXAMPLE-NET-B\n" +
 	"198.51.100.128\t198.51.100.255\t0\tNone\tNot routed\n" +
-	"203.0.113.0\t203.0.113.255\t64498\tZZ\tEXAMPLE-NET-C\n"
+	"203.0.113.0\t203.0.113.127\t64498\tZZ\tEXAMPLE-NET-C\n"
 
 func gzipped(t *testing.T, text string) []byte {
 	t.Helper()
@@ -40,8 +41,8 @@ func TestLookupFindsTheRangeHoldingAnAddress(t *testing.T) {
 		"198.51.100.128": 0, // announced by nobody
 		"203.0.113.77":   64498,
 		"127.0.0.1":      0, // before the first range
-		"198.51.99.255":  0, // in the gap between two ranges
-		"203.0.114.0":    0, // above the last range
+		"192.0.2.100":    0, // in the gap between two ranges
+		"203.0.113.200":  0, // above the last range
 		"2001:db8::1":    0, // IPv4 only
 	}
 	for ip, want := range cases {
