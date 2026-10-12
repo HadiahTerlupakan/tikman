@@ -60,6 +60,10 @@ go test -v -run TestFunctionName ./internal/services/
 - `cmd/seed-events/main.go` — development event seeding utility
 - `cmd/probe_hsgq/main.go` — device probe utility
 - `cmd/snmpbench/main.go` — measures what an OLT's SNMP agent will serve (GETNEXT vs GETBULK at several repetition counts); must run from inside the WireGuard namespace, so it ships in the worker image
+- `cmd/flowd/main.go` — IPFIX collector for the border routers' traffic
+  destinations (per POP, upstream and destination AS). Its own container on
+  UDP 2055, not in `api`'s namespace; built from `Dockerfile.worker`; keeps the
+  iptoasn dataset in the `asn_data` volume
 
 **CI workflow:** `.github/workflows/ci.yml`
 - Backend: tests, race detector, coverage, `go vet`, `gofmt`, `go mod verify`, and API/worker builds
@@ -570,6 +574,11 @@ the deploy SSH user, and never in the repository. `worker` and `trapd` stop
 first because they share `api`'s network namespace and recreating `api` under
 them fails.
 
+`flowd` comes along with `up -d --build`. It does not share `api`'s namespace,
+so it can be recreated alone with `up -d --no-deps --force-recreate flowd`; it
+shows in `docker ps` as `tikman-flowd`. Its `2055/udp` must be open in the VPS
+provider's firewall, ideally only to the border routers.
+
 **Check before deploying:** the `wireguard` kernel module is loaded on the host,
 and `/opt/tikman/.env` is readable under sudo. A kernel upgrade that leaves the
 module unavailable stops `wg0` from being created with no code having changed.
@@ -582,8 +591,8 @@ docker exec tikman-api wget -qO- http://localhost:8080/health
 ```
 
 Routes should answer **401** — present and auth-gated — not 404. Check
-`/api/v1/mapping/nodes`, `/api/v1/wireguard/server` and `/api/v1/cs/conversations`
-at least.
+`/api/v1/mapping/nodes`, `/api/v1/wireguard/server`, `/api/v1/cs/conversations`
+and `/api/v1/routers/x/flows/status` at least.
 
 Two things that read as a broken deploy and are not:
 

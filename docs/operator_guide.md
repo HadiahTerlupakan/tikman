@@ -407,3 +407,70 @@ Saat menambah router, tombol **Simpan** baru aktif setelah kedua langkah lulus
 (untuk API, satu langkah sudah cukup); mengubah router yang sudah ada tidak
 memakai uji ini. Kalau sertifikat router diganti, TikMan berhenti membaca BGP
 dan menampilkan fingerprint baru di tab Router sampai Admin menerimanya.
+
+### Tujuan trafik (NetFlow)
+
+Tab **Tujuan Trafik** menunjukkan ke mana trafik pelanggan pergi —
+organisasi/AS tujuan, dari POP mana, lewat upstream mana, ke arah mana — dari
+15 menit terakhir sampai setahun, atau rentang bebas. Datanya IPFIX yang
+dikirim router border ke service `flowd` di VPS (UDP 2055).
+
+Setiap POP me-NAT pelanggannya sendiri, jadi di border yang terlihat adalah
+IP publik POP, bukan IP pelanggan: data ini per POP, tidak per pelanggan.
+
+#### Mengaktifkan NetFlow
+
+Di router, mulai dengan sampling 1:100 (ganti `IP_VPS` dan `IP_ROUTER`):
+
+```
+/ip traffic-flow set enabled=yes interfaces=all active-flow-timeout=1m inactive-flow-timeout=15s packet-sampling=yes sampling-interval=1 sampling-space=99
+/ip traffic-flow target add dst-address=IP_VPS port=2055 version=ipfix src-address=IP_ROUTER
+```
+
+- `src-address` harus sama dengan IP router di TikMan. `flowd` mengenali
+  router dari alamat pengirim dan membuang paket dari alamat lain; karena itu
+  router harus didaftarkan dengan IP, bukan hostname.
+- `active-flow-timeout=1m`: tanpa ini RouterOS mengirim flow yang panjang
+  setelah 30 menit sekaligus, dan grafik menampilkannya sebagai lonjakan.
+- Rasio sampling = (sampling-interval + sampling-space) / sampling-interval;
+  contoh di atas 1:100. Pantau CPU router setelah mengaktifkannya, dan naikkan
+  rasionya bila CPU tinggi.
+
+Di TikMan (Admin): buka router → **Ubah** → nyalakan **Kumpulkan NetFlow** dan
+isi **Rasio sampling (1:N)** dengan N yang sama persis dengan router. Rasio
+yang berbeda membuat setiap angka meleset sebesar selisihnya.
+
+Di VPS: buka `2055/udp` di firewall provider, dibatasi ke IP router bila
+memungkinkan.
+
+IPFIX lewat UDP tidak mengautentikasi pengirim. Host yang bisa memalsukan
+alamat sumber router dapat menyuntikkan atau mengubah angka flow (dibatasi per
+menit), atau sebentar mengganggu pembacaan sampai router mengirim ulang
+template-nya. Karena itu data ini untuk pemantauan dan perencanaan, bukan
+penagihan. Jalur ekspor yang terautentikasi, misalnya lewat tunnel, akan
+menjadi perubahan tersendiri.
+
+#### Memastikan data masuk
+
+Tab **Router** → bagian **NetFlow** menampilkan **Flow terakhir diterima**
+(diperbarui tiap menit) dan **Dataset ASN** yang dipakai. Bila NetFlow aktif
+tetapi lebih dari 5 menit tidak ada flow, muncul peringatan. Cek kewajaran:
+total download di Tujuan Trafik selama satu jam kira-kira sama dengan grafik
+download upstream di tab **Upstream & BGP**; selisih besar hampir selalu
+berarti rasio sampling di TikMan tidak sama dengan di router. Untuk
+membandingkan satu hari penuh, bandingkan total upstream hari itu di Tujuan
+Trafik dengan grafik SNMP upstream untuk hari yang sama.
+
+#### Membaca datanya
+
+- POP dikenali dari alamat di interface POP dan dari rute statis ke router POP,
+  keduanya diambil saat discovery (tiap 6 jam, atau segera lewat **Refresh
+  discovery**). Blok baru dikenali paling lama 5 menit setelah discovery;
+  sebelum itu trafiknya masuk **Lainnya (di luar blok POP)**.
+- Upstream adalah interface yang membawa sesi BGP.
+- **Lainnya** di daftar tujuan berarti AS di luar 20 teratas per POP per
+  menit, atau alamat yang tidak ada di dataset ASN.
+- IP tujuan hanya disimpan 7 hari. Ringkasan per AS disimpan per menit selama
+  7 hari, per 5 menit 90 hari, per jam 2 tahun, dan per hari selamanya.
+- Dataset ASN dari iptoasn.com diunduh ulang tiap 24 jam; bila gagal, dataset
+  sebelumnya tetap dipakai.
