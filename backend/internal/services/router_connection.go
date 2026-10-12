@@ -27,13 +27,14 @@ type ConnectionTestInput struct {
 	Host           string
 	SNMPPort       int
 	SNMPCommunity  string
+	APIProtocol    string
 	APIPort        int
 	APIUsername    string
 	APIPassword    string
 	TLSFingerprint string
 }
 
-// ConnectionTestResult reports SNMP and REST separately: either can work while
+// ConnectionTestResult reports SNMP and the API separately: either can work while
 // the other does not, and the operator fixes them in different places.
 type ConnectionTestResult struct {
 	SNMPError   string `json:"snmp_error,omitempty"`
@@ -43,11 +44,11 @@ type ConnectionTestResult struct {
 	Version     string `json:"version,omitempty"`
 }
 
-// TestConnection runs in two steps. Without a fingerprint it only reads the
-// certificate the router presents, so the operator can compare it with Winbox
-// before any password is sent. With the confirmed fingerprint it pins REST to
-// that certificate and reads the board. Splitting the steps keeps a
-// man-in-the-middle at add time from receiving the API password.
+// TestConnection checks SNMP and the API. Over TLS it runs in two steps:
+// without a fingerprint it only reads the certificate the router presents, so
+// the operator can compare it with the router before any password is sent;
+// with the confirmed fingerprint it pins to that certificate and reads the
+// board. Plain api has no certificate, so it logs in at once.
 func (s *RouterService) TestConnection(in ConnectionTestInput) ConnectionTestResult {
 	var result ConnectionTestResult
 	snmpPort := portOr(in.SNMPPort, DefaultRouterSNMPPort)
@@ -55,32 +56,40 @@ func (s *RouterService) TestConnection(in ConnectionTestInput) ConnectionTestRes
 		result.SNMPError = err.Error()
 	}
 
-	apiPort := portOr(in.APIPort, DefaultRouterAPIPort)
+	protocol := routerProtocol(in.APIProtocol)
+	if !protocol.Valid() {
+		result.APIError = errProtocolText
+		return result
+	}
+	cfg := mikrotik.Config{Protocol: protocol, Host: in.Host, Port: portOr(in.APIPort, protocol.DefaultPort()),
+		Username: in.APIUsername, Password: in.APIPassword}
+	if !protocol.UsesTLS() {
+		return readBoard(result, cfg)
+	}
 	if in.TLSFingerprint == "" {
-		fingerprint, err := mikrotik.FetchFingerprint(in.Host, apiPort)
+		fingerprint, err := mikrotik.FetchFingerprint(cfg.Host, cfg.Port)
 		if err != nil {
 			result.APIError = err.Error()
 		}
 		result.Fingerprint = fingerprint
 		return result
 	}
-	return s.readBoard(result, in, apiPort)
-}
-
-func (s *RouterService) readBoard(result ConnectionTestResult, in ConnectionTestInput, apiPort int) ConnectionTestResult {
 	if !validFingerprint(in.TLSFingerprint) {
 		result.APIError = "tls_fingerprint must be the 64-character SHA-256 the connection test returned"
 		return result
 	}
-	fingerprint := strings.ToLower(in.TLSFingerprint)
-	result.Fingerprint = fingerprint
+	cfg.Fingerprint = strings.ToLower(in.TLSFingerprint)
+	result.Fingerprint = cfg.Fingerprint
+	return readBoard(result, cfg)
+}
 
-	client, err := mikrotik.Open(mikrotik.Config{Protocol: mikrotik.ProtocolREST, Host: in.Host, Port: apiPort,
-		Username: in.APIUsername, Password: in.APIPassword, Fingerprint: fingerprint})
+func readBoard(result ConnectionTestResult, cfg mikrotik.Config) ConnectionTestResult {
+	client, err := mikrotik.Open(cfg)
 	if err != nil {
 		result.APIError = err.Error()
 		return result
 	}
+	defer func() { _ = client.Close() }()
 	resource, err := client.SystemResource()
 	if err != nil {
 		result.APIError = err.Error()

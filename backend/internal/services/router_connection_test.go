@@ -2,12 +2,14 @@ package services
 
 import (
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,4 +125,63 @@ func TestTrustCertificateRefusesWhenNothingChanged(t *testing.T) {
 
 	_, err = service.TrustCertificate(router.ID, testFingerprint)
 	assert.True(t, errors.Is(err, ErrFingerprintMismatch))
+}
+
+// plainAPIListener records the first bytes a client sends, then hangs up.
+func plainAPIListener(t *testing.T) (int, <-chan string) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	first := make(chan string, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		buf := make([]byte, 64)
+		n, _ := io.ReadAtLeast(conn, buf, 6)
+		first <- string(buf[:n])
+	}()
+	return listener.Addr().(*net.TCPAddr).Port, first
+}
+
+// Plain api has no certificate to confirm, so the test logs in at once and
+// comes back without a fingerprint.
+func TestConnectionTestOverPlainAPILogsInWithoutAFingerprint(t *testing.T) {
+	port, first := plainAPIListener(t)
+	service, _ := newRouterServiceForTest(t)
+
+	result := service.TestConnection(ConnectionTestInput{
+		Host: "127.0.0.1", SNMPPort: 1, SNMPCommunity: "x", APIProtocol: "api", APIPort: port,
+		APIUsername: "u", APIPassword: "p",
+	})
+
+	assert.Contains(t, <-first, "/login")
+	assert.Empty(t, result.Fingerprint)
+	assert.NotEmpty(t, result.APIError, "the listener hangs up instead of answering")
+}
+
+func TestConnectionTestOverAPISSLStartsWithTheFingerprint(t *testing.T) {
+	server, hits, port := fakeRouterTLSServer(t)
+	service, _ := newRouterServiceForTest(t)
+
+	result := service.TestConnection(ConnectionTestInput{
+		Host: "127.0.0.1", SNMPPort: 1, SNMPCommunity: "x", APIProtocol: "api-ssl", APIPort: port,
+		APIUsername: "u", APIPassword: "p",
+	})
+
+	assert.Equal(t, mikrotik.Fingerprint(server.Certificate().Raw), result.Fingerprint)
+	assert.Empty(t, result.APIError)
+	assert.Zero(t, hits.Load())
+}
+
+func TestConnectionTestRejectsAnUnknownProtocol(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+
+	result := service.TestConnection(ConnectionTestInput{Host: "127.0.0.1", SNMPPort: 1, APIProtocol: "telnet"})
+
+	assert.Contains(t, result.APIError, "api_protocol")
 }

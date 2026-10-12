@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -115,3 +116,12 @@ func TestDiscoverRematchesBGPSessionsToInterfaces(t *testing.T) {
 }
 
 func nowForTest() time.Time { return time.Date(2026, 10, 12, 3, 0, 0, 0, time.UTC) }
+
+func TestDiscoverClosesTheConnectionOnError(t *testing.T) {
+	f := newPollFixture(t)
+	f.api.err = errors.New("interface/print: read: connection reset")
+
+	require.Error(t, f.service.Discover(f.router))
+
+	assert.Equal(t, 1, f.api.closed)
+}

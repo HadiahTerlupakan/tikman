@@ -62,6 +62,9 @@ type MikrotikRouter struct {
 	APIUsername   string `gorm:"type:varchar(64);not null" json:"api_username"`
 	APIPassword   string `gorm:"type:text;not null" json:"-"`
 	APIPort       int    `gorm:"not null" json:"api_port"`
+	// APIProtocol is how BGP and inventory are read: "rest", "api-ssl" or
+	// "api". Routers added before the choice existed are REST.
+	APIProtocol string `gorm:"type:varchar(16);not null;default:'rest'" json:"api_protocol"`
 	// No default on Enabled: GORM replaces a false zero value with the column
 	// default on insert, which would make "add disabled" impossible.
 	Enabled bool `gorm:"not null" json:"enabled"`

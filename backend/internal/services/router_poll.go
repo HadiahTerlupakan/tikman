@@ -19,9 +19,10 @@ import (
 // answering.
 const snmpWalkBudget = 10 * time.Second
 
-// RouterAPI is what polling reads from a router's REST API. *mikrotik.Client
-// satisfies it; tests pass a fake.
+// RouterAPI is what polling reads from a router. *mikrotik.Client satisfies
+// it; tests pass a fake.
 type RouterAPI interface {
+	Close() error
 	SystemResource() (mikrotik.SystemResource, error)
 	Clock() (mikrotik.Clock, error)
 	Interfaces() ([]mikrotik.Interface, error)
@@ -39,7 +40,7 @@ type IfCounterReader func(ctx context.Context, host string, port int, community 
 type RouterPollService struct {
 	db               *gorm.DB
 	routers          *RouterService
-	newAPI           func(router *models.MikrotikRouter, password string) RouterAPI
+	newAPI           func(router *models.MikrotikRouter, password string) (RouterAPI, error)
 	readCounters     IfCounterReader
 	fetchFingerprint func(host string, port int) (string, error)
 }
@@ -47,16 +48,25 @@ type RouterPollService struct {
 // NewRouterPollService creates a poll service that talks to real routers.
 func NewRouterPollService(db *gorm.DB, routers *RouterService) *RouterPollService {
 	return &RouterPollService{
-		db:      db,
-		routers: routers,
-		newAPI: func(router *models.MikrotikRouter, password string) RouterAPI {
-			client, _ := mikrotik.Open(mikrotik.Config{Protocol: mikrotik.ProtocolREST, Host: router.Host,
-				Port: router.APIPort, Username: router.APIUsername, Password: password, Fingerprint: router.TLSFingerprint})
-			return client
-		},
+		db:               db,
+		routers:          routers,
+		newAPI:           openRouterAPI,
 		readCounters:     connectivity.WalkIfCounters,
 		fetchFingerprint: mikrotik.FetchFingerprint,
 	}
+}
+
+// openRouterAPI returns a nil interface on failure, not a nil *Client inside a
+// non-nil interface, so callers can trust err alone.
+func openRouterAPI(router *models.MikrotikRouter, password string) (RouterAPI, error) {
+	client, err := mikrotik.Open(mikrotik.Config{
+		Protocol: routerProtocol(router.APIProtocol), Host: router.Host, Port: router.APIPort,
+		Username: router.APIUsername, Password: password, Fingerprint: router.TLSFingerprint,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 // PollInterfaces reads every interface's counters and records a rate for each
@@ -140,6 +150,7 @@ func (s *RouterPollService) PollBGP(router *models.MikrotikRouter, now time.Time
 	if err != nil {
 		return err
 	}
+	defer func() { _ = api.Close() }()
 	snapshot, err := readBGPSnapshot(api)
 	if err != nil {
 		return s.recordAPIError(router, err)
@@ -232,15 +243,21 @@ func resourceUpdates(r mikrotik.SystemResource) map[string]interface{} {
 	return updates
 }
 
+// apiFor opens the router's API. Failing to open (refused login, wrong pin,
+// unreachable) is the router's API error and is recorded as one.
 func (s *RouterPollService) apiFor(router *models.MikrotikRouter) (RouterAPI, error) {
 	_, password, err := s.routers.Secrets(router)
 	if err != nil {
 		return nil, err
 	}
-	return s.newAPI(router, password), nil
+	api, err := s.newAPI(router, password)
+	if err != nil {
+		return nil, s.recordAPIError(router, err)
+	}
+	return api, nil
 }
 
-// recordAPIError stores why REST failed and returns the cause for the job to
+// recordAPIError stores why the API failed and returns the cause for the job to
 // fail on. A changed certificate also stores what the router presents now, so
 // an admin can see and accept it.
 func (s *RouterPollService) recordAPIError(router *models.MikrotikRouter, cause error) error {

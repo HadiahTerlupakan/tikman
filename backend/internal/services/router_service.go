@@ -7,17 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/mikrotik"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/utils"
 	"gorm.io/gorm"
 )
 
-// Router ports used when none is given. REST sits on 8443 because RouterOS 7's
-// reverse-proxy commonly holds 443.
-const (
-	DefaultRouterSNMPPort = 161
-	DefaultRouterAPIPort  = 8443
-)
+// DefaultRouterSNMPPort is the SNMP port used when none is given.
+const DefaultRouterSNMPPort = 161
 
 // fingerprintLength is a hex SHA-256.
 const fingerprintLength = 64
@@ -43,6 +40,7 @@ type RouterInput struct {
 	SNMPPort       int
 	APIUsername    string
 	APIPassword    string
+	APIProtocol    string
 	APIPort        int
 	TLSFingerprint string
 }
@@ -56,6 +54,7 @@ type RouterUpdate struct {
 	APIUsername   *string
 	APIPassword   *string
 	SNMPPort      *int
+	APIProtocol   *string
 	APIPort       *int
 	SiteID        *uuid.UUID
 	ClearSite     bool
@@ -77,11 +76,17 @@ func (s *RouterService) Create(in RouterInput) (*models.MikrotikRouter, error) {
 		return nil, fmt.Errorf("encrypt password: %w", err)
 	}
 
+	protocol := routerProtocol(in.APIProtocol)
+	fingerprint := ""
+	if protocol.UsesTLS() {
+		fingerprint = strings.ToLower(in.TLSFingerprint)
+	}
+
 	router := &models.MikrotikRouter{
 		Name: strings.TrimSpace(in.Name), Host: strings.TrimSpace(in.Host), SiteID: in.SiteID,
 		SNMPCommunity: community, SNMPPort: portOr(in.SNMPPort, DefaultRouterSNMPPort),
-		APIUsername: in.APIUsername, APIPassword: password, APIPort: portOr(in.APIPort, DefaultRouterAPIPort),
-		TLSFingerprint: strings.ToLower(in.TLSFingerprint), Enabled: true,
+		APIUsername: in.APIUsername, APIPassword: password, APIProtocol: string(protocol),
+		APIPort: portOr(in.APIPort, protocol.DefaultPort()), TLSFingerprint: fingerprint, Enabled: true,
 		Status: models.RouterStatusUnknown, APIStatus: models.RouterAPIStatusUnknown,
 	}
 	err = s.db.Transaction(func(tx *gorm.DB) error {
@@ -106,7 +111,19 @@ func createRouterJobs(tx *gorm.DB, routerID uuid.UUID) error {
 	return nil
 }
 
+// routerProtocol reads a submitted or stored protocol. Empty is REST, the only
+// protocol before the choice existed.
+func routerProtocol(value string) mikrotik.Protocol {
+	if value == "" {
+		return mikrotik.ProtocolREST
+	}
+	return mikrotik.Protocol(value)
+}
+
+const errProtocolText = "api_protocol must be rest, api-ssl or api"
+
 func validateRouterInput(in RouterInput) error {
+	protocol := routerProtocol(in.APIProtocol)
 	switch {
 	case strings.TrimSpace(in.Name) == "":
 		return fmt.Errorf("%w: name is required", ErrValidation)
@@ -116,7 +133,9 @@ func validateRouterInput(in RouterInput) error {
 		return fmt.Errorf("%w: SNMP community is required", ErrValidation)
 	case in.APIUsername == "" || in.APIPassword == "":
 		return fmt.Errorf("%w: API username and password are required", ErrValidation)
-	case !validFingerprint(in.TLSFingerprint):
+	case !protocol.Valid():
+		return fmt.Errorf("%w: %s", ErrValidation, errProtocolText)
+	case protocol.UsesTLS() && !validFingerprint(in.TLSFingerprint):
 		return fmt.Errorf("%w: tls_fingerprint must be the SHA-256 the connection test returned", ErrValidation)
 	}
 	return nil
@@ -167,6 +186,12 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 			return nil, fmt.Errorf("%w: host is required", ErrValidation)
 		}
 		updates["host"] = strings.TrimSpace(*upd.Host)
+	}
+	if upd.APIProtocol != nil {
+		if !mikrotik.Protocol(*upd.APIProtocol).Valid() {
+			return nil, fmt.Errorf("%w: %s", ErrValidation, errProtocolText)
+		}
+		updates["api_protocol"] = *upd.APIProtocol
 	}
 	setIfGiven(updates, "api_username", upd.APIUsername)
 	setIfGiven(updates, "snmp_port", upd.SNMPPort)

@@ -28,6 +28,7 @@ func (s *RouterPollService) Discover(router *models.MikrotikRouter) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = api.Close() }()
 	inventory, err := readInventory(api)
 	if err != nil {
 		return s.recordAPIError(router, err)

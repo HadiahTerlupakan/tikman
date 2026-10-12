@@ -101,3 +101,37 @@ func TestRouterInterfaceMetricsIsAHypertableWithRollups(t *testing.T) {
 		AND NOT materialized_only`).Scan(&realTime).Error)
 	assert.EqualValues(t, 2, realTime, "both rollups answer up to the latest sample")
 }
+
+func insertRouterRow(db *gorm.DB, protocolColumn bool, protocol string) (uuid.UUID, error) {
+	id := uuid.New()
+	columns := "id, name, host, snmp_community, snmp_port, api_username, api_password, api_port, enabled, tls_fingerprint, status, api_status, created_at, updated_at"
+	values := "?, ?, '192.0.2.1', 'x', 161, 'u', 'p', 8728, true, '', 'unknown', 'unknown', now(), now()"
+	args := []interface{}{id, "router-" + id.String()}
+	if protocolColumn {
+		columns += ", api_protocol"
+		values += ", ?"
+		args = append(args, protocol)
+	}
+	return id, db.Exec("INSERT INTO mikrotik_routers ("+columns+") VALUES ("+values+")", args...).Error
+}
+
+func TestDatabaseRefusesAnUnknownRouterProtocol(t *testing.T) {
+	db := freshPostgres(t)
+	for _, protocol := range []string{"rest", "api-ssl", "api"} {
+		_, err := insertRouterRow(db, true, protocol)
+		require.NoError(t, err, protocol)
+	}
+	_, err := insertRouterRow(db, true, "telnet")
+	assert.Error(t, err)
+}
+
+// Routers added before the choice existed were all read over REST.
+func TestRoutersWithoutAProtocolReadAsREST(t *testing.T) {
+	db := freshPostgres(t)
+	id, err := insertRouterRow(db, false, "")
+	require.NoError(t, err)
+
+	var protocol string
+	require.NoError(t, db.Raw("SELECT api_protocol FROM mikrotik_routers WHERE id = ?", id).Scan(&protocol).Error)
+	assert.Equal(t, "rest", protocol)
+}

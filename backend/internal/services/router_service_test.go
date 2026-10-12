@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/mikrotik"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"gorm.io/gorm"
 )
@@ -40,7 +41,7 @@ func TestCreateRouterEncryptsSecretsAndSchedulesEveryTier(t *testing.T) {
 	assert.NotEqual(t, "community-secret", stored.SNMPCommunity)
 	assert.NotEqual(t, "password-secret", stored.APIPassword)
 	assert.Equal(t, DefaultRouterSNMPPort, stored.SNMPPort)
-	assert.Equal(t, DefaultRouterAPIPort, stored.APIPort)
+	assert.Equal(t, mikrotik.ProtocolREST.DefaultPort(), stored.APIPort)
 	assert.True(t, stored.Enabled)
 	assert.Equal(t, models.RouterStatusUnknown, stored.Status)
 
@@ -130,4 +131,59 @@ func TestListRoutersIsOrderedByName(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, routers, 2)
 	assert.Equal(t, "Alpha", routers[0].Name)
+}
+
+func TestCreateRouterDefaultsToRESTAndPinsTheFingerprint(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+
+	router, err := service.Create(validRouterInput())
+
+	require.NoError(t, err)
+	assert.Equal(t, "rest", router.APIProtocol)
+	assert.Equal(t, testFingerprint, router.TLSFingerprint)
+}
+
+func TestCreateAPIRouterNeedsNoFingerprintAndStoresNone(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	in := validRouterInput()
+	in.APIProtocol, in.TLSFingerprint = "api", testFingerprint
+
+	router, err := service.Create(in)
+
+	require.NoError(t, err)
+	assert.Equal(t, "api", router.APIProtocol)
+	assert.Equal(t, 8728, router.APIPort)
+	assert.Empty(t, router.TLSFingerprint, "plain api has no certificate to pin")
+}
+
+func TestCreateRouterRefusesWhatItCannotRead(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	cases := map[string]func(*RouterInput){
+		"unknown protocol":            func(in *RouterInput) { in.APIProtocol = "telnet" },
+		"api-ssl without fingerprint": func(in *RouterInput) { in.APIProtocol, in.TLSFingerprint = "api-ssl", "" },
+		"rest without fingerprint":    func(in *RouterInput) { in.TLSFingerprint = "" },
+	}
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			in := validRouterInput()
+			change(&in)
+			_, err := service.Create(in)
+			assert.ErrorIs(t, err, ErrValidation)
+		})
+	}
+}
+
+func TestUpdateRouterChangesItsProtocol(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+
+	protocol := "api-ssl"
+	updated, err := service.Update(router.ID, RouterUpdate{APIProtocol: &protocol})
+	require.NoError(t, err)
+	assert.Equal(t, "api-ssl", updated.APIProtocol)
+
+	bad := "telnet"
+	_, err = service.Update(router.ID, RouterUpdate{APIProtocol: &bad})
+	assert.ErrorIs(t, err, ErrValidation)
 }

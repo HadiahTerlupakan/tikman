@@ -24,7 +24,10 @@ type fakeRouterAPI struct {
 	connections []mikrotik.BGPConnection
 	sessions    []mikrotik.BGPSession
 	err         error
+	closed      int
 }
+
+func (f *fakeRouterAPI) Close() error { f.closed++; return nil }
 
 func (f *fakeRouterAPI) SystemResource() (mikrotik.SystemResource, error) { return f.resource, f.err }
 func (f *fakeRouterAPI) Clock() (mikrotik.Clock, error)                   { return f.clock, f.err }
@@ -43,6 +46,7 @@ type pollFixture struct {
 	api      *fakeRouterAPI
 	counters []connectivity.IfCounters
 	snmpErr  error
+	openErr  error
 }
 
 func newPollFixture(t *testing.T) *pollFixture {
@@ -55,7 +59,12 @@ func newPollFixture(t *testing.T) *pollFixture {
 	f.service = &RouterPollService{
 		db:      db,
 		routers: routers,
-		newAPI:  func(*models.MikrotikRouter, string) RouterAPI { return f.api },
+		newAPI: func(*models.MikrotikRouter, string) (RouterAPI, error) {
+			if f.openErr != nil {
+				return nil, f.openErr
+			}
+			return f.api, nil
+		},
 		readCounters: func(context.Context, string, int, string) ([]connectivity.IfCounters, error) {
 			return f.counters, f.snmpErr
 		},
@@ -242,4 +251,28 @@ func TestPollBGPRejectsAnUnreadableClockOffset(t *testing.T) {
 	f.api.connections = borderConnections()
 
 	assert.Error(t, f.service.PollBGP(f.router, time.Now()), "guessing UTC would shift every event by hours")
+}
+
+func TestPollBGPClosesTheConnection(t *testing.T) {
+	f := newPollFixture(t)
+
+	require.NoError(t, f.service.PollBGP(f.router, time.Now()))
+
+	assert.Equal(t, 1, f.api.closed)
+}
+
+// A refused login or a dropped session is an API error on the router row, not
+// a crash, and the next poll opens a fresh connection.
+func TestPollBGPRecordsAFailedOpen(t *testing.T) {
+	f := newPollFixture(t)
+	f.openErr = mikrotik.ErrUnauthorized
+
+	err := f.service.PollBGP(f.router, time.Now())
+
+	require.ErrorIs(t, err, mikrotik.ErrUnauthorized)
+	var stored models.MikrotikRouter
+	require.NoError(t, f.db.First(&stored, "id = ?", f.router.ID).Error)
+	assert.Equal(t, models.RouterAPIStatusError, stored.APIStatus)
+	require.NotNil(t, stored.APIError)
+	assert.Contains(t, *stored.APIError, "rejected")
 }
