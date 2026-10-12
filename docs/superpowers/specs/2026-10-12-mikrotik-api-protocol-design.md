@@ -122,7 +122,7 @@ ALTER TABLE mikrotik_routers
   CHECK (api_protocol IN ('rest', 'api-ssl', 'api'));
 ```
 
-(dengan `down` yang membuang constraint lalu kolom). Router yang sudah ada
+(satu file maju tanpa `down`, seperti migrasi 56). Router yang sudah ada
 menjadi `rest`, perilakunya tidak berubah. Model `MikrotikRouter` mendapat
 `APIProtocol` (json `api_protocol`).
 
