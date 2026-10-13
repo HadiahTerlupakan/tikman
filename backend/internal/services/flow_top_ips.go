@@ -15,6 +15,12 @@ const (
 	// the browser a moment before this check runs.
 	topIPRangeSlack = 5 * time.Minute
 	topIPLimit      = 100
+
+	// countryFromServer marks a country DB-IP located the address in.
+	countryFromServer = "server"
+	// countryFromAS marks the AS's registered country, shown when the range
+	// holds only windows written before flowd located addresses.
+	countryFromAS = "as"
 )
 
 // ErrTopIPsRange refuses a top-IP read reaching before what the table keeps.
@@ -28,12 +34,11 @@ type FlowTopIP struct {
 	// Country is where the address is located (DB-IP), "" when unknown or
 	// for windows written before flowd recorded it.
 	Country string `json:"country" gorm:"column:country"`
-	Bytes   int64  `json:"bytes"`
+	// CountrySource is countryFromServer, countryFromAS, or "" with no country.
+	CountrySource string `json:"country_source" gorm:"-"`
+	Bytes         int64  `json:"bytes"`
 	// Flows sums the sampled flow records over the range.
 	Flows int64 `json:"flows"`
-	// PeakSubscribers is the most distinct subscribers in one five-minute
-	// window. Windows cannot be summed: the same subscriber is in many.
-	PeakSubscribers int `json:"peak_subscribers"`
 }
 
 // FlowStatus describes the ASN dataset flowd last loaded.
@@ -60,7 +65,7 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	where, args := f.where(routerID, "time")
 	// MAX picks the located country over "" from windows that predate it.
 	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, MAX(country) AS country, %s AS bytes,
-		%s AS flows, MAX(subscribers) AS peak_subscribers FROM router_flow_top_ips
+		%s AS flows FROM router_flow_top_ips
 		WHERE %s GROUP BY ip, asn ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), cappedBigint("SUM(flows)"), where)
 	rows := []FlowTopIP{}
 	if err := s.db.Raw(query, withArgs(args, topIPLimit)...).Scan(&rows).Error; err != nil {
@@ -70,14 +75,34 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	for i, r := range rows {
 		asns[i] = r.ASN
 	}
-	names, err := s.asnNames(asns)
+	records, err := s.asnRecords(asns)
 	if err != nil {
 		return nil, err
 	}
+	names := make(map[int64]string, len(records))
+	for asn, r := range records {
+		names[asn] = r.Name
+	}
 	for i := range rows {
 		rows[i].Name = asnLabel(rows[i].ASN, names)
+		placeCountry(&rows[i], records[rows[i].ASN].Country)
 	}
 	return rows, nil
+}
+
+// placeCountry keeps the located country, or falls back to the AS's
+// registered one, which iptoasn gives as "Unknown" when it has none.
+func placeCountry(row *FlowTopIP, asCountry string) {
+	switch {
+	case row.Country != "":
+		row.CountrySource = countryFromServer
+	case isCountryCode(asCountry):
+		row.Country, row.CountrySource = asCountry, countryFromAS
+	}
+}
+
+func isCountryCode(s string) bool {
+	return len(s) == 2 && s[0] >= 'A' && s[0] <= 'Z' && s[1] >= 'A' && s[1] <= 'Z' && s != "ZZ"
 }
 
 // Status reports the newest dataset's download time and how many ASes it

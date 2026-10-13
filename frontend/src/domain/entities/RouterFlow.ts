@@ -96,13 +96,17 @@ export interface FlowTopIp {
   ip: string;
   asn: number;
   name: string;
-  /** ISO code of where the address is located (DB-IP), "" when unknown. */
+  /** ISO code of the country, "" when unknown; see countrySource. */
   country: string;
+  /**
+   * "server" when DB-IP located the address; "as" when only the AS's
+   * registered country is known, for ranges written before flowd located
+   * addresses.
+   */
+  countrySource: "server" | "as" | "";
   bytes: number;
   /** Sampled flow records over the range; 0 for windows that predate it. */
   flows: number;
-  /** Most distinct subscribers in one five-minute window of the range. */
-  peakSubscribers: number;
 }
 
 export interface FlowStatus {

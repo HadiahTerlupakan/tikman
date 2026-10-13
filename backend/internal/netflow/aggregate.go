@@ -16,10 +16,6 @@ const (
 	// MaxIPsPerPOP bounds the distinct far-side addresses counted per POP
 	// per window.
 	MaxIPsPerPOP = 100_000
-	// MaxSubscriberPairs bounds the (address, subscriber) pairs kept per
-	// window to count each address's distinct subscribers. Past it a new
-	// pair is not counted, so Subscribers can only undercount.
-	MaxSubscriberPairs = 1_000_000
 	// TopASNs is how many ASNs per (router, POP, direction, minute) keep a
 	// row of their own.
 	TopASNs = 20
@@ -64,8 +60,6 @@ type TopIPRow struct {
 	// Flows is how many sampled flow records reached IP, a floor on its
 	// connections: at 1:N sampling a short connection is often missed.
 	Flows uint64
-	// Subscribers is how many distinct local addresses those flows came from.
-	Subscribers int
 }
 
 type counter struct{ bytes, packets uint64 }
@@ -84,10 +78,9 @@ type ipKey struct {
 }
 
 type ipCounter struct {
-	asn         uint32
-	bytes       uint64
-	flows       uint64
-	subscribers map[netip.Addr]struct{}
+	asn   uint32
+	bytes uint64
+	flows uint64
 }
 
 // Aggregator adds placed flows into the open minute and the open top-IP
@@ -98,10 +91,9 @@ type Aggregator struct {
 	keysPerRouter map[uuid.UUID]int
 	foldedFlows   map[uuid.UUID]uint64
 
-	window          time.Time
-	ips             map[ipKey]*ipCounter
-	ipsPerPOP       map[popKey]int
-	subscriberPairs int
+	window    time.Time
+	ips       map[ipKey]*ipCounter
+	ipsPerPOP map[popKey]int
 }
 
 // NewAggregator opens the minute and window holding now.
@@ -123,7 +115,6 @@ func (a *Aggregator) resetWindow(now time.Time) {
 	a.window = now.Truncate(TopIPWindow)
 	a.ips = map[ipKey]*ipCounter{}
 	a.ipsPerPOP = map[popKey]int{}
-	a.subscriberPairs = 0
 }
 
 // Add counts one placed flow whose far side is in asn.
@@ -163,15 +154,11 @@ func (a *Aggregator) addIP(g groupKey, c Classified, asn uint32) {
 			return
 		}
 		a.ipsPerPOP[pk]++
-		cnt = &ipCounter{asn: asn, subscribers: map[netip.Addr]struct{}{}}
+		cnt = &ipCounter{asn: asn}
 		a.ips[key] = cnt
 	}
 	cnt.bytes = addCount(cnt.bytes, c.Bytes)
 	cnt.flows++
-	if _, seen := cnt.subscribers[c.Local]; !seen && a.subscriberPairs < MaxSubscriberPairs {
-		cnt.subscribers[c.Local] = struct{}{}
-		a.subscriberPairs++
-	}
 }
 
 // CloseMinute returns the open minute's rows, keeping TopASNs per (router,
@@ -271,7 +258,7 @@ func (a *Aggregator) CloseWindow(now time.Time) []TopIPRow {
 	for key, cnt := range a.ips {
 		groups[key.groupKey] = append(groups[key.groupKey], TopIPRow{Time: a.window, RouterID: key.RouterID,
 			POP: key.POP, Direction: key.Direction, IP: key.ip, ASN: cnt.asn, Bytes: cnt.bytes,
-			Flows: cnt.flows, Subscribers: len(cnt.subscribers)})
+			Flows: cnt.flows})
 	}
 	var rows []TopIPRow
 	for _, group := range groups {

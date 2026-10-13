@@ -42,8 +42,6 @@ type RouterFlowTopIP struct {
 	Bytes   int64  `gorm:"not null"`
 	// Flows is the sampled flow records the window saw for the address.
 	Flows int64 `gorm:"not null;default:0"`
-	// Subscribers is the distinct local addresses among those flows.
-	Subscribers int `gorm:"not null;default:0"`
 }
 
 // TableName returns the table name for RouterFlowTopIP.

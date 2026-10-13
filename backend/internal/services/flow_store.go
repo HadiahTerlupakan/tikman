@@ -57,7 +57,7 @@ func (s *FlowStore) WriteTopIPs(ctx context.Context, rows []netflow.TopIPRow) er
 	for i, r := range rows {
 		records[i] = models.RouterFlowTopIP{Time: r.Time, RouterID: r.RouterID, POPInterfaceID: nullablePOP(r.POP),
 			Direction: string(r.Direction), IP: r.IP.String(), ASN: int64(r.ASN), Country: r.Country, Bytes: int64(r.Bytes),
-			Flows: int64(r.Flows), Subscribers: r.Subscribers}
+			Flows: int64(r.Flows)}
 	}
 	return s.db.WithContext(ctx).CreateInBatches(records, flowWriteBatch).Error
 }

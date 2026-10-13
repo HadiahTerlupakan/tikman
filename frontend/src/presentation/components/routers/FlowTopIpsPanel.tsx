@@ -50,15 +50,6 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
               dataIndex: "flows",
               render: countOrDash,
             },
-            {
-              title: (
-                <Tooltip title="Jumlah pelanggan berbeda yang mengakses IP ini dalam 5 menit tersibuk pada rentang ini, dari sampling 1:100.">
-                  Pelanggan
-                </Tooltip>
-              ),
-              dataIndex: "peakSubscribers",
-              render: countOrDash,
-            },
           ]}
         />
       ) : (
@@ -81,11 +72,17 @@ function countOrDash(n: number): string {
 function TopIpAddress({ row }: { row: FlowTopIp }) {
   const flag = countryFlag(row.country);
   if (!flag) return <>{row.ip}</>;
+  const fromAS = row.countrySource === "as";
   return (
     <span>
       <span
-        title={`Lokasi server: ${countryName(row.country)}`}
-        style={{ marginRight: 8 }}
+        title={
+          fromAS
+            ? `Negara terdaftar AS: ${countryName(row.country)} (lokasi server belum tercatat)`
+            : `Lokasi server: ${countryName(row.country)}`
+        }
+        // Dimmed: an AS's registered country is often not where its server is.
+        style={{ marginRight: 8, opacity: fromAS ? 0.45 : 1 }}
       >
         {flag}
       </span>

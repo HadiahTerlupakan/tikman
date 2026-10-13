@@ -42,7 +42,7 @@ func TestWriteTopIPsStoresTheAddress(t *testing.T) {
 	db := setupTestDB(t)
 	routerID := uuid.New()
 	rows := []netflow.TopIPRow{{Time: flowMinute, RouterID: routerID, Direction: netflow.Download,
-		IP: netip.MustParseAddr("203.0.113.5"), ASN: 64498, Country: "JP", Bytes: 9000, Flows: 12, Subscribers: 4}}
+		IP: netip.MustParseAddr("203.0.113.5"), ASN: 64498, Country: "JP", Bytes: 9000, Flows: 12}}
 
 	require.NoError(t, NewFlowStore(db).WriteTopIPs(context.Background(), rows))
 
@@ -53,7 +53,6 @@ func TestWriteTopIPsStoresTheAddress(t *testing.T) {
 	assert.EqualValues(t, 9000, stored.Bytes)
 	assert.Equal(t, "JP", stored.Country)
 	assert.EqualValues(t, 12, stored.Flows)
-	assert.Equal(t, 4, stored.Subscribers)
 }
 
 func TestMarkSeenTouchesOnlyTheGivenRouters(t *testing.T) {
