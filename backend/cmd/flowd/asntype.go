@@ -13,6 +13,11 @@ import (
 // rarely, and the anonymous API is rate limited.
 const asnTypesInterval = 24 * time.Hour
 
+// asnTypesRetry is how soon a failed fetch is tried again. PeeringDB lets an
+// anonymous client fetch the whole network list about once an hour and
+// answers 429 until then; asking sooner only keeps it throttled.
+const asnTypesRetry = time.Hour
+
 type asnTypeSaver interface {
 	SaveASNTypes(ctx context.Context, types map[uint32]string, updatedAt time.Time) error
 }
@@ -35,13 +40,13 @@ func refreshASNTypes(client *http.Client, url string, saver asnTypeSaver, logger
 	return true
 }
 
-// keepASNTypes refreshes daily, and soon again after a failure.
+// keepASNTypes refreshes daily, and an hour after a failure.
 func keepASNTypes(client *http.Client, url string, saver asnTypeSaver, logger *zap.Logger) {
 	for {
 		if refreshASNTypes(client, url, saver, logger) {
 			time.Sleep(asnTypesInterval)
 		} else {
-			time.Sleep(asnRetryInterval)
+			time.Sleep(asnTypesRetry)
 		}
 	}
 }

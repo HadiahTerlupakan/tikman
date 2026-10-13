@@ -126,5 +126,5 @@ func TestRefreshASNTypesFailureSavesNothing(t *testing.T) {
 
 	ok, _ := listServer(t, http.StatusOK, peeringDBBody(2000))
 	assert.False(t, refreshASNTypes(ok.Client(), ok.URL, &typesRecorder{err: errors.New("db down")}, zap.NewNop()),
-		"a failed save is retried soon")
+		"a failed save is retried")
 }
