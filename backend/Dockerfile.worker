@@ -32,7 +32,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o flowd ./cmd/flowd
 
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates openssh-client
+# conntrack-tools is for the flowd-conntrack service in docker-compose.yml.
+RUN apk --no-cache add ca-certificates openssh-client conntrack-tools
 
 WORKDIR /root/
 

@@ -255,6 +255,28 @@ services:
       - tikman-network
     restart: unless-stopped
 
+  # The routers export IPFIX nonstop from one source port. While flowd is being
+  # recreated, the host records that stream in conntrack without the DNAT, and
+  # the stale entry then sends it to docker-proxy. docker-proxy relays it from
+  # the bridge gateway, so flowd drops every packet as an unknown source. The
+  # stream keeps the entry alive forever. This runs once after each flowd
+  # (re)start and deletes the entry, so the next packet is NATed afresh.
+  flowd-conntrack:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: tikman-flowd-conntrack
+    # conntrack exits 1 when there was nothing to delete.
+    entrypoint: ["sh", "-c", "conntrack -D -p udp --orig-port-dst 2055 || true"]
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      flowd:
+        condition: service_started
+        restart: true
+    restart: "no"
+
 
 networks:
   tikman-network:
