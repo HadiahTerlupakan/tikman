@@ -39,7 +39,7 @@ const (
 	defaultASNDir  = "/data/asn"
 	asnFileName    = "ip2asn-v4.tsv.gz"
 	// geoFileName sits beside the ASN dataset in the same volume.
-	geoFileName = "dbip-country-lite.csv.gz"
+	geoFileName = "ipinfo_lite.csv.gz"
 	// socketBuffer gives bursts room while a minute is being closed.
 	socketBuffer    = 4 << 20
 	markSeenTimeout = 10 * time.Second
@@ -80,18 +80,23 @@ func main() {
 	}()
 
 	geo := &geoSource{
-		fetcher: &netflow.GeoFetcher{URL: netflow.GeoDatasetURL,
+		fetcher: &netflow.GeoFetcher{URL: netflow.GeoDatasetURL + os.Getenv("IPINFO_TOKEN"),
 			Path: filepath.Join(asnDir(), geoFileName), Client: &http.Client{}},
 		logger: logger,
 	}
-	// Until it loads, top-IP rows are written without a country.
-	go func() {
-		geo.start(time.Now())
-		for {
-			time.Sleep(geo.nextRefresh())
-			geo.refresh(time.Now())
-		}
-	}()
+	// Until it loads, top-IP rows are written without a country, and the UI
+	// falls back to the AS's registered one.
+	if os.Getenv("IPINFO_TOKEN") == "" {
+		logger.Warn("IPINFO_TOKEN is not set; top destination IPs are not located")
+	} else {
+		go func() {
+			geo.start(time.Now())
+			for {
+				time.Sleep(geo.nextRefresh())
+				geo.refresh()
+			}
+		}()
+	}
 
 	coll := newCollector(asns, geo, time.Now())
 	mappings := services.NewFlowMappingService(db)

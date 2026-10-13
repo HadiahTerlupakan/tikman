@@ -18,9 +18,9 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
       size="small"
       title="IP tujuan teratas"
       extra={
-        // DB-IP's free dataset is CC BY 4.0, which requires this credit.
-        <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">
-          Lokasi IP oleh DB-IP
+        // IPinfo Lite is CC BY-SA 4.0, which requires this credit.
+        <a href="https://ipinfo.io" target="_blank" rel="noopener noreferrer">
+          Data IP oleh IPinfo
         </a>
       }
     >

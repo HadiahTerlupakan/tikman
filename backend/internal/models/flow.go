@@ -37,7 +37,7 @@ type RouterFlowTopIP struct {
 	Direction      string     `gorm:"type:varchar(8);not null"`
 	IP             string     `gorm:"column:ip;type:inet;not null"`
 	ASN            int64      `gorm:"column:asn;not null"`
-	// Country is where the address was located (DB-IP), "" when unknown.
+	// Country is where the address was located (IPinfo), "" when unknown.
 	Country string `gorm:"type:varchar(2);not null;default:''"`
 	Bytes   int64  `gorm:"not null"`
 	// Flows is the sampled flow records the window saw for the address.

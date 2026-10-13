@@ -54,7 +54,7 @@ type TopIPRow struct {
 	Direction Direction
 	IP        netip.Addr
 	ASN       uint32
-	// Country is where IP is located, filled in by flowd from DB-IP.
+	// Country is where IP is located, filled in by flowd from IPinfo.
 	Country string
 	Bytes   uint64
 	// Flows is how many sampled flow records reached IP, a floor on its

@@ -99,7 +99,7 @@ export interface FlowTopIp {
   /** ISO code of the country, "" when unknown; see countrySource. */
   country: string;
   /**
-   * "server" when DB-IP located the address; "as" when only the AS's
+   * "server" when IPinfo located the address; "as" when only the AS's
    * registered country is known, for ranges written before flowd located
    * addresses.
    */

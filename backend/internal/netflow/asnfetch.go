@@ -2,11 +2,14 @@ package netflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -81,20 +84,25 @@ func downloadDataset[T any](client *http.Client, url, path string, load func(str
 	return table, nil
 }
 
-func fetchTo(client *http.Client, url string, w io.Writer) error {
+func fetchTo(client *http.Client, rawURL string, w io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), datasetDownloadTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("GET %s: invalid URL", redactURL(rawURL))
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("GET %s: %w", url, err)
+		// A *url.Error repeats the whole URL, token included; keep only its cause.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
+		return fmt.Errorf("GET %s: %w", redactURL(rawURL), err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
+		return fmt.Errorf("GET %s: HTTP %d", redactURL(rawURL), resp.StatusCode)
 	}
 	n, err := io.Copy(w, io.LimitReader(resp.Body, maxDatasetDownload+1))
 	if err != nil {
@@ -104,4 +112,13 @@ func fetchTo(client *http.Client, url string, w io.Writer) error {
 		return fmt.Errorf("dataset larger than %d bytes", maxDatasetDownload)
 	}
 	return nil
+}
+
+// redactURL drops the query, where a dataset's access token travels, so an
+// error can name the URL in a log.
+func redactURL(rawURL string) string {
+	if i := strings.IndexByte(rawURL, '?'); i >= 0 {
+		return rawURL[:i] + "?…"
+	}
+	return rawURL
 }

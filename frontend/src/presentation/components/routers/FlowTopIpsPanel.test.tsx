@@ -46,14 +46,14 @@ describe("FlowTopIpsPanel", () => {
     );
   });
 
-  it("credits DB-IP, as its CC BY licence requires", () => {
+  it("credits IPinfo, as its CC BY-SA licence requires", () => {
     render(
       <FlowTopIpsPanel available rows={rows} loading={false} failed={false} />,
     );
 
     expect(
-      screen.getByRole("link", { name: "Lokasi IP oleh DB-IP" }),
-    ).toHaveAttribute("href", "https://db-ip.com");
+      screen.getByRole("link", { name: "Data IP oleh IPinfo" }),
+    ).toHaveAttribute("href", "https://ipinfo.io");
   });
 
   it("shows connections, and a dash where none were recorded", () => {

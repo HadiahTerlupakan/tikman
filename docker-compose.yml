@@ -241,6 +241,8 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - SESSION_SECRET=${SESSION_SECRET}
       - LOG_LEVEL=info
+      # IPinfo Lite locates top destination IPs; unset, flowd skips it.
+      - IPINFO_TOKEN=${IPINFO_TOKEN:-}
     volumes:
       # The ASN dataset survives a restart, so flowd does not download it
       # again unless it is a day old.

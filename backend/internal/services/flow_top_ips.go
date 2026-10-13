@@ -16,7 +16,7 @@ const (
 	topIPRangeSlack = 5 * time.Minute
 	topIPLimit      = 100
 
-	// countryFromServer marks a country DB-IP located the address in.
+	// countryFromServer marks a country IPinfo located the address in.
 	countryFromServer = "server"
 	// countryFromAS marks the AS's registered country, shown when the range
 	// holds only windows written before flowd located addresses.
@@ -31,7 +31,7 @@ type FlowTopIP struct {
 	IP   string `json:"ip" gorm:"column:ip"`
 	ASN  int64  `json:"asn" gorm:"column:asn"`
 	Name string `json:"name" gorm:"-"`
-	// Country is where the address is located (DB-IP), "" when unknown or
+	// Country is where the address is located (IPinfo), "" when unknown or
 	// for windows written before flowd recorded it.
 	Country string `json:"country" gorm:"column:country"`
 	// CountrySource is countryFromServer, countryFromAS, or "" with no country.

@@ -32,7 +32,9 @@ func testCollector(t *testing.T, upstreams map[uint32]uuid.UUID) *collector {
 	require.NoError(t, err)
 	asns.table.Store(table)
 	geo := &geoSource{logger: zap.NewNop()}
-	geoTable, err := netflow.ParseGeoTable(strings.NewReader("198.51.100.0,198.51.100.255,JP\n"))
+	geoTable, err := netflow.ParseGeoTable(strings.NewReader(
+		"network,country,country_code,continent,continent_code,asn,as_name,as_domain\n" +
+			"198.51.100.0/24,Japan,JP,Asia,AS,,,\n"))
 	require.NoError(t, err)
 	geo.table.Store(geoTable)
 	c := newCollector(asns, geo, minute0)

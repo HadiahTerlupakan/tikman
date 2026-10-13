@@ -36,18 +36,18 @@ func (s *geoSource) nextRefresh() time.Duration {
 }
 
 // start loads the copy on disk, downloading first when it is missing or a
-// week old.
+// day old.
 func (s *geoSource) start(now time.Time) {
 	if !s.fetcher.Stale(now) && s.installLocal() {
 		return
 	}
-	s.refresh(now)
+	s.refresh()
 }
 
 // refresh downloads a new dataset. On failure the table in use stays; with
 // none in use yet, a stale copy on disk is better than none.
-func (s *geoSource) refresh(now time.Time) {
-	table, err := s.fetcher.Download(now)
+func (s *geoSource) refresh() {
+	table, err := s.fetcher.Download()
 	if err != nil {
 		s.logger.Warn("Country dataset download failed; keeping the table in use", zap.Error(err))
 		if s.table.Load() == nil {

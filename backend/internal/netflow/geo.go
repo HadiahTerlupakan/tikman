@@ -1,9 +1,9 @@
 package netflow
 
 import (
-	"bufio"
 	"compress/gzip"
 	"encoding/binary"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
@@ -15,89 +15,108 @@ import (
 	"time"
 )
 
-// GeoMaxAge is how old the copy on disk may be before flowd downloads again.
-// DB-IP publishes a new file each month; a week finds it soon enough.
-const GeoMaxAge = 7 * 24 * time.Hour
+// GeoMaxAge is how old the copy on disk may be before flowd downloads again;
+// IPinfo rebuilds the file daily.
+const GeoMaxAge = 24 * time.Hour
 
-// geoColumns is start, end, country.
-const geoColumns = 3
+// GeoDatasetURL is IPinfo's free Lite dataset. The token is the account's
+// own, so the URL must never reach a log; see redactURL.
+const GeoDatasetURL = "https://ipinfo.io/data/ipinfo_lite.csv.gz?token="
 
-// geoUnknown is DB-IP's code for space it cannot place.
-const geoUnknown = "ZZ"
+// geoNetworkColumn and geoCountryColumn index IPinfo Lite's header:
+// network, country, country_code, continent, continent_code, asn, as_name,
+// as_domain.
+const (
+	geoNetworkColumn = 0
+	geoCountryColumn = 2
+	geoColumns       = 8
+)
 
-// maxGeoInflated bounds the decompressed dataset, about 30 MB today.
-const maxGeoInflated = 256 << 20
+// maxGeoInflated bounds the decompressed dataset, about 330 MB today.
+const maxGeoInflated = 1 << 30
 
-var errGeoTooLarge = errors.New("dbip dataset inflates past its size limit")
-
-// GeoDatasetURL is DB-IP's free IP-to-country file for the month holding t.
-// It is CC BY 4.0, which is why the UI credits DB-IP beside the flags.
-func GeoDatasetURL(t time.Time) string {
-	return fmt.Sprintf("https://download.db-ip.com/free/dbip-country-lite-%s.csv.gz", t.UTC().Format("2006-01"))
-}
+var errGeoTooLarge = errors.New("ipinfo dataset inflates past its size limit")
 
 type geoRange struct {
 	start, end uint32
-	country    string
+	country    [2]byte
 }
 
 // GeoTable maps an IPv4 address to the country it is located in, from
-// DB-IP's country lite dataset: sorted ranges, searched by binary search.
+// IPinfo's Lite dataset: sorted ranges, searched by binary search.
 type GeoTable struct {
 	ranges []geoRange
 }
 
-// ParseGeoTable reads the uncompressed CSV. Its IPv6 lines are skipped, as
+// ParseGeoTable reads the uncompressed CSV. Its IPv6 networks are skipped, as
 // flows are IPv4 only. Any malformed IPv4 line fails the whole table, so a
 // truncated or substituted download never replaces a good one.
 func ParseGeoTable(r io.Reader) (*GeoTable, error) {
+	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = geoColumns
+	reader.ReuseRecord = true
+	if _, err := reader.Read(); err != nil {
+		return nil, fmt.Errorf("ipinfo header: %w", err)
+	}
 	t := &GeoTable{}
-	scanner := bufio.NewScanner(r)
-	for line := 1; scanner.Scan(); line++ {
-		if err := t.addLine(scanner.Text()); err != nil {
-			return nil, fmt.Errorf("dbip line %d: %w", line, err)
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("ipinfo: %w", err)
+		}
+		if err := t.add(record[geoNetworkColumn], record[geoCountryColumn]); err != nil {
+			line, _ := reader.FieldPos(0)
+			return nil, fmt.Errorf("ipinfo line %d: %w", line, err)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
 	if len(t.ranges) == 0 {
-		return nil, errors.New("dbip: no IPv4 ranges")
+		return nil, errors.New("ipinfo: no IPv4 networks")
 	}
 	sort.Slice(t.ranges, func(i, j int) bool { return t.ranges[i].start < t.ranges[j].start })
 	for i := 1; i < len(t.ranges); i++ {
 		if t.ranges[i].start <= t.ranges[i-1].end {
-			return nil, fmt.Errorf("dbip: range starting %s overlaps the one ending %s",
+			return nil, fmt.Errorf("ipinfo: network starting %s overlaps the one ending %s",
 				ipv4String(t.ranges[i].start), ipv4String(t.ranges[i-1].end))
 		}
 	}
 	return t, nil
 }
 
-func (t *GeoTable) addLine(line string) error {
-	cols := strings.Split(line, ",")
-	if len(cols) != geoColumns {
-		return fmt.Errorf("want %d comma-separated columns, got %d", geoColumns, len(cols))
-	}
-	if strings.Contains(cols[0], ":") {
+func (t *GeoTable) add(network, country string) error {
+	if strings.Contains(network, ":") {
 		return nil
 	}
-	start, errStart := parseIPv4(cols[0])
-	end, errEnd := parseIPv4(cols[1])
-	if err := errors.Join(errStart, errEnd); err != nil {
-		return err
+	prefix, err := parseNetwork(network)
+	if err != nil || !prefix.Addr().Is4() {
+		return fmt.Errorf("%q is not an IPv4 network", network)
 	}
-	if end < start {
-		return errors.New("range ends before it starts")
-	}
-	if !isCountryCode(cols[2]) {
-		return fmt.Errorf("%q is not a country code", cols[2])
-	}
-	if cols[2] == geoUnknown {
+	if country == "" {
 		return nil
 	}
-	t.ranges = append(t.ranges, geoRange{start: start, end: end, country: cols[2]})
+	if !isCountryCode(country) {
+		return fmt.Errorf("%q is not a country code", country)
+	}
+	b := prefix.Masked().Addr().As4()
+	start := binary.BigEndian.Uint32(b[:])
+	end := start | (1<<(32-prefix.Bits()) - 1)
+	t.ranges = append(t.ranges, geoRange{start: start, end: end, country: [2]byte{country[0], country[1]}})
 	return nil
+}
+
+// parseNetwork reads a CIDR network or, as IPinfo writes some, a bare
+// address standing for its /32.
+func parseNetwork(network string) (netip.Prefix, error) {
+	if strings.Contains(network, "/") {
+		return netip.ParsePrefix(network)
+	}
+	addr, err := netip.ParseAddr(network)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	return addr.Prefix(addr.BitLen())
 }
 
 func isCountryCode(s string) bool {
@@ -116,7 +135,7 @@ func (t *GeoTable) Lookup(ip netip.Addr) string {
 	if i < 0 || v > t.ranges[i].end {
 		return ""
 	}
-	return t.ranges[i].country
+	return string(t.ranges[i].country[:])
 }
 
 // LoadGeoFile reads a gzipped dataset from disk.
@@ -128,7 +147,7 @@ func LoadGeoFile(path string) (*GeoTable, error) {
 	defer func() { _ = file.Close() }()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
-		return nil, fmt.Errorf("dbip: %w", err)
+		return nil, fmt.Errorf("ipinfo: %w", err)
 	}
 	defer func() { _ = gz.Close() }()
 	return ParseGeoTable(&cappedReader{r: gz, left: maxGeoInflated, err: errGeoTooLarge})
@@ -136,10 +155,9 @@ func LoadGeoFile(path string) (*GeoTable, error) {
 
 // GeoFetcher keeps the dataset on disk and loads it.
 type GeoFetcher struct {
+	URL    string
 	Path   string
 	Client *http.Client
-	// URL names the file for a month; GeoDatasetURL outside tests.
-	URL func(time.Time) string
 }
 
 // Stale reports whether the copy on disk is missing or older than GeoMaxAge.
@@ -153,17 +171,7 @@ func (f *GeoFetcher) LoadLocal() (*GeoTable, error) {
 	return LoadGeoFile(f.Path)
 }
 
-// Download fetches this month's file, or last month's while this month's is
-// not yet published.
-func (f *GeoFetcher) Download(now time.Time) (*GeoTable, error) {
-	table, err := downloadDataset(f.Client, f.URL(now), f.Path, LoadGeoFile)
-	if err == nil {
-		return table, nil
-	}
-	previous := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -1, 0)
-	table, prevErr := downloadDataset(f.Client, f.URL(previous), f.Path, LoadGeoFile)
-	if prevErr != nil {
-		return nil, errors.Join(err, prevErr)
-	}
-	return table, nil
+// Download fetches the dataset and loads it; see downloadDataset.
+func (f *GeoFetcher) Download() (*GeoTable, error) {
+	return downloadDataset(f.Client, f.URL, f.Path, LoadGeoFile)
 }

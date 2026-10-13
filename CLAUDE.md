@@ -63,9 +63,11 @@ go test -v -run TestFunctionName ./internal/services/
 - `cmd/flowd/main.go` — IPFIX collector for the border routers' traffic
   destinations (per POP, upstream and destination AS). Its own container on
   UDP 2055, not in `api`'s namespace; built from `Dockerfile.worker`; keeps the
-  iptoasn dataset (AS names) and DB-IP's country lite dataset (where each top
-  destination IP is located) in the `asn_data` volume. DB-IP is CC BY 4.0, so
-  the top-IP table must keep its "Lokasi IP oleh DB-IP" credit.
+  iptoasn dataset (AS names) and IPinfo's Lite dataset (where each top
+  destination IP is located) in the `asn_data` volume. IPinfo needs
+  `IPINFO_TOKEN` in the env file; without it flowd runs and the flags fall back
+  to the AS's registered country. IPinfo Lite is CC BY-SA 4.0, so the top-IP
+  table must keep its "Data IP oleh IPinfo" credit.
 
 **CI workflow:** `.github/workflows/ci.yml`
 - Backend: tests, race detector, coverage, `go vet`, `gofmt`, `go mod verify`, and API/worker builds
