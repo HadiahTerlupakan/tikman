@@ -22,6 +22,7 @@ const panicLogInterval = mappingRefresh
 type collector struct {
 	routers       atomic.Pointer[map[netip.Addr]*netflow.RouterMap]
 	asns          *asnSource
+	geo           *geoSource
 	templates     map[uuid.UUID]*netflow.Templates
 	prunedFor     *map[netip.Addr]*netflow.RouterMap
 	panicLoggedAt time.Time
@@ -38,8 +39,8 @@ type collector struct {
 	implausible atomic.Uint64
 }
 
-func newCollector(asns *asnSource, now time.Time) *collector {
-	c := &collector{asns: asns, templates: map[uuid.UUID]*netflow.Templates{},
+func newCollector(asns *asnSource, geo *geoSource, now time.Time) *collector {
+	c := &collector{asns: asns, geo: geo, templates: map[uuid.UUID]*netflow.Templates{},
 		agg: netflow.NewAggregator(now), seen: map[uuid.UUID]bool{},
 		openMinute: now.Truncate(time.Minute), openWindow: now.Truncate(netflow.TopIPWindow)}
 	c.setRouters(map[netip.Addr]*netflow.RouterMap{})
@@ -168,5 +169,11 @@ func (c *collector) closeWindowIfDue(now time.Time) []netflow.TopIPRow {
 		return nil
 	}
 	c.openWindow = now.Truncate(netflow.TopIPWindow)
-	return c.agg.CloseWindow(now)
+	rows := c.agg.CloseWindow(now)
+	// Located once per kept address rather than per flow: a window keeps only
+	// its top addresses, so most flows' addresses are never written.
+	for i := range rows {
+		rows[i].Country = c.geo.lookup(rows[i].IP)
+	}
+	return rows
 }

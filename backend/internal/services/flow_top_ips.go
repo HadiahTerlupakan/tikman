@@ -25,9 +25,9 @@ type FlowTopIP struct {
 	IP   string `json:"ip" gorm:"column:ip"`
 	ASN  int64  `json:"asn" gorm:"column:asn"`
 	Name string `json:"name" gorm:"-"`
-	// Country is where the AS is registered (iptoasn), not where the address
-	// is located: a global network's servers all show its home country.
-	Country string `json:"country" gorm:"-"`
+	// Country is where the address is located (DB-IP), "" when unknown or
+	// for windows written before flowd recorded it.
+	Country string `json:"country" gorm:"column:country"`
 	Bytes   int64  `json:"bytes"`
 }
 
@@ -53,8 +53,9 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	}
 	f.Upstream = nil // the table has no upstream column
 	where, args := f.where(routerID, "time")
-	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, %s AS bytes FROM router_flow_top_ips
-		WHERE %s GROUP BY ip, asn ORDER BY 3 DESC LIMIT ?`, cappedBigint("SUM(bytes)"), where)
+	// MAX picks the located country over "" from windows that predate it.
+	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, MAX(country) AS country, %s AS bytes FROM router_flow_top_ips
+		WHERE %s GROUP BY ip, asn ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), where)
 	rows := []FlowTopIP{}
 	if err := s.db.Raw(query, withArgs(args, topIPLimit)...).Scan(&rows).Error; err != nil {
 		return nil, err
@@ -63,17 +64,12 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	for i, r := range rows {
 		asns[i] = r.ASN
 	}
-	records, err := s.asnRecords(asns)
+	names, err := s.asnNames(asns)
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[int64]string, len(records))
-	for asn, r := range records {
-		names[asn] = r.Name
-	}
 	for i := range rows {
 		rows[i].Name = asnLabel(rows[i].ASN, names)
-		rows[i].Country = records[rows[i].ASN].Country
 	}
 	return rows, nil
 }

@@ -52,7 +52,7 @@ func TestDownloadFailureLeavesThePreviousCopy(t *testing.T) {
 		require.NoError(t, readErr)
 		assert.Equal(t, previous, kept, name)
 	}
-	leftovers, err := filepath.Glob(filepath.Join(dir, ".ip2asn-*"))
+	leftovers, err := filepath.Glob(filepath.Join(dir, ".dataset-*"))
 	require.NoError(t, err)
 	assert.Empty(t, leftovers, "a failed download leaves no temporary file")
 }

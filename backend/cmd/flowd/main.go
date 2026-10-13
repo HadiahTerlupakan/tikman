@@ -38,6 +38,8 @@ const (
 	mappingRefresh = 5 * time.Minute
 	defaultASNDir  = "/data/asn"
 	asnFileName    = "ip2asn-v4.tsv.gz"
+	// geoFileName sits beside the ASN dataset in the same volume.
+	geoFileName = "dbip-country-lite.csv.gz"
 	// socketBuffer gives bursts room while a minute is being closed.
 	socketBuffer    = 4 << 20
 	markSeenTimeout = 10 * time.Second
@@ -77,7 +79,21 @@ func main() {
 		}
 	}()
 
-	coll := newCollector(asns, time.Now())
+	geo := &geoSource{
+		fetcher: &netflow.GeoFetcher{URL: netflow.GeoDatasetURL,
+			Path: filepath.Join(asnDir(), geoFileName), Client: &http.Client{}},
+		logger: logger,
+	}
+	// Until it loads, top-IP rows are written without a country.
+	go func() {
+		geo.start(time.Now())
+		for {
+			time.Sleep(geo.nextRefresh())
+			geo.refresh(time.Now())
+		}
+	}()
+
+	coll := newCollector(asns, geo, time.Now())
 	mappings := services.NewFlowMappingService(db)
 	refreshRouters(coll, mappings, logger)
 	go every(mappingRefresh, func() { refreshRouters(coll, mappings, logger) })

@@ -145,7 +145,7 @@ func LoadASNFile(path string) (*ASNTable, error) {
 		return nil, fmt.Errorf("ip2asn: %w", err)
 	}
 	defer func() { _ = gz.Close() }()
-	return ParseASNTable(&cappedReader{r: gz, left: maxASNInflated})
+	return ParseASNTable(&cappedReader{r: gz, left: maxASNInflated, err: errASNTooLarge})
 }
 
 // cappedReader fails rather than ends at its limit: a silent end could fall
@@ -153,11 +153,12 @@ func LoadASNFile(path string) (*ASNTable, error) {
 type cappedReader struct {
 	r    io.Reader
 	left int64
+	err  error
 }
 
 func (c *cappedReader) Read(p []byte) (int, error) {
 	if c.left <= 0 {
-		return 0, errASNTooLarge
+		return 0, c.err
 	}
 	if int64(len(p)) > c.left {
 		p = p[:c.left]

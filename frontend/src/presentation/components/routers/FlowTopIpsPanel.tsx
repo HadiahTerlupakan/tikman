@@ -14,7 +14,16 @@ interface Props {
 
 export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
   return (
-    <Card size="small" title="IP tujuan teratas">
+    <Card
+      size="small"
+      title="IP tujuan teratas"
+      extra={
+        // DB-IP's free dataset is CC BY 4.0, which requires this credit.
+        <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">
+          Lokasi IP oleh DB-IP
+        </a>
+      }
+    >
       {available && failed ? (
         <Alert type="error" showIcon message="Gagal memuat IP tujuan teratas" />
       ) : available ? (
@@ -52,7 +61,7 @@ function TopIpAddress({ row }: { row: FlowTopIp }) {
   return (
     <span>
       <span
-        title={`${countryName(row.country)} (negara terdaftar AS)`}
+        title={`Lokasi server: ${countryName(row.country)}`}
         style={{ marginRight: 8 }}
       >
         {flag}

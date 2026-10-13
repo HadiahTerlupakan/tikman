@@ -54,7 +54,9 @@ type TopIPRow struct {
 	Direction Direction
 	IP        netip.Addr
 	ASN       uint32
-	Bytes     uint64
+	// Country is where IP is located, filled in by flowd from DB-IP.
+	Country string
+	Bytes   uint64
 }
 
 type counter struct{ bytes, packets uint64 }

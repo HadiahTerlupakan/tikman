@@ -31,7 +31,11 @@ func testCollector(t *testing.T, upstreams map[uint32]uuid.UUID) *collector {
 	table, err := netflow.ParseASNTable(strings.NewReader("198.51.100.0\t198.51.100.255\t64497\tZZ\tEXAMPLE-NET-B\n"))
 	require.NoError(t, err)
 	asns.table.Store(table)
-	c := newCollector(asns, minute0)
+	geo := &geoSource{logger: zap.NewNop()}
+	geoTable, err := netflow.ParseGeoTable(strings.NewReader("198.51.100.0,198.51.100.255,JP\n"))
+	require.NoError(t, err)
+	geo.table.Store(geoTable)
+	c := newCollector(asns, geo, minute0)
 	c.setRouters(map[netip.Addr]*netflow.RouterMap{routerAddr: {
 		RouterID: testRouterID, Sampling: 100, Upstreams: upstreams,
 		POPs: netflow.NewPrefixTable([]netflow.PrefixEntry{
@@ -230,6 +234,7 @@ func TestTopIPsCloseOnlyAtTheWindowBoundary(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, netip.MustParseAddr("198.51.100.7"), rows[0].IP)
 	assert.EqualValues(t, 64497, rows[0].ASN)
+	assert.Equal(t, "JP", rows[0].Country, "located from the country dataset")
 }
 
 // The same guard for the top-IP window: a clock stepped back into an earlier

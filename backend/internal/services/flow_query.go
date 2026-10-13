@@ -178,31 +178,18 @@ func buildSeries(rows []asnBucket, top []int64, names map[int64]string, step tim
 
 // asnNames looks the given ASNs up in asn_names.
 func (s *FlowQueryService) asnNames(asns []int64) (map[int64]string, error) {
-	records, err := s.asnRecords(asns)
-	if err != nil {
-		return nil, err
-	}
-	names := make(map[int64]string, len(records))
-	for asn, r := range records {
-		names[asn] = r.Name
-	}
-	return names, nil
-}
-
-// asnRecords returns the given ASNs' asn_names rows, keyed by ASN.
-func (s *FlowQueryService) asnRecords(asns []int64) (map[int64]models.ASNName, error) {
-	records := map[int64]models.ASNName{}
+	names := map[int64]string{}
 	if len(asns) == 0 {
-		return records, nil
+		return names, nil
 	}
 	var rows []models.ASNName
 	if err := s.db.Where("asn IN ?", asns).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range rows {
-		records[r.ASN] = r
+		names[r.ASN] = r.Name
 	}
-	return records, nil
+	return names, nil
 }
 
 // asnLabel is Lainnya for ASN 0 and the dataset's name otherwise, or "" for
