@@ -24,8 +24,8 @@ type asnTypeSaver interface {
 
 // refreshASNTypes fetches PeeringDB's network types into the database and
 // reports whether it succeeded. On failure the types already saved stay.
-func refreshASNTypes(client *http.Client, url string, saver asnTypeSaver, logger *zap.Logger) bool {
-	types, err := netflow.FetchASNTypes(client, url)
+func refreshASNTypes(client *http.Client, url, apiKey string, saver asnTypeSaver, logger *zap.Logger) bool {
+	types, err := netflow.FetchASNTypes(client, url, apiKey)
 	if err != nil {
 		logger.Warn("ASN type download failed; keeping the types saved", zap.Error(err))
 		return false
@@ -41,9 +41,9 @@ func refreshASNTypes(client *http.Client, url string, saver asnTypeSaver, logger
 }
 
 // keepASNTypes refreshes daily, and an hour after a failure.
-func keepASNTypes(client *http.Client, url string, saver asnTypeSaver, logger *zap.Logger) {
+func keepASNTypes(client *http.Client, url, apiKey string, saver asnTypeSaver, logger *zap.Logger) {
 	for {
-		if refreshASNTypes(client, url, saver, logger) {
+		if refreshASNTypes(client, url, apiKey, saver, logger) {
 			time.Sleep(asnTypesInterval)
 		} else {
 			time.Sleep(asnTypesRetry)

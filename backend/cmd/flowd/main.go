@@ -107,7 +107,7 @@ func main() {
 		anon.refresh(time.Now())
 		every(mappingRefresh, func() { anon.refresh(time.Now()) })
 	}()
-	go keepASNTypes(&http.Client{}, netflow.ASNTypesURL, store, logger)
+	go keepASNTypes(&http.Client{}, netflow.ASNTypesURL, os.Getenv("PEERINGDB_API_KEY"), store, logger)
 
 	coll := newCollector(asns, geo, anon, time.Now())
 	mappings := services.NewFlowMappingService(db)

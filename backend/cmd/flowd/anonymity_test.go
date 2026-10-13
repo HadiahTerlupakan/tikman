@@ -113,7 +113,7 @@ func TestRefreshASNTypesSavesTheList(t *testing.T) {
 	server, _ := listServer(t, http.StatusOK, peeringDBBody(2000))
 	saver := &typesRecorder{}
 
-	assert.True(t, refreshASNTypes(server.Client(), server.URL, saver, zap.NewNop()))
+	assert.True(t, refreshASNTypes(server.Client(), server.URL, "", saver, zap.NewNop()))
 	assert.Len(t, saver.saved, 2000)
 	assert.Equal(t, "Content", saver.saved[64496])
 }
@@ -121,10 +121,10 @@ func TestRefreshASNTypesSavesTheList(t *testing.T) {
 func TestRefreshASNTypesFailureSavesNothing(t *testing.T) {
 	throttled, _ := listServer(t, http.StatusTooManyRequests, `{"meta":{"error":"throttled"}}`)
 	saver := &typesRecorder{}
-	assert.False(t, refreshASNTypes(throttled.Client(), throttled.URL, saver, zap.NewNop()))
+	assert.False(t, refreshASNTypes(throttled.Client(), throttled.URL, "", saver, zap.NewNop()))
 	assert.Nil(t, saver.saved)
 
 	ok, _ := listServer(t, http.StatusOK, peeringDBBody(2000))
-	assert.False(t, refreshASNTypes(ok.Client(), ok.URL, &typesRecorder{err: errors.New("db down")}, zap.NewNop()),
+	assert.False(t, refreshASNTypes(ok.Client(), ok.URL, "", &typesRecorder{err: errors.New("db down")}, zap.NewNop()),
 		"a failed save is retried")
 }

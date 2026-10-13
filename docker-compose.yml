@@ -243,6 +243,9 @@ services:
       - LOG_LEVEL=info
       # IPinfo Lite locates top destination IPs; unset, flowd skips it.
       - IPINFO_TOKEN=${IPINFO_TOKEN:-}
+      # PeeringDB API key (read-only); unset, flowd asks anonymously, which
+      # PeeringDB throttles to about once an hour.
+      - PEERINGDB_API_KEY=${PEERINGDB_API_KEY:-}
     volumes:
       # The ASN dataset survives a restart, so flowd does not download it
       # again unless it is a day old.

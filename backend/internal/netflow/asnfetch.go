@@ -67,7 +67,7 @@ func downloadDataset[T any](client *http.Client, url, path string, load func(str
 	// After a successful rename this finds nothing to remove.
 	defer func() { _ = os.Remove(tmp.Name()) }()
 
-	fetchErr := fetchTo(client, url, tmp)
+	fetchErr := fetchTo(client, url, nil, tmp)
 	if closeErr := tmp.Close(); fetchErr == nil {
 		fetchErr = closeErr
 	}
@@ -84,12 +84,16 @@ func downloadDataset[T any](client *http.Client, url, path string, load func(str
 	return table, nil
 }
 
-func fetchTo(client *http.Client, rawURL string, w io.Writer) error {
+// fetchTo GETs rawURL into w, sending header (nil for none) with it.
+func fetchTo(client *http.Client, rawURL string, header http.Header, w io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), datasetDownloadTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return fmt.Errorf("GET %s: invalid URL", redactURL(rawURL))
+	}
+	for name, values := range header {
+		req.Header[name] = values
 	}
 	resp, err := client.Do(req)
 	if err != nil {

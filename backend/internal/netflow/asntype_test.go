@@ -23,17 +23,34 @@ func peeringDBAnswer(filler int) string {
 }
 
 func TestFetchASNTypesKeepsTypedNetworks(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var auth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
 		_, _ = w.Write([]byte(peeringDBAnswer(minASNTypesNetworks)))
 	}))
 	defer server.Close()
 
-	types, err := FetchASNTypes(server.Client(), server.URL)
+	types, err := FetchASNTypes(server.Client(), server.URL, "prefix.secret")
 
 	require.NoError(t, err)
 	assert.Equal(t, "Content", types[64496])
 	assert.Equal(t, "Cable/DSL/ISP", types[64497])
 	assert.NotContains(t, types, uint32(64498), "a network that states no type")
+	assert.Equal(t, "Api-Key prefix.secret", auth)
+}
+
+func TestFetchASNTypesWithoutAKeyIsAnonymous(t *testing.T) {
+	auth := "unset"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(peeringDBAnswer(minASNTypesNetworks)))
+	}))
+	defer server.Close()
+
+	_, err := FetchASNTypes(server.Client(), server.URL, "")
+
+	require.NoError(t, err)
+	assert.Empty(t, auth)
 }
 
 // A rate-limited or truncated answer must not replace a day's types with a

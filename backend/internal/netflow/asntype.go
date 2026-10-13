@@ -10,8 +10,8 @@ import (
 )
 
 // ASNTypesURL is PeeringDB's network list, cut to the fields flowd keeps.
-// It is open without an account; flowd asks once a day, well inside the
-// anonymous rate limit.
+// Anonymous clients may fetch it about once an hour; an API key lifts that,
+// so a manual check from the same host cannot starve flowd.
 const ASNTypesURL = "https://www.peeringdb.com/api/net?fields=asn,info_type"
 
 // minASNTypesNetworks guards against an answer that is not the full list.
@@ -49,11 +49,16 @@ func ParseASNTypes(r io.Reader) (map[uint32]string, error) {
 	return types, nil
 }
 
-// FetchASNTypes downloads and parses PeeringDB's network list. It keeps no
-// copy on disk: the types live in the database, which is what the API reads.
-func FetchASNTypes(client *http.Client, url string) (map[uint32]string, error) {
+// FetchASNTypes downloads and parses PeeringDB's network list, with apiKey
+// when it is set. It keeps no copy on disk: the types live in the database,
+// which is what the API reads.
+func FetchASNTypes(client *http.Client, url, apiKey string) (map[uint32]string, error) {
+	var header http.Header
+	if apiKey != "" {
+		header = http.Header{"Authorization": {"Api-Key " + apiKey}}
+	}
 	var body bytes.Buffer
-	if err := fetchTo(client, url, &body); err != nil {
+	if err := fetchTo(client, url, header, &body); err != nil {
 		return nil, err
 	}
 	return ParseASNTypes(&body)
