@@ -34,7 +34,7 @@ export function BgpEventList({ events }: { events: RouterBgpEvent[] }) {
         rowKey="id"
         columns={columns}
         dataSource={events}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20 }}
       />
     </Card>
   );

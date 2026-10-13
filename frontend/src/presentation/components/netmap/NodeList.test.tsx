@@ -3,6 +3,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MappingNode } from "@/domain/entities";
 import { NodeList } from "./NodeList";
+import {
+  PICKER_ROWS,
+  choosePageSize,
+  times,
+  visibleRows,
+} from "@/test/pagination";
 
 const node: MappingNode = {
   nodeId: "ODP-01",
@@ -41,4 +47,14 @@ describe("NodeList", () => {
 
     expect(onEdit).toHaveBeenCalledWith(node);
   });
+});
+
+it("NodeList lets the page-size picker change how many nodes show", async () => {
+  const nodes = times(PICKER_ROWS, (i) => ({ ...node, nodeId: `N-${i}` }));
+  render(<NodeList nodes={nodes} onDelete={vi.fn()} onEdit={vi.fn()} />);
+  expect(visibleRows()).toBe(20);
+
+  await choosePageSize(100);
+
+  expect(visibleRows()).toBe(PICKER_ROWS);
 });

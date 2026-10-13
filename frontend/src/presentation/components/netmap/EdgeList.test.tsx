@@ -3,6 +3,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { MappingEdge } from "@/domain/entities";
 import { EdgeList } from "./EdgeList";
+import {
+  PICKER_ROWS,
+  choosePageSize,
+  times,
+  visibleRows,
+} from "@/test/pagination";
 
 const edge: MappingEdge = {
   edgeId: "ODC-01--ODP-01",
@@ -90,4 +96,21 @@ describe("EdgeList", () => {
 
     expect(onRedraw).toHaveBeenCalledWith(edge);
   });
+});
+
+it("EdgeList lets the page-size picker change how many cables show", async () => {
+  const edges = times(PICKER_ROWS, (i) => ({ ...edge, edgeId: `E-${i}` }));
+  render(
+    <EdgeList
+      edges={edges}
+      onDelete={vi.fn()}
+      onEdit={vi.fn()}
+      onRedraw={vi.fn()}
+    />,
+  );
+  expect(visibleRows()).toBe(20);
+
+  await choosePageSize(100);
+
+  expect(visibleRows()).toBe(PICKER_ROWS);
 });

@@ -92,7 +92,7 @@ export function UserTable({
       dataSource={users}
       loading={loading}
       rowKey="id"
-      pagination={{ pageSize: 10 }}
+      pagination={{ defaultPageSize: 10 }}
       scroll={{ x: 800 }}
     />
   );

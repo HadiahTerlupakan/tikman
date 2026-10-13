@@ -89,7 +89,7 @@ export function ConfigTemplateTable({
       dataSource={templates}
       loading={loading}
       rowKey="id"
-      pagination={{ pageSize: 10 }}
+      pagination={{ defaultPageSize: 10 }}
       scroll={{ x: 900 }}
     />
   );

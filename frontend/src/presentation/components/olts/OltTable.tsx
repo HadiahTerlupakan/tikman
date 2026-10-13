@@ -222,7 +222,7 @@ export function OltTable({ olts, loading, onEdit, onDelete }: OltTableProps) {
       dataSource={olts}
       loading={loading}
       rowKey="id"
-      pagination={{ pageSize: 10 }}
+      pagination={{ defaultPageSize: 10 }}
       scroll={{ x: 1200 }}
     />
   );

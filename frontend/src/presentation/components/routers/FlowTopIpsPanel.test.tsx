@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { FlowTopIpsPanel } from "./FlowTopIpsPanel";
+import { choosePageSize, visibleRows } from "@/test/pagination";
 
 const rows = [
   {
@@ -149,13 +150,10 @@ describe("FlowTopIpsPanel pagination", () => {
         failed={false}
       />,
     );
-    expect(screen.queryByText("198.51.100.20")).toBeNull();
+    expect(visibleRows()).toBe(20);
 
-    fireEvent.mouseDown(
-      document.querySelector(".ant-pagination-options .ant-select-selector")!,
-    );
-    fireEvent.click(await screen.findByTitle("50 / page"));
+    await choosePageSize(50);
 
-    expect(screen.getByText("198.51.100.49")).toBeInTheDocument();
+    expect(visibleRows()).toBe(50);
   });
 });

@@ -16,7 +16,7 @@ export function EdgeList({ edges, onEdit, onRedraw, onDelete }: EdgeListProps) {
       rowKey="edgeId"
       dataSource={edges}
       size="small"
-      pagination={{ pageSize: 20 }}
+      pagination={{ defaultPageSize: 20 }}
       columns={[
         { title: "Kode", dataIndex: "edgeId" },
         { title: "Dari", dataIndex: "source" },

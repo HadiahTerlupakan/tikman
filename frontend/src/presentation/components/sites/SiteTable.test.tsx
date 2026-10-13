@@ -2,6 +2,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SiteTable } from "./SiteTable";
 import type { Site } from "@/domain/entities";
+import {
+  PICKER_ROWS,
+  choosePageSize,
+  times,
+  visibleRows,
+} from "@/test/pagination";
 
 const SITES: Site[] = [
   {
@@ -57,4 +63,25 @@ describe("SiteTable", () => {
 
     expect(cellTexts("Empty")).toContain("0");
   });
+});
+
+it("SiteTable lets the page-size picker change how many sites show", async () => {
+  const sites = times(PICKER_ROWS, (i) => ({
+    ...SITES[0],
+    id: `site-${i}`,
+    name: `Site ${i}`,
+  }));
+  render(
+    <SiteTable
+      sites={sites}
+      loading={false}
+      onEdit={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  expect(visibleRows()).toBe(10);
+
+  await choosePageSize(100);
+
+  expect(visibleRows()).toBe(PICKER_ROWS);
 });

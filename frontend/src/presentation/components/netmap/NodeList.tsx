@@ -15,7 +15,7 @@ export function NodeList({ nodes, onEdit, onDelete }: NodeListProps) {
       rowKey="nodeId"
       dataSource={nodes}
       size="small"
-      pagination={{ pageSize: 20 }}
+      pagination={{ defaultPageSize: 20 }}
       columns={[
         { title: "Kode", dataIndex: "nodeId" },
         { title: "Nama", dataIndex: "name" },

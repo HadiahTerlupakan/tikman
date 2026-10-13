@@ -68,7 +68,7 @@ export function ProvisionHistoryModal({
         dataSource={jobs || []}
         loading={loading}
         rowKey="id"
-        pagination={{ pageSize: 5 }}
+        pagination={{ defaultPageSize: 5 }}
         size="small"
       />
     </Modal>

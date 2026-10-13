@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/infrastructure/http";
 import { OltProtocol, OltModel, type Olt } from "@/domain/entities";
 import { OltTable } from "./OltTable";
+import {
+  PICKER_ROWS,
+  choosePageSize,
+  times,
+  visibleRows,
+} from "@/test/pagination";
 
 const discoverMutate = vi.hoisted(() => vi.fn());
 
@@ -93,4 +99,27 @@ describe("OltTable discover action", () => {
       ),
     );
   });
+});
+
+it("OltTable lets the page-size picker change how many OLTs show", async () => {
+  const olts = times(PICKER_ROWS, (i) => ({
+    ...olt,
+    id: `olt-${i}`,
+    name: `OLT ${i}`,
+  }));
+  render(
+    <MemoryRouter>
+      <OltTable
+        olts={olts}
+        loading={false}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    </MemoryRouter>,
+  );
+  expect(visibleRows()).toBe(10);
+
+  await choosePageSize(100);
+
+  expect(visibleRows()).toBe(PICKER_ROWS);
 });

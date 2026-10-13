@@ -568,12 +568,20 @@ deploys this one. GitHub Actions does not deploy either — `ci.yml` only tests,
 lints and pushes images nothing consumes.
 
 ```
-cd /opt/tikman/src && sudo -u radpro git pull --ff-only origin main
+cd /opt/tikman/src && for i in 1 2 3; do
+  sudo -u radpro git pull --ff-only origin main && break; sleep 10; done
+git log --oneline -1   # must be the commit you pushed; if not, stop here
 sudo docker compose --env-file /opt/tikman/.env \
   -f docker-compose.yml -f docker-compose.vps.yml stop worker trapd
 sudo docker compose --env-file /opt/tikman/.env \
   -f docker-compose.yml -f docker-compose.vps.yml up -d --build --remove-orphans
 ```
+
+The VPS's HTTPS to GitHub drops now and then: on 2026-10-13 one pull timed
+out connecting after 130 s and another lost its TLS session mid-transfer,
+while everything else on the host, and the next try, worked. Hence the
+retry, and the check: a failed pull leaves the old checkout, and the
+`up --build` after it would rebuild the old code and look like a deploy.
 
 Git runs as `radpro`; a fetch that cannot write objects is sudo-poisoned
 ownership, not a full disk. The compose commands need `sudo` because
