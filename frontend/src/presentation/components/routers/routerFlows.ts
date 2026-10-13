@@ -40,6 +40,27 @@ export function asnLabel(asn: number, name: string): string {
   return name ? `${name} (AS${asn})` : `AS${asn}`;
 }
 
+const REGIONAL_INDICATOR_A = 0x1f1e6;
+const LETTER_A = 65;
+const COUNTRY_CODE = /^[A-Z]{2}$/;
+
+/** The emoji flag for an ISO 3166 code, or "" for anything else. */
+export function countryFlag(code: string): string {
+  if (!COUNTRY_CODE.test(code)) return "";
+  return String.fromCodePoint(
+    ...[...code].map((c) => REGIONAL_INDICATOR_A + c.charCodeAt(0) - LETTER_A),
+  );
+}
+
+/** The country's Indonesian name, falling back to its code. */
+export function countryName(code: string): string {
+  try {
+    return new Intl.DisplayNames(["id"], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 export function popLabel(
   id: string | null,
   labels: Map<string, string>,

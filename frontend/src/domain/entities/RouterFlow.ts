@@ -96,6 +96,8 @@ export interface FlowTopIp {
   ip: string;
   asn: number;
   name: string;
+  /** Where the AS is registered, not where the address is; "" or "Unknown" when unset. */
+  country: string;
   bytes: number;
 }
 

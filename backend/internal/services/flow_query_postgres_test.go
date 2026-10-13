@@ -190,8 +190,8 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []FlowTopIP{
-		{IP: "203.0.113.5", ASN: 64498, Name: "EXAMPLE-NET-C", Bytes: 150},
-		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Bytes: 120},
+		{IP: "203.0.113.5", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "ZZ", Bytes: 150},
+		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "ZZ", Bytes: 120},
 	}, rows)
 }
 

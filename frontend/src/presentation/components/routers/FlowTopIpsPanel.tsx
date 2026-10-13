@@ -1,7 +1,7 @@
 import { Alert, Card, Table } from "antd";
 import type { FlowTopIp } from "@/domain/entities";
 import { formatBytes } from "../trafficFormat";
-import { asnLabel } from "./routerFlows";
+import { asnLabel, countryFlag, countryName } from "./routerFlows";
 
 const PAGE_SIZE = 20;
 
@@ -25,7 +25,7 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
           pagination={{ pageSize: PAGE_SIZE }}
           dataSource={rows}
           columns={[
-            { title: "IP", dataIndex: "ip" },
+            { title: "IP", render: (_, r) => <TopIpAddress row={r} /> },
             { title: "Organisasi", render: (_, r) => asnLabel(r.asn, r.name) },
             {
               title: "Total",
@@ -42,5 +42,22 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
         />
       )}
     </Card>
+  );
+}
+
+/** Windows has no flag emoji and shows the two letters instead, still readable. */
+function TopIpAddress({ row }: { row: FlowTopIp }) {
+  const flag = countryFlag(row.country);
+  if (!flag) return <>{row.ip}</>;
+  return (
+    <span>
+      <span
+        title={`${countryName(row.country)} (negara terdaftar AS)`}
+        style={{ marginRight: 8 }}
+      >
+        {flag}
+      </span>
+      {row.ip}
+    </span>
   );
 }

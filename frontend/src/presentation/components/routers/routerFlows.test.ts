@@ -8,6 +8,8 @@ import type {
 } from "@/domain/entities";
 import {
   asnLabel,
+  countryFlag,
+  countryName,
   flowChartRows,
   flowStale,
   peakWindowLabel,
@@ -19,6 +21,22 @@ import {
 
 const NOW = new Date("2026-10-12T12:00:00Z");
 const DAY_HOURS = 24;
+
+describe("countryFlag", () => {
+  it("turns an ISO code into its flag and anything else into nothing", () => {
+    expect(countryFlag("ID")).toBe("\u{1F1EE}\u{1F1E9}");
+    expect(countryFlag("JP")).toBe("\u{1F1EF}\u{1F1F5}");
+    expect(countryFlag("Unknown")).toBe("");
+    expect(countryFlag("")).toBe("");
+    expect(countryFlag("us")).toBe("");
+  });
+});
+
+describe("countryName", () => {
+  it("names the country in Indonesian", () => {
+    expect(countryName("JP")).toBe("Jepang");
+  });
+});
 
 describe("asnLabel", () => {
   it("names ASN 0 Lainnya and shows the number beside a name", () => {

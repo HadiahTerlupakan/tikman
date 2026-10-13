@@ -22,10 +22,13 @@ var ErrTopIPsRange = fmt.Errorf("%w: top IPs are kept for 7 days; the range star
 
 // FlowTopIP is one destination address over the range.
 type FlowTopIP struct {
-	IP    string `json:"ip" gorm:"column:ip"`
-	ASN   int64  `json:"asn" gorm:"column:asn"`
-	Name  string `json:"name" gorm:"-"`
-	Bytes int64  `json:"bytes"`
+	IP   string `json:"ip" gorm:"column:ip"`
+	ASN  int64  `json:"asn" gorm:"column:asn"`
+	Name string `json:"name" gorm:"-"`
+	// Country is where the AS is registered (iptoasn), not where the address
+	// is located: a global network's servers all show its home country.
+	Country string `json:"country" gorm:"-"`
+	Bytes   int64  `json:"bytes"`
 }
 
 // FlowStatus describes the ASN dataset flowd last loaded.
@@ -60,12 +63,17 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	for i, r := range rows {
 		asns[i] = r.ASN
 	}
-	names, err := s.asnNames(asns)
+	records, err := s.asnRecords(asns)
 	if err != nil {
 		return nil, err
 	}
+	names := make(map[int64]string, len(records))
+	for asn, r := range records {
+		names[asn] = r.Name
+	}
 	for i := range rows {
 		rows[i].Name = asnLabel(rows[i].ASN, names)
+		rows[i].Country = records[rows[i].ASN].Country
 	}
 	return rows, nil
 }
