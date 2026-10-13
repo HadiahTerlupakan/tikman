@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { FlowTopIpsPanel } from "./FlowTopIpsPanel";
 
 const rows = [
@@ -98,5 +98,64 @@ describe("FlowTopIpsPanel", () => {
     expect(flagged.querySelector(".ant-tag")).toHaveTextContent("VPN");
     const plain = screen.getByText("192.0.2.9").closest("tr")!;
     expect(plain.querySelector(".ant-tag")).toBeNull();
+  });
+});
+
+describe("FlowTopIpsPanel pagination", () => {
+  const many = (bytesOffset: number) =>
+    Array.from({ length: 100 }, (_, i) => ({
+      ip: `198.51.100.${i}`,
+      asn: 64497,
+      name: "EXAMPLE-NET-B",
+      country: "JP",
+      countrySource: "server" as const,
+      bytes: 100_000 - i + bytesOffset,
+      flows: 1,
+      asnType: "",
+      anonymity: "" as const,
+    }));
+
+  it("moves to another page and stays there when the data refreshes", () => {
+    const { rerender } = render(
+      <FlowTopIpsPanel
+        available
+        rows={many(0)}
+        loading={false}
+        failed={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("2"));
+    expect(screen.getByText("198.51.100.20")).toBeInTheDocument();
+    expect(screen.queryByText("198.51.100.0")).toBeNull();
+
+    rerender(
+      <FlowTopIpsPanel
+        available
+        rows={many(1)}
+        loading={false}
+        failed={false}
+      />,
+    );
+    expect(screen.getByText("198.51.100.20")).toBeInTheDocument();
+  });
+
+  it("changes how many rows a page shows", async () => {
+    render(
+      <FlowTopIpsPanel
+        available
+        rows={many(0)}
+        loading={false}
+        failed={false}
+      />,
+    );
+    expect(screen.queryByText("198.51.100.20")).toBeNull();
+
+    fireEvent.mouseDown(
+      document.querySelector(".ant-pagination-options .ant-select-selector")!,
+    );
+    fireEvent.click(await screen.findByTitle("50 / page"));
+
+    expect(screen.getByText("198.51.100.49")).toBeInTheDocument();
   });
 });

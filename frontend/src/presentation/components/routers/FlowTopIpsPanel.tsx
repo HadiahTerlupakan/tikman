@@ -9,6 +9,7 @@ import {
 } from "./routerFlows";
 
 const PAGE_SIZE = 20;
+const PAGE_SIZES = [10, 20, 50, 100];
 
 interface Props {
   available: boolean;
@@ -36,7 +37,12 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
           size="small"
           rowKey="ip"
           loading={loading}
-          pagination={{ pageSize: PAGE_SIZE }}
+          // defaultPageSize, not pageSize: a fixed pageSize ignores the
+          // size picker antd shows.
+          pagination={{
+            defaultPageSize: PAGE_SIZE,
+            pageSizeOptions: PAGE_SIZES,
+          }}
           dataSource={rows}
           columns={[
             { title: "IP", render: (_, r) => <TopIpAddress row={r} /> },
