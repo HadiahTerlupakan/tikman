@@ -29,6 +29,11 @@ type FlowTopIP struct {
 	// for windows written before flowd recorded it.
 	Country string `json:"country" gorm:"column:country"`
 	Bytes   int64  `json:"bytes"`
+	// Flows sums the sampled flow records over the range.
+	Flows int64 `json:"flows"`
+	// PeakSubscribers is the most distinct subscribers in one five-minute
+	// window. Windows cannot be summed: the same subscriber is in many.
+	PeakSubscribers int `json:"peak_subscribers"`
 }
 
 // FlowStatus describes the ASN dataset flowd last loaded.
@@ -54,8 +59,9 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	f.Upstream = nil // the table has no upstream column
 	where, args := f.where(routerID, "time")
 	// MAX picks the located country over "" from windows that predate it.
-	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, MAX(country) AS country, %s AS bytes FROM router_flow_top_ips
-		WHERE %s GROUP BY ip, asn ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), where)
+	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, MAX(country) AS country, %s AS bytes,
+		%s AS flows, MAX(subscribers) AS peak_subscribers FROM router_flow_top_ips
+		WHERE %s GROUP BY ip, asn ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), cappedBigint("SUM(flows)"), where)
 	rows := []FlowTopIP{}
 	if err := s.db.Raw(query, withArgs(args, topIPLimit)...).Scan(&rows).Error; err != nil {
 		return nil, err

@@ -9,6 +9,8 @@ const rows = [
     name: "EXAMPLE-NET-B",
     country: "JP",
     bytes: 2048,
+    flows: 12345,
+    peakSubscribers: 37,
   },
   {
     ip: "192.0.2.9",
@@ -16,6 +18,8 @@ const rows = [
     name: "EXAMPLE-NET-A",
     country: "",
     bytes: 1024,
+    flows: 0,
+    peakSubscribers: 0,
   },
 ];
 
@@ -41,5 +45,18 @@ describe("FlowTopIpsPanel", () => {
     expect(
       screen.getByRole("link", { name: "Lokasi IP oleh DB-IP" }),
     ).toHaveAttribute("href", "https://db-ip.com");
+  });
+
+  it("shows connections and peak subscribers, and a dash where none were recorded", () => {
+    render(
+      <FlowTopIpsPanel available rows={rows} loading={false} failed={false} />,
+    );
+
+    const located = screen.getByText("198.51.100.7").closest("tr")!;
+    expect(located).toHaveTextContent("12.345");
+    expect(located).toHaveTextContent("37");
+    const unrecorded = screen.getByText("192.0.2.9").closest("tr")!;
+    expect(unrecorded.querySelectorAll("td")[3]).toHaveTextContent("—");
+    expect(unrecorded.querySelectorAll("td")[4]).toHaveTextContent("—");
   });
 });

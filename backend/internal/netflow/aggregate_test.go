@@ -134,6 +134,50 @@ func TestCloseWindowKeepsTheHundredLargestAddresses(t *testing.T) {
 	assert.False(t, agg.WindowDue(minute0.Add(TopIPWindow+time.Minute)), "the next window is open")
 }
 
+func TestCloseWindowCountsFlowsAndDistinctSubscribers(t *testing.T) {
+	agg := NewAggregator(minute0)
+	for _, local := range []string{"203.0.113.5", "203.0.113.5", "203.0.113.6"} {
+		flow := download(popA, transit, "198.51.100.7", 1500)
+		flow.Local = netip.MustParseAddr(local)
+		agg.Add(routerA, flow, docASN(0))
+	}
+
+	rows := agg.CloseWindow(minute0.Add(TopIPWindow))
+
+	require.Len(t, rows, 1)
+	assert.EqualValues(t, 3, rows[0].Flows, "every flow record")
+	assert.Equal(t, 2, rows[0].Subscribers, "the same subscriber twice is one")
+}
+
+// Past the pair cap a new subscriber is not counted, so a flood of spoofed
+// sources cannot grow memory; the flow itself still counts.
+func TestSubscribersStopAtThePairCap(t *testing.T) {
+	agg := NewAggregator(minute0)
+	local := netip.MustParseAddr("10.0.0.0")
+	for i := 0; i < MaxSubscriberPairs; i++ {
+		flow := download(popA, transit, "198.51.100.7", 1)
+		flow.Local = local
+		agg.Add(routerA, flow, docASN(0))
+		local = local.Next()
+	}
+	late := download(popA, transit, "198.51.100.8", 1)
+	late.Local = local
+	agg.Add(routerA, late, docASN(0))
+
+	byIP := map[netip.Addr]TopIPRow{}
+	for _, r := range agg.CloseWindow(minute0.Add(TopIPWindow)) {
+		byIP[r.IP] = r
+	}
+	require.Contains(t, byIP, netip.MustParseAddr("198.51.100.8"))
+	assert.Equal(t, MaxSubscriberPairs, byIP[netip.MustParseAddr("198.51.100.7")].Subscribers)
+	assert.EqualValues(t, 1, byIP[netip.MustParseAddr("198.51.100.8")].Flows)
+	assert.Zero(t, byIP[netip.MustParseAddr("198.51.100.8")].Subscribers)
+	next := download(popA, transit, "198.51.100.8", 1)
+	next.Local = local
+	agg.Add(routerA, next, docASN(0))
+	assert.Equal(t, 1, agg.CloseWindow(minute0.Add(2 * TopIPWindow))[0].Subscribers, "the cap resets with the window")
+}
+
 // Past the cap a new address is not tracked, however large; its bytes still
 // count in the minute totals.
 func TestIPCounterStopsAtTheCapPerPOP(t *testing.T) {

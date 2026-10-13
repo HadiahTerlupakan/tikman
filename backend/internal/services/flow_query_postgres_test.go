@@ -177,9 +177,9 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 	routerID := uuid.New()
 	w0 := time.Now().UTC().Truncate(5 * time.Minute).Add(-10 * time.Minute)
 	for _, r := range []models.RouterFlowTopIP{
-		{Time: w0, IP: "203.0.113.5", ASN: 64498, Bytes: 100}, // written before flowd located addresses
-		{Time: w0.Add(5 * time.Minute), IP: "203.0.113.5", ASN: 64498, Country: "JP", Bytes: 50},
-		{Time: w0, IP: "203.0.113.6", ASN: 64498, Country: "US", Bytes: 120},
+		{Time: w0, IP: "203.0.113.5", ASN: 64498, Bytes: 100, Flows: 4, Subscribers: 3}, // written before flowd located addresses
+		{Time: w0.Add(5 * time.Minute), IP: "203.0.113.5", ASN: 64498, Country: "JP", Bytes: 50, Flows: 2, Subscribers: 2},
+		{Time: w0, IP: "203.0.113.6", ASN: 64498, Country: "US", Bytes: 120, Flows: 5, Subscribers: 1},
 	} {
 		r.RouterID, r.Direction = routerID, "download"
 		require.NoError(t, db.Create(&r).Error)
@@ -190,8 +190,8 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []FlowTopIP{
-		{IP: "203.0.113.5", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "JP", Bytes: 150},
-		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "US", Bytes: 120},
+		{IP: "203.0.113.5", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "JP", Bytes: 150, Flows: 6, PeakSubscribers: 3},
+		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "US", Bytes: 120, Flows: 5, PeakSubscribers: 1},
 	}, rows)
 }
 

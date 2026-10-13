@@ -1,4 +1,4 @@
-import { Alert, Card, Table } from "antd";
+import { Alert, Card, Table, Tooltip } from "antd";
 import type { FlowTopIp } from "@/domain/entities";
 import { formatBytes } from "../trafficFormat";
 import { asnLabel, countryFlag, countryName } from "./routerFlows";
@@ -41,6 +41,24 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
               dataIndex: "bytes",
               render: (b: number) => formatBytes(b),
             },
+            {
+              title: (
+                <Tooltip title="Koneksi yang tertangkap sampling 1:100. Koneksi sebenarnya lebih banyak, terutama yang singkat.">
+                  Koneksi
+                </Tooltip>
+              ),
+              dataIndex: "flows",
+              render: countOrDash,
+            },
+            {
+              title: (
+                <Tooltip title="Jumlah pelanggan berbeda yang mengakses IP ini dalam 5 menit tersibuk pada rentang ini, dari sampling 1:100.">
+                  Pelanggan
+                </Tooltip>
+              ),
+              dataIndex: "peakSubscribers",
+              render: countOrDash,
+            },
           ]}
         />
       ) : (
@@ -52,6 +70,11 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
       )}
     </Card>
   );
+}
+
+/** 0 means no window in the range recorded it yet, not "never reached". */
+function countOrDash(n: number): string {
+  return n > 0 ? n.toLocaleString("id-ID") : "—";
 }
 
 /** Windows has no flag emoji and shows the two letters instead, still readable. */

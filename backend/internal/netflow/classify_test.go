@@ -63,13 +63,13 @@ func TestClassifyPlacesDownloadsAndUploads(t *testing.T) {
 		Ingress: 10, Egress: 30, Bytes: 1500, Packets: 1})
 	require.True(t, ok)
 	assert.Equal(t, Classified{POP: popB, Upstream: transit, Direction: Download,
-		Remote: addr("198.51.100.7"), Bytes: 150_000, Packets: 100}, down)
+		Remote: addr("198.51.100.7"), Local: addr("203.0.113.70"), Bytes: 150_000, Packets: 100}, down)
 
 	up, ok := m.Classify(Flow{Src: addr("192.0.2.38"), Dst: addr("198.51.100.9"),
 		Ingress: 30, Egress: 11, Bytes: 80, Packets: 1})
 	require.True(t, ok)
 	assert.Equal(t, Classified{POP: popA, Upstream: ix, Direction: Upload,
-		Remote: addr("198.51.100.9"), Bytes: 8000, Packets: 100}, up)
+		Remote: addr("198.51.100.9"), Local: addr("192.0.2.38"), Bytes: 8000, Packets: 100}, up)
 }
 
 func TestClassifyDropsTrafficThatNeverCrossesAnUpstream(t *testing.T) {

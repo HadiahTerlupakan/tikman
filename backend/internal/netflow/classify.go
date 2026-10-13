@@ -49,8 +49,10 @@ type Classified struct {
 	Upstream  uuid.UUID
 	Direction Direction
 	Remote    netip.Addr
-	Bytes     uint64
-	Packets   uint64
+	// Local is the subscriber's side of the flow.
+	Local   netip.Addr
+	Bytes   uint64
+	Packets uint64
 }
 
 // Plausible reports whether a flow's counts, scaled by sampling, are ones an
@@ -95,6 +97,7 @@ func (m *RouterMap) Classify(f Flow) (Classified, bool) {
 	if otherSide == 0 {
 		return Classified{}, false
 	}
+	c.Local = local
 	c.POP, _ = m.POPs.Lookup(local)
 	return c, true
 }

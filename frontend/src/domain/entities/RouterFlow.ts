@@ -99,6 +99,10 @@ export interface FlowTopIp {
   /** ISO code of where the address is located (DB-IP), "" when unknown. */
   country: string;
   bytes: number;
+  /** Sampled flow records over the range; 0 for windows that predate it. */
+  flows: number;
+  /** Most distinct subscribers in one five-minute window of the range. */
+  peakSubscribers: number;
 }
 
 export interface FlowStatus {
