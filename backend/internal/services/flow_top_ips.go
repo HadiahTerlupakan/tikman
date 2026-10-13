@@ -50,8 +50,8 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	}
 	f.Upstream = nil // the table has no upstream column
 	where, args := f.where(routerID, "time")
-	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, SUM(bytes)::bigint AS bytes FROM router_flow_top_ips
-		WHERE %s GROUP BY ip, asn ORDER BY 3 DESC LIMIT ?`, where)
+	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, %s AS bytes FROM router_flow_top_ips
+		WHERE %s GROUP BY ip, asn ORDER BY 3 DESC LIMIT ?`, cappedBigint("SUM(bytes)"), where)
 	rows := []FlowTopIP{}
 	if err := s.db.Raw(query, withArgs(args, topIPLimit)...).Scan(&rows).Error; err != nil {
 		return nil, err

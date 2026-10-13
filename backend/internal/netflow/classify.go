@@ -1,6 +1,7 @@
 package netflow
 
 import (
+	"math/bits"
 	"net/netip"
 
 	"github.com/google/uuid"
@@ -14,6 +15,20 @@ type Direction string
 const (
 	Download Direction = "download"
 	Upload   Direction = "upload"
+)
+
+const (
+	// MaxCount bounds every byte and packet count flowd keeps: a flow
+	// record's once scaled by sampling, and a minute row's or top-IP
+	// window's sum. 2^52 bytes is more than a 400 Gbps port carries in a
+	// day, so no real record or row reaches it, not even a minute row that
+	// gathered a whole day while a clock correction stalled closes. 1440
+	// rows at it sum to under bigint's maximum, so one key's day of minutes
+	// cannot fail the daily rollup's SUM(bytes)::bigint.
+	MaxCount = 1 << 52
+	// maxFlowPackets is as many packets as MaxCount bytes can hold, each at
+	// least an IPv4 header's 20 bytes.
+	maxFlowPackets = MaxCount / 20
 )
 
 // RouterMap is what flowd knows about one exporting router.
@@ -38,11 +53,36 @@ type Classified struct {
 	Packets   uint64
 }
 
-// Classify places a flow, or reports false for one that never crossed an
-// upstream (POP to POP) or that the router itself sent or received: ifIndex 0
-// on the far side means no interface, which is the router's own stack.
+// Plausible reports whether a flow's counts, scaled by sampling, are ones an
+// IPv4 flow can have: at most MaxCount bytes and maxFlowPackets packets. They
+// arrive on an unauthenticated UDP port, so a sender can put anything up to
+// 2^64 in them, which scaling would wrap.
+func (m *RouterMap) Plausible(f Flow) bool {
+	_, _, ok := m.scale(f)
+	return ok
+}
+
+func (m *RouterMap) scale(f Flow) (bytes, packets uint64, ok bool) {
+	bytes, bytesOK := scaled(f.Bytes, m.Sampling, MaxCount)
+	packets, packetsOK := scaled(f.Packets, m.Sampling, maxFlowPackets)
+	return bytes, packets, bytesOK && packetsOK
+}
+
+func scaled(n, sampling, limit uint64) (uint64, bool) {
+	hi, lo := bits.Mul64(n, sampling)
+	return lo, hi == 0 && lo <= limit
+}
+
+// Classify places a flow, or reports false for one whose counts are not
+// Plausible, that never crossed an upstream (POP to POP) or that the router
+// itself sent or received: ifIndex 0 on the far side means no interface,
+// which is the router's own stack.
 func (m *RouterMap) Classify(f Flow) (Classified, bool) {
-	c := Classified{Bytes: f.Bytes * m.Sampling, Packets: f.Packets * m.Sampling}
+	bytes, packets, ok := m.scale(f)
+	if !ok {
+		return Classified{}, false
+	}
+	c := Classified{Bytes: bytes, Packets: packets}
 	var local netip.Addr
 	var otherSide uint32
 	if up, ok := m.Upstreams[f.Ingress]; ok {

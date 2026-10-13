@@ -7,6 +7,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/auth"
 	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"github.com/tikman/olt-provisioning/internal/utils"
 )
 
 type AuthHandler struct {
@@ -38,6 +39,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.userService.GetByUsername(req.Username)
 	if err != nil {
+		// Without this, an unknown username skips bcrypt and its 401 returns
+		// hundreds of milliseconds sooner, which enumerates real accounts.
+		utils.CompareDummyPassword(req.Password)
 		c.JSON(http.StatusUnauthorized, ErrorResponse{
 			Error: "Invalid credentials",
 			Code:  "INVALID_CREDENTIALS",

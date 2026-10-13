@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestHashPassword(t *testing.T) {
@@ -55,4 +56,12 @@ func TestEncrypt_InvalidKeyLength(t *testing.T) {
 	_, err := Encrypt(plaintext, key)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid key size")
+}
+
+// A dummy hash cheaper than bcryptCost would make a login for an unknown
+// username return measurably sooner than a wrong password for a real one.
+func TestDummyPasswordHashCostsTheSameAsARealHash(t *testing.T) {
+	cost, err := bcrypt.Cost([]byte(dummyPasswordHash))
+	require.NoError(t, err)
+	assert.Equal(t, bcryptCost, cost)
 }

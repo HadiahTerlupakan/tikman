@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"math/rand"
 	"net/netip"
 	"strings"
@@ -247,4 +248,65 @@ func TestTopIPWindowNeverClosesTwice(t *testing.T) {
 	assert.Empty(t, back)
 	require.Len(t, next, 1)
 	assert.Equal(t, minute0.Add(netflow.TopIPWindow), next[0].Time)
+}
+
+func packetOf(records ...[]byte) []byte {
+	return ipfixtest.Message(1, ipfixtest.TemplateSet(256, ipfixtest.FlowFields...),
+		ipfixtest.DataSet(256, records...))
+}
+
+// A record whose counts would wrap once scaled is dropped and counted; added
+// in, it would have wrapped the real flow's row beside it to a small count.
+func TestHandleDropsAndCountsImplausibleRecords(t *testing.T) {
+	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
+
+	c.handle(routerAddr, packetOf(
+		ipfixtest.FlowRecord("198.51.100.9", "203.0.113.6", 10, 20, math.MaxUint64/50, 1),
+		ipfixtest.FlowRecord("198.51.100.7", "203.0.113.5", 10, 20, 1500, 3)))
+	rows, _, _ := c.closeMinute(minute0.Add(time.Minute))
+
+	require.Len(t, rows, 1)
+	assert.EqualValues(t, 150_000, rows[0].Bytes)
+	assert.EqualValues(t, 300, rows[0].Packets)
+	assert.EqualValues(t, 1, c.implausible.Load())
+}
+
+// Records each within the bounds share no allowance with the real flows: a
+// forger at the bounds, under another key, leaves every real flow counted.
+func TestForgedRecordsAtTheBoundsLeaveRealFlowsCounted(t *testing.T) {
+	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
+	c.handle(routerAddr, packetOf(
+		ipfixtest.FlowRecord("192.0.2.99", "203.0.113.6", 10, 20, 0, (1<<43)/100),
+		ipfixtest.FlowRecord("192.0.2.99", "203.0.113.6", 10, 20, netflow.MaxCount/100, 1)))
+
+	for range 1000 {
+		c.handle(routerAddr, flowPacket())
+	}
+	rows, _, _ := c.closeMinute(minute0.Add(time.Minute))
+
+	require.Len(t, rows, 2)
+	for _, r := range rows {
+		if r.ASN == 64497 {
+			assert.EqualValues(t, 1000*150_000, r.Bytes)
+			assert.EqualValues(t, 1000*300, r.Packets)
+		}
+	}
+	assert.Zero(t, c.implausible.Load())
+}
+
+// Dropped records are warned of with the minute, as folded keys are, and
+// each minute reports only its own.
+func TestFinishMinuteWarnsOfDroppedRecords(t *testing.T) {
+	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
+	forged := ipfixtest.FlowRecord("198.51.100.9", "203.0.113.6", 10, 20, netflow.MaxCount, 1)
+	c.handle(routerAddr, packetOf(forged, forged))
+	core, logs := observer.New(zap.WarnLevel)
+	sink := &fakeSink{}
+	w := &retryWriter{sink: sink, logger: zap.NewNop()}
+
+	finishMinute(c, w, sink, zap.New(core), minute0.Add(time.Minute))
+	finishMinute(c, w, sink, zap.New(core), minute0.Add(2*time.Minute))
+
+	require.Equal(t, 1, logs.Len())
+	assert.EqualValues(t, 2, logs.All()[0].ContextMap()["dropped_flows"])
 }

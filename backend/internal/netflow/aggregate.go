@@ -1,6 +1,7 @@
 package netflow
 
 import (
+	"math/bits"
 	"net/netip"
 	"sort"
 	"time"
@@ -132,8 +133,8 @@ func (a *Aggregator) addMinute(key MinuteKey, c Classified) {
 		a.keys[key] = cnt
 		a.keysPerRouter[key.RouterID]++
 	}
-	cnt.bytes += c.Bytes
-	cnt.packets += c.Packets
+	cnt.bytes = addCount(cnt.bytes, c.Bytes)
+	cnt.packets = addCount(cnt.packets, c.Packets)
 }
 
 // addIP ignores a new address once its POP holds MaxIPsPerPOP; the bytes
@@ -150,7 +151,7 @@ func (a *Aggregator) addIP(g groupKey, ip netip.Addr, asn uint32, bytes uint64) 
 		cnt = &ipCounter{asn: asn}
 		a.ips[key] = cnt
 	}
-	cnt.bytes += bytes
+	cnt.bytes = addCount(cnt.bytes, bytes)
 }
 
 // CloseMinute returns the open minute's rows, keeping TopASNs per (router,
@@ -181,8 +182,19 @@ func addCounter(into map[MinuteKey]*counter, key MinuteKey, cnt *counter) {
 		sum = &counter{}
 		into[key] = sum
 	}
-	sum.bytes += cnt.bytes
-	sum.packets += cnt.packets
+	sum.bytes = addCount(sum.bytes, cnt.bytes)
+	sum.packets = addCount(sum.packets, cnt.packets)
+}
+
+// addCount holds a sum at MaxCount. Every flow is within it, but nothing
+// bounds how many records a sender spoofing a router's address can send, and
+// a wrapped sum would be stored as a small or, past bigint, negative count.
+// No real row reaches it, so only forged traffic is held there.
+func addCount(sum, n uint64) uint64 {
+	if total, carry := bits.Add64(sum, n, 0); carry == 0 && total < MaxCount {
+		return total
+	}
+	return MaxCount
 }
 
 // topASNs ranks each group's ASNs by bytes summed over upstreams. OtherASN

@@ -25,8 +25,8 @@ type popUpstreamCell struct {
 
 func (s *FlowQueryService) popUpstreamBytes(table, where string, args []interface{}) ([]popUpstreamCell, error) {
 	// table comes from flowSources, never from the request.
-	query := fmt.Sprintf(`SELECT pop_interface_id, upstream_interface_id, SUM(bytes)::bigint AS bytes
-		FROM %s WHERE %s GROUP BY 1, 2 ORDER BY 3 DESC, 2`, table, where)
+	query := fmt.Sprintf(`SELECT pop_interface_id, upstream_interface_id, %s AS bytes
+		FROM %s WHERE %s GROUP BY 1, 2 ORDER BY 3 DESC, 2`, cappedBigint("SUM(bytes)"), table, where)
 	var cells []popUpstreamCell
 	return cells, s.db.Raw(query, args...).Scan(&cells).Error
 }
@@ -44,7 +44,7 @@ func peeringPOPs(cells []popUpstreamCell, total int64) []FlowPeeringPOP {
 			index[key] = i
 			pops = append(pops, FlowPeeringPOP{POPInterfaceID: c.POPInterfaceID, Upstreams: []FlowUpstreamShare{}})
 		}
-		pops[i].Bytes += c.Bytes
+		pops[i].Bytes = addBytes(pops[i].Bytes, c.Bytes)
 		pops[i].Upstreams = append(pops[i].Upstreams,
 			FlowUpstreamShare{UpstreamInterfaceID: c.UpstreamInterfaceID, Bytes: c.Bytes})
 	}

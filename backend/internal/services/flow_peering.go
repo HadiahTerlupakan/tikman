@@ -76,7 +76,7 @@ func (s *FlowQueryService) Peering(routerID uuid.UUID, f FlowFilter, asn int64) 
 	out := &FlowPeering{ASN: asn, Name: asnLabel(asn, names), StepSeconds: int64(res.step.Seconds()),
 		PeakWindowSeconds: int64(res.source.step.Seconds())}
 	for _, t := range totals {
-		out.TotalBytes += t.Bytes
+		out.TotalBytes = addBytes(out.TotalBytes, t.Bytes)
 	}
 	out.Rows = peeringRows(totals, out.TotalBytes, f.To.Sub(f.From), res.source.step)
 	out.Series = peeringSeries(totals, buckets, res.step)
@@ -88,17 +88,18 @@ func (s *FlowQueryService) Peering(routerID uuid.UUID, f FlowFilter, asn int64) 
 // step on that upstream.
 func (s *FlowQueryService) upstreamTotals(src flowSource, where string, args []interface{}) ([]upstreamTotal, error) {
 	// table and column come from flowSources, never from the request.
-	query := fmt.Sprintf(`SELECT upstream_interface_id, SUM(step_bytes)::bigint AS bytes, MAX(step_bytes)::bigint AS peak
+	query := fmt.Sprintf(`SELECT upstream_interface_id, %s AS bytes, %s AS peak
 		FROM (SELECT %s AS step, upstream_interface_id, SUM(bytes) AS step_bytes FROM %s WHERE %s GROUP BY 1, 2) per_step
-		GROUP BY upstream_interface_id ORDER BY bytes DESC, upstream_interface_id`, src.timeColumn, src.table, where)
+		GROUP BY upstream_interface_id ORDER BY bytes DESC, upstream_interface_id`,
+		cappedBigint("SUM(step_bytes)"), cappedBigint("MAX(step_bytes)"), src.timeColumn, src.table, where)
 	var rows []upstreamTotal
 	return rows, s.db.Raw(query, args...).Scan(&rows).Error
 }
 
 func (s *FlowQueryService) upstreamBuckets(res flowResolution, where string, args []interface{}) ([]upstreamBucket, error) {
 	bucket, interval := res.bucketExpr()
-	query := fmt.Sprintf(`SELECT %s AS time, upstream_interface_id, SUM(bytes)::bigint AS bytes
-		FROM %s WHERE %s GROUP BY 1, 2 ORDER BY 1`, bucket, res.source.table, where)
+	query := fmt.Sprintf(`SELECT %s AS time, upstream_interface_id, %s AS bytes
+		FROM %s WHERE %s GROUP BY 1, 2 ORDER BY 1`, bucket, cappedBigint("SUM(bytes)"), res.source.table, where)
 	var rows []upstreamBucket
 	return rows, s.db.Raw(query, withArgs([]interface{}{interval}, args...)...).Scan(&rows).Error
 }

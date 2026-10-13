@@ -98,16 +98,17 @@ func percentOf(part, total int64) float64 {
 
 func (s *FlowQueryService) totalBytes(table, where string, args []interface{}) (int64, error) {
 	var total int64
-	query := fmt.Sprintf(`SELECT COALESCE(SUM(bytes), 0)::bigint FROM %s WHERE %s`, table, where)
+	query := fmt.Sprintf(`SELECT %s FROM %s WHERE %s`, cappedBigint("COALESCE(SUM(bytes), 0)"), table, where)
 	return total, s.db.Raw(query, args...).Scan(&total).Error
 }
 
 // asnTotals ranks destinations by bytes. Peak is the busiest single source
 // step, summed over the upstreams and POPs the filter keeps.
 func (s *FlowQueryService) asnTotals(src flowSource, where string, args []interface{}) ([]asnTotal, error) {
-	query := fmt.Sprintf(`SELECT asn, SUM(step_bytes)::bigint AS bytes, MAX(step_bytes)::bigint AS peak
+	query := fmt.Sprintf(`SELECT asn, %s AS bytes, %s AS peak
 		FROM (SELECT %s AS step, asn, SUM(bytes) AS step_bytes FROM %s WHERE %s GROUP BY 1, 2) per_step
-		GROUP BY asn ORDER BY bytes DESC LIMIT ?`, src.timeColumn, src.table, where)
+		GROUP BY asn ORDER BY bytes DESC LIMIT ?`,
+		cappedBigint("SUM(step_bytes)"), cappedBigint("MAX(step_bytes)"), src.timeColumn, src.table, where)
 	var rows []asnTotal
 	return rows, s.db.Raw(query, withArgs(args, summaryLimit)...).Scan(&rows).Error
 }
@@ -121,8 +122,8 @@ func (s *FlowQueryService) upstreamShares(table, where string, args []interface{
 		ASN int64 `gorm:"column:asn"`
 		FlowUpstreamShare
 	}
-	query := fmt.Sprintf(`SELECT asn, upstream_interface_id, SUM(bytes)::bigint AS bytes FROM %s
-		WHERE %s AND asn IN ? GROUP BY 1, 2 ORDER BY 3 DESC`, table, where)
+	query := fmt.Sprintf(`SELECT asn, upstream_interface_id, %s AS bytes FROM %s
+		WHERE %s AND asn IN ? GROUP BY 1, 2 ORDER BY 3 DESC`, cappedBigint("SUM(bytes)"), table, where)
 	if err := s.db.Raw(query, withArgs(args, asns)...).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -159,8 +160,8 @@ func (s *FlowQueryService) POPs(routerID uuid.UUID, f FlowFilter) ([]FlowPOPRow,
 	src := resolveFlowRange(f.From, f.To, time.Now()).source
 	where, args := f.where(routerID, src.timeColumn)
 	var totals []popASN
-	query := fmt.Sprintf(`SELECT pop_interface_id, SUM(bytes)::bigint AS bytes FROM %s WHERE %s
-		GROUP BY 1 ORDER BY 2 DESC`, src.table, where)
+	query := fmt.Sprintf(`SELECT pop_interface_id, %s AS bytes FROM %s WHERE %s
+		GROUP BY 1 ORDER BY 2 DESC`, cappedBigint("SUM(bytes)"), src.table, where)
 	if err := s.db.Raw(query, args...).Scan(&totals).Error; err != nil {
 		return nil, err
 	}
@@ -181,10 +182,10 @@ func (s *FlowQueryService) POPs(routerID uuid.UUID, f FlowFilter) ([]FlowPOPRow,
 
 func (s *FlowQueryService) popTopASNs(table, where string, args []interface{}) ([]popASN, error) {
 	query := fmt.Sprintf(`SELECT pop_interface_id, asn, bytes FROM (
-			SELECT pop_interface_id, asn, SUM(bytes)::bigint AS bytes,
+			SELECT pop_interface_id, asn, %s AS bytes,
 				ROW_NUMBER() OVER (PARTITION BY pop_interface_id ORDER BY SUM(bytes) DESC, asn) AS position
 			FROM %s WHERE %s AND asn <> 0 GROUP BY 1, 2) ranked
-		WHERE position <= ? ORDER BY bytes DESC`, table, where)
+		WHERE position <= ? ORDER BY bytes DESC`, cappedBigint("SUM(bytes)"), table, where)
 	var rows []popASN
 	return rows, s.db.Raw(query, withArgs(args, popTopASNs)...).Scan(&rows).Error
 }

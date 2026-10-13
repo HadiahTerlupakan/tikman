@@ -630,6 +630,36 @@ func TestMetricsService_GetONTTrafficTimeSeriesRangeBucket_SkipsRowsWithoutRates
 	assert.Equal(t, 4.0, *rows[0].TxRateMbps)
 }
 
+// The range is caller-supplied and only checked for order, so its span must
+// not set the work done: stepping through every bucket in years 0001-9999 ran
+// ~87M iterations per request, for an ONT with no rows as much as one with.
+func TestMetricsService_GetONTTrafficTimeSeriesRangeBucket_SpanDoesNotSetTheWork(t *testing.T) {
+	db := setupMetricsTestDB(t)
+	service := NewMetricsService(db)
+
+	ontID := uuid.New()
+	sample := time.Date(2026, time.August, 20, 10, 30, 0, 0, time.UTC)
+	require.NoError(t, db.Exec(`INSERT INTO ont_metrics (time, ont_id, rx_rate_mbps, tx_rate_mbps)
+		VALUES (?, ?, ?, ?)`,
+		sample, ontID.String(), 1.0, 4.0,
+	).Error)
+
+	start := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(9999, time.December, 31, 23, 0, 0, 0, time.UTC)
+
+	began := time.Now()
+	rows, err := service.GetONTTrafficTimeSeriesRangeBucket(ontID, start, end, "hour")
+	elapsed := time.Since(began)
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, time.Date(2026, time.August, 20, 10, 0, 0, 0, time.UTC), rows[0].Time)
+	assert.Equal(t, 1.0, *rows[0].RxRateMbps)
+	// One stored row is about a millisecond of work; walking the span took
+	// close to two seconds on a fast machine, far more under -race.
+	assert.Less(t, elapsed, 500*time.Millisecond)
+}
+
 func TestMetricsService_GetONTTrafficTimeSeriesRangeBucket_TracksPeakPerBucket(t *testing.T) {
 	db := setupMetricsTestDB(t)
 	service := NewMetricsService(db)

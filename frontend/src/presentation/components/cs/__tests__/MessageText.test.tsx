@@ -38,6 +38,20 @@ describe("MessageText", () => {
     );
   });
 
+  // The address match lets punctuation through, so a customer decides how long
+  // a run of it is. Trimming must not be retried from every position in a run
+  // that does not end the link: a regex doing that froze the inbox for seconds.
+  it("renders a long run of punctuation inside a link without stalling", () => {
+    const address = `http://${"!".repeat(100_000)}a`;
+
+    const started = performance.now();
+    render(<MessageText body={address} />);
+    const elapsed = performance.now() - started;
+
+    expect(elapsed).toBeLessThan(1000);
+    expect(screen.getByRole("link")).toHaveAttribute("href", address);
+  });
+
   // Without noopener the page we open can reach back through window.opener
   // and navigate this tab — a CS clicking a customer's link must not hand
   // the inbox to it.

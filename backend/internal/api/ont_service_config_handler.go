@@ -6,16 +6,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/middleware"
+	"github.com/tikman/olt-provisioning/internal/models"
 )
 
 // GetServiceConfig handles GET /api/v1/onts/:id/service-config. It returns the
 // ONU's provisioned service as the last discovery poll read it from the OLT,
 // so the configure form can open showing what is actually running.
 //
-// The response includes the subscriber's PPPoE password, decrypted from store.
-// Reconfiguring the service has to resend it, and the same operator can read
-// it off the OLT's own running config anyway; it is stored encrypted and only
-// leaves here over an authenticated session.
+// The subscriber's PPPoE password, decrypted from store, is included only for
+// the roles that may reconfigure the ONU: reconfiguring has to resend it, and
+// those operators can read it off the OLT's own running config anyway.
 func (h *ONTHandler) GetServiceConfig(c *gin.Context) {
 	ontID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -33,6 +34,7 @@ func (h *ONTHandler) GetServiceConfig(c *gin.Context) {
 	// error: the form simply opens empty, as it did before.
 	var payload gin.H
 	if service != nil {
+		redactPPPoEPassword(c, service)
 		payload = serviceConfigPayload(*service)
 	}
 
@@ -41,6 +43,18 @@ func (h *ONTHandler) GetServiceConfig(c *gin.Context) {
 		"data":       payload,
 		"updated_at": updatedAt,
 	})
+}
+
+// redactPPPoEPassword clears the subscriber's PPPoE password for every role
+// that cannot reach the configure form. The password logs anyone in to the
+// BRAS as that subscriber, so it goes no further than the operators who must
+// resend it, as redactCredentials does for an OLT's SNMP community.
+func redactPPPoEPassword(c *gin.Context, service *connectivity.ZTEONUService) {
+	role, ok := middleware.GetUserRole(c)
+	if ok && (role == models.UserRoleAdmin || role == models.UserRoleTechnician) {
+		return
+	}
+	service.PPPoEPassword = ""
 }
 
 // serviceConfigPayload is the shape the configure form reads back.

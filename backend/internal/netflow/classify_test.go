@@ -1,6 +1,7 @@
 package netflow
 
 import (
+	"math"
 	"net/netip"
 	"testing"
 
@@ -93,4 +94,44 @@ func TestClassifyCountsAnAddressInNoPOPAsOther(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, uuid.Nil, c.POP)
 	assert.Equal(t, transit, c.Upstream)
+}
+
+// The counts come off an unauthenticated UDP port: one that scaling would
+// wrap, or past what any IPv4 flow could carry, is refused rather than stored.
+func TestClassifyRefusesCountsNoIPv4FlowCanHave(t *testing.T) {
+	m := testRouterMap()
+	base := Flow{Src: addr("198.51.100.7"), Dst: addr("203.0.113.70"), Ingress: 10, Egress: 30}
+	cases := map[string]struct{ bytes, packets uint64 }{
+		"bytes that wrap when scaled":     {bytes: math.MaxUint64 / 50, packets: 1},
+		"bytes over MaxCount once scaled": {bytes: MaxCount/100 + 1, packets: 1},
+		"packets that wrap when scaled":   {bytes: 1500, packets: math.MaxUint64 / 50},
+		"more packets than MaxCount fits": {bytes: 1500, packets: maxFlowPackets/100 + 1},
+	}
+	for name, counts := range cases {
+		f := base
+		f.Bytes, f.Packets = counts.bytes, counts.packets
+		_, ok := m.Classify(f)
+		assert.False(t, ok, name)
+		assert.False(t, m.Plausible(f), name)
+	}
+}
+
+// The bounds sit above anything real: a record at MaxCount once scaled is
+// kept, as is one from a template without packetDeltaCount.
+func TestClassifyKeepsCountsUpToTheBounds(t *testing.T) {
+	m := testRouterMap()
+	cases := map[string]struct{ bytes, packets, wantBytes uint64 }{
+		"bytes at MaxCount once scaled": {bytes: MaxCount / 100, packets: 1, wantBytes: MaxCount / 100 * 100},
+		"packets at the bound":          {bytes: MaxCount / 100, packets: maxFlowPackets / 100, wantBytes: MaxCount / 100 * 100},
+		"no packet count exported":      {bytes: 1500, packets: 0, wantBytes: 150_000},
+	}
+	for name, counts := range cases {
+		f := Flow{Src: addr("198.51.100.7"), Dst: addr("203.0.113.70"), Ingress: 10, Egress: 30,
+			Bytes: counts.bytes, Packets: counts.packets}
+		c, ok := m.Classify(f)
+		require.True(t, ok, name)
+		assert.True(t, m.Plausible(f), name)
+		assert.Equal(t, counts.wantBytes, c.Bytes, name)
+		assert.Equal(t, counts.packets*100, c.Packets, name)
+	}
 }

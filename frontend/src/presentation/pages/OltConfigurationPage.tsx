@@ -40,7 +40,11 @@ export default function OltConfigurationPage() {
   const { data: vlans } = useOltVlans(id);
   const { data: vlanProfiles } = useOltVlanProfiles(id);
   const { data: ontPage } = useOnts({ oltId: id, limit: ONT_FETCH_LIMIT });
-  const refresh = useRefreshOltSystem(id);
+  // React Router decodes the route param, so a crafted link can carry "../"
+  // and "?" into it and steer this POST at another endpoint. Only the id the
+  // server returned for this exact OLT is trusted to build the refresh path.
+  const verifiedOltId = olt?.id === id ? olt.id : "";
+  const refresh = useRefreshOltSystem(verifiedOltId);
 
   const onts = useMemo(() => ontPage?.data ?? [], [ontPage]);
   const ports = snapshot?.ports ?? [];
@@ -87,6 +91,7 @@ export default function OltConfigurationPage() {
             icon={<ReloadOutlined />}
             onClick={onRefresh}
             loading={refresh.isPending}
+            disabled={!verifiedOltId}
           >
             Refresh now
           </Button>

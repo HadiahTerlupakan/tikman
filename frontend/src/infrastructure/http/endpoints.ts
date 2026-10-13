@@ -1,3 +1,15 @@
+// Map node and edge ids are free-form text, typed in or copied from an
+// imported KMZ, so each must reach the API as exactly one path segment: left
+// raw, an id of "../../cs/messages" turns an admin's Delete on the map into
+// DELETE /api/v1/cs/messages. Browsers resolve "." and ".." segments even when
+// percent-encoded, so those two cannot be made safe by encoding and are refused.
+function pathSegment(value: string): string {
+  if (value === "." || value === "..") {
+    throw new Error(`"${value}" cannot be addressed as a path segment`);
+  }
+  return encodeURIComponent(value);
+}
+
 export const API_ENDPOINTS = {
   // Auth
   AUTH_LOGIN: "/api/v1/auth/login",
@@ -32,7 +44,10 @@ export const API_ENDPOINTS = {
   ONTS_TROUBLED: "/api/v1/onts/troubled",
   OLT_SYSTEM: (id: string) => `/api/v1/olts/${id}/system`,
   OLT_TRAFFIC: (id: string) => `/api/v1/olts/${id}/metrics/traffic`,
-  OLT_SYSTEM_REFRESH: (id: string) => `/api/v1/olts/${id}/system/refresh`,
+  // The id is the configuration page's decoded :id route param, so a link
+  // carrying %2F or %3F would otherwise steer this POST to another endpoint.
+  OLT_SYSTEM_REFRESH: (id: string) =>
+    `/api/v1/olts/${encodeURIComponent(id)}/system/refresh`,
   TEST_OLT_CONNECTION: "/api/v1/olts/test-connection",
 
   // ONTs
@@ -133,9 +148,11 @@ export const API_ENDPOINTS = {
 
   // Network map: free-form nodes and the fiber runs between them
   MAPPING_NODES: "/api/v1/mapping/nodes",
-  MAPPING_NODE: (nodeId: string) => `/api/v1/mapping/nodes/${nodeId}`,
+  MAPPING_NODE: (nodeId: string) =>
+    `/api/v1/mapping/nodes/${pathSegment(nodeId)}`,
   MAPPING_EDGES: "/api/v1/mapping/edges",
-  MAPPING_EDGE: (edgeId: string) => `/api/v1/mapping/edges/${edgeId}`,
+  MAPPING_EDGE: (edgeId: string) =>
+    `/api/v1/mapping/edges/${pathSegment(edgeId)}`,
   MAPPING_EXPORT: "/api/v1/mapping/export",
   MAPPING_IMPORT_PREVIEW: "/api/v1/mapping/import/preview",
   MAPPING_IMPORT_COMMIT: "/api/v1/mapping/import/commit",

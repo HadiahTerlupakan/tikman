@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -67,6 +68,23 @@ func (f FlowFilter) where(routerID uuid.UUID, timeColumn string) (string, []inte
 func withArgs(args []interface{}, extra ...interface{}) []interface{} {
 	out := make([]interface{}, 0, len(args)+len(extra))
 	return append(append(out, args...), extra...)
+}
+
+// cappedBigint casts a numeric aggregate of bytes to bigint, holding it at
+// bigint's maximum rather than failing the query. flowd stores no minute row
+// above netflow.MaxCount, but a sender spoofing a router can make it store
+// many, and a SUM over a range of them, or of the rollups built from them,
+// can pass what bigint holds.
+func cappedBigint(aggregate string) string {
+	return fmt.Sprintf("LEAST(%s, %d)::bigint", aggregate, int64(math.MaxInt64))
+}
+
+// addBytes adds two byte counts read through cappedBigint without wrapping.
+func addBytes(sum, n int64) int64 {
+	if n > 0 && sum > math.MaxInt64-n {
+		return math.MaxInt64
+	}
+	return sum + n
 }
 
 func bitsPerSecond(bytes int64, over time.Duration) float64 {
@@ -137,8 +155,8 @@ func (s *FlowQueryService) bucketedASNs(res flowResolution, where string, args [
 		asnExpr = "CASE WHEN asn IN ? THEN asn ELSE 0 END"
 		params = append(params, top)
 	}
-	query := fmt.Sprintf(`SELECT %s AS time, %s AS asn, SUM(bytes)::bigint AS bytes
-		FROM %s WHERE %s GROUP BY 1, 2 ORDER BY 1`, bucket, asnExpr, res.source.table, where)
+	query := fmt.Sprintf(`SELECT %s AS time, %s AS asn, %s AS bytes
+		FROM %s WHERE %s GROUP BY 1, 2 ORDER BY 1`, bucket, asnExpr, cappedBigint("SUM(bytes)"), res.source.table, where)
 	var rows []asnBucket
 	return rows, s.db.Raw(query, withArgs(params, args...)...).Scan(&rows).Error
 }

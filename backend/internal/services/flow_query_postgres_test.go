@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -208,4 +209,54 @@ func TestDestinationsFilteredByAnotherRoutersPOPIsEmpty(t *testing.T) {
 	assert.Zero(t, bytesIn(t, flows, mine, f))
 	f.POP, f.Upstream = nil, &transit
 	assert.Zero(t, bytesIn(t, flows, mine, f))
+}
+
+// Each stored row is at most netflow.MaxCount, but a sender spoofing a router
+// can store many: every read holds a sum past bigint at its maximum rather
+// than failing with "bigint out of range", and Go-side totals do not wrap.
+func TestFlowReadsHoldSumsPastBigintAtItsMaximum(t *testing.T) {
+	db := setupPostgresTestDB(t)
+	flows := NewFlowQueryService(db)
+	routerID, transit, ix := uuid.New(), uuid.New(), uuid.New()
+	m0 := time.Now().UTC().Truncate(5 * time.Minute).Add(-10 * time.Minute)
+	const half = int64(1) << 62 // two of them are 2^63, one past bigint
+	for _, up := range []uuid.UUID{transit, ix} {
+		for _, at := range []time.Time{m0, m0.Add(time.Minute)} {
+			seedFlowMinute(t, db, models.RouterFlowMinute{Time: at, RouterID: routerID,
+				UpstreamInterfaceID: up, Direction: "download", ASN: 64496, Bytes: half})
+		}
+	}
+	for _, at := range []time.Time{m0, m0.Add(5 * time.Minute)} {
+		require.NoError(t, db.Create(&models.RouterFlowTopIP{Time: at, RouterID: routerID, Direction: "download",
+			IP: "203.0.113.5", ASN: 64496, Bytes: half}).Error)
+	}
+	f := FlowFilter{From: m0, To: m0.Add(10 * time.Minute), Direction: "download"}
+	const most = int64(math.MaxInt64)
+
+	summary, err := flows.Summary(routerID, f)
+	require.NoError(t, err)
+	assert.Equal(t, most, summary.TotalBytes)
+	require.Len(t, summary.Rows, 1)
+	assert.Equal(t, most, summary.Rows[0].Bytes)
+	assert.Equal(t, bitsPerSecond(most, time.Minute), summary.Rows[0].PeakBps)
+
+	pops, err := flows.POPs(routerID, f)
+	require.NoError(t, err)
+	require.Len(t, pops, 1)
+	assert.Equal(t, most, pops[0].Bytes)
+
+	peering, err := flows.Peering(routerID, f, 64496)
+	require.NoError(t, err)
+	assert.Equal(t, most, peering.TotalBytes, "two upstreams at bigint's maximum")
+	require.Len(t, peering.POPs, 1)
+	assert.Equal(t, most, peering.POPs[0].Bytes)
+
+	destinations, err := flows.Destinations(routerID, f, 10)
+	require.NoError(t, err)
+	assert.Equal(t, bitsPerSecond(most, time.Minute), destinations.Series[0].Points[0].Bps)
+
+	ips, err := flows.TopIPs(routerID, f, time.Now())
+	require.NoError(t, err)
+	require.Len(t, ips, 1)
+	assert.Equal(t, most, ips[0].Bytes)
 }

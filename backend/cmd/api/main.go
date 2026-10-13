@@ -19,6 +19,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/database"
 	"github.com/tikman/olt-provisioning/internal/firebaseapp"
 	"github.com/tikman/olt-provisioning/internal/logger"
+	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/push"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -112,11 +113,16 @@ func main() {
 	engine := gin.Default()
 	// Do not widen: gin's default trusts every proxy, making c.ClientIP() equal
 	// to any X-Forwarded-For the caller sends, which bypasses the per-IP rate
-	// limiter and forges audit-log IPs. This is the docker bridge range nginx
-	// sits in. Requests reaching the published host port keep their real source
-	// address and fall outside it, except when docker-proxy relays them from the
-	// host itself.
-	if err := engine.SetTrustedProxies([]string{"172.16.0.0/12"}); err != nil {
+	// limiter and forges audit-log IPs. Only the compose network nginx sits in
+	// is trusted, without the gateway docker-proxy relays published-port
+	// clients from.
+	trustedProxies, err := middleware.TrustedProxies()
+	if err != nil {
+		// Trusting nobody costs accuracy, not safety: requests through nginx
+		// then share its address as their rate-limit key.
+		log.Warn("No trusted proxy found; X-Forwarded-For is ignored", zap.Error(err))
+	}
+	if err := engine.SetTrustedProxies(trustedProxies); err != nil {
 		log.Fatal("Failed to set trusted proxies", zap.Error(err))
 	}
 

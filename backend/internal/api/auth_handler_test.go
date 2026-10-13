@@ -318,3 +318,36 @@ func TestLoginDoesNotEchoTheSessionTokenInTheBody(t *testing.T) {
 	require.Len(t, cookies, 1)
 	assert.NotEmpty(t, cookies[0].Value)
 }
+
+// An unknown username used to return before any bcrypt work, hundreds of
+// milliseconds sooner than a wrong password, so response time told an attacker
+// which accounts exist. The bound is loose on purpose: unpatched, the unknown
+// username is about a hundred times faster, while the two paths now do the
+// same bcrypt work and only scheduler noise separates them.
+func TestLoginTakesAsLongForAnUnknownUsernameAsForAWrongPassword(t *testing.T) {
+	_, userService, _, handler := setupAuthTest(t)
+	_, err := userService.Create("testuser", "test@example.com", "password123", "", models.UserRoleAdmin)
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	timeLogin := func(username string) time.Duration {
+		body, _ := json.Marshal(LoginRequest{Username: username, Password: "wrongpassword"})
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		start := time.Now()
+		handler.Login(c)
+		elapsed := time.Since(start)
+
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		return elapsed
+	}
+
+	wrongPassword := timeLogin("testuser")
+	unknownUser := timeLogin("nonexistent")
+
+	assert.GreaterOrEqual(t, unknownUser, wrongPassword/4,
+		"unknown username answered in %v, wrong password in %v", unknownUser, wrongPassword)
+}

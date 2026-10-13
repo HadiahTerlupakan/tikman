@@ -152,3 +152,47 @@ func TestIPCounterStopsAtTheCapPerPOP(t *testing.T) {
 	minute, _ := agg.CloseMinute(minute0.Add(time.Minute))
 	assert.Equal(t, uint64(MaxIPsPerPOP)+1<<40, sumBytes(minute))
 }
+
+// wrapsAtMaxCount is how many MaxCount flows add up to 2^64, which a plain
+// uint64 sum wraps back to 0.
+const wrapsAtMaxCount = 1 << 12
+
+// Nothing bounds how many records a sender spoofing a router can send: a key
+// fed MaxCount over and over holds there, in the minute and in the window,
+// instead of wrapping to a small count.
+func TestSumsHoldAtMaxCountInsteadOfWrapping(t *testing.T) {
+	agg := NewAggregator(minute0)
+	for i := 0; i < wrapsAtMaxCount; i++ {
+		agg.Add(routerA, download(popA, transit, "198.51.100.7", MaxCount), docASN(0))
+	}
+	agg.Add(routerA, download(popB, transit, "198.51.100.8", 1500), docASN(1))
+
+	window := agg.CloseWindow(minute0.Add(TopIPWindow))
+	rows, _ := agg.CloseMinute(minute0.Add(time.Minute))
+
+	assert.Contains(t, rows, MinuteRow{Time: minute0, MinuteKey: MinuteKey{RouterID: routerA, POP: popA,
+		Upstream: transit, Direction: Download, ASN: docASN(0)}, Bytes: MaxCount, Packets: wrapsAtMaxCount})
+	assert.Contains(t, rows, MinuteRow{Time: minute0, MinuteKey: MinuteKey{RouterID: routerA, POP: popB,
+		Upstream: transit, Direction: Download, ASN: docASN(1)}, Bytes: 1500, Packets: 1},
+		"another key is untouched")
+	require.Len(t, window, 2)
+	for _, r := range window {
+		if r.POP == popA {
+			assert.EqualValues(t, MaxCount, r.Bytes)
+		}
+	}
+}
+
+// Folding the ASNs outside the top into one row adds keys that each hold up
+// to MaxCount; that sum holds there too.
+func TestFoldedRowHoldsAtMaxCount(t *testing.T) {
+	agg := NewAggregator(minute0)
+	for i := 0; i < TopASNs+wrapsAtMaxCount; i++ {
+		agg.Add(routerA, download(popA, transit, "198.51.100.7", MaxCount), docASN(i))
+	}
+
+	rows, _ := agg.CloseMinute(minute0.Add(time.Minute))
+
+	assert.Contains(t, rows, MinuteRow{Time: minute0, MinuteKey: MinuteKey{RouterID: routerA, POP: popA,
+		Upstream: transit, Direction: Download, ASN: OtherASN}, Bytes: MaxCount, Packets: wrapsAtMaxCount})
+}

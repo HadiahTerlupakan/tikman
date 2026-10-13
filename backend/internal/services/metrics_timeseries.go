@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -93,7 +94,7 @@ func (s *MetricsService) getONTTrafficTimeSeriesDurationBucket(ontID uuid.UUID, 
 
 // GetONTTrafficTimeSeriesRangeBucket retrieves bucketed traffic rates for an explicit range.
 func (s *MetricsService) GetONTTrafficTimeSeriesRangeBucket(ontID uuid.UUID, startTime, endTime time.Time, bucket string) ([]ONTMetricsRow, error) {
-	step, startBucket, endBucket, err := trafficBucketBounds(startTime, endTime, bucket)
+	_, startBucket, endBucket, err := trafficBucketBounds(startTime, endTime, bucket)
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +113,19 @@ func (s *MetricsService) GetONTTrafficTimeSeriesRangeBucket(ontID uuid.UUID, sta
 		accumulateTraffic(byBucket, bucketTime, row)
 	}
 
+	// Empty buckets are never emitted, so walk the buckets that hold rows
+	// rather than every bucket the range spans: the range is caller-supplied,
+	// and years 0001-9999 an hour at a time is ~87M iterations per request.
+	buckets := make([]time.Time, 0, len(byBucket))
+	for bucketTime := range byBucket {
+		if !bucketTime.Before(startBucket) && !bucketTime.After(endBucket) {
+			buckets = append(buckets, bucketTime)
+		}
+	}
+	sort.Slice(buckets, func(i, j int) bool { return buckets[i].Before(buckets[j]) })
+
 	var results []ONTMetricsRow
-	for current := startBucket; !current.After(endBucket); current = addTrafficBucket(current, step, bucket) {
+	for _, current := range buckets {
 		row := buildTrafficRow(ontID, current, byBucket[current])
 		// Skip empty buckets - they dilute the average and confuse users
 		if row.ONTID != uuid.Nil {
@@ -230,13 +242,6 @@ func truncateTrafficBucket(value time.Time, bucket string) time.Time {
 	default:
 		return utc
 	}
-}
-
-func addTrafficBucket(value time.Time, step time.Duration, bucket string) time.Time {
-	if bucket == "month" {
-		return value.AddDate(0, 1, 0)
-	}
-	return value.Add(step)
 }
 
 // trafficPeak prefers the peak a rollup already recorded. Deriving one from

@@ -8,7 +8,17 @@ const URL_PATTERN = /https?:\/\/[^\s<>"]+/g;
 
 /** Trailing punctuation belongs to the sentence rather than the address; a
  * link ending in a full stop 404s. Mirrors firstURL in the Go package. */
-const TRAILING = /[.,;:!?)\]}'"]+$/;
+const TRAILING = new Set(".,;:!?)]}'\"");
+
+/** A backward walk rather than /[...]+$/: the regex is retried from every
+ * position in a run of punctuation that is not at the end, so a customer's
+ * "http://" padded with tens of thousands of "!" and one letter costs
+ * quadratic time and freezes the inbox on every render. */
+function trimTrailing(raw: string): string {
+  let end = raw.length;
+  while (end > 0 && TRAILING.has(raw[end - 1])) end--;
+  return raw.slice(0, end);
+}
 
 interface MessageTextProps {
   body: string;
@@ -27,7 +37,7 @@ export function MessageText({ body }: MessageTextProps) {
   for (const match of body.matchAll(URL_PATTERN)) {
     const raw = match[0];
     const start = match.index ?? 0;
-    const href = raw.replace(TRAILING, "");
+    const href = trimTrailing(raw);
     // Punctuation trimmed off the address is still part of the sentence, so
     // it goes back into the text rather than disappearing.
     const tail = raw.slice(href.length);

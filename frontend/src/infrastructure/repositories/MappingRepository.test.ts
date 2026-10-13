@@ -33,6 +33,30 @@ describe("MappingRepository", () => {
     );
   });
 
+  // Node and edge ids are free-form, so one planted as "../../cs/messages" must
+  // stay a single segment: unencoded, the browser resolves it and the admin's
+  // Delete lands on DELETE /api/v1/cs/messages instead.
+  it("keeps an id with slashes inside its own path segment", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({ data: {} } as never);
+
+    await new MappingRepository().deleteNode("../../cs/messages");
+    await new MappingRepository().deleteEdge("../../users/1");
+
+    expect(apiClient.delete).toHaveBeenCalledWith(
+      "/api/v1/mapping/nodes/..%2F..%2Fcs%2Fmessages",
+    );
+    expect(apiClient.delete).toHaveBeenCalledWith(
+      "/api/v1/mapping/edges/..%2F..%2Fusers%2F1",
+    );
+  });
+
+  it("refuses a dot-segment id rather than sending a request elsewhere", async () => {
+    await expect(new MappingRepository().deleteNode("..")).rejects.toThrow();
+    await expect(new MappingRepository().deleteEdge(".")).rejects.toThrow();
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
   it("returns an empty list rather than undefined when there is no map yet", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: {} } as never);
 

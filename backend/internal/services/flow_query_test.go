@@ -1,6 +1,7 @@
 package services
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -43,4 +44,14 @@ func TestStatusReportsTheNewestDataset(t *testing.T) {
 	require.NotNil(t, status.ASNDatasetUpdatedAt)
 	assert.True(t, newer.Equal(*status.ASNDatasetUpdatedAt))
 	assert.EqualValues(t, 2, status.ASNCount)
+}
+
+// Two upstreams' totals, each held at bigint's maximum by the query, would
+// wrap negative as a plain int64 sum.
+func TestAddBytesHoldsAtTheInt64Maximum(t *testing.T) {
+	assert.EqualValues(t, 3, addBytes(1, 2))
+	assert.EqualValues(t, int64(math.MaxInt64), addBytes(math.MaxInt64, math.MaxInt64))
+	assert.EqualValues(t, int64(math.MaxInt64), addBytes(math.MaxInt64-1, 2))
+	assert.EqualValues(t, int64(math.MaxInt64)-1, addBytes(math.MaxInt64, -1),
+		"a negative row stored before counts were capped still subtracts")
 }

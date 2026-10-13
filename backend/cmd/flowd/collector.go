@@ -34,6 +34,8 @@ type collector struct {
 
 	unknownSources atomic.Uint64
 	malformed      atomic.Uint64
+	// implausible counts records dropped for counts no IPv4 flow can have.
+	implausible atomic.Uint64
 }
 
 func newCollector(asns *asnSource, now time.Time) *collector {
@@ -73,6 +75,10 @@ func (c *collector) handle(src netip.Addr, packet []byte) {
 		c.seen[router.RouterID] = true
 	}
 	for _, flow := range res.Flows {
+		if !router.Plausible(flow) {
+			c.implausible.Add(1)
+			continue
+		}
 		if placed, ok := router.Classify(flow); ok {
 			c.agg.Add(router.RouterID, placed, c.asns.lookup(placed.Remote))
 		}

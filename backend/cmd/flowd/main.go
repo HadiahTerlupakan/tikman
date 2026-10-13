@@ -187,6 +187,9 @@ func finishMinute(c *collector, w *retryWriter, sink flowSink, logger *zap.Logge
 		logger.Warn("Keys over the per-router cap folded into ASN 0",
 			zap.String("router_id", routerID.String()), zap.Uint64("folded_flows", n))
 	}
+	if n := c.implausible.Swap(0); n > 0 {
+		logger.Warn("Dropped flow records whose counts no IPv4 flow can have", zap.Uint64("dropped_flows", n))
+	}
 	w.flush(pendingBatch{minute: rows, topIPs: c.closeWindowIfDue(now)})
 	ctx, cancel := context.WithTimeout(context.Background(), markSeenTimeout)
 	defer cancel()
