@@ -67,7 +67,10 @@ go test -v -run TestFunctionName ./internal/services/
   destination IP is located) in the `asn_data` volume. IPinfo needs
   `IPINFO_TOKEN` in the env file; without it flowd runs and the flags fall back
   to the AS's registered country. IPinfo Lite is CC BY-SA 4.0, so the top-IP
-  table must keep its "Data IP oleh IPinfo" credit.
+  table must keep its "Data IP oleh IPinfo" credit. It also fetches PeeringDB's
+  network types daily into `asn_types`, and keeps the Tor exit list and
+  X4BNet's VPN and datacenter lists in the same volume. Those lists flag whole
+  provider networks, so a CDN can read as VPN.
 
 **CI workflow:** `.github/workflows/ci.yml`
 - Backend: tests, race detector, coverage, `go vet`, `gofmt`, `go mod verify`, and API/worker builds

@@ -1,7 +1,12 @@
-import { Alert, Card, Table, Tooltip } from "antd";
+import { Alert, Card, Table, Tag, Tooltip } from "antd";
 import type { FlowTopIp } from "@/domain/entities";
 import { formatBytes } from "../trafficFormat";
-import { asnLabel, countryFlag, countryName } from "./routerFlows";
+import {
+  asnLabel,
+  asnTypeLabel,
+  countryFlag,
+  countryName,
+} from "./routerFlows";
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +42,24 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
             { title: "IP", render: (_, r) => <TopIpAddress row={r} /> },
             { title: "Organisasi", render: (_, r) => asnLabel(r.asn, r.name) },
             {
+              title: (
+                <Tooltip title="Jenis jaringan menurut pemiliknya di PeeringDB.">
+                  Tipe ASN
+                </Tooltip>
+              ),
+              dataIndex: "asnType",
+              render: asnTypeLabel,
+            },
+            {
+              title: (
+                <Tooltip title="Dari daftar gratis: exit node Tor (Tor Project), jaringan VPN dan hosting (X4BNet). Daftar ini menandai seluruh jaringan penyedia, jadi CDN yang juga disewa penyedia VPN bisa terbaca VPN.">
+                  Anonimisasi
+                </Tooltip>
+              ),
+              dataIndex: "anonymity",
+              render: (a: FlowTopIp["anonymity"]) => <AnonymityTag value={a} />,
+            },
+            {
               title: "Total",
               dataIndex: "bytes",
               render: (b: number) => formatBytes(b),
@@ -61,6 +84,18 @@ export function FlowTopIpsPanel({ available, rows, loading, failed }: Props) {
       )}
     </Card>
   );
+}
+
+const ANONYMITY_TAGS = {
+  tor: { color: "red", label: "Tor" },
+  vpn: { color: "orange", label: "VPN" },
+  hosting: { color: "blue", label: "Hosting" },
+} as const;
+
+function AnonymityTag({ value }: { value: FlowTopIp["anonymity"] }) {
+  if (!value) return <>—</>;
+  const tag = ANONYMITY_TAGS[value];
+  return <Tag color={tag.color}>{tag.label}</Tag>;
 }
 
 /** 0 means no window in the range recorded it yet, not "never reached". */

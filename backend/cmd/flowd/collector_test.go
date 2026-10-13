@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"math/rand"
+	"net/http"
 	"net/netip"
 	"strings"
 	"testing"
@@ -37,7 +38,11 @@ func testCollector(t *testing.T, upstreams map[uint32]uuid.UUID) *collector {
 			"198.51.100.0/24,Japan,JP,Asia,AS,,,\n"))
 	require.NoError(t, err)
 	geo.table.Store(geoTable)
-	c := newCollector(asns, geo, minute0)
+	anon := newAnonymitySource(t.TempDir(), http.DefaultClient, zap.NewNop())
+	tor, err := netflow.ParseIPSet(strings.NewReader("198.51.100.7\n"))
+	require.NoError(t, err)
+	anon.tor.set.Store(tor)
+	c := newCollector(asns, geo, anon, minute0)
 	c.setRouters(map[netip.Addr]*netflow.RouterMap{routerAddr: {
 		RouterID: testRouterID, Sampling: 100, Upstreams: upstreams,
 		POPs: netflow.NewPrefixTable([]netflow.PrefixEntry{
@@ -237,6 +242,7 @@ func TestTopIPsCloseOnlyAtTheWindowBoundary(t *testing.T) {
 	assert.Equal(t, netip.MustParseAddr("198.51.100.7"), rows[0].IP)
 	assert.EqualValues(t, 64497, rows[0].ASN)
 	assert.Equal(t, "JP", rows[0].Country, "located from the country dataset")
+	assert.Equal(t, "tor", rows[0].Anonymity, "flagged from the anonymity lists")
 }
 
 // The same guard for the top-IP window: a clock stepped back into an earlier

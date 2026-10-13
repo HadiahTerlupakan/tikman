@@ -39,6 +39,10 @@ type FlowTopIP struct {
 	Bytes         int64  `json:"bytes"`
 	// Flows sums the sampled flow records over the range.
 	Flows int64 `json:"flows"`
+	// ASNType is the network's type in PeeringDB, "" when it states none.
+	ASNType string `json:"asn_type" gorm:"-"`
+	// Anonymity is tor, vpn or hosting from free lists, "" when none held it.
+	Anonymity string `json:"anonymity" gorm:"column:anonymity"`
 }
 
 // FlowStatus describes the ASN dataset flowd last loaded.
@@ -68,7 +72,7 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	// MAX takes its real AS over that, as it takes the located country over
 	// "" from windows that predate locating.
 	query := fmt.Sprintf(`SELECT host(ip) AS ip, MAX(asn) AS asn, MAX(country) AS country, %s AS bytes,
-		%s AS flows FROM router_flow_top_ips
+		%s AS flows, MAX(anonymity) AS anonymity FROM router_flow_top_ips
 		WHERE %s GROUP BY ip ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), cappedBigint("SUM(flows)"), where)
 	rows := []FlowTopIP{}
 	if err := s.db.Raw(query, withArgs(args, topIPLimit)...).Scan(&rows).Error; err != nil {
@@ -82,15 +86,36 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	if err != nil {
 		return nil, err
 	}
+	types, err := s.asnTypes(asns)
+	if err != nil {
+		return nil, err
+	}
 	names := make(map[int64]string, len(records))
 	for asn, r := range records {
 		names[asn] = r.Name
 	}
 	for i := range rows {
 		rows[i].Name = asnLabel(rows[i].ASN, names)
+		rows[i].ASNType = types[rows[i].ASN]
 		placeCountry(&rows[i], records[rows[i].ASN].Country)
 	}
 	return rows, nil
+}
+
+// asnTypes looks the given ASNs up in asn_types.
+func (s *FlowQueryService) asnTypes(asns []int64) (map[int64]string, error) {
+	types := map[int64]string{}
+	if len(asns) == 0 {
+		return types, nil
+	}
+	var rows []models.ASNType
+	if err := s.db.Where("asn IN ?", asns).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		types[r.ASN] = r.Type
+	}
+	return types, nil
 }
 
 // placeCountry keeps the located country, or falls back to the AS's

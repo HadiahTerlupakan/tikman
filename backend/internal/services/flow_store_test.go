@@ -42,7 +42,7 @@ func TestWriteTopIPsStoresTheAddress(t *testing.T) {
 	db := setupTestDB(t)
 	routerID := uuid.New()
 	rows := []netflow.TopIPRow{{Time: flowMinute, RouterID: routerID, Direction: netflow.Download,
-		IP: netip.MustParseAddr("203.0.113.5"), ASN: 64498, Country: "JP", Bytes: 9000, Flows: 12}}
+		IP: netip.MustParseAddr("203.0.113.5"), ASN: 64498, Country: "JP", Bytes: 9000, Flows: 12, Anonymity: "tor"}}
 
 	require.NoError(t, NewFlowStore(db).WriteTopIPs(context.Background(), rows))
 
@@ -53,6 +53,7 @@ func TestWriteTopIPsStoresTheAddress(t *testing.T) {
 	assert.EqualValues(t, 9000, stored.Bytes)
 	assert.Equal(t, "JP", stored.Country)
 	assert.EqualValues(t, 12, stored.Flows)
+	assert.Equal(t, "tor", stored.Anonymity)
 }
 
 func TestMarkSeenTouchesOnlyTheGivenRouters(t *testing.T) {
@@ -91,4 +92,20 @@ func TestSaveASNNamesReplacesNamesItAlreadyHas(t *testing.T) {
 	require.Len(t, names, 2)
 	assert.Equal(t, "EXAMPLE-NET-A", names[0].Name)
 	assert.True(t, later.Equal(names[0].UpdatedAt))
+}
+
+func TestSaveASNTypesUpdatesAChangedType(t *testing.T) {
+	db := setupTestDB(t)
+	store := NewFlowStore(db)
+	first, later := flowMinute, flowMinute.Add(24*time.Hour)
+	require.NoError(t, store.SaveASNTypes(context.Background(), map[uint32]string{64496: "NSP", 64497: "Content"}, first))
+
+	require.NoError(t, store.SaveASNTypes(context.Background(), map[uint32]string{64496: "Cable/DSL/ISP"}, later))
+
+	var types []models.ASNType
+	require.NoError(t, db.Order("asn").Find(&types).Error)
+	require.Len(t, types, 2)
+	assert.Equal(t, "Cable/DSL/ISP", types[0].Type)
+	assert.True(t, later.Equal(types[0].UpdatedAt))
+	assert.Equal(t, "Content", types[1].Type, "a network missing from a later list keeps its type")
 }

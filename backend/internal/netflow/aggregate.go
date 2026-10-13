@@ -60,6 +60,8 @@ type TopIPRow struct {
 	// Flows is how many sampled flow records reached IP, a floor on its
 	// connections: at 1:N sampling a short connection is often missed.
 	Flows uint64
+	// Anonymity is tor, vpn or hosting, filled in by flowd from free lists.
+	Anonymity string
 }
 
 type counter struct{ bytes, packets uint64 }

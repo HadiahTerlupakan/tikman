@@ -179,7 +179,7 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 	for _, r := range []models.RouterFlowTopIP{
 		{Time: w0, IP: "203.0.113.5", ASN: 0, Bytes: 100, Flows: 4}, // written before flowd loaded either dataset
 		{Time: w0.Add(5 * time.Minute), IP: "203.0.113.5", ASN: 64498, Country: "JP", Bytes: 50, Flows: 2},
-		{Time: w0, IP: "203.0.113.6", ASN: 64498, Country: "US", Bytes: 120, Flows: 5},
+		{Time: w0, IP: "203.0.113.6", ASN: 64498, Country: "US", Bytes: 120, Flows: 5, Anonymity: "hosting"},
 		{Time: w0, IP: "203.0.113.7", ASN: 64498, Bytes: 90}, // only unlocated windows: the AS's country
 		{Time: w0, IP: "203.0.113.8", ASN: 64499, Bytes: 80}, // and its AS has none either
 	} {
@@ -188,14 +188,15 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&models.ASNName{ASN: 64498, Name: "EXAMPLE-NET-C", Country: "NL", UpdatedAt: w0}).Error)
 	require.NoError(t, db.Create(&models.ASNName{ASN: 64499, Name: "EXAMPLE-NET-D", Country: "Unknown", UpdatedAt: w0}).Error)
+	require.NoError(t, db.Create(&models.ASNType{ASN: 64498, Type: "Content", UpdatedAt: w0}).Error)
 
 	rows, err := flows.TopIPs(routerID, FlowFilter{From: w0, To: w0.Add(15 * time.Minute)}, time.Now())
 
 	require.NoError(t, err)
 	assert.Equal(t, []FlowTopIP{
-		{IP: "203.0.113.5", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "JP", CountrySource: "server", Bytes: 150, Flows: 6},
-		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "US", CountrySource: "server", Bytes: 120, Flows: 5},
-		{IP: "203.0.113.7", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "NL", CountrySource: "as", Bytes: 90},
+		{IP: "203.0.113.5", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "JP", CountrySource: "server", Bytes: 150, Flows: 6, ASNType: "Content"},
+		{IP: "203.0.113.6", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "US", CountrySource: "server", Bytes: 120, Flows: 5, ASNType: "Content", Anonymity: "hosting"},
+		{IP: "203.0.113.7", ASN: 64498, Name: "EXAMPLE-NET-C", Country: "NL", CountrySource: "as", Bytes: 90, ASNType: "Content"},
 		{IP: "203.0.113.8", ASN: 64499, Name: "EXAMPLE-NET-D", Bytes: 80},
 	}, rows)
 }

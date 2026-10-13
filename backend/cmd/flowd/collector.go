@@ -23,6 +23,7 @@ type collector struct {
 	routers       atomic.Pointer[map[netip.Addr]*netflow.RouterMap]
 	asns          *asnSource
 	geo           *geoSource
+	anon          *anonymitySource
 	templates     map[uuid.UUID]*netflow.Templates
 	prunedFor     *map[netip.Addr]*netflow.RouterMap
 	panicLoggedAt time.Time
@@ -39,8 +40,8 @@ type collector struct {
 	implausible atomic.Uint64
 }
 
-func newCollector(asns *asnSource, geo *geoSource, now time.Time) *collector {
-	c := &collector{asns: asns, geo: geo, templates: map[uuid.UUID]*netflow.Templates{},
+func newCollector(asns *asnSource, geo *geoSource, anon *anonymitySource, now time.Time) *collector {
+	c := &collector{asns: asns, geo: geo, anon: anon, templates: map[uuid.UUID]*netflow.Templates{},
 		agg: netflow.NewAggregator(now), seen: map[uuid.UUID]bool{},
 		openMinute: now.Truncate(time.Minute), openWindow: now.Truncate(netflow.TopIPWindow)}
 	c.setRouters(map[netip.Addr]*netflow.RouterMap{})
@@ -174,6 +175,7 @@ func (c *collector) closeWindowIfDue(now time.Time) []netflow.TopIPRow {
 	// its top addresses, so most flows' addresses are never written.
 	for i := range rows {
 		rows[i].Country = c.geo.lookup(rows[i].IP)
+		rows[i].Anonymity = c.anon.classify(rows[i].IP)
 	}
 	return rows
 }

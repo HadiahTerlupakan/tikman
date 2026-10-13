@@ -8,6 +8,7 @@ import type {
 } from "@/domain/entities";
 import {
   asnLabel,
+  asnTypeLabel,
   countryFlag,
   countryName,
   flowChartRows,
@@ -29,6 +30,15 @@ describe("countryFlag", () => {
     expect(countryFlag("Unknown")).toBe("");
     expect(countryFlag("")).toBe("");
     expect(countryFlag("us")).toBe("");
+  });
+});
+
+describe("asnTypeLabel", () => {
+  it("names PeeringDB's types in Indonesian and passes an unknown one through", () => {
+    expect(asnTypeLabel("Content")).toBe("Konten");
+    expect(asnTypeLabel("Cable/DSL/ISP")).toBe("ISP");
+    expect(asnTypeLabel("Satellite")).toBe("Satellite");
+    expect(asnTypeLabel("")).toBe("—");
   });
 });
 

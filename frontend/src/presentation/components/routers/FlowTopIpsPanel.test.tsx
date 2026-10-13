@@ -11,6 +11,8 @@ const rows = [
     countrySource: "server" as const,
     bytes: 2048,
     flows: 12345,
+    asnType: "Content",
+    anonymity: "vpn" as const,
   },
   {
     ip: "192.0.2.9",
@@ -20,6 +22,8 @@ const rows = [
     countrySource: "" as const,
     bytes: 1024,
     flows: 0,
+    asnType: "",
+    anonymity: "" as const,
   },
   {
     ip: "203.0.113.20",
@@ -29,6 +33,8 @@ const rows = [
     countrySource: "as" as const,
     bytes: 512,
     flows: 0,
+    asnType: "",
+    anonymity: "" as const,
   },
 ];
 
@@ -64,7 +70,7 @@ describe("FlowTopIpsPanel", () => {
     const located = screen.getByText("198.51.100.7").closest("tr")!;
     expect(located).toHaveTextContent("12.345");
     const unrecorded = screen.getByText("192.0.2.9").closest("tr")!;
-    expect(unrecorded.querySelectorAll("td")[3]).toHaveTextContent("—");
+    expect(unrecorded.querySelectorAll("td")[5]).toHaveTextContent("—");
   });
 
   it("falls back to the AS's registered country, dimmed and labelled as such", () => {
@@ -80,5 +86,17 @@ describe("FlowTopIpsPanel", () => {
     expect(screen.getByTitle("Lokasi server: Jepang")).toHaveStyle({
       opacity: "1",
     });
+  });
+
+  it("names the ASN type in Indonesian and tags the anonymity flag", () => {
+    render(
+      <FlowTopIpsPanel available rows={rows} loading={false} failed={false} />,
+    );
+
+    const flagged = screen.getByText("198.51.100.7").closest("tr")!;
+    expect(flagged).toHaveTextContent("Konten");
+    expect(flagged.querySelector(".ant-tag")).toHaveTextContent("VPN");
+    const plain = screen.getByText("192.0.2.9").closest("tr")!;
+    expect(plain.querySelector(".ant-tag")).toBeNull();
   });
 });

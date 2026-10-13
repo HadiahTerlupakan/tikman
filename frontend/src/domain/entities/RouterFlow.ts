@@ -107,6 +107,10 @@ export interface FlowTopIp {
   bytes: number;
   /** Sampled flow records over the range; 0 for windows that predate it. */
   flows: number;
+  /** The network's type in PeeringDB, "" when it states none. */
+  asnType: string;
+  /** From free lists: a Tor exit, a VPN network or a hosting network. */
+  anonymity: "tor" | "vpn" | "hosting" | "";
 }
 
 export interface FlowStatus {

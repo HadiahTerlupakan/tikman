@@ -38,6 +38,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&RouterFlowMinute{},
 		&RouterFlowTopIP{},
 		&ASNName{},
+		&ASNType{},
 		&RouterRoutedPrefix{},
 	)
 }

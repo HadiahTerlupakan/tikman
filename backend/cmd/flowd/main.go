@@ -101,7 +101,15 @@ func main() {
 		}()
 	}
 
-	coll := newCollector(asns, geo, time.Now())
+	anon := newAnonymitySource(asnDir(), &http.Client{}, logger)
+	anon.preload()
+	go func() {
+		anon.refresh(time.Now())
+		every(mappingRefresh, func() { anon.refresh(time.Now()) })
+	}()
+	go keepASNTypes(&http.Client{}, netflow.ASNTypesURL, store, logger)
+
+	coll := newCollector(asns, geo, anon, time.Now())
 	mappings := services.NewFlowMappingService(db)
 	refreshRouters(coll, mappings, logger)
 	go every(mappingRefresh, func() { refreshRouters(coll, mappings, logger) })

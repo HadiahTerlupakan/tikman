@@ -61,6 +61,25 @@ export function countryName(code: string): string {
   }
 }
 
+const ASN_TYPE_LABELS: Record<string, string> = {
+  Content: "Konten",
+  "Cable/DSL/ISP": "ISP",
+  NSP: "Transit (NSP)",
+  Enterprise: "Enterprise",
+  "Educational/Research": "Pendidikan/Riset",
+  "Non-Profit": "Nirlaba",
+  Government: "Pemerintah",
+  "Network Services": "Layanan jaringan",
+  "Route Server": "Route server",
+  "Route Collector": "Route collector",
+};
+
+/** PeeringDB's network type in Indonesian; a type it adds later shows as is. */
+export function asnTypeLabel(type: string): string {
+  if (!type) return "—";
+  return ASN_TYPE_LABELS[type] ?? type;
+}
+
 export function popLabel(
   id: string | null,
   labels: Map<string, string>,

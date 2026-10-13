@@ -57,7 +57,7 @@ func (s *FlowStore) WriteTopIPs(ctx context.Context, rows []netflow.TopIPRow) er
 	for i, r := range rows {
 		records[i] = models.RouterFlowTopIP{Time: r.Time, RouterID: r.RouterID, POPInterfaceID: nullablePOP(r.POP),
 			Direction: string(r.Direction), IP: r.IP.String(), ASN: int64(r.ASN), Country: r.Country, Bytes: int64(r.Bytes),
-			Flows: int64(r.Flows)}
+			Flows: int64(r.Flows), Anonymity: r.Anonymity}
 	}
 	return s.db.WithContext(ctx).CreateInBatches(records, flowWriteBatch).Error
 }
@@ -85,5 +85,21 @@ func (s *FlowStore) SaveASNNames(ctx context.Context, names map[uint32]netflow.A
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "asn"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name", "country", "updated_at"}),
+	}).CreateInBatches(rows, flowWriteBatch).Error
+}
+
+// SaveASNTypes upserts PeeringDB's network types. A network that later drops
+// out of PeeringDB keeps its last type; a type rarely changes.
+func (s *FlowStore) SaveASNTypes(ctx context.Context, types map[uint32]string, updatedAt time.Time) error {
+	if len(types) == 0 {
+		return nil
+	}
+	rows := make([]models.ASNType, 0, len(types))
+	for asn, kind := range types {
+		rows = append(rows, models.ASNType{ASN: int64(asn), Type: kind, UpdatedAt: updatedAt})
+	}
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "asn"}},
+		DoUpdates: clause.AssignmentColumns([]string{"type", "updated_at"}),
 	}).CreateInBatches(rows, flowWriteBatch).Error
 }

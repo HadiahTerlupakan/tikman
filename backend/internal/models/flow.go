@@ -42,6 +42,8 @@ type RouterFlowTopIP struct {
 	Bytes   int64  `gorm:"not null"`
 	// Flows is the sampled flow records the window saw for the address.
 	Flows int64 `gorm:"not null;default:0"`
+	// Anonymity is tor, vpn or hosting from free lists, "" when none held it.
+	Anonymity string `gorm:"type:varchar(8);not null;default:''"`
 }
 
 // TableName returns the table name for RouterFlowTopIP.
@@ -58,6 +60,17 @@ type ASNName struct {
 
 // TableName returns the table name for ASNName.
 func (ASNName) TableName() string { return "asn_names" }
+
+// ASNType is a network's type as its operator states it in PeeringDB
+// (Content, Cable/DSL/ISP, NSP, ...). UpdatedAt is when flowd fetched it.
+type ASNType struct {
+	ASN       int64     `gorm:"column:asn;primaryKey;autoIncrement:false" json:"asn"`
+	Type      string    `gorm:"type:text;not null" json:"type"`
+	UpdatedAt time.Time `gorm:"not null" json:"updated_at"`
+}
+
+// TableName returns the table name for ASNType.
+func (ASNType) TableName() string { return "asn_types" }
 
 // RouterRoutedPrefix is a block a static route hands to a device behind one
 // of the router's interfaces, such as a POP router's /27. Discovery refills
