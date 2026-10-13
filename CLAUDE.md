@@ -575,8 +575,12 @@ first because they share `api`'s network namespace and recreating `api` under
 them fails.
 
 `flowd` comes along with `up -d --build`. It does not share `api`'s namespace,
-so it can be recreated alone with `up -d --no-deps --force-recreate flowd`; it
-shows in `docker ps` as `tikman-flowd`. Its `2055/udp` must be open in the VPS
+so it can be recreated alone with `up -d --no-deps --force-recreate flowd`.
+Follow that with `up -d --no-deps flowd-conntrack`. The recreate leaves a
+stale conntrack entry that sends the routers' IPFIX through docker-proxy, and
+flowd then drops every packet as an unknown source. The one-shot deletes that
+entry; a plain `up -d` runs it on its own. flowd shows in `docker ps` as
+`tikman-flowd`. Its `2055/udp` must be open in the VPS
 provider's firewall, ideally only to the border routers. It asks for a
 large UDP receive buffer and logs the size the kernel granted at startup; raise
 `net.core.rmem_max` on the host if the log says it was clamped.
