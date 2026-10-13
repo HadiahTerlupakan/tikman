@@ -38,7 +38,7 @@ func (s *geoSource) nextRefresh() time.Duration {
 // start loads the copy on disk, downloading first when it is missing or a
 // day old.
 func (s *geoSource) start(now time.Time) {
-	if !s.fetcher.Stale(now) && s.installLocal() {
+	if !s.fetcher.Stale(now) && (s.table.Load() != nil || s.installLocal()) {
 		return
 	}
 	s.refresh()

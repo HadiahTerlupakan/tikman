@@ -63,10 +63,13 @@ func (s *FlowQueryService) TopIPs(routerID uuid.UUID, f FlowFilter, now time.Tim
 	}
 	f.Upstream = nil // the table has no upstream column
 	where, args := f.where(routerID, "time")
-	// MAX picks the located country over "" from windows that predate it.
-	query := fmt.Sprintf(`SELECT host(ip) AS ip, asn, MAX(country) AS country, %s AS bytes,
+	// One row per address. flowd counts flows as ASN 0 until its dataset
+	// loads, so a window just after a restart holds the address under 0 too:
+	// MAX takes its real AS over that, as it takes the located country over
+	// "" from windows that predate locating.
+	query := fmt.Sprintf(`SELECT host(ip) AS ip, MAX(asn) AS asn, MAX(country) AS country, %s AS bytes,
 		%s AS flows FROM router_flow_top_ips
-		WHERE %s GROUP BY ip, asn ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), cappedBigint("SUM(flows)"), where)
+		WHERE %s GROUP BY ip ORDER BY bytes DESC LIMIT ?`, cappedBigint("SUM(bytes)"), cappedBigint("SUM(flows)"), where)
 	rows := []FlowTopIP{}
 	if err := s.db.Raw(query, withArgs(args, topIPLimit)...).Scan(&rows).Error; err != nil {
 		return nil, err

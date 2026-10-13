@@ -96,6 +96,21 @@ func TestStartUsesAFreshCopyWithoutDownloading(t *testing.T) {
 	assert.Equal(t, 1, names.saved)
 }
 
+// A restart must not count its first flows as ASN 0 while start downloads or
+// saves names: preload installs the copy on disk, stale or not, at once.
+func TestPreloadInstallsTheCopyOnDiskWithoutSavingNames(t *testing.T) {
+	path := filepath.Join(t.TempDir(), asnFileName)
+	writeDataset(t, path, datasetB, 3*24*time.Hour)
+	server, hits := datasetServer(t, http.StatusOK, datasetC)
+	source, names := testSource(server, path)
+
+	source.preload()
+
+	assert.EqualValues(t, 64497, source.lookup(probe))
+	assert.Zero(t, hits.Load())
+	assert.Zero(t, names.saved)
+}
+
 func TestStartDownloadsOverADayOldCopy(t *testing.T) {
 	path := filepath.Join(t.TempDir(), asnFileName)
 	writeDataset(t, path, datasetB, 25*time.Hour)

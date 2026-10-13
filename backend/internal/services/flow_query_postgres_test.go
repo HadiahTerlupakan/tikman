@@ -177,7 +177,7 @@ func TestTopIPsSumAnAddressOverItsWindows(t *testing.T) {
 	routerID := uuid.New()
 	w0 := time.Now().UTC().Truncate(5 * time.Minute).Add(-10 * time.Minute)
 	for _, r := range []models.RouterFlowTopIP{
-		{Time: w0, IP: "203.0.113.5", ASN: 64498, Bytes: 100, Flows: 4}, // written before flowd located addresses
+		{Time: w0, IP: "203.0.113.5", ASN: 0, Bytes: 100, Flows: 4}, // written before flowd loaded either dataset
 		{Time: w0.Add(5 * time.Minute), IP: "203.0.113.5", ASN: 64498, Country: "JP", Bytes: 50, Flows: 2},
 		{Time: w0, IP: "203.0.113.6", ASN: 64498, Country: "US", Bytes: 120, Flows: 5},
 		{Time: w0, IP: "203.0.113.7", ASN: 64498, Bytes: 90}, // only unlocated windows: the AS's country

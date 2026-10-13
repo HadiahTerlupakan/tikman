@@ -54,6 +54,18 @@ func (s *asnSource) nextRefresh() time.Duration {
 	return netflow.ASNMaxAge
 }
 
+// preload installs the copy on disk, however old, before collection starts.
+// Without it every flow until start finishes, which downloads and saves names
+// for seconds to minutes, is counted as ASN 0. It saves no names: start does.
+func (s *asnSource) preload() {
+	table, _, err := s.fetcher.LoadLocal()
+	if err != nil {
+		s.logger.Warn("No ASN dataset on disk to start with", zap.Error(err))
+		return
+	}
+	s.table.Store(table)
+}
+
 // start loads the copy on disk, downloading first when it is missing or a
 // day old.
 func (s *asnSource) start(now time.Time) {

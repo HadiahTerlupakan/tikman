@@ -69,8 +69,10 @@ func main() {
 			Path: filepath.Join(asnDir(), asnFileName), Client: &http.Client{}},
 		names: store, logger: logger,
 	}
-	// Collection does not wait for the dataset: until it loads, every
-	// destination counts as ASN 0.
+	// The copy on disk is installed before the socket opens, so flows after a
+	// restart get their AS. Collection does not wait for a download: with no
+	// copy at all, every destination counts as ASN 0 until it lands.
+	asns.preload()
 	go func() {
 		asns.start(time.Now())
 		for {
@@ -89,6 +91,7 @@ func main() {
 	if os.Getenv("IPINFO_TOKEN") == "" {
 		logger.Warn("IPINFO_TOKEN is not set; top destination IPs are not located")
 	} else {
+		geo.installLocal()
 		go func() {
 			geo.start(time.Now())
 			for {
