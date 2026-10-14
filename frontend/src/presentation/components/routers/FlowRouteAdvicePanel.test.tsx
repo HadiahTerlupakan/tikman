@@ -10,6 +10,7 @@ const path = {
   asPath: "64511,64520,64521,64496",
   pathLength: 4,
   localPref: 600,
+  inputFilter: "CDN_IN",
 };
 
 const rows: RouteAdvice[] = [
@@ -28,11 +29,11 @@ const rows: RouteAdvice[] = [
         asPath: "64512,64496",
         pathLength: 2,
         localPref: 300,
+        inputFilter: "SMALLIX_IN",
       },
     ],
     inbound: [{ peer: "peer-cdn", transit: false, bytes: 5000 }],
-    draft:
-      '/routing/filter/rule add chain=SMALLIX_IN comment="tikman: 198.51.100.0/24 via peer-small-ix"',
+    suggested: "peer-small-ix",
     checkedAt: "2026-10-14T03:00:00Z",
   },
   {
@@ -45,7 +46,7 @@ const rows: RouteAdvice[] = [
     active: { ...path, peer: "peer-ix" },
     alternatives: null,
     inbound: null,
-    draft: "",
+    suggested: "",
     checkedAt: "2026-10-14T03:00:00Z",
   },
 ];
@@ -84,8 +85,30 @@ describe("FlowRouteAdvicePanel", () => {
     expect(screen.getByText(/Draf konfigurasi/)).toBeInTheDocument();
     expect(screen.getByText(/chain=SMALLIX_IN/)).toBeInTheDocument();
     expect(
+      screen.getByText(/if \(dst == 198\.51\.100\.0\/24\)/),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText(/hanya memindahkan trafik keluar/),
     ).toBeInTheDocument();
+  });
+
+  it("redrafts for the scope chosen: every prefix of the AS", () => {
+    render(
+      <FlowRouteAdvicePanel
+        available
+        rows={rows}
+        loading={false}
+        failed={false}
+      />,
+    );
+    fireEvent.click(document.querySelector(".ant-table-row-expand-icon")!);
+
+    fireEvent.click(screen.getByText("Semua prefix AS64496"));
+
+    expect(
+      screen.getByText(/if \(bgp-as-path 64496\$\) \{ set bgp-local-pref 610/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/test-as-path-regexp/)).toBeInTheDocument();
   });
 
   it("says when nothing has been read yet", () => {

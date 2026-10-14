@@ -43,15 +43,17 @@ export function adviceText(advice: RouteAdvice): string {
   const ix = (advice.alternatives ?? [])
     .concat(advice.active ? [advice.active] : [])
     .find((p) => !p.transit);
-  const alt = (advice.alternatives ?? []).find((p) => !p.transit);
+  const alt = (advice.alternatives ?? []).find(
+    (p) => p.peer === advice.suggested,
+  );
   switch (advice.status) {
     case "transit_only":
       return `Router hanya menerima rute ke prefix ini dari transit. Konfigurasi tidak bisa menambah jalur yang tidak diterima: pertimbangkan peering langsung atau cache dengan ${who}.`;
     case "inbound_via_transit":
       return `${who} terlihat lewat ${ix?.peer ?? "IX/CDN"}, tetapi download-nya sebagian besar masuk lewat transit. Local-pref di router ini hanya mengatur trafik keluar, jadi tidak bisa memindahkan download. Cek apakah ${who} menerima prefix Anda di ${ix?.peer ?? "IX tersebut"}, atau hubungi NOC mereka.`;
     case "shorter_outbound":
-      return `Lewat ${alt?.peer} AS path-nya ${alt?.pathLength}, lebih pendek dari jalur aktif lewat ${advice.active?.peer} (${advice.active?.pathLength}). Draf di bawah menaikkan local-pref untuk prefix ini saja dan hanya memindahkan trafik keluar (upload). Tinjau dulu sebelum dijalankan di router.`;
+      return `Lewat ${alt?.peer} AS path-nya ${alt?.pathLength}, lebih pendek dari jalur aktif lewat ${advice.active?.peer} (${advice.active?.pathLength}). Draf di bawah menaikkan local-pref untuk cakupan yang Anda pilih dan hanya memindahkan trafik keluar (upload). Tinjau dulu sebelum dijalankan di router.`;
     default:
-      return "Jalur keluar sudah yang terpendek di antara peer non-transit.";
+      return "Jalur keluar sudah yang terpendek di antara peer non-transit. Draf di bawah tetap bisa dipakai kalau Anda ingin mengutamakan peer lain.";
   }
 }

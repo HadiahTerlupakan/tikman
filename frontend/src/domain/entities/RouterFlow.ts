@@ -132,6 +132,8 @@ export interface RoutePath {
   asPath: string;
   pathLength: number;
   localPref: number;
+  /** The peer's input filter chain, where a rule preferring this path goes. */
+  inputFilter: string;
 }
 
 /** How much of a prefix's AS's download arrived from one peer. */
@@ -152,7 +154,7 @@ export interface RouteAdvice {
   active: RoutePath | null;
   alternatives: RoutePath[] | null;
   inbound: RouteInbound[] | null;
-  /** RouterOS commands for the operator to review and run; "" when none apply. */
-  draft: string;
+  /** The peer a shorter_outbound prefix could leave by; "" otherwise. */
+  suggested: string;
   checkedAt: string;
 }

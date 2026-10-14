@@ -11,6 +11,7 @@ import {
 } from "antd";
 import type { RouteAdvice, RoutePath } from "@/domain/entities";
 import { formatBytes } from "../trafficFormat";
+import { FlowRouteDraft } from "./FlowRouteDraft";
 import {
   adviceText,
   mainInbound,
@@ -180,21 +181,7 @@ function AdviceDetail({ advice }: { advice: RouteAdvice }) {
               ))}
         </Descriptions.Item>
       </Descriptions>
-      {advice.draft && (
-        <>
-          <Typography.Paragraph
-            style={{ marginTop: 12, marginBottom: 4 }}
-            strong
-          >
-            Draf konfigurasi (tinjau, lalu jalankan sendiri di router)
-          </Typography.Paragraph>
-          <Typography.Paragraph copyable={{ text: advice.draft }}>
-            <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-              {advice.draft}
-            </pre>
-          </Typography.Paragraph>
-        </>
-      )}
+      <FlowRouteDraft advice={advice} />
     </div>
   );
 }

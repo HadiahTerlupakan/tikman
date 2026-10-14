@@ -38,7 +38,7 @@ func TestRouteOnlyOfferedByTheTransitIsFlagged(t *testing.T) {
 	advice := advise([]StoredRoute{{Session: "peer-transit-1", ASPath: "64513,64512,64496", LocalPref: 100, Active: true}}, nil)
 
 	assert.Equal(t, RouteTransitOnly, advice.Status)
-	assert.Empty(t, advice.Draft, "no configuration can add a path the router is not offered")
+	assert.Empty(t, advice.Suggested, "no configuration can add a path the router is not offered")
 	require.NotNil(t, advice.Active)
 	assert.True(t, advice.Active.Transit)
 }
@@ -51,10 +51,10 @@ func TestAShorterPathOnlyViaTransitIsNotSuggested(t *testing.T) {
 	}, nil)
 
 	assert.Equal(t, RouteOptimal, advice.Status)
-	assert.Empty(t, advice.Draft)
+	assert.Empty(t, advice.Suggested)
 }
 
-func TestAShorterPathAtAnIXGetsADraftForThatPeersChain(t *testing.T) {
+func TestAShorterPathAtAnIXIsSuggestedWithItsChain(t *testing.T) {
 	advice := advise([]StoredRoute{
 		{Session: "peer-cdn-1", ASPath: "64511,64520,64521,64496", LocalPref: 600, Active: true},
 		{Session: "peer-small-ix-1", ASPath: "64512,64496", LocalPref: 300},
@@ -65,10 +65,8 @@ func TestAShorterPathAtAnIXGetsADraftForThatPeersChain(t *testing.T) {
 	assert.Equal(t, "peer-cdn", advice.Active.Peer)
 	require.Len(t, advice.Alternatives, 2)
 	assert.Equal(t, "peer-small-ix", advice.Alternatives[0].Peer, "shortest first")
-	assert.Contains(t, advice.Draft, "chain=SMALLIX_IN")
-	assert.Contains(t, advice.Draft, `rule="if (dst == 198.51.100.0/24) { set bgp-local-pref 610; accept; }"`)
-	assert.Contains(t, advice.Draft, `place-before=[find where chain="SMALLIX_IN" and rule~"set bgp-local-pref"`)
-	assert.Contains(t, advice.Draft, `/routing/filter/rule remove [find where comment="tikman: 198.51.100.0/24 via peer-small-ix"]`)
+	assert.Equal(t, "peer-small-ix", advice.Suggested)
+	assert.Equal(t, "SMALLIX_IN", advice.Alternatives[0].InputFilter, "the chain a preferring rule goes in")
 }
 
 // Local-pref only steers what leaves; download is the remote network's choice.
@@ -84,7 +82,7 @@ func TestDownloadArrivingViaTransitDespiteAnIXPathIsFlagged(t *testing.T) {
 	assert.Equal(t, RouteInboundViaTransit, advice.Status)
 	assert.Equal(t, []RouteInbound{{Peer: "peer-transit", Transit: true, Bytes: 800}, {Peer: "peer-ix-rs1", Bytes: 200}},
 		advice.Inbound)
-	assert.Empty(t, advice.Draft, "inbound cannot be fixed with our local-pref")
+	assert.Empty(t, advice.Suggested, "inbound cannot be fixed with our local-pref")
 }
 
 func TestAnIXsRouteServersCountAsOnePeer(t *testing.T) {

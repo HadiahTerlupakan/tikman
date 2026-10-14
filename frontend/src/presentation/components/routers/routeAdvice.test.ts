@@ -16,6 +16,7 @@ const base: RouteAdvice = {
     asPath: "64511,64520,64521,64496",
     pathLength: 4,
     localPref: 600,
+    inputFilter: "CDN_IN",
   },
   alternatives: [
     {
@@ -25,10 +26,11 @@ const base: RouteAdvice = {
       asPath: "64512,64496",
       pathLength: 2,
       localPref: 300,
+      inputFilter: "SMALLIX_IN",
     },
   ],
   inbound: null,
-  draft: "",
+  suggested: "peer-small-ix",
   checkedAt: "2026-10-14T03:00:00Z",
 };
 

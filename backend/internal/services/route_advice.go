@@ -25,9 +25,6 @@ const (
 	// inboundTransitShare: download counts as arriving via transit past this
 	// share of its bytes.
 	inboundTransitShare = 0.5
-	// draftLocalPrefStep is how far above the active route's local-pref the
-	// drafted rule puts the alternative, enough to win and no more.
-	draftLocalPrefStep = 10
 )
 
 // RoutePath is the best candidate one peer offers for a prefix.
@@ -38,6 +35,9 @@ type RoutePath struct {
 	ASPath    string `json:"as_path"`
 	PathLen   int    `json:"path_length"`
 	LocalPref int64  `json:"local_pref"`
+	// InputFilter is the peer's input filter chain, where a rule preferring
+	// this path would go.
+	InputFilter string `json:"input_filter"`
 }
 
 // RouteInbound is how much of a prefix's AS's download arrived from one peer.
@@ -60,8 +60,9 @@ type RouteAdvice struct {
 	Active        *RoutePath     `json:"active"`
 	Alternatives  []RoutePath    `json:"alternatives"`
 	Inbound       []RouteInbound `json:"inbound"`
-	Draft         string         `json:"draft"`
-	CheckedAt     time.Time      `json:"checked_at"`
+	// Suggested is the peer a shorter_outbound prefix could leave by.
+	Suggested string    `json:"suggested"`
+	CheckedAt time.Time `json:"checked_at"`
 }
 
 // routePeer is the router's BGP sessions with one remote AS: an IX's route
@@ -130,7 +131,7 @@ func adviseRoute(advice *RouteAdvice, routes []StoredRoute, peers routePeers, in
 	default:
 		if alt := shorterNonTransit(active, advice.Alternatives); alt != nil {
 			advice.Status = RouteShorterOutbound
-			advice.Draft = draftLocalPref(advice.Prefix, *alt, peers.bySession[alt.Peer], active.LocalPref)
+			advice.Suggested = alt.Peer
 		}
 	}
 }
@@ -146,7 +147,7 @@ func bestPaths(routes []StoredRoute, peers routePeers) (*RoutePath, []RoutePath)
 			continue
 		}
 		path := RoutePath{Peer: peer.name, RemoteAS: peer.remoteAS, Transit: peer.transit,
-			ASPath: r.ASPath, PathLen: asPathLength(r.ASPath), LocalPref: r.LocalPref}
+			ASPath: r.ASPath, PathLen: asPathLength(r.ASPath), LocalPref: r.LocalPref, InputFilter: peer.inputFilter}
 		if r.Active {
 			active = &path
 			byPeer[peer.name] = path
