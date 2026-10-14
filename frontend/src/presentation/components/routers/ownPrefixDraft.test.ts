@@ -70,19 +70,29 @@ describe("own prefix drafts", () => {
   });
 
   it("clears the target's prepend and lengthens the others to the gap", () => {
-    const draft = inboundDraft(own, "peer-cdn");
+    const d = inboundDraft(own, "peer-cdn");
+    const draft = d.apply.join("\n");
+    const everything = [...d.precheck, ...d.apply, ...d.check, ...d.undo].join(
+      "\n",
+    );
 
+    expect(d.precheck).toContain(
+      '/routing/filter/rule print where chain="CDN_OUT" and rule="if (dst in 203.0.113.0/24 && dst-len == 24) { set bgp-path-prepend 2; accept; }"',
+    );
+    expect(d.check).toContain(
+      '/routing/filter/rule print where chain="CDN_OUT" and rule="if (dst in 203.0.113.0/24 && dst-len == 24) { accept; }"',
+    );
     expect(draft).toContain(
       '/routing/filter/rule set [find where chain="CDN_OUT" and rule="if (dst in 203.0.113.0/24 && dst-len == 24) { set bgp-path-prepend 2; accept; }"] rule="if (dst in 203.0.113.0/24 && dst-len == 24) { accept; }"',
     );
     expect(draft).toContain(
       'rule="if (dst in 203.0.113.0/24 && dst-len == 24) { set bgp-path-prepend 3; accept; }"',
     );
-    expect(draft).not.toContain('chain="TRANSIT_OUT"');
+    expect(everything).not.toContain('chain="TRANSIT_OUT"');
     expect(draft).toContain(
       '/routing/bgp/session resend [find where name~"^peer-ix-rs2-[0-9]+\\$"]',
     );
-    expect(draft.split("# Batalkan")[1]).toContain(
+    expect(d.undo.join("\n")).toContain(
       'rule="if (dst in 203.0.113.0/24 && dst-len == 24) { set bgp-path-prepend 2; accept; }"',
     );
   });
@@ -107,9 +117,9 @@ describe("own prefix drafts", () => {
       ),
     };
 
-    expect(inboundDraft(leaning, "peer-cdn")).toContain(
-      "tidak ada yang perlu diubah",
-    );
+    const d = inboundDraft(leaning, "peer-cdn");
+    expect(d.note).toContain("tidak ada yang perlu diubah");
+    expect(d.apply).toEqual([]);
   });
 
   it("escapes RouterOS string specials in a rule", () => {
@@ -122,7 +132,7 @@ describe("own prefix drafts", () => {
       ],
     };
 
-    expect(inboundDraft(odd, "peer-cdn")).toContain(
+    expect(inboundDraft(odd, "peer-cdn").apply.join("\n")).toContain(
       'rule="if (dst in 203.0.113.0/24) { set comment \\"\\$x\\"; accept; }"',
     );
   });
@@ -144,8 +154,9 @@ describe("own prefix drafts", () => {
       ],
     };
 
-    expect(inboundDraft(hostile, "peer-ix-rs1")).not.toMatch(
-      /[^\\]" ; \/system reboot/,
-    );
+    const d = inboundDraft(hostile, "peer-ix-rs1");
+    expect(
+      [...d.precheck, ...d.apply, ...d.check, ...d.undo].join("\n"),
+    ).not.toMatch(/[^\\]" ; \/system reboot/);
   });
 });

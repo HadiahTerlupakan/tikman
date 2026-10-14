@@ -1,5 +1,5 @@
 import type { OwnPrefix, OwnPrefixPeer } from "@/domain/entities";
-import { comment, quoted, sessionsOf } from "./routerOS";
+import { type Draft, quoted, sessionsOf } from "./routerOS";
 
 /** How many AS hops longer the other peers' paths are made than the target's. */
 export const INBOUND_PREPEND_GAP = 3;
@@ -33,10 +33,11 @@ export function inboundTargets(own: OwnPrefix): OwnPrefixPeer[] {
 /**
  * RouterOS v7 commands, for the operator to review and run by hand, that
  * make download for the prefix lean towards target: no prepend there, at
- * least INBOUND_PREPEND_GAP on every other peer announcing it, then a resend,
- * and the undo restoring each rule's exact text.
+ * least INBOUND_PREPEND_GAP on every other peer announcing it, then a resend.
+ * The precheck lists, read-only, each rule the change will rewrite; the undo
+ * restores each rule's exact text.
  */
-export function inboundDraft(own: OwnPrefix, target: string): string {
+export function inboundDraft(own: OwnPrefix, target: string): Draft {
   const changes = inboundTargets(own)
     .map((peer) => {
       const prepend =
@@ -45,20 +46,28 @@ export function inboundDraft(own: OwnPrefix, target: string): string {
     })
     .filter((c) => c.next !== c.peer.rule);
   if (changes.length === 0) {
-    return comment(
-      `${own.prefix} sudah diumumkan paling pendek lewat ${target}; tidak ada yang perlu diubah.`,
-    );
+    return {
+      note: `${own.prefix} sudah diumumkan paling pendek lewat ${target}; tidak ada yang perlu diubah.`,
+      precheck: [],
+      apply: [],
+      check: [],
+      undo: [],
+    };
   }
   const touched = changes.map((c) => c.peer);
-  return [
-    comment(
-      `Download untuk ${own.prefix} cenderung masuk lewat ${target}. Prepend hanya membuat jalur lain`,
-    ),
-    "# terlihat lebih panjang; jaringan pengirim tetap yang memutuskan.",
-    ...changes.map((c) => setRule(c.peer, c.peer.rule, c.next)),
-    ...resend(touched),
-    "# Batalkan",
-    ...changes.map((c) => setRule(c.peer, c.next, c.peer.rule)),
-    ...resend(touched),
-  ].join("\n");
+  const find = (peer: OwnPrefixPeer, rule: string) =>
+    `/routing/filter/rule print where chain=${quoted(peer.outputFilter)} and rule=${quoted(rule)}`;
+  return {
+    note: `Download untuk ${own.prefix} cenderung masuk lewat ${target}. Prepend hanya membuat jalur lain terlihat lebih panjang; jaringan pengirim tetap yang memutuskan, jadi lihat hasilnya di panel ini satu sampai dua jam kemudian.`,
+    precheck: changes.map((c) => find(c.peer, c.peer.rule)),
+    apply: [
+      ...changes.map((c) => setRule(c.peer, c.peer.rule, c.next)),
+      ...resend(touched),
+    ],
+    check: changes.map((c) => find(c.peer, c.next)),
+    undo: [
+      ...changes.map((c) => setRule(c.peer, c.next, c.peer.rule)),
+      ...resend(touched),
+    ],
+  };
 }

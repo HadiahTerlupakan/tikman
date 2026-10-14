@@ -11,6 +11,7 @@ import {
 } from "antd";
 import type { OwnPrefix, OwnPrefixPeer } from "@/domain/entities";
 import { formatBytes } from "../trafficFormat";
+import { FlowDraftBlocks } from "./FlowDraftBlocks";
 import { inboundDraft, inboundTargets } from "./ownPrefixDraft";
 
 const PERCENT = 100;
@@ -145,14 +146,7 @@ function OwnPrefixDetail({ own }: { own: OwnPrefix }) {
               options={targets.map((p) => ({ value: p.peer, label: p.peer }))}
             />
           </Space>
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 4 }}>
-            Draf konfigurasi (tinjau, lalu jalankan sendiri di router)
-          </Typography.Paragraph>
-          <Typography.Paragraph copyable={{ text: inboundDraft(own, target) }}>
-            <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-              {inboundDraft(own, target)}
-            </pre>
-          </Typography.Paragraph>
+          <FlowDraftBlocks draft={inboundDraft(own, target)} />
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Segmented, Select, Space, Typography } from "antd";
 import type { RouteAdvice } from "@/domain/entities";
+import { FlowDraftBlocks } from "./FlowDraftBlocks";
 import {
   draftTargets,
   preferDraft,
@@ -55,9 +56,7 @@ export function FlowRouteDraft({ advice }: { advice: RouteAdvice }) {
           />
         )}
       </Space>
-      <Typography.Paragraph copyable={{ text: draft }}>
-        <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{draft}</pre>
-      </Typography.Paragraph>
+      <FlowDraftBlocks draft={draft} />
     </div>
   );
 }

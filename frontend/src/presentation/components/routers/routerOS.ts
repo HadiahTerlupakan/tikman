@@ -22,7 +22,15 @@ export function sessionsOf(connection: string): string {
   return `[find where name~${quoted(`^${exact}-[0-9]+$`)}]`;
 }
 
-/** A comment line: a line break in a name must not start a command line. */
-export function comment(text: string): string {
-  return `# ${text.replace(/[\r\n]+/g, " ")}`;
+/**
+ * A draft in the order it is meant to be run: read-only checks first, the
+ * change, a check of its effect, and the undo. note is shown as text, never
+ * pasted, so names in it need no escaping.
+ */
+export interface Draft {
+  note: string;
+  precheck: string[];
+  apply: string[];
+  check: string[];
+  undo: string[];
 }

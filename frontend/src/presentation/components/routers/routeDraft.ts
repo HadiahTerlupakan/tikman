@@ -1,5 +1,5 @@
 import type { RouteAdvice, RoutePath } from "@/domain/entities";
-import { comment, quoted, sessionsOf } from "./routerOS";
+import { type Draft, quoted, sessionsOf } from "./routerOS";
 
 export type DraftScope = "exact" | "range" | "asn";
 
@@ -77,46 +77,46 @@ function matcher(
  * RouterOS v7 commands, for the operator to review and run by hand, that make
  * outbound traffic for the chosen scope prefer target: a rule in target's
  * input chain, before that chain's own local-pref rule so its bogon filters
- * still apply, then a route refresh, a check and the undo.
+ * still apply, then a route refresh. The precheck lists, read-only, the one
+ * rule the change will be placed before.
  */
 export function preferDraft(
   advice: RouteAdvice,
   target: RoutePath,
   scope: DraftScope,
   rangeBits: number,
-): string {
-  const chain = target.inputFilter;
+): Draft {
+  const chain = quoted(target.inputFilter);
   const { condition, label } = matcher(advice, scope, rangeBits);
   const candidates = (advice.alternatives ?? []).concat(
     advice.active ? [advice.active] : [],
   );
   const pref =
     Math.max(...candidates.map((p) => p.localPref)) + LOCAL_PREF_STEP;
-  const tag = `tikman: ${label} via ${target.peer}`;
+  const tag = quoted(`tikman: ${label} via ${target.peer}`);
   const refresh = `/routing/bgp/session refresh ${sessionsOf(target.peer)}`;
-  const lines = [
-    comment(
-      `Keluar ke ${label} lewat ${target.peer}: hanya trafik keluar (upload)`,
-    ),
-  ];
+  const ownRule = `chain=${chain} and rule~"set bgp-local-pref" and (comment~"^tikman")=false`;
+  const route = `/routing/route print where dst-address=${advice.prefix}`;
+  const precheck = [`/routing/filter/rule print where ${ownRule}`, route];
   if (scope === "asn") {
-    lines.push(
-      comment(
-        `Berlaku untuk semua prefix AS${advice.asn} yang diterima dari ${target.peer}. Uji polanya dulu:`,
-      ),
+    precheck.push(
       `/routing/filter/test-as-path-regexp regexp=${quoted(`${advice.asn}$`)} as-path=${quoted((advice.active?.asPath ?? "").trim())}`,
     );
   }
-  lines.push(
-    `/routing/filter/rule add chain=${quoted(chain)} comment=${quoted(tag)} \\`,
-    `  place-before=[find where chain=${quoted(chain)} and rule~"set bgp-local-pref" and !(comment~"^tikman")] \\`,
-    `  rule=${quoted(`if (${condition}) { set bgp-local-pref ${pref}; accept; }`)}`,
-    refresh,
-    "# Cek: rute aktif harus pindah ke peer di atas",
-    `/routing/route print where dst-address=${advice.prefix}`,
-    "# Batalkan",
-    `/routing/filter/rule remove [find where comment=${quoted(tag)}]`,
-    refresh,
-  );
-  return lines.join("\n");
+  const asnNote =
+    scope === "asn"
+      ? ` Berlaku untuk semua prefix AS${advice.asn} yang diterima dari ${target.peer}.`
+      : "";
+  return {
+    note: `Keluar ke ${label} lewat ${target.peer}; hanya trafik keluar (upload).${asnNote}`,
+    precheck,
+    apply: [
+      `/routing/filter/rule add chain=${chain} comment=${tag} \\`,
+      `  place-before=[find where ${ownRule}] \\`,
+      `  rule=${quoted(`if (${condition}) { set bgp-local-pref ${pref}; accept; }`)}`,
+      refresh,
+    ],
+    check: [route, `/routing/filter/rule print where comment=${tag}`],
+    undo: [`/routing/filter/rule remove [find where comment=${tag}]`, refresh],
+  };
 }

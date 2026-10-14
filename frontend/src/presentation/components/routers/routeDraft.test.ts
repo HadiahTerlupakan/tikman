@@ -62,24 +62,35 @@ describe("route drafts", () => {
 
   it("drafts an exact-prefix rule in the target's chain, above every candidate", () => {
     const draft = preferDraft(advice, smallIX, "exact", 24);
+    const apply = draft.apply.join("\n");
+    // The documented negation in a where clause is (expression)=false.
+    const ownRule =
+      'chain="SMALLIX_IN" and rule~"set bgp-local-pref" and (comment~"^tikman")=false';
 
-    expect(draft).toContain('chain="SMALLIX_IN"');
-    expect(draft).toContain(
+    expect(draft.precheck).toEqual([
+      `/routing/filter/rule print where ${ownRule}`,
+      "/routing/route print where dst-address=198.51.100.0/24",
+    ]);
+    expect(apply).toContain('chain="SMALLIX_IN"');
+    expect(apply).toContain(
       'rule="if (dst == 198.51.100.0/24) { set bgp-local-pref 610; accept; }"',
     );
-    expect(draft).toContain(
-      'place-before=[find where chain="SMALLIX_IN" and rule~"set bgp-local-pref" and !(comment~"^tikman")]',
-    );
-    expect(draft).toContain(
+    expect(apply).toContain(`place-before=[find where ${ownRule}]`);
+    expect(draft.apply.at(-1)).toBe(
       '/routing/bgp/session refresh [find where name~"^peer-small-ix-[0-9]+\\$"]',
     );
-    expect(draft).toContain(
+    expect(draft.check).toContain(
+      "/routing/route print where dst-address=198.51.100.0/24",
+    );
+    expect(draft.undo[0]).toBe(
       '/routing/filter/rule remove [find where comment="tikman: 198.51.100.0/24 via peer-small-ix"]',
     );
   });
 
   it("drafts a range rule that also covers more specific prefixes", () => {
-    expect(preferDraft(advice, smallIX, "range", 22)).toContain(
+    expect(
+      preferDraft(advice, smallIX, "range", 22).apply.join("\n"),
+    ).toContain(
       'rule="if (dst in 198.51.100.0/22) { set bgp-local-pref 610; accept; }"',
     );
   });
@@ -88,14 +99,16 @@ describe("route drafts", () => {
   // paths ending in 64496, not 164496 or 64496 mid-path.
   it("drafts a per-AS rule with a pattern test first", () => {
     const draft = preferDraft(advice, smallIX, "asn", 24);
+    const apply = draft.apply.join("\n");
 
-    expect(draft).toContain(
+    expect(apply).toContain(
       'rule="if (bgp-as-path 64496\\$) { set bgp-local-pref 610; accept; }"',
     );
-    expect(draft).toContain(
+    expect(draft.precheck).toContain(
       '/routing/filter/test-as-path-regexp regexp="64496\\$" as-path="64511,64520,64521,64496"',
     );
-    expect(draft).toContain('comment="tikman: AS64496 via peer-small-ix"');
+    expect(apply).toContain('comment="tikman: AS64496 via peer-small-ix"');
+    expect(draft.note).toContain("semua prefix AS64496");
   });
 
   it("keeps a hostile chain or peer name from adding a command", () => {
@@ -105,7 +118,8 @@ describe("route drafts", () => {
       inputFilter: 'IN" ; /system reboot ; :put "',
     };
 
-    const draft = preferDraft(advice, hostile, "exact", 24);
+    const d = preferDraft(advice, hostile, "exact", 24);
+    const draft = [...d.precheck, ...d.apply, ...d.check, ...d.undo].join("\n");
 
     expect(draft).not.toMatch(/[^\\]" ; \/system reboot/);
     expect(draft).toContain('chain="IN\\" ; /system reboot ; :put \\""');

@@ -83,7 +83,16 @@ describe("FlowRouteAdvicePanel", () => {
     fireEvent.click(document.querySelector(".ant-table-row-expand-icon")!);
 
     expect(screen.getByText(/Draf konfigurasi/)).toBeInTheDocument();
-    expect(screen.getByText(/chain="SMALLIX_IN"/)).toBeInTheDocument();
+    for (const block of [
+      "1. Cek dulu (read-only)",
+      "2. Terapkan",
+      "3. Cek hasil",
+      "4. Batalkan",
+    ]) {
+      expect(screen.getByText(block)).toBeInTheDocument();
+    }
+    expect(document.querySelectorAll(".ant-typography-copy")).toHaveLength(4);
+    expect(screen.getAllByText(/chain="SMALLIX_IN"/).length).toBeGreaterThan(1);
     expect(
       screen.getByText(/if \(dst == 198\.51\.100\.0\/24\)/),
     ).toBeInTheDocument();
