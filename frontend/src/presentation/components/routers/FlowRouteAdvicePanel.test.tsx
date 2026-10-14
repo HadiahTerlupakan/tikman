@@ -83,7 +83,7 @@ describe("FlowRouteAdvicePanel", () => {
     fireEvent.click(document.querySelector(".ant-table-row-expand-icon")!);
 
     expect(screen.getByText(/Draf konfigurasi/)).toBeInTheDocument();
-    expect(screen.getByText(/chain=SMALLIX_IN/)).toBeInTheDocument();
+    expect(screen.getByText(/chain="SMALLIX_IN"/)).toBeInTheDocument();
     expect(
       screen.getByText(/if \(dst == 198\.51\.100\.0\/24\)/),
     ).toBeInTheDocument();
@@ -106,7 +106,9 @@ describe("FlowRouteAdvicePanel", () => {
     fireEvent.click(screen.getByText("Semua prefix AS64496"));
 
     expect(
-      screen.getByText(/if \(bgp-as-path 64496\$\) \{ set bgp-local-pref 610/),
+      screen.getByText(
+        /if \(bgp-as-path 64496\\\$\) \{ set bgp-local-pref 610/,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText(/test-as-path-regexp/)).toBeInTheDocument();
   });

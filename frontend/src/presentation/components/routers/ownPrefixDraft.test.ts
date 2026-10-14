@@ -80,7 +80,7 @@ describe("own prefix drafts", () => {
     );
     expect(draft).not.toContain('chain="TRANSIT_OUT"');
     expect(draft).toContain(
-      '/routing/bgp/session resend [find where name~"^peer-ix-rs2"]',
+      '/routing/bgp/session resend [find where name~"^peer-ix-rs2-[0-9]+\\$"]',
     );
     expect(draft.split("# Batalkan")[1]).toContain(
       'rule="if (dst in 203.0.113.0/24 && dst-len == 24) { set bgp-path-prepend 2; accept; }"',
@@ -124,6 +124,28 @@ describe("own prefix drafts", () => {
 
     expect(inboundDraft(odd, "peer-cdn")).toContain(
       'rule="if (dst in 203.0.113.0/24) { set comment \\"\\$x\\"; accept; }"',
+    );
+  });
+
+  it("keeps a hostile chain or session name from adding a command", () => {
+    const hostile: OwnPrefix = {
+      ...own,
+      peers: [
+        peer({
+          outputFilter: 'OUT" ; /system reboot ; :put "',
+          sessions: ['s"] ; /system reboot ; ["'],
+        }),
+        peer({
+          peer: "peer-ix-rs1",
+          outputFilter: "IX_OUT",
+          prepend: 0,
+          rule: "if (dst in 203.0.113.0/24) { accept; }",
+        }),
+      ],
+    };
+
+    expect(inboundDraft(hostile, "peer-ix-rs1")).not.toMatch(
+      /[^\\]" ; \/system reboot/,
     );
   });
 });

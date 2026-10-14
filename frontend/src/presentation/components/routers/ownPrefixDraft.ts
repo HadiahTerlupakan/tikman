@@ -1,4 +1,5 @@
 import type { OwnPrefix, OwnPrefixPeer } from "@/domain/entities";
+import { comment, quoted, sessionsOf } from "./routerOS";
 
 /** How many AS hops longer the other peers' paths are made than the target's. */
 export const INBOUND_PREPEND_GAP = 3;
@@ -14,20 +15,13 @@ export function rewritePrepend(rule: string, n: number): string {
   return rule.replace("accept;", `set bgp-path-prepend ${n}; accept;`);
 }
 
-/** A RouterOS string literal: backslash, quote and $ are escaped. */
-function quoted(text: string): string {
-  return `"${text.replace(/[\\"$]/g, (c) => `\\${c}`)}"`;
-}
-
 function setRule(peer: OwnPrefixPeer, from: string, to: string): string {
-  return `/routing/filter/rule set [find where chain="${peer.outputFilter}" and rule=${quoted(from)}] rule=${quoted(to)}`;
+  return `/routing/filter/rule set [find where chain=${quoted(peer.outputFilter)} and rule=${quoted(from)}] rule=${quoted(to)}`;
 }
 
 function resend(peers: OwnPrefixPeer[]): string[] {
   return peers.flatMap((p) =>
-    p.sessions.map(
-      (s) => `/routing/bgp/session resend [find where name~"^${s}"]`,
-    ),
+    p.sessions.map((s) => `/routing/bgp/session resend ${sessionsOf(s)}`),
   );
 }
 
@@ -51,11 +45,15 @@ export function inboundDraft(own: OwnPrefix, target: string): string {
     })
     .filter((c) => c.next !== c.peer.rule);
   if (changes.length === 0) {
-    return `# ${own.prefix} sudah diumumkan paling pendek lewat ${target}; tidak ada yang perlu diubah.`;
+    return comment(
+      `${own.prefix} sudah diumumkan paling pendek lewat ${target}; tidak ada yang perlu diubah.`,
+    );
   }
   const touched = changes.map((c) => c.peer);
   return [
-    `# Download untuk ${own.prefix} cenderung masuk lewat ${target}. Prepend hanya membuat jalur lain`,
+    comment(
+      `Download untuk ${own.prefix} cenderung masuk lewat ${target}. Prepend hanya membuat jalur lain`,
+    ),
     "# terlihat lebih panjang; jaringan pengirim tetap yang memutuskan.",
     ...changes.map((c) => setRule(c.peer, c.peer.rule, c.next)),
     ...resend(touched),

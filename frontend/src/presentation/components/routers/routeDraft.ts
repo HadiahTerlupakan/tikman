@@ -1,4 +1,5 @@
 import type { RouteAdvice, RoutePath } from "@/domain/entities";
+import { comment, quoted, sessionsOf } from "./routerOS";
 
 export type DraftScope = "exact" | "range" | "asn";
 
@@ -91,26 +92,30 @@ export function preferDraft(
   );
   const pref =
     Math.max(...candidates.map((p) => p.localPref)) + LOCAL_PREF_STEP;
-  const comment = `tikman: ${label} via ${target.peer}`;
-  const refresh = `/routing/bgp/session refresh [find where name~"^${target.peer}"]`;
+  const tag = `tikman: ${label} via ${target.peer}`;
+  const refresh = `/routing/bgp/session refresh ${sessionsOf(target.peer)}`;
   const lines = [
-    `# Keluar ke ${label} lewat ${target.peer}: hanya trafik keluar (upload)`,
+    comment(
+      `Keluar ke ${label} lewat ${target.peer}: hanya trafik keluar (upload)`,
+    ),
   ];
   if (scope === "asn") {
     lines.push(
-      `# Berlaku untuk semua prefix AS${advice.asn} yang diterima dari ${target.peer}. Uji polanya dulu:`,
-      `/routing/filter/test-as-path-regexp regexp="${advice.asn}$" as-path="${(advice.active?.asPath ?? "").trim()}"`,
+      comment(
+        `Berlaku untuk semua prefix AS${advice.asn} yang diterima dari ${target.peer}. Uji polanya dulu:`,
+      ),
+      `/routing/filter/test-as-path-regexp regexp=${quoted(`${advice.asn}$`)} as-path=${quoted((advice.active?.asPath ?? "").trim())}`,
     );
   }
   lines.push(
-    `/routing/filter/rule add chain=${chain} comment="${comment}" \\`,
-    `  place-before=[find where chain="${chain}" and rule~"set bgp-local-pref" and !(comment~"^tikman")] \\`,
-    `  rule="if (${condition}) { set bgp-local-pref ${pref}; accept; }"`,
+    `/routing/filter/rule add chain=${quoted(chain)} comment=${quoted(tag)} \\`,
+    `  place-before=[find where chain=${quoted(chain)} and rule~"set bgp-local-pref" and !(comment~"^tikman")] \\`,
+    `  rule=${quoted(`if (${condition}) { set bgp-local-pref ${pref}; accept; }`)}`,
     refresh,
     "# Cek: rute aktif harus pindah ke peer di atas",
     `/routing/route print where dst-address=${advice.prefix}`,
     "# Batalkan",
-    `/routing/filter/rule remove [find where comment="${comment}"]`,
+    `/routing/filter/rule remove [find where comment=${quoted(tag)}]`,
     refresh,
   );
   return lines.join("\n");

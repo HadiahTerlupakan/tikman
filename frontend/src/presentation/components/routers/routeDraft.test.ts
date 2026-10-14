@@ -63,7 +63,7 @@ describe("route drafts", () => {
   it("drafts an exact-prefix rule in the target's chain, above every candidate", () => {
     const draft = preferDraft(advice, smallIX, "exact", 24);
 
-    expect(draft).toContain("chain=SMALLIX_IN");
+    expect(draft).toContain('chain="SMALLIX_IN"');
     expect(draft).toContain(
       'rule="if (dst == 198.51.100.0/24) { set bgp-local-pref 610; accept; }"',
     );
@@ -71,7 +71,7 @@ describe("route drafts", () => {
       'place-before=[find where chain="SMALLIX_IN" and rule~"set bgp-local-pref" and !(comment~"^tikman")]',
     );
     expect(draft).toContain(
-      '/routing/bgp/session refresh [find where name~"^peer-small-ix"]',
+      '/routing/bgp/session refresh [find where name~"^peer-small-ix-[0-9]+\\$"]',
     );
     expect(draft).toContain(
       '/routing/filter/rule remove [find where comment="tikman: 198.51.100.0/24 via peer-small-ix"]',
@@ -90,11 +90,24 @@ describe("route drafts", () => {
     const draft = preferDraft(advice, smallIX, "asn", 24);
 
     expect(draft).toContain(
-      'rule="if (bgp-as-path 64496$) { set bgp-local-pref 610; accept; }"',
+      'rule="if (bgp-as-path 64496\\$) { set bgp-local-pref 610; accept; }"',
     );
     expect(draft).toContain(
-      '/routing/filter/test-as-path-regexp regexp="64496$" as-path="64511,64520,64521,64496"',
+      '/routing/filter/test-as-path-regexp regexp="64496\\$" as-path="64511,64520,64521,64496"',
     );
     expect(draft).toContain('comment="tikman: AS64496 via peer-small-ix"');
+  });
+
+  it("keeps a hostile chain or peer name from adding a command", () => {
+    const hostile = {
+      ...smallIX,
+      peer: 'x"] ; /system reboot ; ["',
+      inputFilter: 'IN" ; /system reboot ; :put "',
+    };
+
+    const draft = preferDraft(advice, hostile, "exact", 24);
+
+    expect(draft).not.toMatch(/[^\\]" ; \/system reboot/);
+    expect(draft).toContain('chain="IN\\" ; /system reboot ; :put \\""');
   });
 });
