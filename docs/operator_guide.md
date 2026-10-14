@@ -492,3 +492,22 @@ Trafik dengan grafik SNMP upstream untuk hari yang sama.
   7 hari, per 5 menit 90 hari, per jam 2 tahun, dan per hari selamanya.
 - Dataset ASN dari iptoasn.com diunduh ulang tiap 24 jam; bila gagal, dataset
   sebelumnya tetap dipakai.
+
+### Jalur BGP
+
+Tab **Jalur BGP** menggambar ke mana trafik keluar, AS demi AS: router di
+kiri, lalu peer atau upstream yang dilewati, lalu AS tujuan di kanan. Bagan
+atas dibangun dari prefix tujuan tersibuk 7 hari terakhir, dari kandidat rute
+yang dibaca worker tiap jam (data yang sama dengan **Saran routing**). Garis
+penuh adalah jalur yang dipilih router; saklar **Tampilkan alternatif**
+menambahkan jalur yang diterima tapi tidak dipilih sebagai garis putus-putus.
+Tebal garis mengikuti volume trafik. Klik sebuah AS tujuan untuk melihat
+prefix-prefixnya beserta setiap kandidat (sesi, AS path, local-pref).
+
+**Cek jalur ke IP atau prefix** menanyakan router secara langsung. Satu kueri
+memindai seluruh tabel BGP router, sekitar 1-2 detik; alamat yang prefix-nya
+belum dikenal dicoba dari /24 sampai /8, jadi kasus terburuk belasan detik.
+Karena itu tombolnya hanya untuk admin dan teknisi, dan hanya satu pencarian
+yang berjalan per router pada satu waktu. Hasilnya ikut disimpan ke tabel
+kandidat, sehingga bagan dan Saran routing mengenal prefix itu tanpa menunggu
+pembacaan per jam.

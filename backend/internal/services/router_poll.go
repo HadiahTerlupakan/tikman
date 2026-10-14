@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,8 @@ type RouterPollService struct {
 	newAPI           func(router *models.MikrotikRouter, password string) (RouterAPI, error)
 	readCounters     IfCounterReader
 	fetchFingerprint func(host string, port int) (string, error)
+	// lookups holds the routers with an operator's route lookup running.
+	lookups sync.Map
 }
 
 // NewRouterPollService creates a poll service that talks to real routers.

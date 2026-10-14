@@ -180,3 +180,23 @@ export interface OwnPrefix {
   uploadBytes: number;
   peers: OwnPrefixPeer[];
 }
+
+/** One BGP candidate for a prefix as the router reported it. */
+export interface RouteCandidate {
+  session: string;
+  asPath: string;
+  localPref: number;
+  active: boolean;
+  gateway: string;
+}
+
+/** What the router holds for a looked-up address or prefix. */
+export interface RouteLookup {
+  target: string;
+  /** "" when the router has no route for the target. */
+  prefix: string;
+  routes: RouteCandidate[];
+  /** Full-table scans the lookup cost the router. */
+  queries: number;
+  checkedAt: string;
+}

@@ -69,7 +69,7 @@ func (s *FlowQueryService) Peering(routerID uuid.UUID, f FlowFilter, asn int64) 
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.asnNames([]int64{asn})
+	names, err := s.ASNNames([]int64{asn})
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 import { Card, Result, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
+import { BgpPathsTab } from "@/presentation/components/routers/BgpPathsTab";
 import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDestinationsTab";
 import { InterfacesTab } from "@/presentation/components/routers/InterfacesTab";
 import { RouterInfoTab } from "@/presentation/components/routers/RouterInfoTab";
@@ -24,6 +25,13 @@ export function RouterDetailPage() {
             label: "Upstream & BGP",
             children: (
               <UpstreamTab routerId={router.id} apiStatus={router.apiStatus} />
+            ),
+          },
+          {
+            key: "paths",
+            label: "Jalur BGP",
+            children: (
+              <BgpPathsTab routerId={router.id} routerName={router.name} />
             ),
           },
           {

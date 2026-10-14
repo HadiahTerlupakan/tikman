@@ -28,6 +28,8 @@ func (h *handlers) registerMikrotikRoutes(api *gin.RouterGroup, authenticated gi
 		routers.GET("/:id/interfaces/:ifId/traffic", h.routerHandler.Traffic)
 		routers.GET("/:id/bgp/sessions", h.routerHandler.Sessions)
 		routers.GET("/:id/bgp/events", h.routerHandler.Events)
+		routers.GET("/:id/bgp/lookup", operator, h.routerPathHandler.Lookup)
+		routers.GET("/:id/bgp/as-names", h.routerPathHandler.ASNames)
 		routers.GET("/:id/flows/destinations", h.routerFlowHandler.Destinations)
 		routers.GET("/:id/flows/summary", h.routerFlowHandler.Summary)
 		routers.GET("/:id/flows/pops", h.routerFlowHandler.POPs)

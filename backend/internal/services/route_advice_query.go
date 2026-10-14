@@ -49,7 +49,7 @@ func (s *FlowQueryService) RouteAdvice(routerID uuid.UUID, f FlowFilter, now tim
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.asnNames(asns)
+	names, err := s.ASNNames(asns)
 	if err != nil {
 		return nil, err
 	}

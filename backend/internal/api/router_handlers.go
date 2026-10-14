@@ -42,6 +42,7 @@ type handlers struct {
 	mappingHandler         *MappingHandler
 	routerHandler          *RouterHandler
 	routerFlowHandler      *RouterFlowHandler
+	routerPathHandler      *RouterPathHandler
 }
 
 // newHandlers builds the services and handlers one API process needs, and
@@ -60,6 +61,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 	auditService := services.NewAuditService(db, logger)
 	metricsService := services.NewMetricsService(db)
 	configTemplateService := services.NewConfigTemplateService(db, auditService)
+	routerService := services.NewRouterService(db, cfg.EncryptionKey)
 
 	cs := newCSStack(cfg, db, logger, auditService, ontService, userService)
 	provisionHandler, zteProvisionHandler := newProvisioningHandlers(cfg, db, logger, auditService, configTemplateService, commanderFactory)
@@ -87,10 +89,11 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		provisionHandler:       provisionHandler,
 		zteProvisionHandler:    zteProvisionHandler,
 		mappingHandler:         NewMappingHandler(services.NewMappingService(db)),
-		routerHandler: NewRouterHandler(services.NewRouterService(db, cfg.EncryptionKey),
+		routerHandler: NewRouterHandler(routerService,
 			services.NewRouterPollJobService(db), services.NewRouterQueryService(db), auditService),
-		routerFlowHandler: NewRouterFlowHandler(services.NewRouterService(db, cfg.EncryptionKey),
-			services.NewFlowQueryService(db)),
+		routerFlowHandler: NewRouterFlowHandler(routerService, services.NewFlowQueryService(db)),
+		routerPathHandler: NewRouterPathHandler(routerService,
+			services.NewRouterPollService(db, routerService), services.NewFlowQueryService(db)),
 	}, cs.notifier, cs.listener
 }
 

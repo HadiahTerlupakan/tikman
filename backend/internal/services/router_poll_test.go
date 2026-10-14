@@ -28,11 +28,14 @@ type fakeRouterAPI struct {
 	// bgpRoutes answers RoutesTo by exact prefix; asked records the prefixes.
 	bgpRoutes map[string][]mikrotik.BGPRoute
 	asked     []string
-	rules     []mikrotik.FilterRule
-	lists     map[string][]mikrotik.AddressListEntry
-	listsErr  error
-	err       error
-	closed    int
+	// onRoutesTo, when set, runs inside the first RoutesTo call, so a test
+	// can hold a lookup open.
+	onRoutesTo func()
+	rules      []mikrotik.FilterRule
+	lists      map[string][]mikrotik.AddressListEntry
+	listsErr   error
+	err        error
+	closed     int
 }
 
 func (f *fakeRouterAPI) Close() error { f.closed++; return nil }
@@ -56,6 +59,11 @@ func (f *fakeRouterAPI) AddressList(list string) ([]mikrotik.AddressListEntry, e
 }
 func (f *fakeRouterAPI) RoutesTo(prefix string) ([]mikrotik.BGPRoute, error) {
 	f.asked = append(f.asked, prefix)
+	if f.onRoutesTo != nil {
+		hook := f.onRoutesTo
+		f.onRoutesTo = nil
+		hook()
+	}
 	return f.bgpRoutes[prefix], f.err
 }
 

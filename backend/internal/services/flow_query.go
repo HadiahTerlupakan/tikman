@@ -129,7 +129,7 @@ func (s *FlowQueryService) Destinations(routerID uuid.UUID, f FlowFilter, limit 
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.asnNames(top)
+	names, err := s.ASNNames(top)
 	if err != nil {
 		return nil, err
 	}
@@ -176,8 +176,8 @@ func buildSeries(rows []asnBucket, top []int64, names map[int64]string, step tim
 	return series
 }
 
-// asnNames looks the given ASNs up in asn_names.
-func (s *FlowQueryService) asnNames(asns []int64) (map[int64]string, error) {
+// ASNNames looks the given ASNs up in asn_names.
+func (s *FlowQueryService) ASNNames(asns []int64) (map[int64]string, error) {
 	records, err := s.asnRecords(asns)
 	if err != nil {
 		return nil, err

@@ -66,7 +66,7 @@ func (s *FlowQueryService) Summary(routerID uuid.UUID, f FlowFilter) (*FlowSumma
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.asnNames(asns)
+	names, err := s.ASNNames(asns)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (s *FlowQueryService) POPs(routerID uuid.UUID, f FlowFilter) ([]FlowPOPRow,
 	for i, t := range tops {
 		asns[i] = t.ASN
 	}
-	names, err := s.asnNames(asns)
+	names, err := s.ASNNames(asns)
 	if err != nil {
 		return nil, err
 	}

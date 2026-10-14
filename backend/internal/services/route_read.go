@@ -118,7 +118,12 @@ func (r *routeReader) prefix(prefix netip.Prefix) []mikrotik.BGPRoute {
 // search finds the most specific prefix holding ip that the router has
 // routes for.
 func (r *routeReader) search(ip netip.Addr) (netip.Prefix, bool) {
-	for bits := routeLongestPrefix; bits >= routeShortestPrefix; bits-- {
+	return r.searchBelow(ip, routeLongestPrefix)
+}
+
+// searchBelow is search starting at a prefix length of longest.
+func (r *routeReader) searchBelow(ip netip.Addr, longest int) (netip.Prefix, bool) {
+	for bits := longest; bits >= routeShortestPrefix; bits-- {
 		prefix, _ := ip.Prefix(bits)
 		if len(r.prefix(prefix)) > 0 {
 			return prefix, true
@@ -178,13 +183,7 @@ func (s *RouterPollService) storedPrefixes(router *models.MikrotikRouter) ([]net
 
 func (s *RouterPollService) saveRoutes(router *models.MikrotikRouter, found map[netip.Prefix][]mikrotik.BGPRoute, now time.Time) error {
 	for prefix, routes := range found {
-		stored := make([]StoredRoute, 0, len(routes))
-		for _, r := range routes {
-			pref, _ := mikrotik.ParseInt(r.LocalPref)
-			stored = append(stored, StoredRoute{Session: r.Session, ASPath: r.ASPath, LocalPref: pref,
-				Active: mikrotik.ParseBool(r.Active), Gateway: r.Gateway})
-		}
-		encoded, err := json.Marshal(stored)
+		encoded, err := json.Marshal(toStoredRoutes(routes))
 		if err != nil {
 			return err
 		}
@@ -197,4 +196,14 @@ func (s *RouterPollService) saveRoutes(router *models.MikrotikRouter, found map[
 		}
 	}
 	return nil
+}
+
+func toStoredRoutes(routes []mikrotik.BGPRoute) []StoredRoute {
+	stored := make([]StoredRoute, 0, len(routes))
+	for _, r := range routes {
+		pref, _ := mikrotik.ParseInt(r.LocalPref)
+		stored = append(stored, StoredRoute{Session: r.Session, ASPath: r.ASPath, LocalPref: pref,
+			Active: mikrotik.ParseBool(r.Active), Gateway: r.Gateway})
+	}
+	return stored
 }
