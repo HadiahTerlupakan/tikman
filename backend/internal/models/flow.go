@@ -49,6 +49,21 @@ type RouterFlowTopIP struct {
 // TableName returns the table name for RouterFlowTopIP.
 func (RouterFlowTopIP) TableName() string { return "router_flow_top_ips" }
 
+// RouterFlowOwnPrefix is the bytes one of the router's own announced
+// prefixes exchanged over one upstream in a five-minute window: for download,
+// the way traffic to that block comes in.
+type RouterFlowOwnPrefix struct {
+	Time                time.Time `gorm:"not null;index:idx_router_flow_own_prefix_router_time,priority:2"`
+	RouterID            uuid.UUID `gorm:"type:uuid;not null;index:idx_router_flow_own_prefix_router_time,priority:1"`
+	Prefix              string    `gorm:"type:varchar(64);not null"`
+	UpstreamInterfaceID uuid.UUID `gorm:"type:uuid;not null"`
+	Direction           string    `gorm:"type:varchar(8);not null"`
+	Bytes               int64     `gorm:"not null"`
+}
+
+// TableName returns the table name for RouterFlowOwnPrefix.
+func (RouterFlowOwnPrefix) TableName() string { return "router_flow_own_prefix" }
+
 // ASNName is an AS's name from the iptoasn dataset, kept so the API can label
 // destinations without flowd. UpdatedAt is the dataset's download time.
 type ASNName struct {

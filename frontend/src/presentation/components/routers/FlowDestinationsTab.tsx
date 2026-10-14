@@ -10,11 +10,13 @@ import {
   useFlowPeering,
   useFlowPops,
   useFlowSummary,
+  useFlowOwnPrefixes,
   useFlowRouteAdvice,
   useFlowTopIps,
 } from "@/application/hooks/useRouterFlows";
 import { FlowFilters } from "./FlowFilters";
 import { FlowPeeringDrawer } from "./FlowPeeringDrawer";
+import { FlowOwnPrefixPanel } from "./FlowOwnPrefixPanel";
 import { FlowPopTable } from "./FlowPopTable";
 import { FlowRouteAdvicePanel } from "./FlowRouteAdvicePanel";
 import { FlowSummaryTable } from "./FlowSummaryTable";
@@ -26,6 +28,7 @@ import {
   FLOW_RANGE_PRESETS,
   flowChartRows,
   peeringLabels,
+  ownPrefixesAvailable,
   topIpsAvailable,
 } from "./routerFlows";
 import { isUpstream } from "./routerTraffic";
@@ -64,6 +67,8 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
   const ipsAvailable = topIpsAvailable(range);
   const topIps = useFlowTopIps(routerId, range, filter, ipsAvailable);
   const routeAdvice = useFlowRouteAdvice(routerId, range, filter, ipsAvailable);
+  const ownAvailable = ownPrefixesAvailable(range);
+  const ownPrefixes = useFlowOwnPrefixes(routerId, range, filter, ownAvailable);
   const peering = useFlowPeering(
     routerId,
     range,
@@ -127,6 +132,12 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
         rows={routeAdvice.data ?? []}
         loading={routeAdvice.isLoading}
         failed={routeAdvice.isError}
+      />
+      <FlowOwnPrefixPanel
+        available={ownAvailable}
+        rows={ownPrefixes.data ?? []}
+        loading={ownPrefixes.isLoading}
+        failed={ownPrefixes.isError}
       />
       {selected && (
         <FlowPeeringDrawer

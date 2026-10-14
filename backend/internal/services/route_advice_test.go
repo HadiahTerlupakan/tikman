@@ -101,3 +101,21 @@ func TestOriginASNIsTheLastHop(t *testing.T) {
 	assert.EqualValues(t, 15169, originASN("152032,24198,138089,15169"))
 	assert.EqualValues(t, 13335, originASN("13335"))
 }
+
+// A peer met over two interfaces sums both, however the slice grows between.
+func TestInboundSumsAPeerSeenOnTwoInterfaces(t *testing.T) {
+	secondIXLink := uuid.New()
+	peers := newRoutePeers([]models.RouterBGPSession{
+		{Name: "peer-ix-rs1", RemoteAS: 64510, InterfaceID: &ixLink},
+		{Name: "peer-ix-rs2", RemoteAS: 64510, InterfaceID: &secondIXLink},
+		{Name: "peer-transit", RemoteAS: 64513, PrefixCount: 1_090_000, InterfaceID: &transitLink},
+	})
+
+	inbound := inboundView([]FlowUpstreamShare{
+		{UpstreamInterfaceID: ixLink, Bytes: 100},
+		{UpstreamInterfaceID: transitLink, Bytes: 800},
+		{UpstreamInterfaceID: secondIXLink, Bytes: 50},
+	}, peers)
+
+	assert.Equal(t, []RouteInbound{{Peer: "peer-ix-rs1", Bytes: 150}, {Peer: "peer-transit", Transit: true, Bytes: 800}}, inbound)
+}

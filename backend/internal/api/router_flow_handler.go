@@ -104,6 +104,17 @@ func (h *RouterFlowHandler) RouteAdvice(c *gin.Context) {
 	respondFlow(c, out, err)
 }
 
+// OwnPrefixes lists the router's announced prefixes with each peer's output
+// rule and the traffic over that peer, for the last 30 days at most.
+func (h *RouterFlowHandler) OwnPrefixes(c *gin.Context) {
+	id, filter, ok := h.flowRequest(c)
+	if !ok {
+		return
+	}
+	out, err := h.flows.OwnPrefixes(id, filter, time.Now())
+	respondFlow(c, out, err)
+}
+
 // Status describes the ASN dataset in use.
 func (h *RouterFlowHandler) Status(c *gin.Context) {
 	if _, ok := h.existingRouter(c); !ok {
@@ -197,6 +208,8 @@ func respondFlow(c *gin.Context, out interface{}, err error) {
 	switch {
 	case errors.Is(err, services.ErrTopIPsRange):
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "TOP_IPS_RANGE"})
+	case errors.Is(err, services.ErrOwnPrefixRange):
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "OWN_PREFIX_RANGE"})
 	case err != nil:
 		respondRouterError(c, err)
 	default:

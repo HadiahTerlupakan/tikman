@@ -33,6 +33,7 @@ func (h *handlers) registerMikrotikRoutes(api *gin.RouterGroup, authenticated gi
 		routers.GET("/:id/flows/pops", h.routerFlowHandler.POPs)
 		routers.GET("/:id/flows/top-ips", h.routerFlowHandler.TopIPs)
 		routers.GET("/:id/flows/route-advice", h.routerFlowHandler.RouteAdvice)
+		routers.GET("/:id/flows/own-prefixes", h.routerFlowHandler.OwnPrefixes)
 		routers.GET("/:id/flows/peering", h.routerFlowHandler.Peering)
 		routers.GET("/:id/flows/status", h.routerFlowHandler.Status)
 	}

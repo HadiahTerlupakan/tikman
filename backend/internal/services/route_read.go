@@ -2,6 +2,8 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/netip"
 	"time"
 
@@ -34,11 +36,28 @@ type StoredRoute struct {
 	Gateway   string `json:"gateway"`
 }
 
-// ReadRoutes reads the BGP candidates for the prefixes holding the hour's
-// busiest destinations and stores them. A prefix already known is read once
-// per run; an address no known prefix holds is searched for, within the
-// query budget.
+// ReadRoutes refreshes the router's announce policy (filter rules and own
+// prefixes) and the BGP candidates for the prefixes holding the hour's
+// busiest destinations. Either failing leaves the other's result stored.
 func (s *RouterPollService) ReadRoutes(router *models.MikrotikRouter, now time.Time) error {
+	api, err := s.apiFor(router)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = api.Close() }()
+	var policyErr error
+	if policy, err := readPolicy(api); err != nil {
+		policyErr = fmt.Errorf("announce policy: %w", err)
+	} else {
+		policyErr = s.savePolicy(router, policy)
+	}
+	return errors.Join(s.readRoutes(router, api, now), policyErr)
+}
+
+// readRoutes reads candidates for the busiest destinations. A prefix already
+// known is read once per run; an address no known prefix holds is searched
+// for, within the query budget.
+func (s *RouterPollService) readRoutes(router *models.MikrotikRouter, api RouterAPI, now time.Time) error {
 	ips, err := s.busiestDestinations(router, now)
 	if err != nil || len(ips) == 0 {
 		return err
@@ -47,12 +66,6 @@ func (s *RouterPollService) ReadRoutes(router *models.MikrotikRouter, now time.T
 	if err != nil {
 		return err
 	}
-	api, err := s.apiFor(router)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = api.Close() }()
-
 	read := &routeReader{api: api, budget: routeReadBudget, found: map[netip.Prefix][]mikrotik.BGPRoute{}}
 	for _, ip := range ips {
 		if read.budget == 0 {

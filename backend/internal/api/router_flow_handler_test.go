@@ -45,6 +45,16 @@ func TestRouteAdviceRefusesARangeBeyondSevenDays(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "TOP_IPS_RANGE")
 }
 
+func TestOwnPrefixesRefuseARangeBeyondThirtyDays(t *testing.T) {
+	flows, created, _ := setupRouterFlowHandlerTest(t)
+	w, c := flowContext(created.ID.String(), rangeQuery(40*24*time.Hour))
+
+	flows.OwnPrefixes(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "OWN_PREFIX_RANGE")
+}
+
 func TestTopIPsRefusesARangeBeyondSevenDays(t *testing.T) {
 	flows, created, _ := setupRouterFlowHandlerTest(t)
 	w, c := flowContext(created.ID.String(), rangeQuery(30*24*time.Hour))

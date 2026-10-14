@@ -24,6 +24,7 @@ type BGPPeerState struct {
 	LastStartedAt *time.Time
 	LastStoppedAt *time.Time
 	InputFilter   string
+	OutputFilter  string
 }
 
 // MergeBGP reports every enabled connection once.
@@ -38,7 +39,7 @@ func MergeBGP(conns []mikrotik.BGPConnection, sessions []mikrotik.BGPSession, lo
 			continue
 		}
 		peer := BGPPeerState{Name: conn.Name, RemoteAddress: hostAddress(conn.RemoteAddress), State: models.BGPStateDown,
-			InputFilter: conn.InputFilter}
+			InputFilter: conn.InputFilter, OutputFilter: conn.OutputFilter}
 		peer.RemoteAS, _ = mikrotik.ParseInt(conn.RemoteAS)
 		if session := sessionFor(conn, sessions); session != nil {
 			applySession(&peer, *session, loc)

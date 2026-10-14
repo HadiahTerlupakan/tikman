@@ -235,8 +235,8 @@ func TestTopIPsCloseOnlyAtTheWindowBoundary(t *testing.T) {
 	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
 	c.handle(routerAddr, flowPacket())
 
-	assert.Empty(t, c.closeWindowIfDue(minute0.Add(time.Minute)))
-	rows := c.closeWindowIfDue(minute0.Add(netflow.TopIPWindow))
+	assert.Empty(t, c.closeWindowIfDue(minute0.Add(time.Minute)).TopIPs)
+	rows := c.closeWindowIfDue(minute0.Add(netflow.TopIPWindow)).TopIPs
 
 	require.Len(t, rows, 1)
 	assert.Equal(t, netip.MustParseAddr("198.51.100.7"), rows[0].IP)
@@ -250,11 +250,11 @@ func TestTopIPsCloseOnlyAtTheWindowBoundary(t *testing.T) {
 func TestTopIPWindowNeverClosesTwice(t *testing.T) {
 	c := testCollector(t, map[uint32]uuid.UUID{10: testTransit})
 	c.handle(routerAddr, flowPacket())
-	first := c.closeWindowIfDue(minute0.Add(netflow.TopIPWindow))
+	first := c.closeWindowIfDue(minute0.Add(netflow.TopIPWindow)).TopIPs
 	c.handle(routerAddr, flowPacket())
 
-	back := c.closeWindowIfDue(minute0.Add(time.Minute))
-	next := c.closeWindowIfDue(minute0.Add(2 * netflow.TopIPWindow))
+	back := c.closeWindowIfDue(minute0.Add(time.Minute)).TopIPs
+	next := c.closeWindowIfDue(minute0.Add(2 * netflow.TopIPWindow)).TopIPs
 
 	require.Len(t, first, 1)
 	assert.Equal(t, minute0, first[0].Time)

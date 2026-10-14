@@ -58,9 +58,14 @@ go test -v -run TestFunctionName ./internal/services/
   `interfaces` (1 min, SNMP IF-MIB), `bgp` (1 min, RouterOS REST),
   `discovery` (6 hours, REST inventory) and `routes` (1 hour: the BGP
   candidates for the prefixes holding the busiest destinations, for the
-  route advice panel). Both queues are tried every pass. `routes` asks the
-  router for one exact prefix at a time, each a full-table scan of about a
-  second, within a budget of 120 queries a run; never list the table.
+  route advice panel), which also reads the announce policy: the filter
+  rules and the address lists named as `output.network`. Both queues are
+  tried every pass. `routes` asks the router for one exact prefix at a time,
+  each a full-table scan of about a second, within a budget of 120 queries a
+  run; never list the table. flowd tags each flow with the most specific
+  announced prefix holding its local address and keeps per prefix, upstream
+  and direction five-minute totals in `router_flow_own_prefix` (30 days),
+  which the "Prefix milik Anda" panel reads.
 - `cmd/seed-events/main.go` — development event seeding utility
 - `cmd/probe_hsgq/main.go` — device probe utility
 - `cmd/snmpbench/main.go` — measures what an OLT's SNMP agent will serve (GETNEXT vs GETBULK at several repetition counts); must run from inside the WireGuard namespace, so it ships in the worker image

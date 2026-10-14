@@ -214,6 +214,33 @@ func TestRoutesToReadsEveryCandidateForThePrefix(t *testing.T) {
 	assert.Empty(t, routes[1].Active, "a candidate the router did not choose")
 }
 
+func TestAddressListAsksForOneList(t *testing.T) {
+	server, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/ip/firewall/address-list", r.URL.Path)
+		assert.Equal(t, "announced", r.URL.Query().Get("list"))
+		_, _ = w.Write([]byte(`[{"address":"198.51.100.0/24","list":"announced","disabled":"false"}]`))
+	})
+
+	entries, err := openREST(t, host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).AddressList("announced")
+
+	require.NoError(t, err)
+	assert.Equal(t, []AddressListEntry{{Address: "198.51.100.0/24", Disabled: "false"}}, entries)
+}
+
+func TestFilterRulesKeepTheRoutersOrder(t *testing.T) {
+	server, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/routing/filter/rule", r.URL.Path)
+		_, _ = w.Write([]byte(`[{"chain":"CDN_OUT","rule":"if (dst in 198.51.100.0/24) { set bgp-path-prepend 2; accept; }"},
+			{"chain":"CDN_OUT","rule":"reject;","disabled":"false"}]`))
+	})
+
+	rules, err := openREST(t, host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).FilterRules()
+
+	require.NoError(t, err)
+	require.Len(t, rules, 2)
+	assert.Equal(t, "reject;", rules[1].Rule)
+}
+
 func TestFilterMustBeKeyEqualsValue(t *testing.T) {
 	for _, bad := range []string{"static", "=true", "Static=true", "a b=c", "x=1\n=cmd=/system/reboot"} {
 		_, _, err := splitFilter(bad)

@@ -193,3 +193,14 @@ func TestLoadExcludesAnAddressTwoRoutersShare(t *testing.T) {
 	assert.Empty(t, maps)
 	assert.ElementsMatch(t, []string{f.router.Name, "border-2"}, skipped)
 }
+
+func TestLoadCarriesTheRoutersOwnPrefixes(t *testing.T) {
+	f := newMappingFixture(t)
+	for _, p := range []string{"192.0.2.0/24", "192.0.2.0/23"} {
+		require.NoError(t, f.db.Create(&models.RouterAnnouncedPrefix{RouterID: f.router.ID, Prefix: p}).Error)
+	}
+
+	m := f.load(t)
+
+	assert.Equal(t, []netip.Prefix{netip.MustParsePrefix("192.0.2.0/23"), netip.MustParsePrefix("192.0.2.0/24")}, m.Own)
+}

@@ -16,6 +16,7 @@ import {
   peakWindowLabel,
   peeringChartRows,
   peeringLabels,
+  ownPrefixesAvailable,
   popLabel,
   topIpsAvailable,
 } from "./routerFlows";
@@ -274,5 +275,19 @@ describe("peeringChartRows", () => {
       { time: "2026-10-12T00:00:00Z", IX: 10, Transit: 0 },
       { time: "2026-10-12T00:01:00Z", IX: 30, Transit: 5 },
     ]);
+  });
+});
+
+describe("ownPrefixesAvailable", () => {
+  it("holds within the 30 days the server keeps", () => {
+    expect(
+      ownPrefixesAvailable({ kind: "relative", hours: 7 * DAY_HOURS }, NOW),
+    ).toBe(true);
+    expect(
+      ownPrefixesAvailable({ kind: "relative", hours: 30 * DAY_HOURS }, NOW),
+    ).toBe(true);
+    expect(
+      ownPrefixesAvailable({ kind: "relative", hours: 90 * DAY_HOURS }, NOW),
+    ).toBe(false);
   });
 });

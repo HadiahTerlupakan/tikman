@@ -8,6 +8,7 @@ import type {
   FlowStatus,
   FlowSummary,
   FlowTopIp,
+  OwnPrefix,
   RouteAdvice,
   TimeRange,
 } from "@/domain/entities";
@@ -59,6 +60,14 @@ export class RouterFlowRepository {
     filter: FlowFilter,
   ): Promise<RouteAdvice[]> {
     return this.read(id, "route-advice", { ...range, ...filter });
+  }
+
+  ownPrefixes(
+    id: string,
+    range: TimeRange,
+    filter: FlowFilter,
+  ): Promise<OwnPrefix[]> {
+    return this.read(id, "own-prefixes", { ...range, ...filter });
   }
 
   peering(

@@ -124,6 +124,21 @@ func (c *Client) RoutesTo(prefix string) ([]BGPRoute, error) {
 	return out, err
 }
 
+// FilterRules lists every routing filter rule, in evaluation order. A
+// border router has a few dozen.
+func (c *Client) FilterRules() ([]FilterRule, error) {
+	var out []FilterRule
+	err := c.transport.List("/routing/filter/rule", &out)
+	return out, err
+}
+
+// AddressList lists the entries of one firewall address list.
+func (c *Client) AddressList(list string) ([]AddressListEntry, error) {
+	var out []AddressListEntry
+	err := c.transport.List("/ip/firewall/address-list", &out, "list="+list)
+	return out, err
+}
+
 // splitFilter splits a "key=value" filter, rejecting any other shape.
 func splitFilter(where string) (key, value string, err error) {
 	key, value, ok := strings.Cut(where, "=")

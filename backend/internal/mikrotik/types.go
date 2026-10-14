@@ -55,6 +55,10 @@ type BGPConnection struct {
 	Disabled      string `json:"disabled"`
 	// InputFilter is the routing filter chain applied to what the peer sends.
 	InputFilter string `json:"input.filter"`
+	// OutputFilter is the chain applied to what the router announces to it,
+	// and OutputNetwork the address list of prefixes it announces.
+	OutputFilter  string `json:"output.filter-chain"`
+	OutputNetwork string `json:"output.network"`
 }
 
 // BGPSession is one running session, from /rest/routing/bgp/session.
@@ -93,4 +97,19 @@ type BGPRoute struct {
 	Active       string `json:"active"`
 	Contribution string `json:"contribution"`
 	Gateway      string `json:"gateway"`
+}
+
+// FilterRule is one routing filter rule, from /routing/filter/rule, in the
+// order the router evaluates them.
+type FilterRule struct {
+	Chain    string `json:"chain"`
+	Rule     string `json:"rule"`
+	Disabled string `json:"disabled"`
+	Comment  string `json:"comment"`
+}
+
+// AddressListEntry is one entry of a firewall address list.
+type AddressListEntry struct {
+	Address  string `json:"address"`
+	Disabled string `json:"disabled"`
 }

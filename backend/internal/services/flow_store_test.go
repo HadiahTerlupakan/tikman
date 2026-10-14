@@ -109,3 +109,19 @@ func TestSaveASNTypesUpdatesAChangedType(t *testing.T) {
 	assert.True(t, later.Equal(types[0].UpdatedAt))
 	assert.Equal(t, "Content", types[1].Type, "a network missing from a later list keeps its type")
 }
+
+func TestWriteOwnPrefixesStoresEachUpstreamsBytes(t *testing.T) {
+	db := setupTestDB(t)
+	routerID, upstream := uuid.New(), uuid.New()
+	rows := []netflow.OwnPrefixRow{{Time: flowMinute, RouterID: routerID, Prefix: netip.MustParsePrefix("203.0.113.0/24"),
+		Upstream: upstream, Direction: netflow.Download, Bytes: 800}}
+
+	require.NoError(t, NewFlowStore(db).WriteOwnPrefixes(context.Background(), rows))
+
+	var stored models.RouterFlowOwnPrefix
+	require.NoError(t, db.First(&stored, "router_id = ?", routerID).Error)
+	assert.Equal(t, "203.0.113.0/24", stored.Prefix)
+	assert.Equal(t, upstream, stored.UpstreamInterfaceID)
+	assert.Equal(t, "download", stored.Direction)
+	assert.EqualValues(t, 800, stored.Bytes)
+}

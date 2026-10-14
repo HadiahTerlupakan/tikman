@@ -106,6 +106,22 @@ export function useFlowRouteAdvice(
   });
 }
 
+/** Disabled past thirty days: the server keeps own-prefix traffic no longer. */
+export function useFlowOwnPrefixes(
+  routerId: string,
+  range: TrafficRange,
+  filter: FlowFilter,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: flowKey(routerId, "own-prefixes", range, filter),
+    queryFn: () =>
+      repository.ownPrefixes(routerId, resolveTrafficRange(range), filter),
+    refetchInterval: liveRefetchInterval(range, FLOW_POLL_MS),
+    enabled,
+  });
+}
+
 /** Runs only while a destination is selected. */
 export function useFlowPeering(
   routerId: string,

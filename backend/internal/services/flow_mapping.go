@@ -72,6 +72,10 @@ func (s *FlowMappingService) routerMap(router *models.MikrotikRouter) (*netflow.
 	if err := s.db.Where("router_id = ?", router.ID).Order("prefix").Find(&routed).Error; err != nil {
 		return nil, err
 	}
+	own, err := s.announcedPrefixes(router.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &netflow.RouterMap{
 		RouterID: router.ID,
 		// Classify multiplies by Sampling, so 0 would erase every count; the DB
@@ -79,7 +83,25 @@ func (s *FlowMappingService) routerMap(router *models.MikrotikRouter) (*netflow.
 		Sampling:  uint64(max(router.FlowSampling, 1)),
 		Upstreams: upstreamIndexes(ifaces, upstream),
 		POPs:      netflow.NewPrefixTable(popPrefixes(ifaces, routed, upstream)),
+		Own:       own,
 	}, nil
+}
+
+// announcedPrefixes are the router's own prefixes, as the route read last
+// stored them from its announce policy.
+func (s *FlowMappingService) announcedPrefixes(routerID uuid.UUID) ([]netip.Prefix, error) {
+	var rows []string
+	if err := s.db.Model(&models.RouterAnnouncedPrefix{}).Where("router_id = ?", routerID).
+		Order("prefix").Pluck("prefix", &rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]netip.Prefix, 0, len(rows))
+	for _, row := range rows {
+		if prefix, err := netip.ParsePrefix(row); err == nil {
+			out = append(out, prefix)
+		}
+	}
+	return out, nil
 }
 
 // upstreamIDs are the interfaces discovery matched to a BGP session: where

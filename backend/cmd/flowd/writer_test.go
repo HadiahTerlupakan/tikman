@@ -16,9 +16,10 @@ var errDown = errors.New("database unavailable")
 
 // fakeSink fails the next calls with the errors queued for them, then stores.
 type fakeSink struct {
-	minuteErrs, topErrs []error
-	minutes             [][]netflow.MinuteRow
-	tops                [][]netflow.TopIPRow
+	minuteErrs, topErrs, ownErrs []error
+	minutes                      [][]netflow.MinuteRow
+	tops                         [][]netflow.TopIPRow
+	owns                         [][]netflow.OwnPrefixRow
 }
 
 func next(errs *[]error) error {
@@ -43,6 +44,14 @@ func (s *fakeSink) WriteTopIPs(_ context.Context, rows []netflow.TopIPRow) error
 		return err
 	}
 	s.tops = append(s.tops, rows)
+	return nil
+}
+
+func (s *fakeSink) WriteOwnPrefixes(_ context.Context, rows []netflow.OwnPrefixRow) error {
+	if err := next(&s.ownErrs); err != nil {
+		return err
+	}
+	s.owns = append(s.owns, rows)
 	return nil
 }
 
@@ -87,4 +96,19 @@ func TestRetryDoesNotStoreAMinuteTwice(t *testing.T) {
 
 	assert.Equal(t, [][]netflow.MinuteRow{{{Bytes: 1}}, {{Bytes: 2}}}, sink.minutes)
 	assert.Equal(t, [][]netflow.TopIPRow{{{Bytes: 9}}}, sink.tops)
+}
+
+// The top addresses went in and only the own-prefix write failed: the retry
+// writes the own prefixes alone.
+func TestFlushRetriesOnlyTheOwnPrefixesThatFailed(t *testing.T) {
+	sink := &fakeSink{ownErrs: []error{errDown}}
+	w := &retryWriter{sink: sink, logger: zap.NewNop()}
+	batch := pendingBatch{topIPs: []netflow.TopIPRow{{Bytes: 7}}, ownPrefixes: []netflow.OwnPrefixRow{{Bytes: 9}}}
+
+	w.flush(batch)
+	w.flush(pendingBatch{})
+
+	assert.Equal(t, [][]netflow.TopIPRow{{{Bytes: 7}}}, sink.tops)
+	assert.Equal(t, [][]netflow.OwnPrefixRow{{{Bytes: 9}}}, sink.owns)
+	assert.Nil(t, w.pending)
 }

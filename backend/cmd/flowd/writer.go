@@ -17,13 +17,15 @@ const flowWriteTimeout = 20 * time.Second
 type flowSink interface {
 	WriteMinute(ctx context.Context, rows []netflow.MinuteRow) error
 	WriteTopIPs(ctx context.Context, rows []netflow.TopIPRow) error
+	WriteOwnPrefixes(ctx context.Context, rows []netflow.OwnPrefixRow) error
 	MarkSeen(ctx context.Context, routerIDs []uuid.UUID, at time.Time) error
 }
 
 // pendingBatch is what one minute close produced.
 type pendingBatch struct {
-	minute []netflow.MinuteRow
-	topIPs []netflow.TopIPRow
+	minute      []netflow.MinuteRow
+	topIPs      []netflow.TopIPRow
+	ownPrefixes []netflow.OwnPrefixRow
 }
 
 // retryWriter writes each batch and keeps the unwritten part of one that
@@ -63,6 +65,12 @@ func (w *retryWriter) write(b pendingBatch) (pendingBatch, error) {
 	}
 	if len(b.topIPs) > 0 {
 		if err := w.sink.WriteTopIPs(ctx, b.topIPs); err != nil {
+			return b, err
+		}
+		b.topIPs = nil
+	}
+	if len(b.ownPrefixes) > 0 {
+		if err := w.sink.WriteOwnPrefixes(ctx, b.ownPrefixes); err != nil {
 			return b, err
 		}
 	}

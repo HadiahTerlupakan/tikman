@@ -64,6 +64,30 @@ type TopIPRow struct {
 	Anonymity string
 }
 
+// OwnPrefixRow is the bytes one announced prefix exchanged over one upstream
+// in a window.
+type OwnPrefixRow struct {
+	Time      time.Time
+	RouterID  uuid.UUID
+	Prefix    netip.Prefix
+	Upstream  uuid.UUID
+	Direction Direction
+	Bytes     uint64
+}
+
+// WindowRows is what closing a window produces.
+type WindowRows struct {
+	TopIPs      []TopIPRow
+	OwnPrefixes []OwnPrefixRow
+}
+
+type ownKey struct {
+	routerID  uuid.UUID
+	prefix    netip.Prefix
+	upstream  uuid.UUID
+	direction Direction
+}
+
 type counter struct{ bytes, packets uint64 }
 
 type groupKey struct {
@@ -96,6 +120,8 @@ type Aggregator struct {
 	window    time.Time
 	ips       map[ipKey]*ipCounter
 	ipsPerPOP map[popKey]int
+	// own is small by nature: announced prefixes times upstreams times two.
+	own map[ownKey]uint64
 }
 
 // NewAggregator opens the minute and window holding now.
@@ -117,12 +143,17 @@ func (a *Aggregator) resetWindow(now time.Time) {
 	a.window = now.Truncate(TopIPWindow)
 	a.ips = map[ipKey]*ipCounter{}
 	a.ipsPerPOP = map[popKey]int{}
+	a.own = map[ownKey]uint64{}
 }
 
 // Add counts one placed flow whose far side is in asn.
 func (a *Aggregator) Add(routerID uuid.UUID, c Classified, asn uint32) {
 	a.addMinute(MinuteKey{RouterID: routerID, POP: c.POP, Upstream: c.Upstream, Direction: c.Direction, ASN: asn}, c)
 	a.addIP(groupKey{RouterID: routerID, POP: c.POP, Direction: c.Direction}, c, asn)
+	if c.OwnPrefix.IsValid() {
+		key := ownKey{routerID: routerID, prefix: c.OwnPrefix, upstream: c.Upstream, direction: c.Direction}
+		a.own[key] = addCount(a.own[key], c.Bytes)
+	}
 }
 
 // addMinute folds a new key into its OtherASN key once the router holds
@@ -254,8 +285,9 @@ func (a *Aggregator) WindowDue(now time.Time) bool {
 }
 
 // CloseWindow returns the TopIPs largest addresses per (router, POP,
-// direction) of the open window and opens the window holding now.
-func (a *Aggregator) CloseWindow(now time.Time) []TopIPRow {
+// direction) of the open window and every own prefix's bytes per upstream,
+// and opens the window holding now.
+func (a *Aggregator) CloseWindow(now time.Time) WindowRows {
 	groups := map[groupKey][]TopIPRow{}
 	for key, cnt := range a.ips {
 		groups[key.groupKey] = append(groups[key.groupKey], TopIPRow{Time: a.window, RouterID: key.RouterID,
@@ -270,6 +302,11 @@ func (a *Aggregator) CloseWindow(now time.Time) []TopIPRow {
 		}
 		rows = append(rows, group...)
 	}
+	own := make([]OwnPrefixRow, 0, len(a.own))
+	for key, bytes := range a.own {
+		own = append(own, OwnPrefixRow{Time: a.window, RouterID: key.routerID, Prefix: key.prefix,
+			Upstream: key.upstream, Direction: key.direction, Bytes: bytes})
+	}
 	a.resetWindow(now)
-	return rows
+	return WindowRows{TopIPs: rows, OwnPrefixes: own}
 }

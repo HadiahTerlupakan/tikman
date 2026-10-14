@@ -40,6 +40,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&ASNName{},
 		&ASNType{},
 		&RouterPrefixRoute{},
+		&RouterAnnouncedPrefix{},
+		&RouterFilterRule{},
+		&RouterFlowOwnPrefix{},
 		&RouterRoutedPrefix{},
 	)
 }

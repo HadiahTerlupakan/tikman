@@ -94,11 +94,54 @@ func TestReadRoutesFailureLeavesTheAPIStatusToTheBGPPoll(t *testing.T) {
 	assert.NotEqual(t, models.RouterAPIStatusError, router.APIStatus)
 }
 
-func TestReadRoutesWithNoTrafficAsksNothing(t *testing.T) {
+func TestReadRoutesWithNoTrafficAsksForNoRoutes(t *testing.T) {
 	f := newPollFixture(t)
 
 	require.NoError(t, f.service.ReadRoutes(f.router, routeReadNow))
 
 	assert.Empty(t, f.api.asked)
-	assert.Zero(t, f.api.closed, "no connection is opened")
+	assert.Equal(t, 1, f.api.closed, "the policy is still read, over one connection")
+}
+
+func TestReadRoutesStoresTheAnnouncePolicy(t *testing.T) {
+	f := newPollFixture(t)
+	f.api.connections = []mikrotik.BGPConnection{
+		{Name: "peer-cdn", OutputFilter: "CDN_OUT", OutputNetwork: "announced"},
+		{Name: "peer-ix-rs1", OutputFilter: "IX_OUT", OutputNetwork: "announced"},
+	}
+	f.api.lists = map[string][]mikrotik.AddressListEntry{"announced": {
+		{Address: "198.51.101.0/24"}, {Address: "198.51.100.0/24"}, {Address: "192.0.2.9"},
+		{Address: "203.0.113.0/24", Disabled: "true"},
+	}}
+	f.api.rules = []mikrotik.FilterRule{
+		{Chain: "CDN_OUT", Rule: "if (dst in 198.51.100.0/24 && dst-len == 24) { set bgp-path-prepend 2; accept; }"},
+		{Chain: "CDN_OUT", Rule: "reject;"},
+	}
+
+	require.NoError(t, f.service.ReadRoutes(f.router, routeReadNow))
+
+	var prefixes []string
+	require.NoError(t, f.db.Model(&models.RouterAnnouncedPrefix{}).Where("router_id = ?", f.router.ID).
+		Order("prefix").Pluck("prefix", &prefixes).Error)
+	assert.Equal(t, []string{"192.0.2.9/32", "198.51.100.0/24", "198.51.101.0/24"}, prefixes,
+		"one list named by two connections is read once; a disabled entry is left out")
+	var rules []models.RouterFilterRule
+	require.NoError(t, f.db.Where("router_id = ?", f.router.ID).Order("position").Find(&rules).Error)
+	require.Len(t, rules, 2)
+	assert.Equal(t, 0, rules[0].Position)
+	assert.Equal(t, "reject;", rules[1].Rule)
+}
+
+// A failed policy read must not cost the route read, nor the other way.
+func TestReadRoutesKeepsRoutesWhenThePolicyReadFails(t *testing.T) {
+	f := newPollFixture(t)
+	f.seedTopIP(t, "198.51.100.7", 900)
+	f.api.bgpRoutes = map[string][]mikrotik.BGPRoute{"198.51.100.0/24": {{Session: "peer-ix-1", LocalPref: "700"}}}
+	f.api.connections = []mikrotik.BGPConnection{{Name: "peer-cdn", OutputNetwork: "announced"}}
+	f.api.listsErr = errors.New("not enough permissions")
+
+	err := f.service.ReadRoutes(f.router, routeReadNow)
+
+	assert.ErrorContains(t, err, "announce policy: not enough permissions")
+	assert.Contains(t, storedRoutes(t, f), "198.51.100.0/24")
 }

@@ -68,10 +68,12 @@ type RouteAdvice struct {
 // routePeer is the router's BGP sessions with one remote AS: an IX's route
 // servers are several sessions but one way out.
 type routePeer struct {
-	name        string
-	remoteAS    int64
-	transit     bool
-	inputFilter string
+	name         string
+	remoteAS     int64
+	transit      bool
+	inputFilter  string
+	outputFilter string
+	sessions     []string
 }
 
 type routePeers struct {
@@ -93,6 +95,10 @@ func newRoutePeers(sessions []models.RouterBGPSession) routePeers {
 		if peer.inputFilter == "" {
 			peer.inputFilter = s.InputFilter
 		}
+		if peer.outputFilter == "" {
+			peer.outputFilter = s.OutputFilter
+		}
+		peer.sessions = append(peer.sessions, s.Name)
 		peers.bySession[s.Name] = peer
 		if s.InterfaceID != nil {
 			peers.byInterface[*s.InterfaceID] = peer
@@ -199,19 +205,19 @@ func hasNonTransit(paths []RoutePath) bool {
 }
 
 func inboundView(shares []FlowUpstreamShare, peers routePeers) []RouteInbound {
-	byPeer := map[string]*RouteInbound{}
+	index := map[string]int{}
 	var out []RouteInbound
 	for _, share := range shares {
 		peer := peers.byInterface[share.UpstreamInterfaceID]
 		if peer == nil {
 			continue
 		}
-		if entry := byPeer[peer.name]; entry != nil {
-			entry.Bytes = addBytes(entry.Bytes, share.Bytes)
+		if i, ok := index[peer.name]; ok {
+			out[i].Bytes = addBytes(out[i].Bytes, share.Bytes)
 			continue
 		}
+		index[peer.name] = len(out)
 		out = append(out, RouteInbound{Peer: peer.name, Transit: peer.transit, Bytes: share.Bytes})
-		byPeer[peer.name] = &out[len(out)-1]
 	}
 	return out
 }

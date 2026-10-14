@@ -62,6 +62,19 @@ func (s *FlowStore) WriteTopIPs(ctx context.Context, rows []netflow.TopIPRow) er
 	return s.db.WithContext(ctx).CreateInBatches(records, flowWriteBatch).Error
 }
 
+// WriteOwnPrefixes stores each own prefix's bytes per upstream for a window.
+func (s *FlowStore) WriteOwnPrefixes(ctx context.Context, rows []netflow.OwnPrefixRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	records := make([]models.RouterFlowOwnPrefix, len(rows))
+	for i, r := range rows {
+		records[i] = models.RouterFlowOwnPrefix{Time: r.Time, RouterID: r.RouterID, Prefix: r.Prefix.String(),
+			UpstreamInterfaceID: r.Upstream, Direction: string(r.Direction), Bytes: int64(r.Bytes)}
+	}
+	return s.db.WithContext(ctx).CreateInBatches(records, flowWriteBatch).Error
+}
+
 // MarkSeen records when each router's IPFIX last arrived. UpdateColumn leaves
 // updated_at alone: this runs every minute and is not an edit of the router.
 func (s *FlowStore) MarkSeen(ctx context.Context, routerIDs []uuid.UUID, at time.Time) error {

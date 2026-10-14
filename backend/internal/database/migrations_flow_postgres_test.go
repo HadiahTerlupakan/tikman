@@ -57,10 +57,11 @@ func TestFlowRetentionMatchesTheSpec(t *testing.T) {
 	db := freshPostgres(t)
 
 	assert.Equal(t, map[string]string{
-		"router_flow_minute":  "7 days",
-		"router_flow_top_ips": "7 days",
-		"router_flow_5min":    "90 days",
-		"router_flow_hourly":  "2 years",
+		"router_flow_minute":     "7 days",
+		"router_flow_top_ips":    "7 days",
+		"router_flow_own_prefix": "30 days",
+		"router_flow_5min":       "90 days",
+		"router_flow_hourly":     "2 years",
 	}, flowRetention(t, db), "the daily rollup has no retention: it is kept forever")
 }
 

@@ -135,3 +135,16 @@ func TestClassifyKeepsCountsUpToTheBounds(t *testing.T) {
 		assert.Equal(t, counts.packets*100, c.Packets, name)
 	}
 }
+
+func TestClassifyTagsTheMostSpecificOwnPrefix(t *testing.T) {
+	m := testRouterMap()
+	m.Own = []netip.Prefix{netip.MustParsePrefix("203.0.112.0/23"), netip.MustParsePrefix("203.0.113.0/24")}
+
+	in, ok := m.Classify(Flow{Src: addr("198.51.100.7"), Dst: addr("203.0.113.70"), Ingress: 10, Egress: 30, Bytes: 1, Packets: 1})
+	require.True(t, ok)
+	assert.Equal(t, netip.MustParsePrefix("203.0.113.0/24"), in.OwnPrefix)
+
+	out, ok := m.Classify(Flow{Src: addr("192.0.2.38"), Dst: addr("198.51.100.9"), Ingress: 30, Egress: 11, Bytes: 1, Packets: 1})
+	require.True(t, ok)
+	assert.False(t, out.OwnPrefix.IsValid(), "an address outside the announced space")
+}

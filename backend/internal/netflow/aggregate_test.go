@@ -123,7 +123,7 @@ func TestCloseWindowKeepsTheHundredLargestAddresses(t *testing.T) {
 	assert.False(t, agg.WindowDue(minute0.Add(4*time.Minute)))
 	require.True(t, agg.WindowDue(minute0.Add(TopIPWindow)))
 
-	rows := agg.CloseWindow(minute0.Add(TopIPWindow))
+	rows := agg.CloseWindow(minute0.Add(TopIPWindow)).TopIPs
 
 	require.Len(t, rows, TopIPs)
 	for _, r := range rows {
@@ -141,7 +141,7 @@ func TestCloseWindowCountsEachAddresssFlows(t *testing.T) {
 	}
 	agg.Add(routerA, download(popA, transit, "198.51.100.8", 1500), docASN(0))
 
-	rows := agg.CloseWindow(minute0.Add(TopIPWindow))
+	rows := agg.CloseWindow(minute0.Add(TopIPWindow)).TopIPs
 
 	flows := map[string]uint64{}
 	for _, r := range rows {
@@ -162,7 +162,7 @@ func TestIPCounterStopsAtTheCapPerPOP(t *testing.T) {
 	late := netip.MustParseAddr("2001:db8:ffff::1")
 	agg.Add(routerA, Classified{POP: popA, Upstream: transit, Direction: Download, Remote: late, Bytes: 1 << 40}, 0)
 
-	for _, r := range agg.CloseWindow(minute0.Add(TopIPWindow)) {
+	for _, r := range agg.CloseWindow(minute0.Add(TopIPWindow)).TopIPs {
 		assert.NotEqual(t, late, r.IP)
 	}
 	minute, _ := agg.CloseMinute(minute0.Add(time.Minute))
@@ -183,7 +183,7 @@ func TestSumsHoldAtMaxCountInsteadOfWrapping(t *testing.T) {
 	}
 	agg.Add(routerA, download(popB, transit, "198.51.100.8", 1500), docASN(1))
 
-	window := agg.CloseWindow(minute0.Add(TopIPWindow))
+	window := agg.CloseWindow(minute0.Add(TopIPWindow)).TopIPs
 	rows, _ := agg.CloseMinute(minute0.Add(time.Minute))
 
 	assert.Contains(t, rows, MinuteRow{Time: minute0, MinuteKey: MinuteKey{RouterID: routerA, POP: popA,
@@ -211,4 +211,31 @@ func TestFoldedRowHoldsAtMaxCount(t *testing.T) {
 
 	assert.Contains(t, rows, MinuteRow{Time: minute0, MinuteKey: MinuteKey{RouterID: routerA, POP: popA,
 		Upstream: transit, Direction: Download, ASN: OtherASN}, Bytes: MaxCount, Packets: wrapsAtMaxCount})
+}
+
+// Download to one own block arrives over two upstreams; the window keeps each
+// upstream's share, which is how the block's inbound path is read.
+func TestCloseWindowSumsEachOwnPrefixPerUpstream(t *testing.T) {
+	agg := NewAggregator(minute0)
+	own := netip.MustParsePrefix("203.0.113.0/24")
+	for _, f := range []struct {
+		upstream uuid.UUID
+		bytes    uint64
+	}{{transit, 700}, {transit, 100}, {ix, 200}} {
+		flow := download(popA, f.upstream, "198.51.100.7", f.bytes)
+		flow.OwnPrefix = own
+		agg.Add(routerA, flow, docASN(0))
+	}
+	agg.Add(routerA, download(popA, transit, "198.51.100.8", 5000), docASN(0))
+
+	rows := agg.CloseWindow(minute0.Add(TopIPWindow)).OwnPrefixes
+
+	byUpstream := map[uuid.UUID]uint64{}
+	for _, r := range rows {
+		assert.Equal(t, own, r.Prefix)
+		assert.Equal(t, minute0, r.Time)
+		byUpstream[r.Upstream] += r.Bytes
+	}
+	assert.Equal(t, map[uuid.UUID]uint64{transit: 800, ix: 200}, byUpstream, "a flow outside the own space is not counted")
+	assert.Empty(t, agg.CloseWindow(minute0.Add(2*TopIPWindow)).OwnPrefixes, "the next window starts empty")
 }

@@ -196,8 +196,11 @@ type RouterBGPSession struct {
 	InterfaceID   *uuid.UUID `gorm:"type:uuid" json:"interface_id"`
 	// InputFilter is the connection's input filter chain, which route advice
 	// names in the configuration it drafts.
-	InputFilter string    `gorm:"type:varchar(255);not null;default:''" json:"input_filter"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	InputFilter string `gorm:"type:varchar(255);not null;default:''" json:"input_filter"`
+	// OutputFilter is the chain shaping what the router announces to the
+	// peer, where a prepend per own prefix lives.
+	OutputFilter string    `gorm:"type:varchar(255);not null;default:''" json:"output_filter"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 func (s *RouterBGPSession) BeforeCreate(tx *gorm.DB) error {

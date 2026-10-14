@@ -121,6 +121,7 @@ vi.mock("@/application/hooks/useRouterFlows", () => ({
     return { data: [], isLoading: false };
   },
   useFlowRouteAdvice: () => ({ data: [], isLoading: false }),
+  useFlowOwnPrefixes: () => ({ data: [], isLoading: false }),
 }));
 
 describe("FlowDestinationsTab", () => {

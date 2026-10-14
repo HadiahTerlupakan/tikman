@@ -158,3 +158,25 @@ export interface RouteAdvice {
   suggested: string;
   checkedAt: string;
 }
+
+/** How one peer sees one of the router's own prefixes. */
+export interface OwnPrefixPeer {
+  peer: string;
+  transit: boolean;
+  sessions: string[];
+  outputFilter: string;
+  /** The output rule deciding this prefix for the peer; "" when none names it. */
+  rule: string;
+  announced: boolean;
+  prepend: number;
+  downloadBytes: number;
+  uploadBytes: number;
+}
+
+/** One prefix the router announces, with each peer's view of it. */
+export interface OwnPrefix {
+  prefix: string;
+  downloadBytes: number;
+  uploadBytes: number;
+  peers: OwnPrefixPeer[];
+}

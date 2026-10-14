@@ -40,6 +40,8 @@ type RouterMap struct {
 	Upstreams map[uint32]uuid.UUID
 	// POPs holds the blocks of every interface that is not an upstream.
 	POPs *PrefixTable
+	// Own holds the prefixes the router announces, its own address space.
+	Own []netip.Prefix
 }
 
 // Classified is a flow placed on the router's topology. POP is uuid.Nil when
@@ -49,6 +51,9 @@ type Classified struct {
 	Upstream  uuid.UUID
 	Direction Direction
 	Remote    netip.Addr
+	// OwnPrefix is the most specific announced prefix holding the local
+	// address; zero when none does.
+	OwnPrefix netip.Prefix
 	Bytes     uint64
 	Packets   uint64
 }
@@ -96,5 +101,16 @@ func (m *RouterMap) Classify(f Flow) (Classified, bool) {
 		return Classified{}, false
 	}
 	c.POP, _ = m.POPs.Lookup(local)
+	c.OwnPrefix = mostSpecific(m.Own, local)
 	return c, true
+}
+
+func mostSpecific(prefixes []netip.Prefix, addr netip.Addr) netip.Prefix {
+	var best netip.Prefix
+	for _, p := range prefixes {
+		if p.Contains(addr) && (!best.IsValid() || p.Bits() > best.Bits()) {
+			best = p
+		}
+	}
+	return best
 }

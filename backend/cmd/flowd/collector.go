@@ -161,21 +161,21 @@ func (c *collector) closeMinute(now time.Time) ([]netflow.MinuteRow, []uuid.UUID
 	return rows, seen, folded
 }
 
-// closeWindowIfDue returns the top-IP rows once now is past their window,
-// with the same guard as closeMinute: only a later window closes the open one.
-func (c *collector) closeWindowIfDue(now time.Time) []netflow.TopIPRow {
+// closeWindowIfDue returns the window's rows once now is past it, with the
+// same guard as closeMinute: only a later window closes the open one.
+func (c *collector) closeWindowIfDue(now time.Time) netflow.WindowRows {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !now.Truncate(netflow.TopIPWindow).After(c.openWindow) {
-		return nil
+		return netflow.WindowRows{}
 	}
 	c.openWindow = now.Truncate(netflow.TopIPWindow)
-	rows := c.agg.CloseWindow(now)
+	window := c.agg.CloseWindow(now)
 	// Located once per kept address rather than per flow: a window keeps only
 	// its top addresses, so most flows' addresses are never written.
-	for i := range rows {
-		rows[i].Country = c.geo.lookup(rows[i].IP)
-		rows[i].Anonymity = c.anon.classify(rows[i].IP)
+	for i := range window.TopIPs {
+		window.TopIPs[i].Country = c.geo.lookup(window.TopIPs[i].IP)
+		window.TopIPs[i].Anonymity = c.anon.classify(window.TopIPs[i].IP)
 	}
-	return rows
+	return window
 }

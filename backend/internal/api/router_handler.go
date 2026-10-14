@@ -128,7 +128,9 @@ func (h *RouterHandler) Refresh(c *gin.Context) {
 		respondRouterError(c, err)
 		return
 	}
-	if err := h.jobs.RunNow(id, models.RouterPollKindDiscovery); err != nil {
+	// Routes too: after the operator applies a drafted rule, Refresh is how
+	// the advice catches up without waiting for the hourly read.
+	if err := h.jobs.RunNow(id, models.RouterPollKindDiscovery, models.RouterPollKindRoutes); err != nil {
 		respondRouterError(c, err)
 		return
 	}

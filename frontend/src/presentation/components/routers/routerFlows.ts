@@ -19,6 +19,9 @@ export const OTHER_POP = "other";
 /** Must match the backend's topIPRetention. */
 export const TOP_IPS_RETENTION_MS = 7 * HOURS_PER_DAY * 60 * MINUTE_MS;
 
+/** Must match the backend's ownPrefixRetention. */
+export const OWN_PREFIX_RETENTION_MS = 30 * HOURS_PER_DAY * 60 * MINUTE_MS;
+
 /** flowd marks a router heard every minute; five silent minutes is a stop. */
 export const FLOW_STALE_MS = 5 * MINUTE_MS;
 
@@ -177,6 +180,14 @@ export function topIpsAvailable(
 ): boolean {
   const { from } = resolveTrafficRange(range, now);
   return now.getTime() - Date.parse(from) <= TOP_IPS_RETENTION_MS;
+}
+
+export function ownPrefixesAvailable(
+  range: TrafficRange,
+  now: Date = new Date(),
+): boolean {
+  const { from } = resolveTrafficRange(range, now);
+  return now.getTime() - Date.parse(from) <= OWN_PREFIX_RETENTION_MS;
 }
 
 export function flowStale(router: MikrotikRouter, nowMs: number): boolean {

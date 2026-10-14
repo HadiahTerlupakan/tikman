@@ -222,7 +222,8 @@ func finishMinute(c *collector, w *retryWriter, sink flowSink, logger *zap.Logge
 	if n := c.implausible.Swap(0); n > 0 {
 		logger.Warn("Dropped flow records whose counts no IPv4 flow can have", zap.Uint64("dropped_flows", n))
 	}
-	w.flush(pendingBatch{minute: rows, topIPs: c.closeWindowIfDue(now)})
+	window := c.closeWindowIfDue(now)
+	w.flush(pendingBatch{minute: rows, topIPs: window.TopIPs, ownPrefixes: window.OwnPrefixes})
 	ctx, cancel := context.WithTimeout(context.Background(), markSeenTimeout)
 	defer cancel()
 	if err := sink.MarkSeen(ctx, seen, now); err != nil {
