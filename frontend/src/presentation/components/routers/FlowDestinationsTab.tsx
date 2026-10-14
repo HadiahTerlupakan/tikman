@@ -10,11 +10,13 @@ import {
   useFlowPeering,
   useFlowPops,
   useFlowSummary,
+  useFlowRouteAdvice,
   useFlowTopIps,
 } from "@/application/hooks/useRouterFlows";
 import { FlowFilters } from "./FlowFilters";
 import { FlowPeeringDrawer } from "./FlowPeeringDrawer";
 import { FlowPopTable } from "./FlowPopTable";
+import { FlowRouteAdvicePanel } from "./FlowRouteAdvicePanel";
 import { FlowSummaryTable } from "./FlowSummaryTable";
 import { FlowTopIpsPanel } from "./FlowTopIpsPanel";
 import { TrafficChart } from "./TrafficChart";
@@ -61,6 +63,7 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
   const popRows = useFlowPops(routerId, range, filter.direction);
   const ipsAvailable = topIpsAvailable(range);
   const topIps = useFlowTopIps(routerId, range, filter, ipsAvailable);
+  const routeAdvice = useFlowRouteAdvice(routerId, range, filter, ipsAvailable);
   const peering = useFlowPeering(
     routerId,
     range,
@@ -118,6 +121,12 @@ export function FlowDestinationsTab({ routerId, flowEnabled }: Props) {
         rows={topIps.data ?? []}
         loading={topIps.isLoading}
         failed={topIps.isError}
+      />
+      <FlowRouteAdvicePanel
+        available={ipsAvailable}
+        rows={routeAdvice.data ?? []}
+        loading={routeAdvice.isLoading}
+        failed={routeAdvice.isError}
       />
       {selected && (
         <FlowPeeringDrawer

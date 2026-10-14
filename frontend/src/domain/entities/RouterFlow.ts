@@ -117,3 +117,42 @@ export interface FlowStatus {
   asnDatasetUpdatedAt: string | null;
   asnCount: number;
 }
+
+export type RouteAdviceStatus =
+  | "transit_only"
+  | "inbound_via_transit"
+  | "shorter_outbound"
+  | "optimal";
+
+/** The best candidate one BGP peer offers for a prefix. */
+export interface RoutePath {
+  peer: string;
+  remoteAs: number;
+  transit: boolean;
+  asPath: string;
+  pathLength: number;
+  localPref: number;
+}
+
+/** How much of a prefix's AS's download arrived from one peer. */
+export interface RouteInbound {
+  peer: string;
+  transit: boolean;
+  bytes: number;
+}
+
+/** One busy destination prefix with how it is routed and what to check. */
+export interface RouteAdvice {
+  prefix: string;
+  asn: number;
+  name: string;
+  downloadBytes: number;
+  uploadBytes: number;
+  status: RouteAdviceStatus;
+  active: RoutePath | null;
+  alternatives: RoutePath[] | null;
+  inbound: RouteInbound[] | null;
+  /** RouterOS commands for the operator to review and run; "" when none apply. */
+  draft: string;
+  checkedAt: string;
+}

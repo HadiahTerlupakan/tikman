@@ -93,6 +93,17 @@ func (h *RouterFlowHandler) TopIPs(c *gin.Context) {
 	respondFlow(c, out, err)
 }
 
+// RouteAdvice classifies the busiest destination prefixes of the last 7 days
+// from the BGP candidates the hourly route read stored.
+func (h *RouterFlowHandler) RouteAdvice(c *gin.Context) {
+	id, filter, ok := h.flowRequest(c)
+	if !ok {
+		return
+	}
+	out, err := h.flows.RouteAdvice(id, filter, time.Now())
+	respondFlow(c, out, err)
+}
+
 // Status describes the ASN dataset in use.
 func (h *RouterFlowHandler) Status(c *gin.Context) {
 	if _, ok := h.existingRouter(c); !ok {

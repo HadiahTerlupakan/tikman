@@ -59,6 +59,28 @@ func TestRouterClaimRetakesAnAbandonedJob(t *testing.T) {
 	assert.Equal(t, id, job.RouterID)
 }
 
+// The route read spends about a second per prefix, minutes in all: a holder
+// past the short lease is still working and must not be joined.
+func TestRouterRoutesJobKeepsTheLongLease(t *testing.T) {
+	service := NewRouterPollJobService(setupTestDB(t))
+	id := seedRouterJob(t, service, models.RouterPollKindRoutes, time.Now().Add(-2*time.Hour))
+	working := time.Now().Add(-routerPollLease - time.Minute)
+	require.NoError(t, service.db.Model(&models.RouterPollJob{}).Where("router_id = ?", id).
+		Updates(map[string]interface{}{"locked_by": "worker-a", "locked_at": working}).Error)
+
+	job, err := service.Claim("worker-b")
+	require.NoError(t, err)
+	assert.Nil(t, job)
+
+	abandoned := time.Now().Add(-routerDiscoveryLease - time.Minute)
+	require.NoError(t, service.db.Model(&models.RouterPollJob{}).Where("router_id = ?", id).
+		Update("locked_at", abandoned).Error)
+	job, err = service.Claim("worker-b")
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	assert.Equal(t, models.RouterPollKindRoutes, job.Kind)
+}
+
 func TestRouterCompleteSchedulesTheNextRunAndReleases(t *testing.T) {
 	service := NewRouterPollJobService(setupTestDB(t))
 	seedRouterJob(t, service, models.RouterPollKindDiscovery, time.Now().Add(-time.Minute))

@@ -120,6 +120,7 @@ vi.mock("@/application/hooks/useRouterFlows", () => ({
     topIps(...args);
     return { data: [], isLoading: false };
   },
+  useFlowRouteAdvice: () => ({ data: [], isLoading: false }),
 }));
 
 describe("FlowDestinationsTab", () => {

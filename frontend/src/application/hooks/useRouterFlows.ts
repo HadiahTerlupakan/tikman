@@ -90,6 +90,22 @@ export function useFlowTopIps(
   });
 }
 
+/** Same seven-day limit as the top addresses it is built from. */
+export function useFlowRouteAdvice(
+  routerId: string,
+  range: TrafficRange,
+  filter: FlowFilter,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: flowKey(routerId, "route-advice", range, filter),
+    queryFn: () =>
+      repository.routeAdvice(routerId, resolveTrafficRange(range), filter),
+    refetchInterval: liveRefetchInterval(range, FLOW_POLL_MS),
+    enabled,
+  });
+}
+
 /** Runs only while a destination is selected. */
 export function useFlowPeering(
   routerId: string,

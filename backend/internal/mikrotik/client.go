@@ -115,6 +115,15 @@ func (c *Client) StaticRoutes() ([]Route, error) {
 // caller's filter from smuggling a second query word or parameter in.
 var filterKey = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+// RoutesTo lists every BGP candidate for exactly prefix. The router scans its
+// whole table for this, about a second on a full table, so callers ask for a
+// few prefixes at a time and never list the table.
+func (c *Client) RoutesTo(prefix string) ([]BGPRoute, error) {
+	var out []BGPRoute
+	err := c.transport.List("/routing/route", &out, "dst-address="+prefix, "bgp=true")
+	return out, err
+}
+
 // splitFilter splits a "key=value" filter, rejecting any other shape.
 func splitFilter(where string) (key, value string, err error) {
 	key, value, ok := strings.Cut(where, "=")

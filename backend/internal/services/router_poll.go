@@ -31,6 +31,7 @@ type RouterAPI interface {
 	BGPConnections() ([]mikrotik.BGPConnection, error)
 	BGPSessions() ([]mikrotik.BGPSession, error)
 	StaticRoutes() ([]mikrotik.Route, error)
+	RoutesTo(prefix string) ([]mikrotik.BGPRoute, error)
 }
 
 // IfCounterReader reads IF-MIB counters; connectivity.WalkIfCounters in
@@ -211,12 +212,13 @@ func replaceSessions(tx *gorm.DB, routerID uuid.UUID, peers []BGPPeerState, ifac
 			RouterID: routerID, Name: p.Name, RemoteAddress: p.RemoteAddress, RemoteAS: p.RemoteAS,
 			LocalAddress: p.LocalAddress, State: p.State, UptimeSeconds: p.UptimeSeconds,
 			PrefixCount: p.PrefixCount, LastStartedAt: p.LastStartedAt, LastStoppedAt: p.LastStoppedAt,
-			InterfaceID: MatchInterface(p.RemoteAddress, ifaces),
+			InterfaceID: MatchInterface(p.RemoteAddress, ifaces), InputFilter: p.InputFilter,
 		}
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "router_id"}, {Name: "name"}},
 			DoUpdates: clause.AssignmentColumns([]string{"remote_address", "remote_as", "local_address", "state",
-				"uptime_seconds", "prefix_count", "last_started_at", "last_stopped_at", "interface_id", "updated_at"}),
+				"uptime_seconds", "prefix_count", "last_started_at", "last_stopped_at", "interface_id", "input_filter",
+				"updated_at"}),
 		}).Create(&row).Error
 		if err != nil {
 			return err

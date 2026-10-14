@@ -53,6 +53,8 @@ type BGPConnection struct {
 	RemoteAddress string `json:"remote.address"`
 	RemoteAS      string `json:"remote.as"`
 	Disabled      string `json:"disabled"`
+	// InputFilter is the routing filter chain applied to what the peer sends.
+	InputFilter string `json:"input.filter"`
 }
 
 // BGPSession is one running session, from /rest/routing/bgp/session.
@@ -79,4 +81,16 @@ type Route struct {
 	Connect     string `json:"connect"`
 	BGP         string `json:"bgp"`
 	Disabled    string `json:"disabled"`
+}
+
+// BGPRoute is one candidate for a prefix, from /routing/route: what one peer
+// announced, whether or not the router chose it.
+type BGPRoute struct {
+	DstAddress   string `json:"dst-address"`
+	Session      string `json:"bgp.session"`
+	ASPath       string `json:"bgp.as-path"`
+	LocalPref    string `json:"bgp.local-pref"`
+	Active       string `json:"active"`
+	Contribution string `json:"contribution"`
+	Gateway      string `json:"gateway"`
 }

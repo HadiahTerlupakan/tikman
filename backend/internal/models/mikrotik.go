@@ -44,6 +44,9 @@ const (
 	RouterPollKindInterfaces RouterPollKind = "interfaces"
 	RouterPollKindBGP        RouterPollKind = "bgp"
 	RouterPollKindDiscovery  RouterPollKind = "discovery"
+	// RouterPollKindRoutes reads the BGP candidates for the busiest
+	// destination prefixes, for route advice.
+	RouterPollKindRoutes RouterPollKind = "routes"
 )
 
 // MikrotikRouter is a RouterOS v7 router read over SNMP (traffic) and REST
@@ -191,7 +194,10 @@ type RouterBGPSession struct {
 	LastStartedAt *time.Time `json:"last_started_at"`
 	LastStoppedAt *time.Time `json:"last_stopped_at"`
 	InterfaceID   *uuid.UUID `gorm:"type:uuid" json:"interface_id"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	// InputFilter is the connection's input filter chain, which route advice
+	// names in the configuration it drafts.
+	InputFilter string    `gorm:"type:varchar(255);not null;default:''" json:"input_filter"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (s *RouterBGPSession) BeforeCreate(tx *gorm.DB) error {

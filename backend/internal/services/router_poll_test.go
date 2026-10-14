@@ -25,8 +25,11 @@ type fakeRouterAPI struct {
 	sessions    []mikrotik.BGPSession
 	routes      []mikrotik.Route
 	routesErr   error
-	err         error
-	closed      int
+	// bgpRoutes answers RoutesTo by exact prefix; asked records the prefixes.
+	bgpRoutes map[string][]mikrotik.BGPRoute
+	asked     []string
+	err       error
+	closed    int
 }
 
 func (f *fakeRouterAPI) Close() error { f.closed++; return nil }
@@ -41,6 +44,10 @@ func (f *fakeRouterAPI) BGPConnections() ([]mikrotik.BGPConnection, error) {
 }
 func (f *fakeRouterAPI) BGPSessions() ([]mikrotik.BGPSession, error) { return f.sessions, f.err }
 func (f *fakeRouterAPI) StaticRoutes() ([]mikrotik.Route, error)     { return f.routes, f.routesErr }
+func (f *fakeRouterAPI) RoutesTo(prefix string) ([]mikrotik.BGPRoute, error) {
+	f.asked = append(f.asked, prefix)
+	return f.bgpRoutes[prefix], f.err
+}
 
 type pollFixture struct {
 	service  *RouterPollService

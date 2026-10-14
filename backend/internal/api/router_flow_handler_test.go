@@ -34,6 +34,17 @@ func rangeQuery(span time.Duration) string {
 	return "from=" + now.Add(-span).Format(time.RFC3339) + "&to=" + now.Format(time.RFC3339)
 }
 
+// Route advice sums the same 7-day top-IP table, so it has the same limit.
+func TestRouteAdviceRefusesARangeBeyondSevenDays(t *testing.T) {
+	flows, created, _ := setupRouterFlowHandlerTest(t)
+	w, c := flowContext(created.ID.String(), rangeQuery(30*24*time.Hour))
+
+	flows.RouteAdvice(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "TOP_IPS_RANGE")
+}
+
 func TestTopIPsRefusesARangeBeyondSevenDays(t *testing.T) {
 	flows, created, _ := setupRouterFlowHandlerTest(t)
 	w, c := flowContext(created.ID.String(), rangeQuery(30*24*time.Hour))

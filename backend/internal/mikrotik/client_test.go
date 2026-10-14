@@ -191,6 +191,29 @@ func TestStaticRoutesAskTheRouterToFilterOverREST(t *testing.T) {
 	assert.Equal(t, "192.0.2.34%vlan-pop-a", routes[0].ImmediateGW)
 }
 
+// Every candidate for one prefix, chosen or not: the router does the
+// filtering, over a table a client could never list.
+func TestRoutesToReadsEveryCandidateForThePrefix(t *testing.T) {
+	server, host, port := tlsRouter(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/routing/route", r.URL.Path)
+		assert.Equal(t, "198.51.100.0/24", r.URL.Query().Get("dst-address"))
+		assert.Equal(t, "true", r.URL.Query().Get("bgp"))
+		_, _ = w.Write([]byte(`[
+			{"dst-address":"198.51.100.0/24","bgp.session":"peer-ix-1","bgp.as-path":"64500,64496",
+			 "bgp.local-pref":"700","active":"true","contribution":"active","gateway":"192.0.2.1"},
+			{"dst-address":"198.51.100.0/24","bgp.session":"peer-transit-1","bgp.as-path":"64501,64502,64496",
+			 "bgp.local-pref":"100","contribution":"candidate","gateway":"192.0.2.9"}]`))
+	})
+
+	routes, err := openREST(t, host, port, "tikman", "secret", Fingerprint(server.Certificate().Raw)).RoutesTo("198.51.100.0/24")
+
+	require.NoError(t, err)
+	require.Len(t, routes, 2)
+	assert.Equal(t, BGPRoute{DstAddress: "198.51.100.0/24", Session: "peer-ix-1", ASPath: "64500,64496",
+		LocalPref: "700", Active: "true", Contribution: "active", Gateway: "192.0.2.1"}, routes[0])
+	assert.Empty(t, routes[1].Active, "a candidate the router did not choose")
+}
+
 func TestFilterMustBeKeyEqualsValue(t *testing.T) {
 	for _, bad := range []string{"static", "=true", "Static=true", "a b=c", "x=1\n=cmd=/system/reboot"} {
 		_, _, err := splitFilter(bad)

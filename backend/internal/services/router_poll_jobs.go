@@ -16,6 +16,9 @@ const (
 	RouterInterfacesInterval = time.Minute
 	RouterBGPInterval        = time.Minute
 	RouterDiscoveryInterval  = 6 * time.Hour
+	// RouterRoutesInterval: BGP best paths for busy prefixes rarely change
+	// within the hour, and each prefix read costs the router a table scan.
+	RouterRoutesInterval = time.Hour
 )
 
 // Leases: an order of magnitude over what each tier needs, short enough that a
@@ -25,12 +28,17 @@ const (
 	routerDiscoveryLease = 5 * time.Minute
 )
 
+// longLeaseKinds hold their lease for routerDiscoveryLease: discovery, and the
+// route read, which spends about a second per prefix.
+var longLeaseKinds = []models.RouterPollKind{models.RouterPollKindDiscovery, models.RouterPollKindRoutes}
+
 // AllRouterPollKinds is every router tier, discovery first so a new router has
 // interfaces before its first counter poll.
 var AllRouterPollKinds = []models.RouterPollKind{
 	models.RouterPollKindDiscovery,
 	models.RouterPollKindInterfaces,
 	models.RouterPollKindBGP,
+	models.RouterPollKindRoutes,
 }
 
 // RouterPollJobService hands out one router's work to one worker at a time.
@@ -51,6 +59,8 @@ func RouterIntervalFor(kind models.RouterPollKind) time.Duration {
 		return RouterInterfacesInterval
 	case models.RouterPollKindBGP:
 		return RouterBGPInterval
+	case models.RouterPollKindRoutes:
+		return RouterRoutesInterval
 	default:
 		return RouterDiscoveryInterval
 	}
@@ -63,9 +73,9 @@ func (s *RouterPollJobService) Claim(workerID string) (*models.RouterPollJob, er
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		query := tx.Where("due_at <= ?", now).
-			Where("locked_at IS NULL OR (kind = ? AND locked_at < ?) OR (kind <> ? AND locked_at < ?)",
-				models.RouterPollKindDiscovery, now.Add(-routerDiscoveryLease),
-				models.RouterPollKindDiscovery, now.Add(-routerPollLease)).
+			Where("locked_at IS NULL OR (kind IN ? AND locked_at < ?) OR (kind NOT IN ? AND locked_at < ?)",
+				longLeaseKinds, now.Add(-routerDiscoveryLease),
+				longLeaseKinds, now.Add(-routerPollLease)).
 			Order("due_at")
 		if tx.Dialector.Name() == "postgres" {
 			query = query.Clauses(lockingSkipLocked())

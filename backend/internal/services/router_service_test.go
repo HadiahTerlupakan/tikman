@@ -52,7 +52,7 @@ func TestCreateRouterEncryptsSecretsAndSchedulesEveryTier(t *testing.T) {
 
 	var kinds []string
 	require.NoError(t, db.Model(&models.RouterPollJob{}).Where("router_id = ?", router.ID).Pluck("kind", &kinds).Error)
-	assert.ElementsMatch(t, []string{"interfaces", "bgp", "discovery"}, kinds)
+	assert.ElementsMatch(t, []string{"interfaces", "bgp", "discovery", "routes"}, kinds)
 }
 
 func TestCreateRouterRejectsIncompleteInput(t *testing.T) {
