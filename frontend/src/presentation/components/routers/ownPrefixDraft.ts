@@ -19,9 +19,12 @@ function setRule(peer: OwnPrefixPeer, from: string, to: string): string {
   return `/routing/filter/rule set [find where chain=${quoted(peer.outputFilter)} and rule=${quoted(from)}] rule=${quoted(to)}`;
 }
 
+// afi is required: without it RouterOS stops and prompts for it.
 function resend(peers: OwnPrefixPeer[]): string[] {
   return peers.flatMap((p) =>
-    p.sessions.map((s) => `/routing/bgp/session resend ${sessionsOf(s)}`),
+    p.sessions.map(
+      (s) => `/routing/bgp/session resend ${sessionsOf(s)} afi=ip`,
+    ),
   );
 }
 

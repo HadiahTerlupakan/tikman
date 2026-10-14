@@ -77,7 +77,7 @@ describe("route drafts", () => {
     );
     expect(apply).toContain(`place-before=[find where ${ownRule}]`);
     expect(draft.apply.at(-1)).toBe(
-      '/routing/bgp/session refresh [find where name~"^peer-small-ix-[0-9]+\\$"]',
+      '/routing/bgp/session refresh [find where name~"^peer-small-ix-[0-9]+\\$"] afi=ip',
     );
     expect(draft.check).toContain(
       "/routing/route print where dst-address=198.51.100.0/24",

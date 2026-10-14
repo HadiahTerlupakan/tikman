@@ -94,7 +94,8 @@ export function preferDraft(
   const pref =
     Math.max(...candidates.map((p) => p.localPref)) + LOCAL_PREF_STEP;
   const tag = quoted(`tikman: ${label} via ${target.peer}`);
-  const refresh = `/routing/bgp/session refresh ${sessionsOf(target.peer)}`;
+  // afi is required: without it RouterOS stops and prompts for it.
+  const refresh = `/routing/bgp/session refresh ${sessionsOf(target.peer)} afi=ip`;
   const ownRule = `chain=${chain} and rule~"set bgp-local-pref" and (comment~"^tikman")=false`;
   const route = `/routing/route print where dst-address=${advice.prefix}`;
   const precheck = [`/routing/filter/rule print where ${ownRule}`, route];

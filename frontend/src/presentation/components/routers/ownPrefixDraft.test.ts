@@ -90,7 +90,7 @@ describe("own prefix drafts", () => {
     );
     expect(everything).not.toContain('chain="TRANSIT_OUT"');
     expect(draft).toContain(
-      '/routing/bgp/session resend [find where name~"^peer-ix-rs2-[0-9]+\\$"]',
+      '/routing/bgp/session resend [find where name~"^peer-ix-rs2-[0-9]+\\$"] afi=ip',
     );
     expect(d.undo.join("\n")).toContain(
       'rule="if (dst in 203.0.113.0/24 && dst-len == 24) { set bgp-path-prepend 2; accept; }"',
