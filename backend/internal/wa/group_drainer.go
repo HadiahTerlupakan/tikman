@@ -12,11 +12,14 @@ import (
 	"github.com/tikman/olt-provisioning/internal/wa/linkpreview"
 )
 
-// groupSender is the part of Sender a group send needs. A group JID is sent
-// to exactly like a person's; only the quote differs, and Quote carries that.
+// groupSender is the part of the connection a group send needs. It differs
+// from Sender in carrying mentions, which only a group has.
 type groupSender interface {
-	SendText(ctx context.Context, jid, body string, quote *Quote, preview *linkpreview.Preview) (string, error)
-	SendMedia(ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string, quote *Quote) (string, error)
+	SendGroupText(ctx context.Context, jid, body string, quote *Quote, mentions []string, preview *linkpreview.Preview) (string, error)
+	SendGroupMedia(
+		ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string,
+		quote *Quote, mentions []string,
+	) (string, error)
 }
 
 // GroupDrainer sends the messages waiting in the group outbox. It is the
@@ -87,14 +90,15 @@ func (d *GroupDrainer) Drain(ctx context.Context, limit int) (int, error) {
 
 func (d *GroupDrainer) send(ctx context.Context, msg services.QueuedGroupMessage) (string, *linkpreview.Preview, error) {
 	quote := d.quote(msg.WAGroupMessage)
+	mentions := services.Mentions(&msg.WAGroupMessage)
 	if msg.Kind == models.MessageKindText {
 		preview := linkpreview.Resolve(ctx, msg.Body)
-		waID, err := d.sender.SendText(ctx, msg.GroupJID, msg.Body, quote, preview)
+		waID, err := d.sender.SendGroupText(ctx, msg.GroupJID, msg.Body, quote, mentions, preview)
 		return waID, preview, err
 	}
-	waID, err := d.sender.SendMedia(
+	waID, err := d.sender.SendGroupMedia(
 		ctx, msg.GroupJID, msg.Kind, filepath.Join(d.mediaRoot, msg.MediaPath),
-		msg.MediaMime, msg.MediaFilename, msg.Body, quote,
+		msg.MediaMime, msg.MediaFilename, msg.Body, quote, mentions,
 	)
 	return waID, nil, err
 }

@@ -89,8 +89,18 @@ function useRefetchGroupThread() {
 export function useSendWaGroupMessage() {
   const refetch = useRefetchGroupThread();
   return useMutation({
-    mutationFn: (vars: { groupId: string; body: string; replyToId?: string }) =>
-      waGroupRepository.sendMessage(vars.groupId, vars.body, vars.replyToId),
+    mutationFn: (vars: {
+      groupId: string;
+      body: string;
+      replyToId?: string;
+      mentions?: string[];
+    }) =>
+      waGroupRepository.sendMessage(
+        vars.groupId,
+        vars.body,
+        vars.replyToId,
+        vars.mentions,
+      ),
     onSuccess: (_, vars) => refetch(vars.groupId),
     onError: reportCsMutationError,
   });
@@ -104,12 +114,14 @@ export function useSendWaGroupMedia() {
       file: File;
       caption?: string;
       replyToId?: string;
+      mentions?: string[];
     }) =>
       waGroupRepository.sendMedia(
         vars.groupId,
         vars.file,
         vars.caption,
         vars.replyToId,
+        vars.mentions,
       ),
     onSuccess: (_, vars) => refetch(vars.groupId),
     onError: reportCsMutationError,

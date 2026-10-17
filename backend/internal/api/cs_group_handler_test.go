@@ -180,3 +180,15 @@ func TestAViewerCannotReadTheGroups(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
+
+func TestMentioningSomeoneOutsideTheGroupIsRefused(t *testing.T) {
+	env := setupCSGroups(t)
+
+	rec := env.do(t, env.cs, models.UserRoleCS, http.MethodPost, "/groups/"+env.group.ID.String()+"/messages",
+		`{"body":"@628999 halo","mentions":["628999@s.whatsapp.net"]}`)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	var queued int64
+	require.NoError(t, env.db.Model(&models.WAGroupMessage{}).Count(&queued).Error)
+	assert.Zero(t, queued)
+}

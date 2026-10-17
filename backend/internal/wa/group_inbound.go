@@ -2,7 +2,6 @@ package wa
 
 import (
 	"context"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -54,7 +53,7 @@ func (h *inboundHandler) handleGroup(ctx context.Context, evt *events.Message) e
 		SenderPhone: senderPhoneJID(evt.Info.MessageSource).User,
 		SenderName:  senderName(evt.Info, names),
 		Kind:        att.kind,
-		Body:        resolveMentions(body, mentionedJIDs(evt.Message), names),
+		Body:        services.ResolveMentions(body, mentionedJIDs(evt.Message), names),
 		Media:       media,
 		ReplyToWAID: quotedStanzaID(evt.Message),
 		Preview:     inboundPreview(evt.Message),
@@ -86,39 +85,7 @@ func (h *inboundHandler) memberNames(groupID uuid.UUID) map[string]string {
 		h.logger.Warn("Could not read a group's members to name a sender", zap.Error(err))
 		return nil
 	}
-	return namesByAddress(members)
-}
-
-// namesByAddress indexes members by the user part of each of their addresses,
-// which is also what a mention writes after the "@".
-func namesByAddress(members []models.WAGroupParticipant) map[string]string {
-	names := make(map[string]string, len(members)*2)
-	for _, member := range members {
-		label := member.Name
-		if label == "" {
-			label = member.Phone
-		}
-		if label == "" {
-			continue
-		}
-		for _, address := range []string{member.JID, member.LID} {
-			if user := jidUser(address); user != "" {
-				names[user] = label
-			}
-		}
-		if member.Phone != "" {
-			names[member.Phone] = label
-		}
-	}
-	return names
-}
-
-func jidUser(address string) string {
-	user, _, found := strings.Cut(address, "@")
-	if !found {
-		return ""
-	}
-	return user
+	return services.MemberNames(members)
 }
 
 // senderName is the push name the sender's phone attached, falling back to
@@ -149,19 +116,6 @@ func mentionedJIDs(msg *waE2E.Message) []string {
 		}
 	}
 	return nil
-}
-
-// resolveMentions rewrites "@628123…" or "@<LID>" into "@Name". A mention in a
-// LID-addressed group is a long number that is nobody's phone, and read as is
-// it tells the team nothing about who was asked.
-func resolveMentions(body string, mentioned []string, names map[string]string) string {
-	for _, jid := range mentioned {
-		user := jidUser(jid)
-		if name, ok := names[user]; ok && user != "" {
-			body = strings.ReplaceAll(body, "@"+user, "@"+name)
-		}
-	}
-	return body
 }
 
 // announceGroup tells the browsers about group traffic. Like announce, a

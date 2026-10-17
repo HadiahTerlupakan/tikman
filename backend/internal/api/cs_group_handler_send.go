@@ -14,13 +14,21 @@ import (
 	"go.uber.org/zap"
 )
 
+// SendGroupMessageRequest is a message to a group. Mentions are member JIDs,
+// each written into Body as "@<address>" the way WhatsApp carries them.
+type SendGroupMessageRequest struct {
+	Body      string   `json:"body" binding:"required"`
+	ReplyToID string   `json:"reply_to_id"`
+	Mentions  []string `json:"mentions"`
+}
+
 // SendGroupMessage queues a text message to a group.
 func (h *CSGroupHandler) SendGroupMessage(c *gin.Context) {
 	group, ok := h.sendableGroup(c, "GROUP_SEND_FAILED")
 	if !ok {
 		return
 	}
-	var req SendMessageRequest
+	var req SendGroupMessageRequest
 	if !bindJSON(c, &req) {
 		return
 	}
@@ -28,11 +36,16 @@ func (h *CSGroupHandler) SendGroupMessage(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if err := h.groups.CheckMentions(group.ID, req.Mentions); err != nil {
+		mapCSError(c, err, "GROUP_SEND_FAILED")
+		return
+	}
 
 	userID, _ := middleware.GetUserID(c)
 	msg, err := h.messages.Queue(services.GroupOutgoing{
 		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
 		Kind: models.MessageKindText, Body: h.inbox.sign(userID, req.Body), ReplyToID: replyTo,
+		Mentions: req.Mentions,
 	})
 	if err != nil {
 		mapCSError(c, err, "GROUP_SEND_FAILED")
@@ -57,6 +70,13 @@ func (h *CSGroupHandler) SendGroupMedia(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// Read after the upload: the form is only parsed once the body is bounded.
+	mentions := c.PostFormArray("mentions")
+	if err := h.groups.CheckMentions(group.ID, mentions); err != nil {
+		h.inbox.removeOrphanedUpload(media.Path)
+		mapCSError(c, err, "GROUP_SEND_MEDIA_FAILED")
+		return
+	}
 
 	userID, _ := middleware.GetUserID(c)
 	caption := strings.TrimSpace(c.PostForm("caption"))
@@ -66,6 +86,7 @@ func (h *CSGroupHandler) SendGroupMedia(c *gin.Context) {
 	msg, err := h.messages.Queue(services.GroupOutgoing{
 		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
 		Kind: kindForMime(mime), Body: caption, Media: media, ReplyToID: replyTo,
+		Mentions: mentions,
 	})
 	if err != nil {
 		h.inbox.removeOrphanedUpload(media.Path)

@@ -1,24 +1,33 @@
 import { useState, type ClipboardEvent } from "react";
-import { Alert, Button, Input, Upload, message as toast } from "antd";
+import { Alert, Button, Mentions, Upload, message as toast } from "antd";
 import {
   CloseOutlined,
   PaperClipOutlined,
   SendOutlined,
 } from "@ant-design/icons";
-import type { WaGroup, WaGroupMessage } from "@/domain/entities";
+import type {
+  WaGroup,
+  WaGroupMessage,
+  WaGroupParticipant,
+} from "@/domain/entities";
 import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
 import { colors } from "@/shared/theme/colors";
 import { PendingAttachment } from "../PendingAttachment";
 import { QuotedBlock } from "../QuotedBlock";
 import { sendBlockedReason, senderLabel } from "./groupSummary";
-
-const { TextArea } = Input;
+import { mentionOptions, toWhatsAppMentions } from "./groupMentions";
 
 interface GroupComposerProps {
   group: WaGroup;
+  /** Who "@" offers. */
+  participants: WaGroupParticipant[];
   /** Answers whether the message left; a false keeps what was typed. */
-  onSend: (body: string) => Promise<boolean>;
-  onAttach: (file: File, caption: string) => Promise<boolean>;
+  onSend: (body: string, mentions: string[]) => Promise<boolean>;
+  onAttach: (
+    file: File,
+    caption: string,
+    mentions: string[],
+  ) => Promise<boolean>;
   sending: boolean;
   attaching: boolean;
   replyTo?: WaGroupMessage;
@@ -58,6 +67,7 @@ function ReplyingTo({
  */
 export function GroupComposer({
   group,
+  participants,
   onSend,
   onAttach,
   sending,
@@ -86,9 +96,12 @@ export function GroupComposer({
   }
 
   const handleSend = async () => {
-    const body = text.trim();
-    if (!staged && !body) return;
-    const sent = staged ? await onAttach(staged, body) : await onSend(body);
+    const typed = text.trim();
+    if (!staged && !typed) return;
+    const { body, mentions } = toWhatsAppMentions(typed, participants);
+    const sent = staged
+      ? await onAttach(staged, body, mentions)
+      : await onSend(body, mentions);
     if (sent) {
       setText("");
       setPending(undefined);
@@ -145,9 +158,12 @@ export function GroupComposer({
             aria-label="Lampirkan berkas"
           />
         </Upload>
-        <TextArea
+        {/* onPressEnter only fires while no member list is open, so Enter
+            picks a member there and sends everywhere else. */}
+        <Mentions
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
+          options={mentionOptions(participants)}
           onPaste={handlePaste}
           onPressEnter={(e) => {
             if (!e.shiftKey) {
@@ -156,7 +172,8 @@ export function GroupComposer({
             }
           }}
           autoSize={{ minRows: 1, maxRows: 5 }}
-          placeholder="Tulis pesan ke grup"
+          placement="top"
+          placeholder="Tulis pesan ke grup, ketik @ untuk menyebut anggota"
           variant="filled"
           style={{ borderRadius: 18, padding: "6px 12px", resize: "none" }}
         />

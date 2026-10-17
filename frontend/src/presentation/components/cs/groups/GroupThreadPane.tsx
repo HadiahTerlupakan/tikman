@@ -1,6 +1,10 @@
 import { Button, Empty, Spin, Tag, Typography } from "antd";
 import { ArrowLeftOutlined, InfoCircleOutlined } from "@ant-design/icons";
-import type { WaGroup, WaGroupMessage } from "@/domain/entities";
+import type {
+  WaGroup,
+  WaGroupMessage,
+  WaGroupParticipant,
+} from "@/domain/entities";
 import {
   chatBackdropColor,
   chatBackdropImage,
@@ -24,8 +28,14 @@ interface GroupThreadPaneProps {
   replyTo?: WaGroupMessage;
   sending: boolean;
   attaching: boolean;
-  onSend: (body: string) => Promise<boolean>;
-  onAttach: (file: File, caption: string) => Promise<boolean>;
+  /** Who can be mentioned from the composer. */
+  participants: WaGroupParticipant[];
+  onSend: (body: string, mentions?: string[]) => Promise<boolean>;
+  onAttach: (
+    file: File,
+    caption: string,
+    mentions?: string[],
+  ) => Promise<boolean>;
   onReply: (message: WaGroupMessage) => void;
   onCancelReply: () => void;
   /** Present only where the panes take turns. */
@@ -150,13 +160,14 @@ export function GroupThreadPane(props: GroupThreadPaneProps) {
       </div>
       <GroupComposer
         group={group}
-        onSend={(body) => {
+        participants={props.participants}
+        onSend={(body, mentions) => {
           log.stick();
-          return onSend(body);
+          return onSend(body, mentions);
         }}
-        onAttach={(file, caption) => {
+        onAttach={(file, caption, mentions) => {
           log.stick();
-          return onAttach(file, caption);
+          return onAttach(file, caption, mentions);
         }}
         sending={props.sending}
         attaching={props.attaching}

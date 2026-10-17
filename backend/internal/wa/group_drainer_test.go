@@ -16,9 +16,10 @@ import (
 )
 
 type groupSend struct {
-	jid   string
-	body  string
-	quote *Quote
+	jid      string
+	body     string
+	quote    *Quote
+	mentions []string
 }
 
 type fakeGroupSender struct {
@@ -26,18 +27,20 @@ type fakeGroupSender struct {
 	err   error
 }
 
-func (f *fakeGroupSender) SendText(_ context.Context, jid, body string, quote *Quote, _ *linkpreview.Preview) (string, error) {
+func (f *fakeGroupSender) SendGroupText(
+	_ context.Context, jid, body string, quote *Quote, mentions []string, _ *linkpreview.Preview,
+) (string, error) {
 	if f.err != nil {
 		return "", f.err
 	}
-	f.sends = append(f.sends, groupSend{jid: jid, body: body, quote: quote})
+	f.sends = append(f.sends, groupSend{jid: jid, body: body, quote: quote, mentions: mentions})
 	return "3EB0G" + body, nil
 }
 
-func (f *fakeGroupSender) SendMedia(
-	_ context.Context, jid string, _ models.MessageKind, path, _, _, _ string, quote *Quote,
+func (f *fakeGroupSender) SendGroupMedia(
+	_ context.Context, jid string, _ models.MessageKind, path, _, _, _ string, quote *Quote, mentions []string,
 ) (string, error) {
-	return f.SendText(context.Background(), jid, path, quote, nil)
+	return f.SendGroupText(context.Background(), jid, path, quote, mentions, nil)
 }
 
 type groupDrainEnv struct {
@@ -131,4 +134,31 @@ func TestBuildContextInfoNamesTheGroupMemberBeingQuoted(t *testing.T) {
 
 	ctx = buildContextInfo(&Quote{StanzaID: "W2", FromMe: true, Participant: "628122223333@s.whatsapp.net"}, teamGroup, self)
 	assert.Equal(t, self.String(), ctx.GetParticipant(), "our own message is quoted as ours")
+}
+
+func TestAGroupMessageTagsTheMembersItMentions(t *testing.T) {
+	env := groupDrainSetup(t)
+	_, err := env.messages.Queue(services.GroupOutgoing{
+		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText,
+		Body: "@55511122233344 cek", Mentions: []string{"55511122233344@lid"},
+	})
+	require.NoError(t, err)
+	sender := &fakeGroupSender{}
+
+	_, err = NewGroupDrainer(env.account.ID, env.messages, sender, nil, t.TempDir(), 0).Drain(context.Background(), 10)
+	require.NoError(t, err)
+
+	require.Len(t, sender.sends, 1)
+	assert.Equal(t, "@55511122233344 cek", sender.sends[0].body, "WhatsApp needs the address in the text")
+	assert.Equal(t, []string{"55511122233344@lid"}, sender.sends[0].mentions)
+}
+
+// The text alone is not a mention; without MentionedJID nobody is notified.
+func TestWithMentionsListsTheTaggedMembersBesideAQuote(t *testing.T) {
+	quoted := buildContextInfo(&Quote{StanzaID: "W1", Participant: "628122223333@s.whatsapp.net"}, teamGroup, customerNumber)
+	info := withMentions(quoted, []string{"55511122233344@lid"})
+
+	assert.Equal(t, "W1", info.GetStanzaID())
+	assert.Equal(t, []string{"55511122233344@lid"}, info.GetMentionedJID())
+	assert.Nil(t, withMentions(nil, nil))
 }

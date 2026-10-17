@@ -82,6 +82,7 @@ export function CsGroupsPage() {
               replyTo={g.replyTo}
               sending={g.sendMessage.isPending}
               attaching={g.sendMedia.isPending}
+              participants={g.detailQuery.data?.participants ?? []}
               onSend={g.handleSend}
               onAttach={g.handleAttach}
               onReply={g.setReplyTo}

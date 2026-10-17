@@ -20,12 +20,14 @@ export interface IWaGroupRepository {
     groupId: string,
     body: string,
     replyToId?: string,
+    mentions?: string[],
   ): Promise<WaGroupMessage>;
   sendMedia(
     groupId: string,
     file: File,
     caption?: string,
     replyToId?: string,
+    mentions?: string[],
   ): Promise<WaGroupMessage>;
   refresh(waAccountId?: string): Promise<void>;
   create(

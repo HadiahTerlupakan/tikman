@@ -48,10 +48,11 @@ export class WaGroupRepository implements IWaGroupRepository {
     groupId: string,
     body: string,
     replyToId?: string,
+    mentions?: string[],
   ): Promise<WaGroupMessage> {
     const response = await apiClient.post(
       API_ENDPOINTS.CS_GROUP_MESSAGES(groupId),
-      { body, replyToId },
+      { body, replyToId, mentions },
     );
     return response.data.data;
   }
@@ -61,11 +62,15 @@ export class WaGroupRepository implements IWaGroupRepository {
     file: File,
     caption?: string,
     replyToId?: string,
+    mentions: string[] = [],
   ): Promise<WaGroupMessage> {
     const form = new FormData();
     form.append("file", file);
     if (caption) {
       form.append("caption", caption);
+    }
+    for (const jid of mentions) {
+      form.append("mentions", jid);
     }
 
     // In the query string for the reason CsRepository.sendMedia gives: the

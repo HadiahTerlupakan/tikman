@@ -33,6 +33,10 @@ type WAGroupMessage struct {
 	Status        MessageStatus `gorm:"type:varchar(20);not null;index" json:"status"`
 	FailReason    string        `gorm:"type:text" json:"fail_reason,omitempty"`
 	ReplyToID     *uuid.UUID    `gorm:"type:uuid" json:"reply_to_id,omitempty"`
+	// Mentions is the JSON list of members an outgoing message tags. Body
+	// keeps WhatsApp's own form, "@<address>", because that is what has to be
+	// sent; the history shows it with names (see services.ResolveMentions).
+	Mentions string `gorm:"type:text;not null;default:''" json:"-"`
 
 	PreviewURL         string `gorm:"type:text" json:"preview_url,omitempty"`
 	PreviewTitle       string `gorm:"type:text" json:"preview_title,omitempty"`

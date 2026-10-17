@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -48,6 +49,8 @@ type GroupOutgoing struct {
 	Body         string
 	Media        *MediaFile
 	ReplyToID    *uuid.UUID
+	// Mentions are member JIDs the body tags as "@<address>".
+	Mentions []string
 }
 
 // WAGroupMessageService stores group traffic in both directions, and is the
@@ -82,7 +85,7 @@ func (s *WAGroupMessageService) SaveArrived(in GroupArrival) (*models.WAGroupMes
 			return fmt.Errorf("store group message: %w", err)
 		}
 		created = true
-		return bumpGroup(tx, &stored, in.Direction == models.MessageIn)
+		return bumpGroup(tx, &stored, stored.Body, in.Direction == models.MessageIn)
 	})
 	if err != nil && !created {
 		var existing models.WAGroupMessage
@@ -151,14 +154,14 @@ func applyGroupMedia(row *models.WAGroupMessage, media *MediaFile) {
 // bumpGroup brings the group's summary up to date on the caller's transaction,
 // so the list never shows a message that failed to store, or misses one that
 // did.
-func bumpGroup(tx *gorm.DB, msg *models.WAGroupMessage, unread bool) error {
+func bumpGroup(tx *gorm.DB, msg *models.WAGroupMessage, preview string, unread bool) error {
 	sender := msg.SenderName
 	if sender == "" {
 		sender = msg.SenderPhone
 	}
 	fields := map[string]any{
 		"last_message_at":        msg.WATimestamp,
-		"last_message_preview":   clampRunes(msg.Body, groupPreviewRunes),
+		"last_message_preview":   clampRunes(preview, groupPreviewRunes),
 		"last_message_kind":      msg.Kind,
 		"last_message_sender":    clampRunes(sender, groupPreviewRunes),
 		"last_message_direction": msg.Direction,
@@ -194,12 +197,19 @@ func (s *WAGroupMessageService) Queue(out GroupOutgoing) (*models.WAGroupMessage
 		WATimestamp:  time.Now(),
 	}
 	applyGroupMedia(&msg, out.Media)
+	if len(out.Mentions) > 0 {
+		encoded, err := json.Marshal(uniqueStrings(out.Mentions))
+		if err != nil {
+			return nil, fmt.Errorf("encode mentions: %w", err)
+		}
+		msg.Mentions = string(encoded)
+	}
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&msg).Error; err != nil {
 			return fmt.Errorf("queue group message: %w", err)
 		}
-		return bumpGroup(tx, &msg, false)
+		return bumpGroup(tx, &msg, withNames(tx, msg.GroupID, msg.Body, out.Mentions), false)
 	})
 	if err != nil {
 		return nil, err
@@ -235,6 +245,7 @@ func (s *WAGroupMessageService) History(groupID uuid.UUID, limit, offset int) ([
 	if err != nil {
 		return nil, fmt.Errorf("load group history: %w", err)
 	}
+	showMentions(s.db, groupID, rows)
 	return rows, s.attachQuotes(rows)
 }
 

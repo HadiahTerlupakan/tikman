@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -35,7 +36,15 @@ func (c *Client) SendMedia(
 	if err != nil {
 		return "", fmt.Errorf("tujuan tidak valid %q: %w", jid, err)
 	}
+	return c.sendMedia(ctx, to, kind, path, mime, filename, caption, buildContextInfo(quote, to, c.selfJID()))
+}
 
+// sendMedia uploads an attachment and sends it with the context given, which
+// carries the quote and, in a group, the mentions.
+func (c *Client) sendMedia(
+	ctx context.Context, to types.JID, kind models.MessageKind, path, mime, filename, caption string,
+	info *waE2E.ContextInfo,
+) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("baca lampiran: %w", err)
@@ -45,8 +54,7 @@ func (c *Client) SendMedia(
 		return "", fmt.Errorf("unggah lampiran: %w", err)
 	}
 
-	quoted := buildContextInfo(quote, to, c.selfJID())
-	resp, err := c.wa.SendMessage(ctx, to, buildMediaMessage(kind, uploaded, mime, filename, caption, quoted))
+	resp, err := c.wa.SendMessage(ctx, to, buildMediaMessage(kind, uploaded, mime, filename, caption, info))
 	if err != nil {
 		return "", err
 	}

@@ -83,13 +83,24 @@ function useGroupSending(group: WaGroup | undefined) {
     }
   };
 
-  const handleSend = (body: string) =>
+  const handleSend = (body: string, mentions: string[] = []) =>
     run((groupId) =>
-      sendMessage.mutateAsync({ groupId, body, replyToId: replyTo?.id }),
+      sendMessage.mutateAsync({
+        groupId,
+        body,
+        replyToId: replyTo?.id,
+        mentions,
+      }),
     );
-  const handleAttach = (file: File, caption: string) =>
+  const handleAttach = (file: File, caption: string, mentions: string[] = []) =>
     run((groupId) =>
-      sendMedia.mutateAsync({ groupId, file, caption, replyToId: replyTo?.id }),
+      sendMedia.mutateAsync({
+        groupId,
+        file,
+        caption,
+        replyToId: replyTo?.id,
+        mentions,
+      }),
     );
 
   return {
