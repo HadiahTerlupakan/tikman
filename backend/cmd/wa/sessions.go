@@ -26,6 +26,9 @@ type sessionDeps struct {
 	messages       *services.CSMessageService
 	channels       *services.CSChannelService
 	broadcastPosts *services.CSBroadcastPostService
+	groups         *services.WAGroupService
+	groupMessages  *services.WAGroupMessageService
+	groupActions   *services.WAGroupActionService
 	logger         *zap.Logger
 }
 
@@ -34,6 +37,8 @@ type session struct {
 	client           *wa.Client
 	drainer          *wa.Drainer
 	broadcastDrainer *wa.BroadcastDrainer
+	groupDrainer     *wa.GroupDrainer
+	groupActions     *wa.GroupActionRunner
 	stop             context.CancelFunc
 }
 
@@ -135,6 +140,8 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 		Logger:        s.deps.logger.With(zap.String("wa_account", account.Label)),
 		Conversations: s.deps.conversations,
 		Messages:      s.deps.messages,
+		Groups:        s.deps.groups,
+		GroupMessages: s.deps.groupMessages,
 		MediaRoot:     s.deps.cfg.WAMediaDir,
 	})
 	if err != nil {
@@ -151,9 +158,15 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	broadcastDrainer := wa.NewBroadcastDrainer(account.ID, s.deps.broadcastPosts, client,
 		publisher, s.deps.cfg.WAMediaDir,
 		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
+	groupDrainer := wa.NewGroupDrainer(account.ID, s.deps.groupMessages, client,
+		publisher, s.deps.cfg.WAMediaDir,
+		time.Duration(s.deps.cfg.WASendIntervalMS)*time.Millisecond)
 
 	live := &session{
-		client: client, drainer: drainer, broadcastDrainer: broadcastDrainer, stop: stop,
+		client: client, drainer: drainer, broadcastDrainer: broadcastDrainer,
+		groupDrainer: groupDrainer,
+		groupActions: wa.NewGroupActionRunner(account.ID, s.deps.groupActions, s.deps.groups, client, publisher),
+		stop:         stop,
 	}
 	s.running[account.ID] = live
 	s.deps.logger.Info("Started a WhatsApp session",
@@ -178,16 +191,18 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 			// wake it and would sit at "Antre" until somebody happened to send
 			// something else.
 			drainBroadcastOutbox(ctx, live.broadcastDrainer, logger)
+			drainGroups(ctx, live, logger)
 		})
 
 	// Off the connection being established rather than off Connect returning:
 	// Connect returns once the noise handshake is sent, and asking an
 	// unauthenticated socket for the channel list either errors or waits out
 	// whatsmeow's 75-second request timeout.
-	go syncChannelsOnConnect(ctx, live.client, s.deps.channels, account.ID, logger)
+	go syncOnConnect(ctx, live.client, s.deps.channels, account.ID, logger)
 	go every(ctx, channelSync, func() {
 		syncChannels(ctx, live.client, s.deps.channels, account.ID, logger)
 	})
+	go every(ctx, groupSync, func() { syncGroups(ctx, live.client, logger) })
 
 	// The other half of what restart exists for. ControlDisconnect drops the
 	// session when an admin ends the link; WhatsApp can end it on its own,
@@ -215,8 +230,8 @@ func watchForLogout(ctx context.Context, loggedOut <-chan struct{}, drop func())
 	}
 }
 
-// drainAll empties both of every number's outboxes, the chat replies and the
-// channel updates. The announcement that something is waiting does not say
+// drainAll empties every number's outboxes: the chat replies, the channel
+// updates, and the group messages and management requests. The announcement that something is waiting does not say
 // which number it belongs to, and it does not need to: each session's claim is
 // scoped to its own rows, so the others find nothing and cost one indexed
 // query.
@@ -224,6 +239,7 @@ func (s *sessions) drainAll(ctx context.Context) {
 	for _, live := range s.snapshot() {
 		drainOutbox(ctx, live.drainer, s.deps.logger)
 		drainBroadcastOutbox(ctx, live.broadcastDrainer, s.deps.logger)
+		drainGroups(ctx, live, s.deps.logger)
 	}
 }
 

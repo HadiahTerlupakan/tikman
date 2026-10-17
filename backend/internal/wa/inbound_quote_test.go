@@ -16,6 +16,7 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 // inboundSetup builds the handler over a real database. The Redis client points
@@ -25,7 +26,15 @@ import (
 func inboundSetup(t *testing.T) (*inboundHandler, *services.CSMessageService, *services.CSConversationService, uuid.UUID) {
 	t.Helper()
 	db, messages, conversations, conv := drainSetup(t)
+	return testInboundHandler(t, db, messages, conversations), messages, conversations, conv.ID
+}
 
+// testInboundHandler builds a handler on drainSetup's database, publishing to
+// a Redis that is not there: announcing is best effort by design.
+func testInboundHandler(
+	t *testing.T, db *gorm.DB, messages *services.CSMessageService, conversations *services.CSConversationService,
+) *inboundHandler {
+	t.Helper()
 	dead := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: time.Millisecond})
 	t.Cleanup(func() { _ = dead.Close() })
 
@@ -38,7 +47,7 @@ func inboundSetup(t *testing.T) (*inboundHandler, *services.CSMessageService, *s
 		messages:      messages,
 		publisher:     NewPublisher(dead),
 		logger:        zap.NewNop(),
-	}, messages, conversations, conv.ID
+	}
 }
 
 func customerSays(text string, quoting *waE2E.ContextInfo) *events.Message {

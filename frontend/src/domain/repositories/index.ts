@@ -6,3 +6,4 @@ export * from "./IOntRepository";
 export * from "./ICsRepository";
 export * from "./ICsPerformanceRepository";
 export * from "./IPushRepository";
+export * from "./IWaGroupRepository";

@@ -18,8 +18,11 @@ import (
 type Quote struct {
 	StanzaID string
 	FromMe   bool
-	Body     string
-	Kind     models.MessageKind
+	// Participant is who wrote the quoted message in a group, where the chat
+	// is not the author. Empty in a one-to-one chat, where it is.
+	Participant string
+	Body        string
+	Kind        models.MessageKind
 }
 
 // buildContextInfo turns a quote into the field WhatsApp reads it from. chat is
@@ -29,6 +32,9 @@ func buildContextInfo(q *Quote, chat, self types.JID) *waE2E.ContextInfo {
 		return nil
 	}
 	participant := chat.ToNonAD()
+	if author, err := types.ParseJID(q.Participant); q.Participant != "" && err == nil {
+		participant = author.ToNonAD()
+	}
 	if q.FromMe {
 		participant = self.ToNonAD()
 	}

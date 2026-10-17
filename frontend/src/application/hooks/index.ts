@@ -26,3 +26,5 @@ export * from "./useWaChannels";
 export * from "./useBroadcast";
 export * from "./usePushNotifications";
 export * from "./useMapping";
+export * from "./useWaGroups";
+export * from "./useWaGroupActions";

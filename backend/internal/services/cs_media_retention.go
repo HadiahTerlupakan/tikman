@@ -62,9 +62,10 @@ func (r *CSMediaRetention) Sweep() (int, error) {
 	return cleared, errors.Join(failures...)
 }
 
-// expired lists what is past the window in both tables that store an
-// attachment: the chat messages and the announcements, which go through the
-// same upload into the same root and would otherwise grow there without bound.
+// expired lists what is past the window in every table that stores an
+// attachment: the chat messages, the group messages and the announcements,
+// which all write into the same root and would otherwise grow there without
+// bound. Groups are the largest of the three — every member's photos land.
 //
 // An announcement is aged by created_at rather than by a wa_timestamp. It has
 // none: neither a channel nor a status sends receipts, so nothing ever comes
@@ -81,7 +82,16 @@ func (r *CSMediaRetention) expired(cutoff time.Time) ([]attachment, error) {
 		return nil, fmt.Errorf("list expired broadcast media: %w", err)
 	}
 
-	files := make([]attachment, 0, len(messages)+len(posts))
+	var groupMessages []models.WAGroupMessage
+	err = r.db.Where("media_path <> '' AND wa_timestamp < ?", cutoff).Find(&groupMessages).Error
+	if err != nil {
+		return nil, fmt.Errorf("list expired group media: %w", err)
+	}
+
+	files := make([]attachment, 0, len(messages)+len(posts)+len(groupMessages))
+	for _, row := range groupMessages {
+		files = append(files, attachment{id: row.ID, path: row.MediaPath, table: &models.WAGroupMessage{}})
+	}
 	for _, row := range messages {
 		files = append(files, attachment{id: row.ID, path: row.MediaPath, table: &models.CSMessage{}})
 	}

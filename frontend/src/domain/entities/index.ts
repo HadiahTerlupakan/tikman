@@ -22,3 +22,4 @@ export * from "./WaChannel";
 export * from "./Mapping";
 export * from "./MikrotikRouter";
 export * from "./RouterFlow";
+export * from "./WaGroup";

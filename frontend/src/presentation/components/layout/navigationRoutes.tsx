@@ -14,6 +14,7 @@ import {
   LineChartOutlined,
   NodeIndexOutlined,
   ClusterOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { UserRole } from "@/domain/entities";
@@ -57,13 +58,15 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     { path: "/vpn", name: "VPN", icon: <CloudServerOutlined /> },
     { path: "/routers", name: "MikroTik", icon: <ClusterOutlined /> },
     // Every route under /api/v1/cs turns a viewer away, so showing them the
-    // inbox only offers a page that answers 403 on every request it makes. The
-    // report sits beside it rather than under /cs: ProLayout matches a menu
-    // path by prefix, so a page at /cs/... would light up "CS Inbox" too.
+    // inbox only offers a page that answers 403 on every request it makes.
+    // Groups and the report sit beside it rather than under /cs: ProLayout
+    // matches a menu path by prefix, so a page at /cs/... would light up
+    // "CS Inbox" too.
     ...(role === UserRole.VIEWER
       ? []
       : [
           { path: "/cs", name: "CS Inbox", icon: <MessageOutlined /> },
+          { path: "/cs-groups", name: "Grup WA", icon: <TeamOutlined /> },
           {
             path: "/cs-performance",
             name: "Kinerja CS",

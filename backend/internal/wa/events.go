@@ -48,6 +48,9 @@ const (
 	// stored billing messages name (see Client.RescanBilledContacts). Nothing
 	// in the API sends it; an admin publishes it by hand with redis-cli.
 	ControlRescanContacts = "rescan-contacts"
+	// ControlSyncGroups asks this process to re-read the groups a number is
+	// in, for the refresh button; the mirror also refreshes hourly.
+	ControlSyncGroups = "sync-groups"
 )
 
 // ControlMessage is one admin action on ControlChannel. The API is the only
@@ -72,6 +75,11 @@ type Event struct {
 	// PairingCode is the eight-character code an admin types into WhatsApp
 	// under Linked Devices, set only while AccountStatus is "pairing".
 	PairingCode string `json:"pairing_code,omitempty"`
+	// GroupID names the group a group_message, group or group_action event is
+	// about. A group event without one means the whole list changed.
+	GroupID string `json:"group_id,omitempty"`
+	// ActionID names the management request a group_action event answers.
+	ActionID string `json:"action_id,omitempty"`
 	// Typing says whether the customer is writing, on a typing event. It is
 	// absent when they have stopped, which reads as false.
 	Typing bool `json:"typing,omitempty"`
@@ -91,6 +99,15 @@ const (
 	// identifier: the history is one recent list across every destination, so
 	// the browser refetches all of it and there is nothing to narrow by.
 	EventBroadcastPost = "broadcast_post"
+	// EventGroupMessage says a message arrived in, or left for, a group. It is
+	// its own type rather than EventMessage so nothing that serves the
+	// customer inbox — the badge, the push notifications, the thread list —
+	// reacts to group traffic.
+	EventGroupMessage = "group_message"
+	// EventGroup says a group's details, members or unread count changed.
+	EventGroup = "group"
+	// EventGroupAction says a management request finished, done or failed.
+	EventGroupAction = "group_action"
 )
 
 // announcer is what the handlers in this package need of a Publisher: a way to

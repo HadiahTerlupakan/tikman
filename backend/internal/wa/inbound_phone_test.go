@@ -100,9 +100,10 @@ func TestAPhoneMessageToSomeoneWithNoThreadOpensNothing(t *testing.T) {
 	assert.Empty(t, history)
 }
 
-// Letting IsFromMe through must not let the phone's groups and channels in with
-// it.
-func TestAPhoneMessageToAGroupOrChannelIsStillIgnored(t *testing.T) {
+// Letting IsFromMe through must not let the phone's groups and channels into
+// the customer inbox with it. A group goes to the group tables instead (see
+// group_inbound_test.go); here only the inbox is watched.
+func TestAPhoneMessageToAGroupOrChannelStaysOutOfTheInbox(t *testing.T) {
 	cases := []struct {
 		name    string
 		chat    types.JID
@@ -113,7 +114,12 @@ func TestAPhoneMessageToAGroupOrChannelIsStillIgnored(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler, messages, conversations, convID := inboundSetup(t)
+			db, messages, conversations, conv := drainSetup(t)
+			convID := conv.ID
+			handler := testInboundHandler(t, db, messages, conversations)
+			handler.groups = services.NewWAGroupService(db)
+			handler.groupMessages = services.NewWAGroupMessageService(db)
+			handler.groupSeen = func(types.JID) {}
 			before, err := conversations.List(services.ConversationFilter{})
 			require.NoError(t, err)
 

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import type { CsMessage } from "@/domain/entities";
 
 /** A reader this close to the end is still reading the newest message. The
  * slack keeps a fractional overshoot or a trackpad's settle from counting as
@@ -13,7 +12,8 @@ const PINNED_WITHIN_PX = 80;
  */
 export function useStickToBottom(
   conversationId: string | undefined,
-  messages: CsMessage[],
+  /** Only watched for change; any thread's messages will do. */
+  messages: readonly unknown[],
   loading: boolean,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);

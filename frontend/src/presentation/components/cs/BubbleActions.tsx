@@ -11,16 +11,16 @@ import type { CsMessage } from "@/domain/entities";
  * space when hidden, or every bubble would shift as the pointer crosses the
  * thread.
  */
-export function BubbleActions({
+export function BubbleActions<M = CsMessage>({
   message,
   visible,
   onReply,
   onDelete,
 }: {
-  message: CsMessage;
+  message: M;
   visible: boolean;
-  onReply?: (message: CsMessage) => void;
-  onDelete?: (message: CsMessage) => void;
+  onReply?: (message: M) => void;
+  onDelete?: (message: M) => void;
 }) {
   if (!onReply && !onDelete) return null;
 

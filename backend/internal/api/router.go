@@ -246,6 +246,7 @@ func (h *handlers) registerCSRoutes(api *gin.RouterGroup, authenticated gin.Hand
 	}
 
 	h.registerCSAdminRoutes(cs)
+	h.registerCSGroupRoutes(cs)
 }
 
 // registerCSAdminRoutes covers the canned replies, the WhatsApp numbers behind

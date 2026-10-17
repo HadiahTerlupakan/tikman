@@ -147,6 +147,14 @@ export const API_ENDPOINTS = {
   CS_BROADCASTS_MEDIA: "/api/v1/cs/broadcasts/media",
   CS_PERFORMANCE_SUMMARY: "/api/v1/cs/performance/summary",
   CS_PERFORMANCE_WAITS: "/api/v1/cs/performance/waits",
+  CS_GROUPS: "/api/v1/cs/groups",
+  CS_GROUP: (id: string) => `/api/v1/cs/groups/${id}`,
+  CS_GROUP_MESSAGES: (id: string) => `/api/v1/cs/groups/${id}/messages`,
+  CS_GROUP_MEDIA_UPLOAD: (id: string) => `/api/v1/cs/groups/${id}/media`,
+  CS_GROUP_MEDIA: (messageId: string) => `/api/v1/cs/group-media/${messageId}`,
+  CS_GROUPS_REFRESH: "/api/v1/cs/groups/refresh",
+  CS_GROUP_ACTIONS: (id: string) => `/api/v1/cs/groups/${id}/actions`,
+  CS_GROUP_ACTION: (id: string) => `/api/v1/cs/group-actions/${id}`,
 
   // Network map: free-form nodes and the fiber runs between them
   MAPPING_NODES: "/api/v1/mapping/nodes",

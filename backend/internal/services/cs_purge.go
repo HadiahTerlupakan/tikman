@@ -84,6 +84,9 @@ func (s *CSPurgeService) DeleteAccount(id uuid.UUID) error {
 	if err := s.removeBroadcastPosts(id); err != nil {
 		return err
 	}
+	if err := s.removeGroups(id); err != nil {
+		return err
+	}
 	if err := s.db.Delete(&models.WAAccount{}, "id = ?", id).Error; err != nil {
 		return fmt.Errorf("delete wa account: %w", err)
 	}
@@ -118,6 +121,41 @@ func (s *CSPurgeService) removeBroadcastPosts(accountID uuid.UUID) error {
 	err = s.db.Where("wa_account_id = ?", accountID).Delete(&models.WABroadcastPost{}).Error
 	if err != nil {
 		return fmt.Errorf("delete the broadcast posts of a wa account: %w", err)
+	}
+	return nil
+}
+
+// removeGroups deletes a number's groups, their messages and the files those
+// point at. Postgres would cascade the rows from wa_accounts on its own; they
+// are removed here as well so the order is the same deliberate one as above,
+// and so the SQLite suite, which has no foreign keys, sees the same outcome.
+func (s *CSPurgeService) removeGroups(accountID uuid.UUID) error {
+	// Built fresh for each use: a *gorm.DB reused as a subquery keeps the
+	// conditions earlier statements added to it.
+	groups := func() *gorm.DB {
+		return s.db.Model(&models.WAGroup{}).Select("id").Where("wa_account_id = ?", accountID)
+	}
+
+	var paths []string
+	err := s.db.Model(&models.WAGroupMessage{}).
+		Where("group_id IN (?) AND media_path <> ''", groups()).
+		Pluck("media_path", &paths).Error
+	if err != nil {
+		return fmt.Errorf("find the attachments of a number's groups: %w", err)
+	}
+	if err := s.removeFiles(paths); err != nil {
+		return err
+	}
+
+	for _, rows := range []any{&models.WAGroupMessage{}, &models.WAGroupParticipant{}} {
+		if err := s.db.Where("group_id IN (?)", groups()).Delete(rows).Error; err != nil {
+			return fmt.Errorf("delete the group rows of a wa account: %w", err)
+		}
+	}
+	for _, rows := range []any{&models.WAGroupAction{}, &models.WAGroup{}} {
+		if err := s.db.Where("wa_account_id = ?", accountID).Delete(rows).Error; err != nil {
+			return fmt.Errorf("delete the groups of a wa account: %w", err)
+		}
 	}
 	return nil
 }

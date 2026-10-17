@@ -45,6 +45,13 @@ describe("buildNavigationRoutes", () => {
     expect(paths(UserRole.VIEWER)).not.toContain("/cs-performance");
   });
 
+  it("lists Grup WA for everyone who can open the inbox", () => {
+    expect(paths(UserRole.CS)).toContain("/cs-groups");
+    expect(paths(UserRole.TECHNICIAN)).toContain("/cs-groups");
+    expect(paths(UserRole.ADMIN)).toContain("/cs-groups");
+    expect(paths(UserRole.VIEWER)).not.toContain("/cs-groups");
+  });
+
   it("gives every entry a path and a name", () => {
     for (const route of buildNavigationRoutes(UserRole.ADMIN)) {
       expect(route.path).toMatch(/^\//);

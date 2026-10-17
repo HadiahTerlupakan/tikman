@@ -3,9 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
 import type { WaAccountStatus } from "@/domain/entities";
+import {
+  invalidateForGroupEvent,
+  isGroupEvent,
+  type GroupStreamEvent,
+} from "./waGroupKeys";
 
-type CsEvent = {
-  type: string;
+type CsEvent = GroupStreamEvent & {
   conversation_id?: string;
   wa_account_id?: string;
   account_status?: WaAccountStatus;
@@ -98,6 +102,14 @@ export function useCsStream(enabled = true): CsStreamState {
         // conversation, and the refetches below would reload the whole inbox
         // for something that changed nothing in it.
         queryClient.invalidateQueries({ queryKey: ["cs", "broadcasts"] });
+        return;
+      }
+
+      if (isGroupEvent(payload.type)) {
+        // Returns for the reason broadcast_post does: group traffic never
+        // touches a customer thread, and a busy group would otherwise reload
+        // the inbox on every message somebody posts in it.
+        invalidateForGroupEvent(queryClient, payload);
         return;
       }
 

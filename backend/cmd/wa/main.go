@@ -51,6 +51,10 @@ const (
 	// Hourly rather than minutes: admin rights on a channel change rarely, and the
 	// refresh button covers the case where somebody cannot wait.
 	channelSync = time.Hour
+	// groupSync is how often a number re-reads its groups. Changes WhatsApp
+	// announces are applied as they come; this only catches what was missed
+	// while the process was down.
+	groupSync = time.Hour
 )
 
 func main() {
@@ -100,6 +104,7 @@ func main() {
 	retention := services.NewCSMediaRetention(db, cfg.WAMediaDir, cfg.WAMediaRetentionDays)
 	channels := services.NewCSChannelService(db)
 	broadcastPosts := services.NewCSBroadcastPostService(db)
+	groups := services.NewWAGroupService(db)
 
 	live := newSessions(sessionDeps{
 		cfg:            cfg,
@@ -110,6 +115,9 @@ func main() {
 		messages:       messages,
 		channels:       channels,
 		broadcastPosts: broadcastPosts,
+		groups:         groups,
+		groupMessages:  services.NewWAGroupMessageService(db),
+		groupActions:   services.NewWAGroupActionService(db),
 		logger:         logger,
 	})
 	live.sync(ctx)
@@ -227,6 +235,8 @@ func applyControl(ctx context.Context, payload string, live *sessions, logger *z
 		live.restart(accountID)
 	case wa.ControlSyncChannels:
 		syncChannels(ctx, client, live.deps.channels, accountID, logger)
+	case wa.ControlSyncGroups:
+		go syncGroups(ctx, client, logger)
 	case wa.ControlRescanContacts:
 		// Minutes long by design (see rescanPause); run inline it would hold
 		// every other number's control messages until it finished.

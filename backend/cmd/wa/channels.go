@@ -33,13 +33,16 @@ func syncChannels(
 	logger.Info("Refreshed the channel list", zap.Int("channels", len(found)))
 }
 
-// syncChannelsOnConnect runs the first sync once the session is really
-// authenticated, which is what spec §4 means by "when a number's session
-// connects". Client.Connect returns as soon as the noise handshake is sent, so
-// syncing off it usually reaches a socket that cannot answer yet — an error,
-// or a wait for whatsmeow's 75-second request timeout — and the picker stays
-// empty until the hourly sweep comes round.
-func syncChannelsOnConnect(
+// syncOnConnect runs the first channel and group syncs once the session is
+// really authenticated, which is what spec §4 means by "when a number's
+// session connects". Client.Connect returns as soon as the noise handshake is
+// sent, so syncing off it usually reaches a socket that cannot answer yet — an
+// error, or a wait for whatsmeow's 75-second request timeout — and the picker
+// stays empty until the hourly sweep comes round.
+//
+// One waiter for both: Connected holds a single signal, and a second
+// goroutine waiting on it would miss this connection.
+func syncOnConnect(
 	ctx context.Context,
 	client *wa.Client,
 	channels *services.CSChannelService,
@@ -52,4 +55,5 @@ func syncChannelsOnConnect(
 	case <-client.Connected():
 	}
 	syncChannels(ctx, client, channels, accountID, logger)
+	syncGroups(ctx, client, logger)
 }

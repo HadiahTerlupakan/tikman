@@ -14,6 +14,7 @@ import UnconfiguredOnusPage from "../pages/UnconfiguredOnusPage";
 import TroubledOntsPage from "../pages/TroubledOntsPage";
 import ConfigTemplatesPage from "../pages/ConfigTemplatesPage";
 import CsInboxPage from "../pages/CsInboxPage";
+import CsGroupsPage from "../pages/CsGroupsPage";
 import VpnPage from "../pages/VpnPage";
 import RoutersPage from "../pages/RoutersPage";
 import SettingsPage from "../pages/SettingsPage";
@@ -91,6 +92,10 @@ export const router = createBrowserRouter([
           {
             path: "cs",
             element: <CsInboxPage />,
+          },
+          {
+            path: "cs-groups",
+            element: <CsGroupsPage />,
           },
           {
             path: "cs-performance",

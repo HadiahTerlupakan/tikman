@@ -119,7 +119,7 @@ func (h *CSHandler) ServeMedia(c *gin.Context) {
 		return
 	}
 
-	setMediaResponseHeaders(c, msg)
+	setMediaResponseHeaders(c, msg.MediaMime, msg.MediaFilename)
 	c.File(full)
 }
 
@@ -153,14 +153,14 @@ func mediaPathWithin(root, rel string) (string, bool) {
 // exploitable before SendMedia was gated. Content-Disposition only changes
 // how a direct fetch of this URL is offered to save; it is ignored for a
 // subresource fetch like <img src>, so the inbox still renders photos inline.
-func setMediaResponseHeaders(c *gin.Context, msg *models.CSMessage) {
+func setMediaResponseHeaders(c *gin.Context, storedMime, filename string) {
 	mime := "application/octet-stream"
-	if _, allowed := wa.AllowedExtension(msg.MediaMime); allowed {
-		mime = msg.MediaMime
+	if _, allowed := wa.AllowedExtension(storedMime); allowed {
+		mime = storedMime
 	}
 	c.Header("Content-Type", mime)
 	c.Header("X-Content-Type-Options", "nosniff")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", sanitizeContentDispositionFilename(msg.MediaFilename)))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", sanitizeContentDispositionFilename(filename)))
 	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
 }
 

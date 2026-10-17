@@ -27,12 +27,21 @@ type inboundHandler struct {
 	publisher     *Publisher
 	media         mediaStore
 	logger        *zap.Logger
+
+	groups        *services.WAGroupService
+	groupMessages *services.WAGroupMessageService
+	// groupSeen is told about a group a message arrived in before any sync
+	// listed it, so its name and members can be fetched.
+	groupSeen func(types.JID)
 }
 
 // handle turns one WhatsApp event into a stored message. The order matters: the
 // thread must exist before the message lands in it, and the message must be
 // stored before anyone is told to come and read it.
 func (h *inboundHandler) handle(ctx context.Context, evt *events.Message) error {
+	if isGroupChat(evt.Info) {
+		return h.handleGroup(ctx, evt)
+	}
 	att, keep := h.attachmentFor(evt)
 	if !keep {
 		return nil
@@ -98,7 +107,8 @@ func (h *inboundHandler) store(
 // what shape it has.
 //
 // This inbox holds one-to-one chats: a customer's messages, and what the phone
-// holding the number sent them (see handleFromPhone). Groups and channels stay
+// holding the number sent them (see handleFromPhone). Groups have their own
+// tables and never reach here (see handleGroup); channels and broadcasts stay
 // out. The newsletter check cannot be folded into IsGroup: whatsmeow sets that
 // flag only for GroupServer and BroadcastServer, so a channel arrives looking
 // like a one-to-one chat. Nor does IsFromMe catch our own updates coming back —
@@ -109,7 +119,11 @@ func (h *inboundHandler) attachmentFor(evt *events.Message) (attachment, bool) {
 	if evt.Info.IsGroup || evt.Info.Chat.Server == types.NewsletterServer {
 		return attachment{}, false
 	}
+	return h.readable(evt)
+}
 
+// readable describes a message, logging the shapes nobody can store.
+func (h *inboundHandler) readable(evt *events.Message) (attachment, bool) {
 	att, readable := describe(evt.Message)
 	if !readable {
 		// Locations, contact cards and polls land here alongside the reactions

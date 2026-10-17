@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Alert, Button, Image, Typography } from "antd";
+import { Alert, Button, Typography } from "antd";
 import { RedoOutlined } from "@ant-design/icons";
 import type { CsMessage } from "@/domain/entities";
 import { BubbleActions } from "./BubbleActions";
 import { DeliveryMark } from "./DeliveryMark";
-import { MediaAttachment } from "./MessageAttachment";
+import { ImageAttachment, MediaAttachment } from "./MessageAttachment";
 import { QuotedBlock } from "./QuotedBlock";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
@@ -129,32 +129,9 @@ function MessageBubble({
         )}
 
         {message.kind === "image" && (
-          // A thumbnail, not the photo. Customers send screenshots of whole
-          // phone screens, and drawn at their natural height one of those
-          // stretches the thread until the rest of the conversation is off
-          // the page. Clicking opens it full size.
-          //
-          // Content-Disposition on this endpoint is "attachment", but that
-          // only steers a direct navigation to save the file — it does not
-          // stop a subresource fetch like this from rendering inline.
-          <Image
+          <ImageAttachment
             src={`${env.apiUrl}${API_ENDPOINTS.CS_MEDIA(message.id)}`}
-            alt={message.mediaFilename || "lampiran"}
-            width={220}
-            height={160}
-            preview={{ mask: "Lihat penuh" }}
-            style={{
-              objectFit: "cover",
-              borderRadius: 6,
-              display: "block",
-            }}
-            // Block, not antd's default inline-block: a caption is a sibling
-            // span, and inline-block puts it beside the photo instead of
-            // beneath it, running off the edge of the bubble.
-            wrapperStyle={{
-              display: "block",
-              marginBottom: message.body ? 6 : 2,
-            }}
+            message={message}
           />
         )}
 

@@ -38,6 +38,8 @@ type Options struct {
 	Logger        *zap.Logger
 	Conversations *services.CSConversationService
 	Messages      *services.CSMessageService
+	Groups        *services.WAGroupService
+	GroupMessages *services.WAGroupMessageService
 	MediaRoot     string
 }
 
@@ -53,6 +55,7 @@ type Client struct {
 	receipts  *receiptHandler
 	presence  *presenceHandler
 	contacts  *contactSaver
+	groups    *services.WAGroupService
 	// dropped carries "the socket went away" from an event handler to the
 	// supervisor. It holds one slot because a second drop before the first is
 	// answered says nothing new.
@@ -107,6 +110,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		paired:    make(chan struct{}, 1),
 		loggedOut: make(chan struct{}, 1),
 		connected: make(chan struct{}, 1),
+		groups:    opt.Groups,
 		ctx:       ctx,
 	}
 	client.inbound = &inboundHandler{
@@ -117,6 +121,9 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		publisher:     opt.Publisher,
 		media:         mediaStore{root: opt.MediaRoot},
 		logger:        opt.Logger,
+		groups:        opt.Groups,
+		groupMessages: opt.GroupMessages,
+		groupSeen:     client.refreshQuietly,
 	}
 	client.receipts = &receiptHandler{messages: opt.Messages, publisher: opt.Publisher}
 	client.presence = &presenceHandler{
@@ -217,6 +224,12 @@ func (c *Client) route(rawEvt any) {
 		if err := c.receipts.handle(c.ctx, evt); err != nil {
 			c.logger.Error("Could not apply WhatsApp receipt", zap.Error(err))
 		}
+	case *events.GroupInfo:
+		// Off the event goroutine for the same reason as the contacts: each is
+		// a round trip to WhatsApp.
+		go c.handleGroupChange(evt)
+	case *events.JoinedGroup:
+		go c.storeJoinedGroup(evt)
 	case *events.ChatPresence:
 		if err := c.presence.handle(c.ctx, evt); err != nil {
 			c.logger.Warn("Could not announce that a customer is typing", zap.Error(err))

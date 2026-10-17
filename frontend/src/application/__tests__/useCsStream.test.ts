@@ -159,6 +159,72 @@ describe("useCsStream", () => {
     expect(invalidate).toHaveBeenCalledTimes(1);
   });
 
+  // A busy group posting all day must not reload the customer inbox: the
+  // whole point of keeping groups apart is that they never bury it.
+  it("refetches only group queries when a group message arrives", () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({
+          type: "group_message",
+          group_id: "g1",
+          message_id: "m1",
+        }),
+      ),
+    );
+
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toEqual([
+      ["cs", "groups", "list"],
+      ["cs", "groups", "messages", "g1"],
+    ]);
+  });
+
+  it("refetches the finished action and its group, and nothing of the inbox", () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({
+          type: "group_action",
+          group_id: "g1",
+          action_id: "a1",
+        }),
+      ),
+    );
+
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toContainEqual(["cs", "groups", "actions", "a1"]);
+    expect(keys).toContainEqual(["cs", "groups", "detail", "g1"]);
+    expect(keys.every((key) => key?.[1] === "groups")).toBe(true);
+  });
+
+  it("refetches every group's detail when a group event names none", () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useCsStream(), { wrapper: wrapper(client) });
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({ type: "group" }),
+      ),
+    );
+
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toEqual([
+      ["cs", "groups", "list"],
+      ["cs", "groups", "detail"],
+    ]);
+  });
+
   // A phone that loses signal mid-word never sends its paused, and the line
   // would otherwise stay up for the rest of the shift.
   it("takes the line down on its own when the paused never arrives", async () => {

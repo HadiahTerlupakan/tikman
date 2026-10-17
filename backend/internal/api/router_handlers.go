@@ -35,6 +35,7 @@ type handlers struct {
 	wireguardHandler       *WireGuardHandler
 	firebaseTokenHandler   *FirebaseTokenHandler
 	csHandler              *CSHandler
+	csGroupHandler         *CSGroupHandler
 	csPerformanceHandler   *CSPerformanceHandler
 	pushHandler            *PushHandler
 	provisionHandler       *ProvisionHandler
@@ -84,6 +85,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		wireguardHandler:       NewWireGuardHandler(wgService, auditService),
 		firebaseTokenHandler:   NewFirebaseTokenHandler(firebaseApp, logger),
 		csHandler:              cs.handler,
+		csGroupHandler:         cs.groups,
 		csPerformanceHandler:   cs.performance,
 		pushHandler:            cs.push,
 		provisionHandler:       provisionHandler,
@@ -101,6 +103,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 // pieces cmd/api drives itself once Setup returns.
 type csStack struct {
 	handler     *CSHandler
+	groups      *CSGroupHandler
 	performance *CSPerformanceHandler
 	push        *PushHandler
 	notifier    *services.PushNotifierService
@@ -132,6 +135,8 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 		logger, cfg.WAMediaDir,
 	)
 
+	groupHandler := NewCSGroupHandler(csHandler, services.NewWAGroupService(db),
+		services.NewWAGroupMessageService(db), services.NewWAGroupActionService(db), logger)
 	performanceHandler := NewCSPerformanceHandler(services.NewCSPerformanceService(db))
 
 	pushService := services.NewPushService(db)
@@ -142,7 +147,7 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 	pushNotifier := services.NewPushNotifierService(nil, pushService, csConversationService, csMessageService)
 	pushListener := NewPushEventListener(csRedisClient, pushNotifier, logger)
 
-	return csStack{handler: csHandler, performance: performanceHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener}
+	return csStack{handler: csHandler, groups: groupHandler, performance: performanceHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener}
 }
 
 func newProvisioningHandlers(cfg *config.Config, db *gorm.DB, logger *zap.Logger,

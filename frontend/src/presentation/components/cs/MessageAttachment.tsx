@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal } from "antd";
+import { Image, Modal } from "antd";
 import { FileOutlined, PlayCircleFilled } from "@ant-design/icons";
 import type { CsMessage } from "@/domain/entities";
 import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
@@ -90,14 +90,61 @@ function VideoAttachment({
   );
 }
 
+/** What an attachment needs to know about the message carrying it — the
+ * fields a group message shares with an inbox one. */
+type AttachedMessage = Pick<
+  CsMessage,
+  "id" | "kind" | "body" | "mediaMime" | "mediaFilename"
+>;
+
+/**
+ * A thumbnail, not the photo. Customers send screenshots of whole phone
+ * screens, and drawn at their natural height one of those stretches the thread
+ * until the rest of the conversation is off the page. Clicking opens it full
+ * size.
+ *
+ * Content-Disposition on the media endpoints is "attachment", but that only
+ * steers a direct navigation to save the file — it does not stop a subresource
+ * fetch like this from rendering inline.
+ */
+export function ImageAttachment({
+  src,
+  message,
+}: {
+  src: string;
+  message: AttachedMessage;
+}) {
+  return (
+    <Image
+      src={src}
+      alt={message.mediaFilename || "lampiran"}
+      width={220}
+      height={160}
+      preview={{ mask: "Lihat penuh" }}
+      style={{ objectFit: "cover", borderRadius: 6, display: "block" }}
+      // Block, not antd's default inline-block: a caption is a sibling span,
+      // and inline-block puts it beside the photo instead of beneath it,
+      // running off the edge of the bubble.
+      wrapperStyle={{ display: "block", marginBottom: message.body ? 6 : 2 }}
+    />
+  );
+}
+
 /**
  * Everything that is not a photo or plain text. A customer sends a video of a
  * blinking modem far more often than they describe it, and this used to render
  * as the word "Lampiran" — no player, no link, nothing to open. The file was
  * already downloaded and already served; only the way to see it was missing.
  */
-export function MediaAttachment({ message }: { message: CsMessage }) {
-  const src = `${env.apiUrl}${API_ENDPOINTS.CS_MEDIA(message.id)}`;
+export function MediaAttachment({
+  message,
+  src = `${env.apiUrl}${API_ENDPOINTS.CS_MEDIA(message.id)}`,
+}: {
+  message: AttachedMessage;
+  /** Where the file is served. Defaults to the inbox's media endpoint; group
+   * messages are served from their own. */
+  src?: string;
+}) {
   const spacing = { display: "block", marginBottom: message.body ? 6 : 2 };
 
   if (message.kind === "video") {
