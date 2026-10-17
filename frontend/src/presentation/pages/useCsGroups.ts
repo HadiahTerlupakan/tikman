@@ -203,6 +203,7 @@ export function useCsGroups() {
 
   return {
     isAdmin,
+    currentUserId: currentUser?.id ?? "",
     ...selection,
     search,
     setSearch,

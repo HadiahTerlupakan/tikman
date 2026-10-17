@@ -28,9 +28,9 @@ func (h *inboundHandler) groupChange(
 	case msg.GetReactionMessage() != nil:
 		return true, h.applyReaction(ctx, evt, groupID, members)
 	case protocol != nil && protocol.GetType() == waE2E.ProtocolMessage_REVOKE:
-		return true, h.applyRevoke(ctx, groupID, protocol.GetKey().GetID())
+		return true, h.applyRevoke(ctx, evt, groupID, protocol.GetKey().GetID(), members)
 	case protocol != nil && protocol.GetType() == waE2E.ProtocolMessage_MESSAGE_EDIT:
-		return true, h.applyEdit(ctx, groupID, protocol, members)
+		return true, h.applyEdit(ctx, evt, groupID, protocol, members)
 	case msg.GetPollUpdateMessage() != nil:
 		return true, h.applyVote(ctx, evt, groupID, members)
 	}
@@ -70,9 +70,15 @@ func (h *inboundHandler) applyReaction(
 	return nil
 }
 
-func (h *inboundHandler) applyRevoke(ctx context.Context, groupID uuid.UUID, waID string) error {
+func (h *inboundHandler) applyRevoke(
+	ctx context.Context, evt *events.Message, groupID uuid.UUID, waID string, members []models.WAGroupParticipant,
+) error {
 	target := h.target(groupID, waID)
 	if target == nil || target.Deleted {
+		return nil
+	}
+	if !wroteIt(evt, target, members) && !isGroupAdmin(evt, members) {
+		h.refused("deletion", evt, target)
 		return nil
 	}
 	path, err := h.groupMessages.MarkDeleted(target.ID)
@@ -89,10 +95,15 @@ func (h *inboundHandler) applyRevoke(ctx context.Context, groupID uuid.UUID, waI
 }
 
 func (h *inboundHandler) applyEdit(
-	ctx context.Context, groupID uuid.UUID, edit *waE2E.ProtocolMessage, members []models.WAGroupParticipant,
+	ctx context.Context, evt *events.Message, groupID uuid.UUID, edit *waE2E.ProtocolMessage,
+	members []models.WAGroupParticipant,
 ) error {
 	target := h.target(groupID, edit.GetKey().GetID())
 	if target == nil {
+		return nil
+	}
+	if !wroteIt(evt, target, members) {
+		h.refused("edit", evt, target)
 		return nil
 	}
 	replacement := edit.GetEditedMessage()
@@ -164,6 +175,45 @@ func chosenOptions(poll services.PollExtra, hashes [][]byte) []string {
 		}
 	}
 	return chosen
+}
+
+// wroteIt says whether the member sending a change wrote the message it
+// names. A message id is visible to the whole group, so without this any
+// member could rewrite or erase anyone's words here; phones refuse such a
+// change, and so must we. Ours are changed only from our own devices.
+func wroteIt(evt *events.Message, target *models.WAGroupMessage, members []models.WAGroupParticipant) bool {
+	if target.Direction == models.MessageOut {
+		return evt.Info.IsFromMe
+	}
+	if evt.Info.IsFromMe || target.SenderJID == "" {
+		return false
+	}
+	if evt.Info.Sender.ToNonAD().String() == target.SenderJID || evt.Info.SenderAlt.ToNonAD().String() == target.SenderJID {
+		return true
+	}
+	// The same member may be named by phone in one message and by LID in the
+	// next; the member list ties the two together.
+	for _, member := range members {
+		if memberIs(member, evt.Info.Sender, evt.Info.SenderAlt) && (member.JID == target.SenderJID || member.LID == target.SenderJID) {
+			return true
+		}
+	}
+	return false
+}
+
+// isGroupAdmin says whether the sender may delete other members' messages.
+func isGroupAdmin(evt *events.Message, members []models.WAGroupParticipant) bool {
+	for _, member := range members {
+		if member.Role != models.GroupRoleMember && memberIs(member, evt.Info.Sender, evt.Info.SenderAlt) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *inboundHandler) refused(change string, evt *events.Message, target *models.WAGroupMessage) {
+	h.logger.Warn("Ignoring a group "+change+" from someone who may not make it",
+		zap.String("wa_message_id", evt.Info.ID), zap.String("target_id", target.ID.String()))
 }
 
 func (h *inboundHandler) changed(ctx context.Context, target *models.WAGroupMessage) {

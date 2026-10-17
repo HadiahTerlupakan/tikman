@@ -233,3 +233,49 @@ func TestAPollIsSentAsAPoll(t *testing.T) {
 
 	assert.Equal(t, [][]string{{"Lembur?", "Ya", "Tidak"}}, sender.polls)
 }
+
+// A message id is visible to everyone in the group. Without a check on who
+// sends a change, any member could rewrite or erase anyone else's words.
+func TestAnotherMemberCannotEditOrDeleteSomeoneElsesMessage(t *testing.T) {
+	env := groupInboundSetup(t)
+	require.NoError(t, env.handler.handle(context.Background(), memberWrites("W1", "ODP 3 putus")))
+	stranger := types.JID{User: "11112222333344", Server: types.HiddenUserServer}
+	from := func(evt *events.Message) *events.Message {
+		evt.Info.Sender, evt.Info.SenderAlt = stranger, types.EmptyJID
+		return evt
+	}
+
+	edit := &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{
+		Type: waE2E.ProtocolMessage_MESSAGE_EDIT.Enum(), Key: key("W1"),
+		EditedMessage: &waE2E.Message{Conversation: proto.String("ODP 3 aman")},
+	}}
+	require.NoError(t, env.handler.handle(context.Background(), from(memberSends("W2", edit))))
+	revoke := &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{Type: waE2E.ProtocolMessage_REVOKE.Enum(), Key: key("W1")}}
+	require.NoError(t, env.handler.handle(context.Background(), from(memberSends("W3", revoke))))
+
+	msg := env.only(t)
+	assert.Equal(t, "ODP 3 putus", msg.Body)
+	assert.False(t, msg.Edited)
+	assert.False(t, msg.Deleted)
+}
+
+// A group admin may delete a member's message on WhatsApp, so the deletion
+// has to land here too.
+func TestAGroupAdminMayDeleteAMembersMessage(t *testing.T) {
+	env := groupInboundSetup(t)
+	require.NoError(t, env.handler.handle(context.Background(), memberWrites("W1", "jual pulsa murah")))
+	admin := types.JID{User: "628144445555", Server: types.DefaultUserServer}
+	_, err := env.groups.Upsert(env.handler.accountID, services.GroupSnapshot{
+		JID:          teamGroup.String(),
+		Participants: []models.WAGroupParticipant{{JID: admin.String(), Phone: admin.User, Role: models.GroupRoleAdmin}},
+	})
+	require.NoError(t, err)
+
+	revoke := memberSends("W2", &waE2E.Message{ProtocolMessage: &waE2E.ProtocolMessage{
+		Type: waE2E.ProtocolMessage_REVOKE.Enum(), Key: key("W1"),
+	}})
+	revoke.Info.Sender, revoke.Info.SenderAlt = admin, types.EmptyJID
+	require.NoError(t, env.handler.handle(context.Background(), revoke))
+
+	assert.True(t, env.only(t).Deleted)
+}

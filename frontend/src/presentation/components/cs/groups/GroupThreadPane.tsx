@@ -42,6 +42,8 @@ interface GroupThreadPaneProps {
   onCancelReply: () => void;
   /** The viewer is a TikMan admin, which widens who may delete a message. */
   isAdmin: boolean;
+  /** The viewer, who alone may edit what they wrote. */
+  currentUserId: string;
   handlers: GroupMessageHandlers;
   /** Members writing in this group right now. */
   typingNames: string[];
@@ -179,7 +181,12 @@ export function GroupThreadPane(props: GroupThreadPaneProps) {
             <GroupThread
               messages={messages}
               onRetry={onSend}
-              context={{ group, isAdmin: props.isAdmin, canSend }}
+              context={{
+                group,
+                isAdmin: props.isAdmin,
+                userId: props.currentUserId,
+                canSend,
+              }}
               handlers={props.handlers}
             />
           )}

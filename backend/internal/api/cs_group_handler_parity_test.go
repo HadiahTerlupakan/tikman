@@ -170,3 +170,20 @@ func TestHistoryNeedsAMessageToCountBackFrom(t *testing.T) {
 	env.received(t, "halo")
 	assert.Equal(t, http.StatusAccepted, env.do(t, env.cs, models.UserRoleCS, http.MethodPost, path, "").Code)
 }
+
+// A message carries its writer's initials; a colleague editing or deleting it
+// would be speaking in their name.
+func TestAColleagueCannotEditOrDeleteWhatAnotherCSWrote(t *testing.T) {
+	env := setupCSGroups(t)
+	written := env.sent(t, "jadwal teknisi", time.Now())
+
+	assert.Equal(t, http.StatusConflict,
+		env.do(t, env.otherCS, models.UserRoleCS, http.MethodPut, env.messagePath(written, ""), `{"body":"diubah"}`).Code)
+	assert.Equal(t, http.StatusForbidden,
+		env.do(t, env.otherCS, models.UserRoleCS, http.MethodDelete, env.messagePath(written, ""), "").Code)
+	assert.Equal(t, http.StatusConflict,
+		env.do(t, env.admin, models.UserRoleAdmin, http.MethodPut, env.messagePath(written, ""), `{"body":"diubah"}`).Code,
+		"not even an admin puts words in someone's name")
+	assert.Equal(t, http.StatusAccepted,
+		env.do(t, env.admin, models.UserRoleAdmin, http.MethodDelete, env.messagePath(written, ""), "").Code)
+}

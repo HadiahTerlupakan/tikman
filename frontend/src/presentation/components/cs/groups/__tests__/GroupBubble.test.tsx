@@ -32,6 +32,7 @@ function renderThread(
       context={{
         group: waGroup({ isAdmin: over.groupIsAdmin ?? false }),
         isAdmin: over.isAdmin ?? false,
+        userId: "u1",
         canSend: true,
       }}
       handlers={h}
@@ -106,7 +107,11 @@ describe("GroupThread bubbles", () => {
 
   it("offers Edit, Info pesan and Hapus untuk semua on our own recent text", async () => {
     renderThread([
-      waGroupMessage({ direction: "out", waTimestamp: justNow() }),
+      waGroupMessage({
+        direction: "out",
+        senderUserId: "u1",
+        waTimestamp: justNow(),
+      }),
     ]);
     expect(await openMenu()).toEqual(
       expect.arrayContaining(["Edit", "Info pesan", "Hapus untuk semua"]),

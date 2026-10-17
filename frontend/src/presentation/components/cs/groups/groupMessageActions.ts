@@ -18,6 +18,8 @@ export interface GroupMessageActionContext {
   group: WaGroup;
   /** The viewer is a TikMan admin. */
   isAdmin: boolean;
+  /** The viewer's own id: only a message's writer may edit it. */
+  userId: string;
   /** The composer is open: not left, not admin-only for a non-admin number. */
   canSend: boolean;
   now: number;
@@ -28,9 +30,10 @@ const UNFORWARDABLE = new Set(["system", "poll"]);
 
 /**
  * What the bubble menu offers on one message, in menu order. Each rule is the
- * server's own, so nothing is offered only to be refused: an edit only on our
- * own text inside the window, a delete for everyone on our own message, or on
- * anyone's when both the viewer and our number are admins.
+ * server's own, so nothing is offered only to be refused: an edit only on
+ * text the viewer wrote, inside the window; a delete for everyone on what the
+ * viewer wrote, on anything the number sent for an admin, and on a member's
+ * message when both the viewer and our number are admins.
  */
 export function groupMessageActions(
   message: WaGroupMessage,
@@ -40,6 +43,7 @@ export function groupMessageActions(
   // Not on WhatsApp yet, or never made it: there is nothing there to act on.
   if (message.status === "queued" || message.status === "failed") return [];
   const out = message.direction === "out";
+  const mine = out && message.senderUserId === ctx.userId;
   const member = !ctx.group.left;
   const actions: GroupMessageAction[] = [];
 
@@ -49,14 +53,14 @@ export function groupMessageActions(
   actions.push("star");
   if (out) actions.push("info");
   if (
-    out &&
+    mine &&
     member &&
     message.kind === "text" &&
     withinEditWindow(message, ctx.now)
   ) {
     actions.push("edit");
   }
-  if (member && (out || (ctx.isAdmin && ctx.group.isAdmin))) {
+  if (member && (mine || (ctx.isAdmin && (out || ctx.group.isAdmin)))) {
     actions.push("revoke");
   }
   if (!out) actions.push("replyPrivate");

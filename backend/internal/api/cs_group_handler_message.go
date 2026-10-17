@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -93,11 +94,14 @@ func (h *CSGroupHandler) EditGroupMessage(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
+	userID, _ := middleware.GetUserID(c)
 	h.actOnMessage(c, models.GroupActionEdit, services.GroupActionArgs{Body: req.Body},
 		func(_ *models.WAGroup, msg *models.WAGroupMessage) bool {
 			switch {
-			case msg.Direction != models.MessageOut || msg.Kind != models.MessageKindText:
-				c.JSON(http.StatusConflict, ErrorResponse{Error: "Hanya pesan teks kita sendiri yang bisa diedit", Code: "NOT_OURS"})
+			// Only its writer: a message carries its writer's initials, and
+			// anyone else changing its words would be speaking in their name.
+			case !writtenBy(msg, userID) || msg.Kind != models.MessageKindText:
+				c.JSON(http.StatusConflict, ErrorResponse{Error: "Hanya pesan teks yang Anda tulis sendiri yang bisa diedit", Code: "NOT_OURS"})
 				return false
 			case time.Since(msg.WATimestamp) > editWindow:
 				c.JSON(http.StatusConflict, ErrorResponse{Error: "Pesan ini sudah terlalu lama untuk diedit", Code: "EDIT_WINDOW"})
@@ -107,21 +111,30 @@ func (h *CSGroupHandler) EditGroupMessage(c *gin.Context) {
 		})
 }
 
-// DeleteGroupMessage deletes a message for everyone. Our own may go at
-// anyone's hand; someone else's only at an admin's, and only where the number
+// DeleteGroupMessage deletes a message for everyone. Its writer may; an
+// admin may delete any the number sent, and a member's only where the number
 // administers the group, which is what WhatsApp itself requires.
 func (h *CSGroupHandler) DeleteGroupMessage(c *gin.Context) {
 	role, _ := middleware.GetUserRole(c)
+	userID, _ := middleware.GetUserID(c)
 	h.actOnMessage(c, models.GroupActionRevoke, services.GroupActionArgs{},
 		func(group *models.WAGroup, msg *models.WAGroupMessage) bool {
-			if msg.Direction == models.MessageOut || (role == models.UserRoleAdmin && group.IsAdmin) {
+			admin := role == models.UserRoleAdmin
+			ours := msg.Direction == models.MessageOut
+			if writtenBy(msg, userID) || (admin && ours) || (admin && group.IsAdmin) {
 				return true
 			}
 			c.JSON(http.StatusForbidden, ErrorResponse{
-				Error: "Pesan anggota lain hanya bisa dihapus Admin, di grup yang dikelola nomor ini", Code: "FORBIDDEN",
+				Error: "Pesan orang lain hanya bisa dihapus Admin", Code: "FORBIDDEN",
 			})
 			return false
 		})
+}
+
+// writtenBy says whether this TikMan user wrote the message. One typed on
+// the phone holding the number has no writer here and belongs to nobody.
+func writtenBy(msg *models.WAGroupMessage, userID uuid.UUID) bool {
+	return msg.Direction == models.MessageOut && msg.SenderUserID != nil && *msg.SenderUserID == userID
 }
 
 // VoteInPoll answers a poll.

@@ -91,6 +91,7 @@ export function CsGroupsPage() {
               onAttach={g.handleAttach}
               onCancelReply={() => g.setReplyTo(undefined)}
               isAdmin={g.isAdmin}
+              currentUserId={g.currentUserId}
               handlers={m.handlers}
               typingNames={(g.selected && g.groupTyping[g.selected.id]) || []}
               onTypingChange={m.setTyping}
