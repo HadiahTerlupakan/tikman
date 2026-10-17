@@ -563,7 +563,7 @@ See `.env.example` for required variables. Key ones:
 - Backend tests use the race detector and coverage; lint checks use `go vet`, `gofmt -s`, and `go mod verify`
 - Frontend runs Vitest, ESLint, Prettier format checks, and a production build
 - Security scanning uses Trivy and uploads results to GitHub Security
-- Builds and pushes backend/worker images to GitHub Container Registry on pushes to `main`
+- Builds the backend/worker/wa images on pushes to `main` as a check, without pushing them anywhere
 
 **Code Quality** (`.github/workflows/code-quality.yml`)
 - Deprecated redirect workflow; security scanning now runs in `ci.yml`
@@ -574,7 +574,7 @@ Deployment is manual, run over SSH on the VPS the stack itself runs on, so it
 builds in place and no registry sits in the path. The tikman Jenkins job was
 deleted; Jenkins still runs on that host for other projects, but nothing there
 deploys this one. GitHub Actions does not deploy either — `ci.yml` only tests,
-lints and pushes images nothing consumes.
+lints and builds images it throws away.
 
 ```
 cd /opt/tikman/src && for i in 1 2 3; do
@@ -639,7 +639,8 @@ tikman` makes polling look dead when it is fine.
 A migration that fails aborts startup by design (`log.Fatal`), so a release
 carrying a destructive migration deserves a dump of what it drops first.
 
-The GHCR images CI pushes are not used. There was once a
+CI no longer pushes images to GHCR (stopped 2026-10-17: nothing pulled them and
+the repository is public). There was once a
 `.github/workflows/deploy.yml` that pulled them; it was removed because it had
 never run, had no secrets configured, and described a host layout that does not
 exist — the wrong directory, Compose v1, no VPS override and no env file, so
