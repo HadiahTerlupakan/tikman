@@ -19,6 +19,7 @@ func presenceLoop(
 	redisClient *redis.Client,
 	live *sessions,
 	conversations *services.CSConversationService,
+	groups *services.WAGroupService,
 	logger *zap.Logger,
 ) {
 	sub := redisClient.Subscribe(ctx, wa.PresenceChannel)
@@ -35,7 +36,7 @@ func presenceLoop(
 			if !open {
 				return
 			}
-			applyPresence(ctx, msg.Payload, live, conversations, logger)
+			applyPresence(ctx, msg.Payload, live, conversations, groups, logger)
 		}
 	}
 }
@@ -51,11 +52,16 @@ func applyPresence(
 	payload string,
 	live *sessions,
 	conversations *services.CSConversationService,
+	groups *services.WAGroupService,
 	logger *zap.Logger,
 ) {
 	var msg wa.PresenceMessage
 	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 		logger.Warn("Could not decode a CS typing update", zap.Error(err))
+		return
+	}
+	if msg.GroupID != "" {
+		applyGroupPresence(ctx, msg, live, groups, logger)
 		return
 	}
 	conversationID, err := uuid.Parse(msg.ConversationID)
@@ -75,5 +81,25 @@ func applyPresence(
 	if err := client.SetTyping(ctx, conv.CustomerJID, msg.Typing); err != nil {
 		logger.Warn("Could not tell WhatsApp a CS is typing",
 			zap.String("conversation_id", conversationID.String()), zap.Error(err))
+	}
+}
+
+// applyGroupPresence shows a group that someone on the team is writing to it.
+// It fails as quietly as the customer case, for the same reason.
+func applyGroupPresence(ctx context.Context, msg wa.PresenceMessage, live *sessions, groups *services.WAGroupService, logger *zap.Logger) {
+	groupID, err := uuid.Parse(msg.GroupID)
+	if err != nil {
+		return
+	}
+	group, err := groups.Get(groupID)
+	if err != nil || group.Left {
+		return
+	}
+	client := live.client(group.WAAccountID)
+	if client == nil {
+		return
+	}
+	if err := client.SetTyping(ctx, group.JID, msg.Typing); err != nil {
+		logger.Warn("Could not tell a group a CS is typing", zap.String("group_id", msg.GroupID), zap.Error(err))
 	}
 }

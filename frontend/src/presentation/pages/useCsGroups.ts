@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useNavigate,
+  useOutletContext,
+  useSearchParams,
+} from "react-router-dom";
 import { Grid, message } from "antd";
 import { useAuthStore } from "@/application/stores";
 import {
@@ -23,7 +27,9 @@ import type {
   WaGroupMessage,
 } from "@/domain/entities";
 import { describeOutcome } from "@/presentation/components/cs/groups/groupActionOutcome";
+import type { AppLayoutContext } from "@/presentation/components/layout/AppLayout";
 import { inboxLayout, type InboxPane } from "./inboxLayout";
+import { useGroupMessageActions } from "./useGroupMessageActions";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -190,6 +196,10 @@ export function useCsGroups() {
     sending.setReplyTo(undefined);
   };
   const management = useGroupManagement(handleSelect);
+  const messageActions = useGroupMessageActions(selected, sending.setReplyTo);
+  // Absent outside the app shell, which is where the stream runs.
+  const groupTyping =
+    useOutletContext<AppLayoutContext | undefined>()?.csGroupTyping ?? {};
 
   return {
     isAdmin,
@@ -206,5 +216,7 @@ export function useCsGroups() {
     setAccount: (id?: string) => patchParams({ account: id }),
     ...sending,
     ...management,
+    messageActions,
+    groupTyping,
   };
 }

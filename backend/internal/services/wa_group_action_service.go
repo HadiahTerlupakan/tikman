@@ -39,6 +39,11 @@ type GroupActionArgs struct {
 	Topic        string   `json:"topic,omitempty"`
 	Participants []string `json:"participants,omitempty"`
 	Enabled      bool     `json:"enabled,omitempty"`
+	// MessageID names the message a react, edit, revoke or vote acts on.
+	MessageID string   `json:"message_id,omitempty"`
+	Emoji     string   `json:"emoji,omitempty"`
+	Body      string   `json:"body,omitempty"`
+	Options   []string `json:"options,omitempty"`
 }
 
 // GroupActionRequest is one management request as the API received it.
@@ -108,11 +113,26 @@ func validateGroupAction(req GroupActionRequest) (GroupActionArgs, error) {
 	case models.GroupActionAdd, models.GroupActionRemove, models.GroupActionPromote, models.GroupActionDemote:
 		return withParticipants(args)
 	case models.GroupActionSetAnnounce, models.GroupActionSetLocked,
-		models.GroupActionInviteLink, models.GroupActionResetInviteLink, models.GroupActionLeave:
+		models.GroupActionInviteLink, models.GroupActionResetInviteLink, models.GroupActionLeave,
+		models.GroupActionHistory:
 		return args, nil
+	case models.GroupActionReact, models.GroupActionRevoke, models.GroupActionVote:
+		return args, needsMessage(args)
+	case models.GroupActionEdit:
+		if strings.TrimSpace(args.Body) == "" {
+			return args, fmt.Errorf("%w: isi pesan tidak boleh kosong", ErrValidation)
+		}
+		return args, needsMessage(args)
 	default:
 		return args, ErrGroupActionUnknown
 	}
+}
+
+func needsMessage(args GroupActionArgs) error {
+	if _, err := uuid.Parse(args.MessageID); err != nil {
+		return fmt.Errorf("%w: aksi ini harus menyebut pesannya", ErrValidation)
+	}
+	return nil
 }
 
 func validGroupName(name string) error {

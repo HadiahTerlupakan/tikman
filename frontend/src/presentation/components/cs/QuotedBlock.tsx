@@ -10,6 +10,10 @@ import { colors } from "@/shared/theme/colors";
 
 const { Text } = Typography;
 
+/** A group message can quote kinds the inbox has no word for (a poll, a
+ * place); those carry a summary in body, so any kind is accepted. */
+type QuotedMessage = Omit<CsQuotedMessage, "kind"> & { kind: string };
+
 const attachmentLabels: Record<string, { icon: JSX.Element; noun: string }> = {
   image: { icon: <PictureOutlined />, noun: "Foto" },
   video: { icon: <VideoCameraOutlined />, noun: "Video" },
@@ -20,7 +24,7 @@ const attachmentLabels: Record<string, { icon: JSX.Element; noun: string }> = {
 /** What the quoted line reads when the message being quoted is not text. A
  * photo with no caption has no words of its own, and an empty line under the
  * author's name looks like a rendering fault rather than a picture. */
-function attachmentLine(quoted: CsQuotedMessage) {
+function attachmentLine(quoted: QuotedMessage) {
   const label = attachmentLabels[quoted.kind];
   if (!label) return null;
   return (
@@ -31,7 +35,7 @@ function attachmentLine(quoted: CsQuotedMessage) {
 }
 
 interface QuotedBlockProps {
-  quoted: CsQuotedMessage;
+  quoted: QuotedMessage;
   /** Who wrote the quoted message, in this inbox's own words. */
   authorLabel: string;
   /** Jumps to the quoted message. Omitted in the composer, where there is

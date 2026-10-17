@@ -5,6 +5,7 @@ package wa
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
@@ -57,6 +58,9 @@ func (c *Client) SyncGroups(ctx context.Context) (int, error) {
 	if err := c.groups.SyncAll(c.accountID, snaps); err != nil {
 		return 0, err
 	}
+	for _, snap := range snaps {
+		c.trackSnapshot(snap)
+	}
 	c.publishGroup(ctx, "")
 	return len(snaps), nil
 }
@@ -68,10 +72,12 @@ func (c *Client) RefreshGroup(ctx context.Context, jid types.JID) (*models.WAGro
 	if err != nil {
 		return nil, fmt.Errorf("baca info grup: %w", err)
 	}
-	group, err := c.groups.Upsert(c.accountID, groupSnapshot(info, c.self(), c.contactNames(ctx)))
+	snap := groupSnapshot(info, c.self(), c.contactNames(ctx))
+	group, err := c.groups.Upsert(c.accountID, snap)
 	if err != nil {
 		return nil, err
 	}
+	c.trackSnapshot(snap)
 	c.publishGroup(ctx, group.ID.String())
 	return group, nil
 }
@@ -157,10 +163,27 @@ func participantRow(p types.GroupParticipant, self selfAddresses, names map[type
 	return row
 }
 
-// handleGroupChange answers WhatsApp saying a group changed. Leaving is
-// recorded straight away; anything else is re-read whole, which is simpler
-// than applying each kind of change and cannot drift from what WhatsApp holds.
+// handleGroupChange answers WhatsApp saying a group changed. What changed is
+// first worded as notices in the chat, named from the member list as it was
+// before; then leaving is recorded straight away, and anything else is
+// re-read whole, which is simpler than applying each kind of change and
+// cannot drift from what WhatsApp holds.
 func (c *Client) handleGroupChange(evt *events.GroupInfo) {
+	group, _, err := c.groups.FindOrCreate(c.accountID, evt.JID.ToNonAD().String())
+	if err != nil {
+		c.logger.Error("Could not find the group a change names", zap.Error(err))
+		return
+	}
+	members, err := c.groups.Participants(group.ID)
+	if err != nil {
+		c.logger.Warn("Could not read the members to word a group change", zap.Error(err))
+	}
+	at := evt.Timestamp
+	if at.IsZero() {
+		at = time.Now()
+	}
+	c.recordNotices(c.ctx, group.ID, systemNotices(evt, memberLabeller(members, c.self())), at)
+
 	if c.self().is(evt.Leave...) {
 		if err := c.groups.MarkLeft(c.accountID, evt.JID.ToNonAD().String()); err != nil {
 			c.logger.Error("Could not record leaving a group", zap.Error(err))
@@ -179,6 +202,14 @@ func (c *Client) storeJoinedGroup(evt *events.JoinedGroup) {
 		c.logger.Error("Could not record a group this number joined", zap.Error(err))
 		return
 	}
+	notice := "Anda ditambahkan ke grup"
+	if evt.Type == "new" && (evt.Sender == nil || c.self().is(*evt.Sender)) {
+		notice = fmt.Sprintf("Anda membuat grup \"%s\"", evt.Name)
+	} else if evt.Reason == "invite" {
+		notice = "Anda bergabung lewat tautan undangan"
+	}
+	c.recordNotices(c.ctx, group.ID, []string{notice}, time.Now())
+	c.trackAvatars(group.JID, evt.Participants)
 	c.publishGroup(c.ctx, group.ID.String())
 }
 

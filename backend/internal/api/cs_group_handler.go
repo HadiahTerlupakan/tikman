@@ -21,6 +21,7 @@ type CSGroupHandler struct {
 	groups   *services.WAGroupService
 	messages *services.WAGroupMessageService
 	actions  *services.WAGroupActionService
+	avatars  *services.WAAvatarService
 	logger   *zap.Logger
 }
 
@@ -30,9 +31,12 @@ func NewCSGroupHandler(
 	groups *services.WAGroupService,
 	messages *services.WAGroupMessageService,
 	actions *services.WAGroupActionService,
+	avatars *services.WAAvatarService,
 	logger *zap.Logger,
 ) *CSGroupHandler {
-	return &CSGroupHandler{inbox: inbox, groups: groups, messages: messages, actions: actions, logger: logger}
+	return &CSGroupHandler{
+		inbox: inbox, groups: groups, messages: messages, actions: actions, avatars: avatars, logger: logger,
+	}
 }
 
 // GroupDetail is one group with its members.

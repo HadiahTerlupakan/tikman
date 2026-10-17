@@ -15,11 +15,11 @@ import (
 // groupSender is the part of the connection a group send needs. It differs
 // from Sender in carrying mentions, which only a group has.
 type groupSender interface {
-	SendGroupText(ctx context.Context, jid, body string, quote *Quote, mentions []string, preview *linkpreview.Preview) (string, error)
+	SendGroupText(ctx context.Context, jid, body string, opts GroupSend, preview *linkpreview.Preview) (string, error)
 	SendGroupMedia(
-		ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string,
-		quote *Quote, mentions []string,
+		ctx context.Context, jid string, kind models.MessageKind, path, mime, filename, caption string, opts GroupSend,
 	) (string, error)
+	SendGroupPoll(ctx context.Context, jid, question string, options []string, selectable int) (string, error)
 }
 
 // GroupDrainer sends the messages waiting in the group outbox. It is the
@@ -89,18 +89,35 @@ func (d *GroupDrainer) Drain(ctx context.Context, limit int) (int, error) {
 }
 
 func (d *GroupDrainer) send(ctx context.Context, msg services.QueuedGroupMessage) (string, *linkpreview.Preview, error) {
-	quote := d.quote(msg.WAGroupMessage)
-	mentions := services.Mentions(&msg.WAGroupMessage)
-	if msg.Kind == models.MessageKindText {
+	opts := GroupSend{
+		Quote: d.quote(msg.WAGroupMessage), Mentions: services.Mentions(&msg.WAGroupMessage), Forwarded: msg.Forwarded,
+	}
+	switch msg.Kind {
+	case models.MessageKindText:
 		preview := linkpreview.Resolve(ctx, msg.Body)
-		waID, err := d.sender.SendGroupText(ctx, msg.GroupJID, msg.Body, quote, mentions, preview)
+		waID, err := d.sender.SendGroupText(ctx, msg.GroupJID, msg.Body, opts, preview)
 		return waID, preview, err
+	case models.MessageKindPoll:
+		waID, err := d.sendPoll(ctx, msg)
+		return waID, nil, err
 	}
 	waID, err := d.sender.SendGroupMedia(
 		ctx, msg.GroupJID, msg.Kind, filepath.Join(d.mediaRoot, msg.MediaPath),
-		msg.MediaMime, msg.MediaFilename, msg.Body, quote, mentions,
+		msg.MediaMime, msg.MediaFilename, msg.Body, opts,
 	)
 	return waID, nil, err
+}
+
+func (d *GroupDrainer) sendPoll(ctx context.Context, msg services.QueuedGroupMessage) (string, error) {
+	poll, err := services.DecodePoll(&msg.WAGroupMessage)
+	if err != nil {
+		return "", err
+	}
+	options := make([]string, len(poll.Options))
+	for i, option := range poll.Options {
+		options[i] = option.Name
+	}
+	return d.sender.SendGroupPoll(ctx, msg.GroupJID, poll.Question, options, poll.SelectableCount)
 }
 
 // quote names who wrote the quoted message: in a group the chat is not the

@@ -1,4 +1,17 @@
 import type { MessageDirection, MessageKind, MessageStatus } from "./CsMessage";
+import type {
+  WaGroupMessageExtra,
+  WaGroupReaction,
+} from "./WaGroupMessageExtra";
+
+/** A group message can be more than an inbox one: a notice WhatsApp writes
+ * itself ("Budi menambahkan Rina"), or a shared place, contact or poll. */
+export type WaGroupMessageKind =
+  | MessageKind
+  | "system"
+  | "location"
+  | "contact"
+  | "poll";
 
 /**
  * One WhatsApp group a connected number belongs to, or once belonged to. Group
@@ -31,6 +44,10 @@ export interface WaGroup {
   /** Who spoke last: "out" is our own number, shown as "Anda". */
   lastMessageDirection?: "in" | "out" | "";
   unreadCount: number;
+  /** GET /groups/:id/avatar has a photo to serve. */
+  hasAvatar: boolean;
+  /** Pinned to the top of the list, for the whole team. */
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,7 +58,11 @@ export interface WaGroupParticipant {
   jid: string;
   /** Digits, "" when WhatsApp only gave a LID. */
   phone: string;
+  /** The address-book name, "" when unknown. */
   name: string;
+  /** The name the member gave their own WhatsApp profile, "" if never seen. */
+  pushName: string;
+  hasAvatar: boolean;
   role: WaGroupRole;
   isSelf: boolean;
 }
@@ -55,7 +76,7 @@ export interface WaGroupDetail {
 export interface WaGroupQuotedMessage {
   id: string;
   direction: MessageDirection;
-  kind: MessageKind;
+  kind: WaGroupMessageKind;
   body: string;
   mediaFilename?: string;
   senderName: string;
@@ -70,9 +91,14 @@ export interface WaGroupMessage {
   senderJid: string;
   senderPhone: string;
   senderName: string;
+  /** The sender's profile name when it was sent, "" when none. */
+  senderPushName: string;
+  senderHasAvatar: boolean;
   /** The TikMan user who wrote it; absent when it was typed on the phone. */
   senderUserId?: string;
-  kind: MessageKind;
+  kind: WaGroupMessageKind;
+  /** For a system message, the finished Indonesian sentence; for a place,
+   * contact or poll, a plain summary of what extra holds. */
   body: string;
   mediaMime?: string;
   mediaSize?: number;
@@ -86,6 +112,21 @@ export interface WaGroupMessage {
   previewDescription?: string;
   /** base64 JPEG. */
   previewThumbnail?: string;
+  /** Display names tagged in the body as "@<name>". */
+  mentionNames: string[];
+  edited: boolean;
+  /** Deleted for everyone: body and media are gone. */
+  deleted: boolean;
+  forwarded: boolean;
+  /** Starred by anyone on the team. */
+  starred: boolean;
+  reactions: WaGroupReaction[];
+  /** Out messages only. */
+  readCount?: number;
+  deliveredCount?: number;
+  /** The other members when it was sent. */
+  memberCount?: number;
+  extra?: WaGroupMessageExtra;
   waTimestamp: string;
   createdAt: string;
 }
@@ -104,6 +145,15 @@ export type WaGroupActionKind =
   | "reset_invite_link"
   | "leave";
 
+/** Requests on a single message, or on the group's history. Unlike the
+ * management actions any CS may make them. */
+export type WaGroupMessageActionKind =
+  | "react"
+  | "edit"
+  | "revoke"
+  | "vote"
+  | "history";
+
 /**
  * A management request carried out by the WhatsApp process in the background.
  * It comes back queued; the final status arrives later over the stream.
@@ -113,7 +163,7 @@ export interface WaGroupAction {
   waAccountId: string;
   /** Absent for a create until it is done. */
   groupId?: string;
-  action: WaGroupActionKind;
+  action: WaGroupActionKind | WaGroupMessageActionKind;
   status: "queued" | "done" | "failed";
   /** The invite link for invite_link/reset_invite_link; per-participant
    * problems for the member actions; "" otherwise. */

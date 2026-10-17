@@ -7,7 +7,14 @@ import { colors } from "@/shared/theme/colors";
  * tick left the app, two arrived, two in colour were read. A queued reply shows
  * a clock, because "sent" would be a lie while it is still waiting.
  */
-export function DeliveryMark({ status }: { status: CsMessage["status"] }) {
+export function DeliveryMark({
+  status,
+  deliveredLabel = "Sampai di HP pelanggan",
+}: {
+  status: CsMessage["status"];
+  /** Who "delivered" reached; a group message reaches its members. */
+  deliveredLabel?: string;
+}) {
   const marks: Partial<
     Record<CsMessage["status"], { icon: JSX.Element; label: string }>
   > = {
@@ -26,7 +33,7 @@ export function DeliveryMark({ status }: { status: CsMessage["status"] }) {
           <CheckOutlined style={{ fontSize: 11 }} />
         </span>
       ),
-      label: "Sampai di HP pelanggan",
+      label: deliveredLabel,
     },
     read: {
       icon: (

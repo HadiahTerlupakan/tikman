@@ -7,3 +7,4 @@ export * from "./ICsRepository";
 export * from "./ICsPerformanceRepository";
 export * from "./IPushRepository";
 export * from "./IWaGroupRepository";
+export * from "./IWaGroupMessageRepository";

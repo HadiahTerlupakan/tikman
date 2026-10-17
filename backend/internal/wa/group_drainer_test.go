@@ -16,31 +16,38 @@ import (
 )
 
 type groupSend struct {
-	jid      string
-	body     string
-	quote    *Quote
-	mentions []string
+	jid       string
+	body      string
+	quote     *Quote
+	mentions  []string
+	forwarded bool
 }
 
 type fakeGroupSender struct {
+	polls [][]string
 	sends []groupSend
 	err   error
 }
 
 func (f *fakeGroupSender) SendGroupText(
-	_ context.Context, jid, body string, quote *Quote, mentions []string, _ *linkpreview.Preview,
+	_ context.Context, jid, body string, opts GroupSend, _ *linkpreview.Preview,
 ) (string, error) {
 	if f.err != nil {
 		return "", f.err
 	}
-	f.sends = append(f.sends, groupSend{jid: jid, body: body, quote: quote, mentions: mentions})
+	f.sends = append(f.sends, groupSend{jid: jid, body: body, quote: opts.Quote, mentions: opts.Mentions, forwarded: opts.Forwarded})
 	return "3EB0G" + body, nil
 }
 
 func (f *fakeGroupSender) SendGroupMedia(
-	_ context.Context, jid string, _ models.MessageKind, path, _, _, _ string, quote *Quote, mentions []string,
+	_ context.Context, jid string, _ models.MessageKind, path, _, _, _ string, opts GroupSend,
 ) (string, error) {
-	return f.SendGroupText(context.Background(), jid, path, quote, mentions, nil)
+	return f.SendGroupText(context.Background(), jid, path, opts, nil)
+}
+
+func (f *fakeGroupSender) SendGroupPoll(_ context.Context, jid, question string, options []string, _ int) (string, error) {
+	f.polls = append(f.polls, append([]string{question}, options...))
+	return "3EB0POLL", nil
 }
 
 type groupDrainEnv struct {

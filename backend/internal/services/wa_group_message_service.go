@@ -1,7 +1,6 @@
 package services
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -32,12 +31,19 @@ type GroupArrival struct {
 	SenderJID   string
 	SenderPhone string
 	SenderName  string
-	Kind        models.MessageKind
-	Body        string
-	Media       *MediaFile
-	ReplyToWAID string
-	Preview     *linkpreview.Preview
-	At          time.Time
+	// SenderPushName is the profile name the sender's phone attached.
+	SenderPushName string
+	Kind           models.MessageKind
+	Body           string
+	Media          *MediaFile
+	ReplyToWAID    string
+	Preview        *linkpreview.Preview
+	At             time.Time
+	// Mentions are the member JIDs the message tags.
+	Mentions []string
+	// Extra is the JSON a location, contact card or poll carries.
+	Extra     string
+	Forwarded bool
 }
 
 // GroupOutgoing is one message a TikMan user writes to a group.
@@ -51,6 +57,11 @@ type GroupOutgoing struct {
 	ReplyToID    *uuid.UUID
 	// Mentions are member JIDs the body tags as "@<address>".
 	Mentions []string
+	// Extra is a poll's question and options, as JSON.
+	Extra     string
+	Forwarded bool
+	// MemberCount is who the message reaches: everyone else in the group.
+	MemberCount int
 }
 
 // WAGroupMessageService stores group traffic in both directions, and is the
@@ -85,7 +96,8 @@ func (s *WAGroupMessageService) SaveArrived(in GroupArrival) (*models.WAGroupMes
 			return fmt.Errorf("store group message: %w", err)
 		}
 		created = true
-		return bumpGroup(tx, &stored, stored.Body, in.Direction == models.MessageIn)
+		unread := in.Direction == models.MessageIn && in.Kind != models.MessageKindSystem
+		return bumpGroup(tx, &stored, stored.Body, unread)
 	})
 	if err != nil && !created {
 		var existing models.WAGroupMessage
@@ -113,7 +125,11 @@ func arrivedGroupRow(tx *gorm.DB, in GroupArrival) models.WAGroupMessage {
 		SenderJID:          in.SenderJID,
 		SenderPhone:        in.SenderPhone,
 		SenderName:         in.SenderName,
+		SenderPushName:     in.SenderPushName,
 		Kind:               in.Kind,
+		Extra:              in.Extra,
+		Forwarded:          in.Forwarded,
+		Mentions:           encodeJIDs(in.Mentions),
 		Body:               in.Body,
 		Status:             status,
 		ReplyToID:          quotedGroupRow(tx, in.GroupID, in.ReplyToWAID),
@@ -153,9 +169,14 @@ func applyGroupMedia(row *models.WAGroupMessage, media *MediaFile) {
 
 // bumpGroup brings the group's summary up to date on the caller's transaction,
 // so the list never shows a message that failed to store, or misses one that
-// did.
+// did. Only a message newer than the summary moves it: history fetched from
+// the phone arrives oldest last, and must neither replace the latest message
+// nor count as unread.
 func bumpGroup(tx *gorm.DB, msg *models.WAGroupMessage, preview string, unread bool) error {
 	sender := msg.SenderName
+	if sender == "" && msg.SenderPushName != "" {
+		sender = "~" + msg.SenderPushName
+	}
 	if sender == "" {
 		sender = msg.SenderPhone
 	}
@@ -169,7 +190,10 @@ func bumpGroup(tx *gorm.DB, msg *models.WAGroupMessage, preview string, unread b
 	if unread {
 		fields["unread_count"] = gorm.Expr("unread_count + 1")
 	}
-	if err := tx.Model(&models.WAGroup{}).Where("id = ?", msg.GroupID).Updates(fields).Error; err != nil {
+	err := tx.Model(&models.WAGroup{}).
+		Where("id = ? AND (last_message_at IS NULL OR last_message_at <= ?)", msg.GroupID, msg.WATimestamp).
+		Updates(fields).Error
+	if err != nil {
 		return fmt.Errorf("bump group: %w", err)
 	}
 	return nil
@@ -194,16 +218,13 @@ func (s *WAGroupMessageService) Queue(out GroupOutgoing) (*models.WAGroupMessage
 		Body:         out.Body,
 		Status:       models.MessageQueued,
 		ReplyToID:    out.ReplyToID,
+		Extra:        out.Extra,
+		Forwarded:    out.Forwarded,
+		MemberCount:  out.MemberCount,
+		Mentions:     encodeJIDs(out.Mentions),
 		WATimestamp:  time.Now(),
 	}
 	applyGroupMedia(&msg, out.Media)
-	if len(out.Mentions) > 0 {
-		encoded, err := json.Marshal(uniqueStrings(out.Mentions))
-		if err != nil {
-			return nil, fmt.Errorf("encode mentions: %w", err)
-		}
-		msg.Mentions = string(encoded)
-	}
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&msg).Error; err != nil {
@@ -245,8 +266,10 @@ func (s *WAGroupMessageService) History(groupID uuid.UUID, limit, offset int) ([
 	if err != nil {
 		return nil, fmt.Errorf("load group history: %w", err)
 	}
-	showMentions(s.db, groupID, rows)
-	return rows, s.attachQuotes(rows)
+	if err := s.attachQuotes(rows); err != nil {
+		return nil, err
+	}
+	return rows, s.decorate(groupID, rows)
 }
 
 // attachQuotes fills in every quoted message on a page in one query.

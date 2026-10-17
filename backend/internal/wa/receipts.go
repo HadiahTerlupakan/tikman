@@ -16,12 +16,16 @@ import (
 type receiptHandler struct {
 	messages  *services.CSMessageService
 	publisher announcer
+	groups    *groupReceipts
 }
 
 // handle applies one receipt to every message it names. WhatsApp reports a
 // batch of ids at once, and a receipt for a message we never stored is ignored
 // by ApplyReceipt rather than treated as an error.
 func (h *receiptHandler) handle(ctx context.Context, evt *events.Receipt) error {
+	if evt.Chat.Server == types.GroupServer {
+		return h.groups.handle(ctx, evt)
+	}
 	status, tracked := receiptStatus(evt.Type)
 	if !tracked {
 		return nil

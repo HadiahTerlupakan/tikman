@@ -3,8 +3,10 @@ import type { WaGroup, WaGroupMessage } from "@/domain/entities";
 import {
   groupPreview,
   parseParticipants,
+  participantLabel,
   sendBlockedReason,
   senderLabel,
+  typingLine,
 } from "./groupSummary";
 
 function group(over: Partial<WaGroup> = {}): WaGroup {
@@ -24,6 +26,8 @@ function group(over: Partial<WaGroup> = {}): WaGroup {
     lastMessageKind: "",
     lastMessageSender: "",
     unreadCount: 0,
+    hasAvatar: false,
+    pinned: false,
     createdAt: "2026-10-01T00:00:00Z",
     updatedAt: "2026-10-01T00:00:00Z",
     ...over,
@@ -109,6 +113,26 @@ describe("senderLabel", () => {
     expect(senderLabel(base)).toBe("123456789");
   });
 
+  // WhatsApp marks a name the member chose for themselves with "~", so it is
+  // not mistaken for one somebody on the team saved.
+  it("shows a profile name with a tilde when no saved name exists", () => {
+    expect(senderLabel({ ...base, senderPushName: "Rina" })).toBe("~Rina");
+    expect(
+      senderLabel({ ...base, senderName: "Bu Rina", senderPushName: "Rina" }),
+    ).toBe("Bu Rina");
+    expect(
+      participantLabel({
+        jid: base.senderJid,
+        phone: "628123",
+        name: "",
+        pushName: "Rina",
+        hasAvatar: false,
+        role: "member",
+        isSelf: false,
+      }),
+    ).toBe("~Rina");
+  });
+
   it("calls our own number Anda", () => {
     expect(senderLabel({ ...base, direction: "out", senderName: "CS" })).toBe(
       "Anda",
@@ -125,5 +149,16 @@ describe("parseParticipants", () => {
 
   it("returns nothing for blank input", () => {
     expect(parseParticipants(" \n , ")).toEqual([]);
+  });
+});
+
+describe("typingLine", () => {
+  it("names one or two writers and counts more", () => {
+    expect(typingLine([])).toBeNull();
+    expect(typingLine(["Budi"])).toBe("Budi sedang mengetik…");
+    expect(typingLine(["Budi", "Ani"])).toBe("Budi dan Ani sedang mengetik…");
+    expect(typingLine(["Budi", "Ani", "Rina"])).toBe(
+      "3 orang sedang mengetik…",
+    );
   });
 });

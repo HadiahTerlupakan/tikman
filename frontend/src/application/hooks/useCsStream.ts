@@ -4,18 +4,27 @@ import { API_ENDPOINTS } from "@/infrastructure/http/endpoints";
 import { env } from "@/shared/config/env";
 import type { WaAccountStatus } from "@/domain/entities";
 import {
+  applyGroupTyping,
+  groupTypingNames,
+  sweepGroupTyping,
+  type GroupTypingDeadlines,
+  type GroupTypingEvent,
+  type GroupTypingStatus,
+} from "./groupTyping";
+import {
   invalidateForGroupEvent,
   isGroupEvent,
   type GroupStreamEvent,
 } from "./waGroupKeys";
 
-type CsEvent = GroupStreamEvent & {
-  conversation_id?: string;
-  wa_account_id?: string;
-  account_status?: WaAccountStatus;
-  pairing_code?: string;
-  typing?: boolean;
-};
+type CsEvent = GroupStreamEvent &
+  GroupTypingEvent & {
+    conversation_id?: string;
+    wa_account_id?: string;
+    account_status?: WaAccountStatus;
+    pairing_code?: string;
+    typing?: boolean;
+  };
 
 /** How long a "sedang mengetik" line stays up on its own. WhatsApp repeats
  * composing every few seconds while a customer writes and sends paused when
@@ -55,6 +64,8 @@ export type CsTypingStatus = Record<string, boolean>;
 export interface CsStreamState {
   accounts: WaStreamStatus;
   typing: CsTypingStatus;
+  /** Who is writing in each WhatsApp group. */
+  groupTyping: GroupTypingStatus;
 }
 
 /**
@@ -72,6 +83,8 @@ export function useCsStream(enabled = true): CsStreamState {
   // Deadlines rather than flags: a customer who is still writing keeps pushing
   // theirs forward, and one whose phone went quiet has theirs pass.
   const [typingUntil, setTypingUntil] = useState<Record<string, number>>({});
+  const [groupTypingUntil, setGroupTypingUntil] =
+    useState<GroupTypingDeadlines>({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -94,6 +107,15 @@ export function useCsStream(enabled = true): CsStreamState {
         // stored, and a customer holding down a key would otherwise reload the
         // inbox and the whole thread every few seconds.
         applyTyping(setTypingUntil, payload);
+        return;
+      }
+
+      if (payload.type === "group_typing") {
+        // Returns for the reason typing does, and before isGroupEvent: a group
+        // member writing changes nothing stored on either side.
+        setGroupTypingUntil((current) =>
+          applyGroupTyping(current, payload, Date.now()),
+        );
         return;
       }
 
@@ -180,12 +202,25 @@ export function useCsStream(enabled = true): CsStreamState {
     return () => clearInterval(sweep);
   }, [typingCount]);
 
+  const groupTypingCount = Object.keys(groupTypingUntil).length;
+  useEffect(() => {
+    if (groupTypingCount === 0) return;
+    const sweep = setInterval(() => {
+      setGroupTypingUntil((current) => sweepGroupTyping(current, Date.now()));
+    }, TYPING_SWEEP_MS);
+    return () => clearInterval(sweep);
+  }, [groupTypingCount]);
+
   const typing = useMemo(
     () => Object.fromEntries(Object.keys(typingUntil).map((id) => [id, true])),
     [typingUntil],
   );
+  const groupTyping = useMemo(
+    () => groupTypingNames(groupTypingUntil),
+    [groupTypingUntil],
+  );
 
-  return { accounts: waStatus, typing };
+  return { accounts: waStatus, typing, groupTyping };
 }
 
 /** applyTyping records that one thread started or stopped having a customer

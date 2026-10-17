@@ -28,3 +28,4 @@ export * from "./usePushNotifications";
 export * from "./useMapping";
 export * from "./useWaGroups";
 export * from "./useWaGroupActions";
+export * from "./useWaGroupMessageActions";

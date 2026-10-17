@@ -40,6 +40,7 @@ type Options struct {
 	Messages      *services.CSMessageService
 	Groups        *services.WAGroupService
 	GroupMessages *services.WAGroupMessageService
+	Avatars       *services.WAAvatarService
 	MediaRoot     string
 }
 
@@ -56,6 +57,7 @@ type Client struct {
 	presence  *presenceHandler
 	contacts  *contactSaver
 	groups    *services.WAGroupService
+	avatars   *services.WAAvatarService
 	// dropped carries "the socket went away" from an event handler to the
 	// supervisor. It holds one slot because a second drop before the first is
 	// answered says nothing new.
@@ -111,6 +113,7 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		loggedOut: make(chan struct{}, 1),
 		connected: make(chan struct{}, 1),
 		groups:    opt.Groups,
+		avatars:   opt.Avatars,
 		ctx:       ctx,
 	}
 	client.inbound = &inboundHandler{
@@ -125,10 +128,13 @@ func NewClient(ctx context.Context, opt Options) (*Client, error) {
 		groupMessages: opt.GroupMessages,
 		groupSeen:     client.refreshQuietly,
 	}
-	client.receipts = &receiptHandler{messages: opt.Messages, publisher: opt.Publisher}
+	client.receipts = &receiptHandler{messages: opt.Messages, publisher: opt.Publisher, groups: &groupReceipts{
+		accountID: opt.AccountID, groups: opt.Groups, messages: opt.GroupMessages, publisher: opt.Publisher,
+	}}
 	client.presence = &presenceHandler{
 		accountID:     opt.AccountID,
 		conversations: opt.Conversations,
+		groups:        opt.Groups,
 		publisher:     opt.Publisher,
 	}
 	client.contacts = &contactSaver{
@@ -230,6 +236,10 @@ func (c *Client) route(rawEvt any) {
 		go c.handleGroupChange(evt)
 	case *events.JoinedGroup:
 		go c.storeJoinedGroup(evt)
+	case *events.Picture:
+		c.pictureChanged(evt)
+	case *events.HistorySync:
+		go c.storeGroupHistory(evt)
 	case *events.ChatPresence:
 		if err := c.presence.handle(c.ctx, evt); err != nil {
 			c.logger.Warn("Could not announce that a customer is typing", zap.Error(err))

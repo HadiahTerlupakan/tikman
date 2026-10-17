@@ -17,3 +17,4 @@ export * from "./MikrotikRouterRepository";
 export * from "./RouterFlowRepository";
 export * from "./RouterPathRepository";
 export * from "./WaGroupRepository";
+export * from "./WaGroupMessageRepository";

@@ -75,3 +75,17 @@ func (s *CSConversationService) SetAvatarChecked(id uuid.UUID, at time.Time) err
 	}
 	return nil
 }
+
+// StaleSubjects is StaleAvatars in the shape the avatar sweeper shares with
+// the group photos.
+func (s *CSConversationService) StaleSubjects(accountID uuid.UUID, limit int, before time.Time) ([]AvatarSubject, error) {
+	due, err := s.StaleAvatars(accountID, limit, before)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]AvatarSubject, len(due))
+	for i, conv := range due {
+		out[i] = AvatarSubject{ID: conv.ID, JID: conv.CustomerJID, AvatarID: conv.AvatarID}
+	}
+	return out, nil
+}

@@ -13,6 +13,11 @@ export const waGroupKeys = {
   details: () => ["cs", "groups", "detail"] as const,
   detail: (id?: string) => ["cs", "groups", "detail", id] as const,
   messages: (id?: string) => ["cs", "groups", "messages", id] as const,
+  // Under the group's messages, so the refetch a group_message event already
+  // triggers covers a star or a read receipt that changed with it.
+  starred: (id: string) => ["cs", "groups", "messages", id, "starred"] as const,
+  receipts: (id: string, messageId: string) =>
+    ["cs", "groups", "messages", id, "receipts", messageId] as const,
   action: (id: string) => ["cs", "groups", "actions", id] as const,
 };
 
@@ -53,6 +58,12 @@ export function invalidateForGroupEvent(
         ? waGroupKeys.detail(event.group_id)
         : waGroupKeys.details(),
     });
+    // Older history asked for from the phone can land as a group event.
+    if (event.group_id) {
+      queryClient.invalidateQueries({
+        queryKey: waGroupKeys.messages(event.group_id),
+      });
+    }
     return;
   }
 

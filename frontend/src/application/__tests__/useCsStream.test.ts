@@ -225,6 +225,75 @@ describe("useCsStream", () => {
     ]);
   });
 
+  // A member writing in a busy group must reload nothing, on either side.
+  it("shows who is writing in a group without refetching anything", () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useCsStream(), {
+      wrapper: wrapper(client),
+    });
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({
+          type: "group_typing",
+          group_id: "g1",
+          sender_jid: "628111@s.whatsapp.net",
+          sender_name: "Budi",
+          typing: true,
+        }),
+      ),
+    );
+
+    expect(result.current.groupTyping.g1).toEqual(["Budi"]);
+    expect(result.current.typing).toEqual({});
+    expect(invalidate).not.toHaveBeenCalled();
+
+    act(() =>
+      FakeEventSource.instances[0].emit(
+        "cs",
+        JSON.stringify({
+          type: "group_typing",
+          group_id: "g1",
+          sender_jid: "628111@s.whatsapp.net",
+          typing: false,
+        }),
+      ),
+    );
+    expect(result.current.groupTyping.g1).toBeUndefined();
+  });
+
+  it("takes a group's typing line down when it is not refreshed", () => {
+    vi.useFakeTimers();
+    try {
+      const client = new QueryClient();
+      const { result } = renderHook(() => useCsStream(), {
+        wrapper: wrapper(client),
+      });
+
+      act(() =>
+        FakeEventSource.instances[0].emit(
+          "cs",
+          JSON.stringify({
+            type: "group_typing",
+            group_id: "g1",
+            sender_jid: "628111@s.whatsapp.net",
+            sender_name: "Budi",
+            typing: true,
+          }),
+        ),
+      );
+      act(() => vi.advanceTimersByTime(4_000));
+      expect(result.current.groupTyping.g1).toEqual(["Budi"]);
+
+      act(() => vi.advanceTimersByTime(3_000));
+      expect(result.current.groupTyping.g1).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // A phone that loses signal mid-word never sends its paused, and the line
   // would otherwise stay up for the rest of the shift.
   it("takes the line down on its own when the paused never arrives", async () => {

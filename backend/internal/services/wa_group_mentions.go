@@ -18,6 +18,9 @@ func MemberNames(members []models.WAGroupParticipant) map[string]string {
 	for _, member := range members {
 		label := member.Name
 		if label == "" {
+			label = member.PushName
+		}
+		if label == "" {
 			label = member.Phone
 		}
 		if label == "" {
@@ -69,20 +72,16 @@ func Mentions(msg *models.WAGroupMessage) []string {
 	return jids
 }
 
-// showMentions puts names where our own messages carry addresses. A failure
-// to read the members leaves the addresses, which are still correct.
-func showMentions(db *gorm.DB, groupID uuid.UUID, rows []models.WAGroupMessage) {
-	var names map[string]string
-	for i := range rows {
-		jids := Mentions(&rows[i])
-		if len(jids) == 0 {
-			continue
-		}
-		if names == nil {
-			names = memberNamesOf(db, groupID)
-		}
-		rows[i].Body = ResolveMentions(rows[i].Body, jids, names)
+// encodeJIDs stores a list of JIDs, once each, "" for none.
+func encodeJIDs(jids []string) string {
+	if len(jids) == 0 {
+		return ""
 	}
+	encoded, err := json.Marshal(uniqueStrings(jids))
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 // withNames is body as the group list should preview it.

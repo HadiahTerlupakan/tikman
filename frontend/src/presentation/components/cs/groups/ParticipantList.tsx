@@ -10,7 +10,9 @@ import type {
   WaGroupRole,
 } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
+import { MemberAvatar } from "./GroupAvatars";
 import { participantLabel } from "./groupSummary";
+import { senderColor } from "./senderColor";
 
 const { Text } = Typography;
 
@@ -21,6 +23,8 @@ const roleTags: Partial<Record<WaGroupRole, { label: string; color: string }>> =
   };
 
 interface ParticipantListProps {
+  /** The group the member photos are served through. */
+  groupId: string;
   participants: WaGroupParticipant[];
   /** Present only when the viewer is a TikMan admin and our number is an
    * admin of the group — the two things WhatsApp and the API both demand. */
@@ -77,7 +81,15 @@ function MemberActions({
 }
 
 /** The group's members, admins first, each with their role. */
+/** The number under a member's name, unless the name already is the number. */
+function secondaryLine(participant: WaGroupParticipant): string | null {
+  if (!participant.phone) return null;
+  const phone = `+${participant.phone}`;
+  return participantLabel(participant) === phone ? null : phone;
+}
+
 export function ParticipantList({
+  groupId,
   participants,
   onAction,
 }: ParticipantListProps) {
@@ -89,6 +101,7 @@ export function ParticipantList({
     <div role="list" aria-label="Anggota grup">
       {ordered.map((participant) => {
         const tag = roleTags[participant.role];
+        const secondary = secondaryLine(participant);
         return (
           <div
             key={participant.jid}
@@ -101,13 +114,20 @@ export function ParticipantList({
               borderBottom: `1px solid ${colors.border}`,
             }}
           >
+            <MemberAvatar
+              groupId={groupId}
+              jid={participant.jid}
+              hasAvatar={!!participant.hasAvatar}
+              size={32}
+              color={senderColor(participant.jid)}
+            />
             <div style={{ flex: 1, minWidth: 0 }}>
               <Text ellipsis style={{ display: "block", fontSize: 13 }}>
                 {participantLabel(participant)}
               </Text>
-              {participant.name && participant.phone && (
+              {secondary && (
                 <Text type="secondary" style={{ fontSize: 11 }}>
-                  +{participant.phone}
+                  {secondary}
                 </Text>
               )}
             </div>

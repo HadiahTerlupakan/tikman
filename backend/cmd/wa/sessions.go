@@ -29,6 +29,7 @@ type sessionDeps struct {
 	groups         *services.WAGroupService
 	groupMessages  *services.WAGroupMessageService
 	groupActions   *services.WAGroupActionService
+	avatars        *services.WAAvatarService
 	logger         *zap.Logger
 }
 
@@ -142,6 +143,7 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 		Messages:      s.deps.messages,
 		Groups:        s.deps.groups,
 		GroupMessages: s.deps.groupMessages,
+		Avatars:       s.deps.avatars,
 		MediaRoot:     s.deps.cfg.WAMediaDir,
 	})
 	if err != nil {
@@ -165,8 +167,9 @@ func (s *sessions) ensure(ctx context.Context, account models.WAAccount) {
 	live := &session{
 		client: client, drainer: drainer, broadcastDrainer: broadcastDrainer,
 		groupDrainer: groupDrainer,
-		groupActions: wa.NewGroupActionRunner(account.ID, s.deps.groupActions, s.deps.groups, client, publisher),
-		stop:         stop,
+		groupActions: wa.NewGroupActionRunner(account.ID, s.deps.groupActions, s.deps.groups,
+			s.deps.groupMessages, client, publisher, s.deps.cfg.WAMediaDir),
+		stop: stop,
 	}
 	s.running[account.ID] = live
 	s.deps.logger.Info("Started a WhatsApp session",
@@ -215,8 +218,16 @@ func (s *sessions) feed(ctx context.Context, account models.WAAccount, live *ses
 
 	avatars := wa.NewAvatarSweeper(account.ID, s.deps.conversations, live.client,
 		s.deps.cfg.WAMediaDir, avatarPace, avatarRefresh)
-	sweepAvatars(ctx, avatars, logger)
-	every(ctx, avatarSweep, func() { sweepAvatars(ctx, avatars, logger) })
+	// Groups and their members after the customers, in the same slow loop, so
+	// the photo queries a number makes stay one paced stream.
+	groupAvatars := wa.NewAvatarSweeper(account.ID, s.deps.avatars, live.client,
+		s.deps.cfg.WAMediaDir, avatarPace, avatarRefresh)
+	sweep := func() {
+		sweepAvatars(ctx, avatars, logger)
+		sweepAvatars(ctx, groupAvatars, logger)
+	}
+	sweep()
+	every(ctx, avatarSweep, sweep)
 }
 
 // watchForLogout drops one session once WhatsApp ends its link, and leaves it

@@ -24,8 +24,10 @@ const PresenceChannel = "cs:presence"
 // thread rather than the number: the wa process already knows which number a
 // thread belongs to, and the browser that sends it does not need to care.
 type PresenceMessage struct {
-	ConversationID string `json:"conversation_id"`
-	Typing         bool   `json:"typing"`
+	ConversationID string `json:"conversation_id,omitempty"`
+	// GroupID is set instead of ConversationID for typing in a group.
+	GroupID string `json:"group_id,omitempty"`
+	Typing  bool   `json:"typing"`
 }
 
 // ControlChannel carries admin actions — pair a number, or give one up — to
@@ -80,6 +82,9 @@ type Event struct {
 	GroupID string `json:"group_id,omitempty"`
 	// ActionID names the management request a group_action event answers.
 	ActionID string `json:"action_id,omitempty"`
+	// SenderJID and SenderName say who is typing, on a group_typing event.
+	SenderJID  string `json:"sender_jid,omitempty"`
+	SenderName string `json:"sender_name,omitempty"`
 	// Typing says whether the customer is writing, on a typing event. It is
 	// absent when they have stopped, which reads as false.
 	Typing bool `json:"typing,omitempty"`
@@ -108,6 +113,8 @@ const (
 	EventGroup = "group"
 	// EventGroupAction says a management request finished, done or failed.
 	EventGroupAction = "group_action"
+	// EventGroupTyping says a member started or stopped writing in a group.
+	EventGroupTyping = "group_typing"
 )
 
 // announcer is what the handlers in this package need of a Publisher: a way to

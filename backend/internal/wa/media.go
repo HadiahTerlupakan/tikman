@@ -63,6 +63,8 @@ type attachment struct {
 	mime     string
 	filename string
 	download whatsmeow.DownloadableMessage
+	// extra is the JSON a location, contact card or poll carries; groups only.
+	extra string
 }
 
 // describe reads what a CS would see in a WhatsApp message. It answers false

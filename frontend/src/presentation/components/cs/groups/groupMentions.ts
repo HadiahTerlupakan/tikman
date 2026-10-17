@@ -37,3 +37,36 @@ export function toWhatsAppMentions(
   }
   return { body, mentions };
 }
+
+export interface MentionPart {
+  text: string;
+  mention: boolean;
+}
+
+/**
+ * Splits a body into plain runs and the "@<name>" tags WhatsApp marked as
+ * mentions, so only those are highlighted — an "@" someone typed by hand
+ * notified nobody and is drawn as text. Longer names are tried first, for
+ * the reason toWhatsAppMentions gives.
+ */
+export function splitMentions(body: string, names: string[]): MentionPart[] {
+  const tags = [...new Set(names.filter(Boolean))]
+    .map((name) => `@${name}`)
+    .sort((a, b) => b.length - a.length);
+  const parts: MentionPart[] = [];
+  let plain = "";
+  let i = 0;
+  while (i < body.length) {
+    const tag = body[i] === "@" && tags.find((t) => body.startsWith(t, i));
+    if (!tag) {
+      plain += body[i++];
+      continue;
+    }
+    if (plain) parts.push({ text: plain, mention: false });
+    parts.push({ text: tag, mention: true });
+    plain = "";
+    i += tag.length;
+  }
+  if (plain) parts.push({ text: plain, mention: false });
+  return parts;
+}

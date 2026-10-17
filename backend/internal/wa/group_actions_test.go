@@ -66,6 +66,28 @@ func (f *fakeGroupAdmin) LeaveGroup(_ context.Context, jid string) error {
 	return f.record(adminCall{name: "leave", jid: jid})
 }
 
+func (f *fakeGroupAdmin) SelfJID() string { return ourPhone.String() }
+
+func (f *fakeGroupAdmin) React(_ context.Context, jid, sender, waID, emoji string) error {
+	return f.record(adminCall{name: "react:" + emoji + ":" + waID + ":" + sender, jid: jid})
+}
+
+func (f *fakeGroupAdmin) Revoke(_ context.Context, jid, sender, waID string) error {
+	return f.record(adminCall{name: "revoke:" + waID + ":" + sender, jid: jid})
+}
+
+func (f *fakeGroupAdmin) EditText(_ context.Context, jid, waID, body string, _ []string) error {
+	return f.record(adminCall{name: "edit:" + waID + ":" + body, jid: jid})
+}
+
+func (f *fakeGroupAdmin) Vote(_ context.Context, jid string, poll PollTarget, options []string) error {
+	return f.record(adminCall{name: "vote:" + poll.WAMessageID, jid: jid, participants: options})
+}
+
+func (f *fakeGroupAdmin) RequestHistory(_ context.Context, jid string, anchor HistoryAnchor) error {
+	return f.record(adminCall{name: "history:" + anchor.WAMessageID, jid: jid})
+}
+
 func (f *fakeGroupAdmin) RefreshGroupJID(_ context.Context, jid string) error {
 	f.refreshed = append(f.refreshed, jid)
 	return nil
@@ -85,7 +107,8 @@ func queueAction(t *testing.T, env groupDrainEnv, req services.GroupActionReques
 
 func runActions(t *testing.T, env groupDrainEnv, admin *fakeGroupAdmin, announced *recordingAnnouncer) {
 	t.Helper()
-	runner := NewGroupActionRunner(env.account.ID, services.NewWAGroupActionService(env.db), env.groups, admin, announced)
+	runner := NewGroupActionRunner(env.account.ID, services.NewWAGroupActionService(env.db), env.groups,
+		env.messages, admin, announced, t.TempDir())
 	_, err := runner.Run(context.Background(), 10)
 	require.NoError(t, err)
 }

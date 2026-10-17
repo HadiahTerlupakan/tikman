@@ -15,6 +15,7 @@ import {
   type CsTypingStatus,
   type WaStreamStatus,
 } from "@/application/hooks/useCsStream";
+import type { GroupTypingStatus } from "@/application/hooks/groupTyping";
 import { UserRole } from "@/domain/entities";
 import { NotificationBell } from "@/presentation/components/cs/NotificationBell";
 import {
@@ -79,6 +80,8 @@ export interface AppLayoutContext {
   csStream: WaStreamStatus;
   /** Which threads have a customer writing in them right now. */
   csTyping: CsTypingStatus;
+  /** Who is writing in each WhatsApp group, read by CsGroupsPage. */
+  csGroupTyping: GroupTypingStatus;
 }
 
 export function AppLayout() {
@@ -315,6 +318,7 @@ export function AppLayout() {
                 {
                   csStream: stream.accounts,
                   csTyping: stream.typing,
+                  csGroupTyping: stream.groupTyping,
                 } satisfies AppLayoutContext
               }
             />

@@ -1,6 +1,14 @@
 import { useState, type ClipboardEvent } from "react";
-import { Alert, Button, Mentions, Upload, message as toast } from "antd";
 import {
+  Alert,
+  Button,
+  Dropdown,
+  Mentions,
+  Upload,
+  message as toast,
+} from "antd";
+import {
+  BarChartOutlined,
   CloseOutlined,
   PaperClipOutlined,
   SendOutlined,
@@ -9,11 +17,14 @@ import type {
   WaGroup,
   WaGroupMessage,
   WaGroupParticipant,
+  WaGroupPollRequest,
 } from "@/domain/entities";
 import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
 import { colors } from "@/shared/theme/colors";
 import { PendingAttachment } from "../PendingAttachment";
 import { QuotedBlock } from "../QuotedBlock";
+import { useTypingSignal } from "../useTypingSignal";
+import { CreatePollModal } from "./CreatePollModal";
 import { sendBlockedReason, senderLabel } from "./groupSummary";
 import { mentionOptions, toWhatsAppMentions } from "./groupMentions";
 
@@ -32,6 +43,57 @@ interface GroupComposerProps {
   attaching: boolean;
   replyTo?: WaGroupMessage;
   onCancelReply: () => void;
+  /** Raises or clears our "sedang mengetik" in the named group. */
+  onTypingChange?: (groupId: string, typing: boolean) => void;
+  /** Answers whether the poll was sent; a false keeps the dialog open. */
+  onCreatePoll?: (poll: WaGroupPollRequest) => Promise<boolean>;
+  creatingPoll?: boolean;
+}
+
+function AttachMenu({
+  attaching,
+  onFile,
+  onPoll,
+}: {
+  attaching: boolean;
+  onFile: (file: File) => void;
+  onPoll?: () => void;
+}) {
+  // false: antd would otherwise post the file itself, without the session
+  // cookie or the caption.
+  const upload = (
+    <Upload
+      accept={CS_MEDIA_ACCEPT}
+      showUploadList={false}
+      beforeUpload={(file) => {
+        onFile(file);
+        return false;
+      }}
+    >
+      Foto atau berkas
+    </Upload>
+  );
+  const items = [
+    { key: "file", icon: <PaperClipOutlined />, label: upload },
+    ...(onPoll
+      ? [{ key: "poll", icon: <BarChartOutlined />, label: "Buat polling" }]
+      : []),
+  ];
+  return (
+    <Dropdown
+      trigger={["click"]}
+      placement="topLeft"
+      menu={{ items, onClick: ({ key }) => key === "poll" && onPoll?.() }}
+    >
+      <Button
+        type="text"
+        icon={<PaperClipOutlined />}
+        loading={attaching}
+        title="Lampirkan"
+        aria-label="Lampirkan"
+      />
+    </Dropdown>
+  );
 }
 
 function ReplyingTo({
@@ -74,8 +136,13 @@ export function GroupComposer({
   attaching,
   replyTo,
   onCancelReply,
+  onTypingChange = () => {},
+  onCreatePoll,
+  creatingPoll = false,
 }: GroupComposerProps) {
   const [text, setText] = useState("");
+  const [pollOpen, setPollOpen] = useState(false);
+  const signalTyping = useTypingSignal(group.id, onTypingChange);
   // Kept with the group it was added in: shown in another, it would be posted
   // to the wrong group.
   const [pending, setPending] = useState<{ file: File; groupId: string }>();
@@ -98,6 +165,7 @@ export function GroupComposer({
   const handleSend = async () => {
     const typed = text.trim();
     if (!staged && !typed) return;
+    signalTyping(false);
     const { body, mentions } = toWhatsAppMentions(typed, participants);
     const sent = staged
       ? await onAttach(staged, body, mentions)
@@ -115,6 +183,10 @@ export function GroupComposer({
       return;
     }
     setPending({ file, groupId: group.id });
+  };
+
+  const createPoll = async (poll: WaGroupPollRequest) => {
+    if (await onCreatePoll?.(poll)) setPollOpen(false);
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -140,29 +212,20 @@ export function GroupComposer({
         />
       )}
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-        {/* false: antd would otherwise post the file itself, without the
-            session cookie or the caption. */}
-        <Upload
-          accept={CS_MEDIA_ACCEPT}
-          showUploadList={false}
-          beforeUpload={(file) => {
-            stage(file);
-            return false;
-          }}
-        >
-          <Button
-            type="text"
-            icon={<PaperClipOutlined />}
-            loading={attaching}
-            title="Lampirkan berkas"
-            aria-label="Lampirkan berkas"
-          />
-        </Upload>
+        <AttachMenu
+          attaching={attaching}
+          onFile={stage}
+          onPoll={onCreatePoll ? () => setPollOpen(true) : undefined}
+        />
         {/* onPressEnter only fires while no member list is open, so Enter
             picks a member there and sends everywhere else. */}
         <Mentions
           value={text}
-          onChange={setText}
+          onChange={(value) => {
+            setText(value);
+            signalTyping(value.trim().length > 0);
+          }}
+          onBlur={() => signalTyping(false)}
           options={mentionOptions(participants)}
           onPaste={handlePaste}
           onPressEnter={(e) => {
@@ -188,6 +251,12 @@ export function GroupComposer({
           title="Kirim"
         />
       </div>
+      <CreatePollModal
+        open={pollOpen}
+        creating={creatingPoll}
+        onCreate={createPoll}
+        onClose={() => setPollOpen(false)}
+      />
     </div>
   );
 }

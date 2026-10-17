@@ -118,6 +118,7 @@ func main() {
 		groups:         groups,
 		groupMessages:  services.NewWAGroupMessageService(db),
 		groupActions:   services.NewWAGroupActionService(db),
+		avatars:        services.NewWAAvatarService(db),
 		logger:         logger,
 	})
 	live.sync(ctx)
@@ -128,7 +129,7 @@ func main() {
 
 	go controlLoop(ctx, redisClient, live, logger)
 	go drainOnAnnouncement(ctx, redisClient, live, logger)
-	go presenceLoop(ctx, redisClient, live, conversations, logger)
+	go presenceLoop(ctx, redisClient, live, conversations, groups, logger)
 	go func() {
 		// Once at startup as well as on the ticker: a process that is restarted
 		// more often than once a day would otherwise never sweep at all.

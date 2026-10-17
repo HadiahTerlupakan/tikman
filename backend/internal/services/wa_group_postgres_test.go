@@ -72,3 +72,49 @@ func TestGroupMigrationRefusesAnUnknownStatus(t *testing.T) {
 	}).Error
 	assert.Error(t, err)
 }
+
+// The upserts and the per-page aggregates of reactions, receipts, votes and
+// photos, which SQLite accepts more loosely than Postgres.
+func TestGroupParityAgainstPostgres(t *testing.T) {
+	db := setupPostgresTestDB(t)
+	groups := NewWAGroupService(db)
+	messages := NewWAGroupMessageService(db)
+	avatars := NewWAAvatarService(db)
+	account := csAccount(t, db)
+	group, err := groups.Upsert(account.ID, groupSnap("1@g.us", "Teknisi", "62811", "62812"))
+	require.NoError(t, err)
+
+	queued, err := messages.Queue(GroupOutgoing{
+		GroupID: group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "OTW", MemberCount: 2,
+	})
+	require.NoError(t, err)
+	require.NoError(t, messages.MarkSent(queued.ID, "WOUT", nil))
+	for _, reader := range []string{"62811@s.whatsapp.net", "62811@s.whatsapp.net", "62812@s.whatsapp.net"} {
+		_, err = messages.ApplyReceipt(group.ID, []string{"WOUT"}, reader, true, time.Now())
+		require.NoError(t, err)
+	}
+	actor := models.GroupActor{JID: "62811@s.whatsapp.net", Name: "Budi"}
+	require.NoError(t, messages.SetReaction(queued.ID, actor, "👍"))
+	require.NoError(t, messages.SetReaction(queued.ID, actor, "❤️"))
+	_, err = groups.SetPinned(group.ID, true)
+	require.NoError(t, err)
+	require.NoError(t, avatars.Track(account.ID, []string{"1@g.us", "62811@s.whatsapp.net"}))
+	require.NoError(t, avatars.Track(account.ID, []string{"1@g.us"}))
+	due, err := avatars.StaleSubjects(account.ID, 10, time.Now())
+	require.NoError(t, err)
+	require.Len(t, due, 2)
+	assert.Equal(t, "1@g.us", due[0].JID, "a group's photo is looked at before its members'")
+
+	history, err := messages.History(group.ID, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, models.MessageRead, history[0].Status)
+	require.NotNil(t, history[0].ReadCount)
+	assert.Equal(t, 2, *history[0].ReadCount)
+	require.Len(t, history[0].Reactions, 1)
+	assert.Equal(t, "❤️", history[0].Reactions[0].Emoji)
+
+	listed, err := groups.List(GroupFilter{})
+	require.NoError(t, err)
+	assert.True(t, listed[0].Pinned)
+}

@@ -91,7 +91,8 @@ func (h *CSGroupHandler) queueAction(c *gin.Context, req services.GroupActionReq
 	c.JSON(http.StatusAccepted, gin.H{"data": action})
 }
 
-// GetGroupAction answers how far a management request got.
+// GetGroupAction answers how far a request got: to an admin for any request,
+// to anyone else for their own.
 func (h *CSGroupHandler) GetGroupAction(c *gin.Context) {
 	id, ok := pathUUID(c, "id", "INVALID_ACTION_ID")
 	if !ok {
@@ -100,6 +101,12 @@ func (h *CSGroupHandler) GetGroupAction(c *gin.Context) {
 	action, err := h.actions.Get(id)
 	if err != nil {
 		mapCSError(c, err, "GROUP_ACTION_NOT_FOUND")
+		return
+	}
+	userID, _ := middleware.GetUserID(c)
+	role, _ := middleware.GetUserRole(c)
+	if role != models.UserRoleAdmin && action.RequestedBy != userID {
+		c.JSON(http.StatusForbidden, ErrorResponse{Error: "forbidden", Code: "FORBIDDEN"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": action})

@@ -23,3 +23,4 @@ export * from "./Mapping";
 export * from "./MikrotikRouter";
 export * from "./RouterFlow";
 export * from "./WaGroup";
+export * from "./WaGroupMessageExtra";

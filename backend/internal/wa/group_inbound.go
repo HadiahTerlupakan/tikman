@@ -27,11 +27,6 @@ func isGroupChat(info types.MessageInfo) bool {
 // message was seen, which would be the team speaking for itself without
 // having looked.
 func (h *inboundHandler) handleGroup(ctx context.Context, evt *events.Message) error {
-	att, keep := h.readable(evt)
-	if !keep {
-		return nil
-	}
-
 	group, created, err := h.groups.FindOrCreate(h.accountID, evt.Info.Chat.ToNonAD().String())
 	if err != nil {
 		return err
@@ -43,21 +38,41 @@ func (h *inboundHandler) handleGroup(ctx context.Context, evt *events.Message) e
 		go h.groupSeen(evt.Info.Chat.ToNonAD())
 	}
 
-	names := h.memberNames(group.ID)
+	members := h.members(group.ID)
+	h.notePushName(group.ID, evt.Info)
+	if handled, err := h.groupChange(ctx, evt, group.ID, members); handled {
+		return err
+	}
+	att, keep := h.groupShape(evt)
+	if !keep {
+		return nil
+	}
+	return h.storeGroupMessage(ctx, evt, group.ID, att, members)
+}
+
+func (h *inboundHandler) storeGroupMessage(
+	ctx context.Context, evt *events.Message, groupID uuid.UUID, att attachment, members []models.WAGroupParticipant,
+) error {
+	names := services.MemberNames(members)
+	mentions := mentionedJIDs(evt.Message)
 	body, media := h.fetch(ctx, evt, att)
 	msg, stored, err := h.groupMessages.SaveArrived(services.GroupArrival{
-		GroupID:     group.ID,
-		WAMessageID: evt.Info.ID,
-		Direction:   groupDirection(evt.Info),
-		SenderJID:   evt.Info.Sender.ToNonAD().String(),
-		SenderPhone: senderPhoneJID(evt.Info.MessageSource).User,
-		SenderName:  senderName(evt.Info, names),
-		Kind:        att.kind,
-		Body:        services.ResolveMentions(body, mentionedJIDs(evt.Message), names),
-		Media:       media,
-		ReplyToWAID: quotedStanzaID(evt.Message),
-		Preview:     inboundPreview(evt.Message),
-		At:          evt.Info.Timestamp,
+		GroupID:        groupID,
+		WAMessageID:    evt.Info.ID,
+		Direction:      groupDirection(evt.Info),
+		SenderJID:      evt.Info.Sender.ToNonAD().String(),
+		SenderPhone:    senderPhoneJID(evt.Info.MessageSource).User,
+		SenderName:     bookName(evt.Info, members),
+		SenderPushName: evt.Info.PushName,
+		Kind:           att.kind,
+		Body:           services.ResolveMentions(body, mentions, names),
+		Media:          media,
+		ReplyToWAID:    quotedStanzaID(evt.Message),
+		Preview:        inboundPreview(evt.Message),
+		At:             evt.Info.Timestamp,
+		Mentions:       mentions,
+		Extra:          att.extra,
+		Forwarded:      isForwarded(evt.Message),
 	})
 	if err != nil || !stored {
 		// Same reasoning as store: a failed save committed nothing, and a
@@ -66,7 +81,7 @@ func (h *inboundHandler) handleGroup(ctx context.Context, evt *events.Message) e
 		return err
 	}
 
-	h.announceGroup(ctx, Event{Type: EventGroupMessage, GroupID: group.ID.String(), MessageID: msg.ID.String()})
+	h.announceGroup(ctx, Event{Type: EventGroupMessage, GroupID: groupID.String(), MessageID: msg.ID.String()})
 	return nil
 }
 
@@ -77,29 +92,55 @@ func groupDirection(info types.MessageInfo) models.MessageDirection {
 	return models.MessageIn
 }
 
-// memberNames answers what each member is called, by every address WhatsApp
-// may use for them. A failure costs the names, not the message.
-func (h *inboundHandler) memberNames(groupID uuid.UUID) map[string]string {
+// members answers the group's member list. A failure costs the names, not
+// the message.
+func (h *inboundHandler) members(groupID uuid.UUID) []models.WAGroupParticipant {
 	members, err := h.groups.Participants(groupID)
 	if err != nil {
 		h.logger.Warn("Could not read a group's members to name a sender", zap.Error(err))
 		return nil
 	}
-	return services.MemberNames(members)
+	return members
 }
 
-// senderName is the push name the sender's phone attached, falling back to
-// what the group's member list knows them as.
-func senderName(info types.MessageInfo, names map[string]string) string {
-	if info.PushName != "" {
-		return info.PushName
+// notePushName keeps the sender's profile name on their member row, which is
+// how a member nobody saved still gets a name in the list and in mentions.
+func (h *inboundHandler) notePushName(groupID uuid.UUID, info types.MessageInfo) {
+	if info.IsFromMe || info.PushName == "" {
+		return
 	}
-	for _, jid := range []types.JID{info.Sender, info.SenderAlt} {
-		if name, ok := names[jid.User]; ok && jid.User != "" {
-			return name
+	addresses := []string{info.Sender.ToNonAD().String()}
+	if !info.SenderAlt.IsEmpty() {
+		addresses = append(addresses, info.SenderAlt.ToNonAD().String())
+	}
+	if err := h.groups.NotePushName(groupID, addresses, info.PushName); err != nil {
+		h.logger.Warn("Could not record a member's profile name", zap.Error(err))
+	}
+}
+
+// bookName is what the number's address book calls the sender, "" when it
+// does not know them: the page then shows their profile name as "~Name",
+// the way a phone does.
+func bookName(info types.MessageInfo, members []models.WAGroupParticipant) string {
+	for _, member := range members {
+		if member.Name != "" && memberIs(member, info.Sender, info.SenderAlt) {
+			return member.Name
 		}
 	}
 	return ""
+}
+
+func memberIs(member models.WAGroupParticipant, jids ...types.JID) bool {
+	for _, jid := range jids {
+		if jid.IsEmpty() {
+			continue
+		}
+		address := jid.ToNonAD().String()
+		if address == member.JID || address == member.LID || jid.User == member.Phone {
+			return true
+		}
+	}
+	return false
 }
 
 // mentionedJIDs answers who a message tags, read from every shape that can

@@ -5,6 +5,7 @@ import type {
   WaGroupDetail,
   WaGroupFilter,
   WaGroupMessage,
+  WaGroupPollRequest,
 } from "../entities";
 
 export interface IWaGroupRepository {
@@ -37,4 +38,15 @@ export interface IWaGroupRepository {
   ): Promise<WaGroupAction>;
   act(groupId: string, request: WaGroupActionRequest): Promise<WaGroupAction>;
   getAction(actionId: string): Promise<WaGroupAction>;
+  setPinned(groupId: string, pinned: boolean): Promise<WaGroup>;
+  /** Shows or clears our "sedang mengetik" to the group. */
+  setTyping(groupId: string, typing: boolean): Promise<void>;
+  /** Asks the phone for the messages before the oldest one stored. */
+  requestHistory(groupId: string): Promise<WaGroupAction>;
+  /** Newest first. */
+  getStarred(groupId: string): Promise<WaGroupMessage[]>;
+  createPoll(
+    groupId: string,
+    poll: WaGroupPollRequest,
+  ): Promise<WaGroupMessage>;
 }

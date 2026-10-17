@@ -130,7 +130,19 @@ func groupByJID(db *gorm.DB, accountID uuid.UUID, jid string) (*models.WAGroup, 
 	return &group, nil
 }
 
+// replaceParticipants rewrites a group's member list. The push names are
+// carried across: WhatsApp's group info does not include them, they are
+// learnt one message at a time, and a sync must not forget them.
 func replaceParticipants(tx *gorm.DB, groupID uuid.UUID, members []models.WAGroupParticipant) error {
+	var known []models.WAGroupParticipant
+	if err := tx.Select("jid", "push_name").Where("group_id = ? AND push_name <> ''", groupID).
+		Find(&known).Error; err != nil {
+		return fmt.Errorf("read group members' push names: %w", err)
+	}
+	pushNames := make(map[string]string, len(known))
+	for _, member := range known {
+		pushNames[member.JID] = member.PushName
+	}
 	if err := tx.Where("group_id = ?", groupID).Delete(&models.WAGroupParticipant{}).Error; err != nil {
 		return fmt.Errorf("clear group members: %w", err)
 	}
@@ -141,6 +153,9 @@ func replaceParticipants(tx *gorm.DB, groupID uuid.UUID, members []models.WAGrou
 	for i, member := range members {
 		member.ID = uuid.Nil
 		member.GroupID = groupID
+		if member.PushName == "" {
+			member.PushName = pushNames[member.JID]
+		}
 		rows[i] = member
 	}
 	if err := tx.Create(&rows).Error; err != nil {
@@ -186,12 +201,12 @@ func (s *WAGroupService) List(filter GroupFilter) ([]models.WAGroup, error) {
 	}
 
 	var groups []models.WAGroup
-	err := query.Order("last_message_at IS NULL, last_message_at DESC, name ASC").
+	err := query.Order("pinned_at IS NULL, pinned_at DESC, last_message_at IS NULL, last_message_at DESC, name ASC").
 		Limit(defaultGroupListLimit).Find(&groups).Error
 	if err != nil {
 		return nil, fmt.Errorf("list groups: %w", err)
 	}
-	return groups, nil
+	return groups, s.markGroupAvatars(groups)
 }
 
 // Get answers one group.
@@ -200,7 +215,11 @@ func (s *WAGroupService) Get(id uuid.UUID) (*models.WAGroup, error) {
 	if err := s.db.First(&group, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	return &group, nil
+	groups := []models.WAGroup{group}
+	if err := s.markGroupAvatars(groups); err != nil {
+		return nil, err
+	}
+	return &groups[0], nil
 }
 
 // Participants answers a group's members, admins first.
@@ -212,7 +231,7 @@ func (s *WAGroupService) Participants(groupID uuid.UUID) ([]models.WAGroupPartic
 	if err != nil {
 		return nil, fmt.Errorf("list group members: %w", err)
 	}
-	return members, nil
+	return members, s.markMemberAvatars(groupID, members)
 }
 
 // MarkRead clears a group's unread count, answering whether there was one.

@@ -136,7 +136,7 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 	)
 
 	groupHandler := NewCSGroupHandler(csHandler, services.NewWAGroupService(db),
-		services.NewWAGroupMessageService(db), services.NewWAGroupActionService(db), logger)
+		services.NewWAGroupMessageService(db), services.NewWAGroupActionService(db), services.NewWAAvatarService(db), logger)
 	performanceHandler := NewCSPerformanceHandler(services.NewCSPerformanceService(db))
 
 	pushService := services.NewPushService(db)

@@ -98,7 +98,8 @@ func TestAGroupMessageIsStoredWithTheGroupAndNotInTheInbox(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, "ODP 12 putus", history[0].Body)
-	assert.Equal(t, "Rina", history[0].SenderName)
+	assert.Equal(t, "Rina", history[0].SenderPushName)
+	assert.Empty(t, history[0].SenderName, "nobody saved her, so a phone would show ~Rina")
 	assert.Equal(t, "628122223333", history[0].SenderPhone, "the number comes from SenderAlt when the sender is a LID")
 	assert.Equal(t, models.MessageIn, history[0].Direction)
 }

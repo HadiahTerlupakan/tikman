@@ -45,7 +45,7 @@ func (h *CSGroupHandler) SendGroupMessage(c *gin.Context) {
 	msg, err := h.messages.Queue(services.GroupOutgoing{
 		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
 		Kind: models.MessageKindText, Body: h.inbox.sign(userID, req.Body), ReplyToID: replyTo,
-		Mentions: req.Mentions,
+		Mentions: req.Mentions, MemberCount: h.memberCount(group.ID),
 	})
 	if err != nil {
 		mapCSError(c, err, "GROUP_SEND_FAILED")
@@ -86,7 +86,7 @@ func (h *CSGroupHandler) SendGroupMedia(c *gin.Context) {
 	msg, err := h.messages.Queue(services.GroupOutgoing{
 		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
 		Kind: kindForMime(mime), Body: caption, Media: media, ReplyToID: replyTo,
-		Mentions: mentions,
+		Mentions: mentions, MemberCount: h.memberCount(group.ID),
 	})
 	if err != nil {
 		h.inbox.removeOrphanedUpload(media.Path)

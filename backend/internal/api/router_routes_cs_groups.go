@@ -20,10 +20,29 @@ func (h *handlers) registerCSGroupRoutes(cs *gin.RouterGroup) {
 	cs.POST("/groups/:id/messages", h.csGroupHandler.SendGroupMessage)
 	cs.POST("/groups/:id/media", h.csGroupHandler.SendGroupMedia)
 	cs.GET("/group-media/:message_id", h.csGroupHandler.ServeGroupMedia)
+	cs.GET("/groups/:id/avatar", h.csGroupHandler.ServeGroupAvatar)
+	cs.GET("/groups/:id/member-avatar", h.csGroupHandler.ServeMemberAvatar)
+	cs.PUT("/groups/:id/pin", h.csGroupHandler.PinGroup)
+	cs.POST("/groups/:id/typing", h.csGroupHandler.SetGroupTyping)
+	cs.POST("/groups/:id/history", h.csGroupHandler.RequestGroupHistory)
+	cs.POST("/groups/:id/polls", h.csGroupHandler.CreateGroupPoll)
+	cs.GET("/groups/:id/starred", h.csGroupHandler.StarredGroupMessages)
+
+	// Acting on one message is the team's, like writing one. Deleting someone
+	// else's message is checked inside the handler: it is an admin's call.
+	msg := "/groups/:id/messages/:message_id"
+	cs.PUT(msg, h.csGroupHandler.EditGroupMessage)
+	cs.DELETE(msg, h.csGroupHandler.DeleteGroupMessage)
+	cs.POST(msg+"/reaction", h.csGroupHandler.ReactToMessage)
+	cs.PUT(msg+"/star", h.csGroupHandler.StarGroupMessage)
+	cs.POST(msg+"/forward", h.csGroupHandler.ForwardGroupMessage)
+	cs.POST(msg+"/reply-private", h.csGroupHandler.ReplyPrivately)
+	cs.GET(msg+"/receipts", h.csGroupHandler.MessageReceipts)
+	cs.POST(msg+"/vote", h.csGroupHandler.VoteInPoll)
 
 	cs.POST("/groups", admin, h.csGroupHandler.CreateGroup)
 	cs.POST("/groups/:id/actions", admin, h.csGroupHandler.ActOnGroup)
-	// Admin only like the requests themselves: an answer can be the group's
-	// invite link, and anyone holding it can join the group.
-	cs.GET("/group-actions/:id", admin, h.csGroupHandler.GetGroupAction)
+	// Who may read an answer is decided inside: an admin any, anyone else
+	// only their own, since an admin's answer can be the invite link.
+	cs.GET("/group-actions/:id", h.csGroupHandler.GetGroupAction)
 }

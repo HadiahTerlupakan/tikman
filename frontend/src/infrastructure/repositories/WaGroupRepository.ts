@@ -8,6 +8,7 @@ import type {
   WaGroupDetail,
   WaGroupFilter,
   WaGroupMessage,
+  WaGroupPollRequest,
 } from "@/domain/entities";
 
 /**
@@ -119,6 +120,42 @@ export class WaGroupRepository implements IWaGroupRepository {
   async getAction(actionId: string): Promise<WaGroupAction> {
     const response = await apiClient.get(
       API_ENDPOINTS.CS_GROUP_ACTION(actionId),
+    );
+    return response.data.data;
+  }
+
+  async setPinned(groupId: string, pinned: boolean): Promise<WaGroup> {
+    const response = await apiClient.put(API_ENDPOINTS.CS_GROUP_PIN(groupId), {
+      pinned,
+    });
+    return response.data.data;
+  }
+
+  async setTyping(groupId: string, typing: boolean): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.CS_GROUP_TYPING(groupId), { typing });
+  }
+
+  async requestHistory(groupId: string): Promise<WaGroupAction> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.CS_GROUP_HISTORY_REQUEST(groupId),
+    );
+    return response.data.data;
+  }
+
+  async getStarred(groupId: string): Promise<WaGroupMessage[]> {
+    const response = await apiClient.get(
+      API_ENDPOINTS.CS_GROUP_STARRED(groupId),
+    );
+    return response.data.data ?? [];
+  }
+
+  async createPoll(
+    groupId: string,
+    poll: WaGroupPollRequest,
+  ): Promise<WaGroupMessage> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.CS_GROUP_POLLS(groupId),
+      poll,
     );
     return response.data.data;
   }

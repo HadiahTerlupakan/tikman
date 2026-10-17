@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
 )
 
@@ -67,6 +66,14 @@ type Picture struct {
 // AvatarSource is the part of whatsmeow that fetching a profile photo needs.
 // The bytes come back with the answer rather than a link to them: WhatsApp's
 // photo URLs expire, so a link kept for later is a link that stops working.
+// AvatarBook is where photos are recorded: the customer threads, or the
+// photos of groups and their members.
+type AvatarBook interface {
+	StaleSubjects(accountID uuid.UUID, limit int, before time.Time) ([]services.AvatarSubject, error)
+	SetAvatarChecked(id uuid.UUID, at time.Time) error
+	SetAvatar(id uuid.UUID, avatarID, path string) (string, error)
+}
+
 type AvatarSource interface {
 	ProfilePicture(ctx context.Context, jid, knownID string) (Picture, error)
 }
@@ -79,30 +86,30 @@ type AvatarSource interface {
 // reason the outbox is — a burst of queries about a list of strangers is the
 // shape of traffic that gets an unofficial number flagged.
 type AvatarSweeper struct {
-	accountID     uuid.UUID
-	conversations *services.CSConversationService
-	source        AvatarSource
-	root          string
-	pace          time.Duration
-	refreshAfter  time.Duration
+	accountID    uuid.UUID
+	book         AvatarBook
+	source       AvatarSource
+	root         string
+	pace         time.Duration
+	refreshAfter time.Duration
 }
 
 // NewAvatarSweeper constructs an AvatarSweeper. refreshAfter is how long a
 // photo already looked at is left alone before the question is put again.
 func NewAvatarSweeper(
 	accountID uuid.UUID,
-	conversations *services.CSConversationService,
+	book AvatarBook,
 	source AvatarSource,
 	root string,
 	pace, refreshAfter time.Duration,
 ) *AvatarSweeper {
 	return &AvatarSweeper{
-		accountID:     accountID,
-		conversations: conversations,
-		source:        source,
-		root:          root,
-		pace:          pace,
-		refreshAfter:  refreshAfter,
+		accountID:    accountID,
+		book:         book,
+		source:       source,
+		root:         root,
+		pace:         pace,
+		refreshAfter: refreshAfter,
 	}
 }
 
@@ -115,7 +122,7 @@ func NewAvatarSweeper(
 // the connection being down, and marking everyone checked would leave the
 // whole inbox faceless for a week over a blip.
 func (a *AvatarSweeper) Sweep(ctx context.Context, limit int) (int, error) {
-	due, err := a.conversations.StaleAvatars(a.accountID, limit, time.Now().Add(-a.refreshAfter))
+	due, err := a.book.StaleSubjects(a.accountID, limit, time.Now().Add(-a.refreshAfter))
 	if err != nil {
 		return 0, err
 	}
@@ -141,15 +148,15 @@ func (a *AvatarSweeper) Sweep(ctx context.Context, limit int) (int, error) {
 	return stored, nil
 }
 
-func (a *AvatarSweeper) refresh(ctx context.Context, conv models.CSConversation) (bool, error) {
-	pic, err := a.source.ProfilePicture(ctx, conv.CustomerJID, conv.AvatarID)
+func (a *AvatarSweeper) refresh(ctx context.Context, conv services.AvatarSubject) (bool, error) {
+	pic, err := a.source.ProfilePicture(ctx, conv.JID, conv.AvatarID)
 	if err != nil {
 		return false, err
 	}
 
 	switch pic.State {
 	case PictureUnchanged:
-		return false, a.conversations.SetAvatarChecked(conv.ID, time.Now())
+		return false, a.book.SetAvatarChecked(conv.ID, time.Now())
 	case PictureNone:
 		return false, a.forget(conv.ID)
 	}
@@ -158,7 +165,7 @@ func (a *AvatarSweeper) refresh(ctx context.Context, conv models.CSConversation)
 	if err != nil {
 		return false, err
 	}
-	replaced, err := a.conversations.SetAvatar(conv.ID, pic.ID, path)
+	replaced, err := a.book.SetAvatar(conv.ID, pic.ID, path)
 	if err != nil {
 		// The row does not name the file, so nothing would ever collect it.
 		a.remove(path)
@@ -171,7 +178,7 @@ func (a *AvatarSweeper) refresh(ctx context.Context, conv models.CSConversation)
 // forget drops a photo the customer has taken down, so the inbox stops showing
 // a face they have removed.
 func (a *AvatarSweeper) forget(id uuid.UUID) error {
-	replaced, err := a.conversations.SetAvatar(id, "", "")
+	replaced, err := a.book.SetAvatar(id, "", "")
 	if err != nil {
 		return err
 	}

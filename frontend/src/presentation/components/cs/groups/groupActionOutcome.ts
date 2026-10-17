@@ -1,6 +1,6 @@
-import type { WaGroupAction, WaGroupActionKind } from "@/domain/entities";
+import type { WaGroupAction } from "@/domain/entities";
 
-const doneText: Record<WaGroupActionKind, string> = {
+const doneText: Record<WaGroupAction["action"], string> = {
   create: "Grup dibuat",
   rename: "Nama grup diubah",
   set_topic: "Deskripsi grup diubah",
@@ -13,6 +13,11 @@ const doneText: Record<WaGroupActionKind, string> = {
   invite_link: "Tautan undangan siap",
   reset_invite_link: "Tautan undangan baru dibuat",
   leave: "Nomor ini sudah keluar dari grup",
+  react: "Reaksi terkirim",
+  edit: "Pesan diedit",
+  revoke: "Pesan dihapus untuk semua",
+  vote: "Pilihan terkirim",
+  history: "Riwayat lama diminta dari HP",
 };
 
 export interface GroupActionOutcome {

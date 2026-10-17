@@ -1,13 +1,15 @@
 import { Button, Divider, Empty, Spin, Typography } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, HistoryOutlined } from "@ant-design/icons";
 import type {
   WaGroup,
   WaGroupActionRequest,
   WaGroupParticipant,
 } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
+import { GroupAvatar } from "./GroupAvatars";
 import { GroupManagement } from "./GroupManagement";
 import { ParticipantList } from "./ParticipantList";
+import { StarredMessages } from "./StarredMessages";
 
 const { Text, Paragraph } = Typography;
 
@@ -19,6 +21,8 @@ interface GroupInfoPaneProps {
   isAdmin: boolean;
   busy: boolean;
   onAction: (request: WaGroupActionRequest) => void;
+  requestingHistory: boolean;
+  onRequestHistory: () => void;
   /** Present only where the panes take turns. */
   onBack?: () => void;
 }
@@ -40,6 +44,8 @@ export function GroupInfoPane({
   isAdmin,
   busy,
   onAction,
+  requestingHistory,
+  onRequestHistory,
   onBack,
 }: GroupInfoPaneProps) {
   if (!group) {
@@ -63,6 +69,9 @@ export function GroupInfoPane({
           Kembali ke percakapan
         </Button>
       )}
+      <div style={{ textAlign: "center", marginBottom: 8 }}>
+        <GroupAvatar groupId={group.id} hasAvatar={group.hasAvatar} size={88} />
+      </div>
       <Text strong style={{ display: "block", fontSize: 16 }}>
         {group.name || group.jid}
       </Text>
@@ -83,15 +92,39 @@ export function GroupInfoPane({
       )}
 
       <Divider style={{ margin: "12px 0" }} />
+      <Text style={sectionTitle}>Pesan berbintang</Text>
+      <StarredMessages groupId={group.id} />
+
+      <Divider style={{ margin: "12px 0" }} />
       <Text style={sectionTitle}>{group.participantCount} anggota</Text>
       {loading ? (
         <Spin />
       ) : (
         <ParticipantList
+          groupId={group.id}
           participants={participants}
           onAction={manages && group.isAdmin && !busy ? onAction : undefined}
         />
       )}
+
+      <Divider style={{ margin: "12px 0" }} />
+      <Button
+        size="small"
+        icon={<HistoryOutlined />}
+        loading={requestingHistory}
+        disabled={group.left}
+        onClick={onRequestHistory}
+      >
+        Muat riwayat lama dari HP
+      </Button>
+      <Text
+        type="secondary"
+        style={{ display: "block", fontSize: 12, marginTop: 6 }}
+      >
+        Meminta HP mengirim sekitar 50 pesan sebelum pesan tertua yang
+        tersimpan. HP harus sedang online, dan grup harus sudah punya setidaknya
+        satu pesan di TikMan. Pesan muncul beberapa saat kemudian.
+      </Text>
     </div>
   );
 }

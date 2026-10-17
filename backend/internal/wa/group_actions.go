@@ -25,6 +25,7 @@ type GroupAdmin interface {
 	LeaveGroup(ctx context.Context, jid string) error
 	// RefreshGroupJID re-reads a group into the mirror after it changed.
 	RefreshGroupJID(ctx context.Context, jid string) error
+	MessageAdmin
 }
 
 // errGroupLeft is an action on a group the number is no longer in.
@@ -38,8 +39,10 @@ type GroupActionRunner struct {
 	accountID uuid.UUID
 	actions   *services.WAGroupActionService
 	groups    *services.WAGroupService
+	messages  *services.WAGroupMessageService
 	admin     GroupAdmin
 	publisher announcer
+	mediaRoot string
 }
 
 // NewGroupActionRunner constructs a GroupActionRunner.
@@ -47,10 +50,15 @@ func NewGroupActionRunner(
 	accountID uuid.UUID,
 	actions *services.WAGroupActionService,
 	groups *services.WAGroupService,
+	messages *services.WAGroupMessageService,
 	admin GroupAdmin,
 	publisher announcer,
+	mediaRoot string,
 ) *GroupActionRunner {
-	return &GroupActionRunner{accountID: accountID, actions: actions, groups: groups, admin: admin, publisher: publisher}
+	return &GroupActionRunner{
+		accountID: accountID, actions: actions, groups: groups, messages: messages,
+		admin: admin, publisher: publisher, mediaRoot: mediaRoot,
+	}
 }
 
 // Run carries out what is waiting and answers how many WhatsApp accepted. A
@@ -149,7 +157,7 @@ func (r *GroupActionRunner) apply(
 	case models.GroupActionLeave:
 		return "", r.admin.LeaveGroup(ctx, group.JID)
 	default:
-		return "", services.ErrGroupActionUnknown
+		return "", r.applyToMessage(ctx, kind, group, args)
 	}
 }
 
@@ -160,7 +168,9 @@ func (r *GroupActionRunner) afterwards(ctx context.Context, kind models.GroupAct
 	switch kind {
 	case models.GroupActionLeave:
 		_ = r.groups.MarkLeft(r.accountID, group.JID)
-	case models.GroupActionInviteLink, models.GroupActionResetInviteLink:
+	case models.GroupActionInviteLink, models.GroupActionResetInviteLink,
+		models.GroupActionReact, models.GroupActionRevoke, models.GroupActionEdit,
+		models.GroupActionVote, models.GroupActionHistory:
 	default:
 		_ = r.admin.RefreshGroupJID(ctx, group.JID)
 	}
@@ -178,6 +188,11 @@ func (r *GroupActionRunner) announce(ctx context.Context, action *models.WAGroup
 		event.GroupID = action.GroupID.String()
 	}
 	_ = r.publisher.Publish(ctx, event)
+	// A message action changed the thread; its browsers refetch on this.
+	switch action.Action {
+	case models.GroupActionReact, models.GroupActionRevoke, models.GroupActionEdit, models.GroupActionVote:
+		_ = r.publisher.Publish(ctx, Event{Type: EventGroupMessage, GroupID: event.GroupID})
+	}
 	if action.Action == models.GroupActionLeave {
 		_ = r.publisher.Publish(ctx, Event{Type: EventGroup, GroupID: event.GroupID})
 	}

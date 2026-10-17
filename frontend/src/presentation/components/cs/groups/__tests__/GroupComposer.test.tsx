@@ -8,6 +8,8 @@ const joko = {
   jid: "55511122233344@lid",
   phone: "",
   name: "Pak Joko",
+  pushName: "",
+  hasAvatar: false,
   role: "member" as const,
   isSelf: false,
 };

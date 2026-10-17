@@ -37,20 +37,66 @@ export function sendBlockedReason(group: WaGroup): string | null {
   return null;
 }
 
-/** A sender as a group member would recognise them. WhatsApp often hides the
- * number behind a LID, so the jid is the last resort, not the first. */
-export function senderLabel(message: WaGroupMessage): string {
+/** WhatsApp's rule for naming a member: the address-book name when there is
+ * one, else the name they gave themselves marked with "~" so nobody takes it
+ * for a verified contact, else the number. WhatsApp often hides the number
+ * behind a LID, so the jid is the last resort, not the first. */
+function displayName(
+  name: string,
+  pushName: string,
+  phone: string,
+  jid: string,
+): string {
+  if (name) return name;
+  if (pushName) return `~${pushName}`;
+  if (phone) return `+${phone}`;
+  return jid.split("@")[0];
+}
+
+export function senderLabel(
+  message: Pick<
+    WaGroupMessage,
+    "direction" | "senderName" | "senderPushName" | "senderPhone" | "senderJid"
+  >,
+): string {
   if (message.direction === "out") return "Anda";
-  if (message.senderName) return message.senderName;
-  if (message.senderPhone) return `+${message.senderPhone}`;
-  return message.senderJid.split("@")[0];
+  return displayName(
+    message.senderName,
+    message.senderPushName ?? "",
+    message.senderPhone,
+    message.senderJid,
+  );
 }
 
 export function participantLabel(participant: WaGroupParticipant): string {
   if (participant.isSelf) return "Nomor ini";
-  if (participant.name) return participant.name;
-  if (participant.phone) return `+${participant.phone}`;
-  return participant.jid.split("@")[0];
+  return displayName(
+    participant.name,
+    participant.pushName ?? "",
+    participant.phone,
+    participant.jid,
+  );
+}
+
+/** "Budi sedang mengetik…", or both names when two write at once. Past two
+ * WhatsApp stops naming people, and so does this. */
+export function typingLine(names: string[]): string | null {
+  if (names.length === 0) return null;
+  if (names.length === 1) return `${names[0]} sedang mengetik…`;
+  if (names.length === 2) return `${names[0]} dan ${names[1]} sedang mengetik…`;
+  return `${names.length} orang sedang mengetik…`;
+}
+
+/** The line under the group's name in its header: its members by name, the
+ * way WhatsApp lists them, or only the count until they are loaded. */
+export function memberSummary(
+  participants: WaGroupParticipant[],
+  count: number,
+): string {
+  if (participants.length === 0) return `${count} anggota`;
+  const others = participants.filter((p) => !p.isSelf).map(participantLabel);
+  const self = participants.some((p) => p.isSelf) ? ["Anda"] : [];
+  return [...others, ...self].join(", ");
 }
 
 /** Splits what an admin pasted into a list of numbers. People paste from a

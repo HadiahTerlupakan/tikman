@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,10 @@ type WAGroupMessage struct {
 	SenderJID   string           `gorm:"column:sender_jid;type:varchar(128)" json:"sender_jid"`
 	SenderPhone string           `gorm:"type:varchar(20)" json:"sender_phone"`
 	SenderName  string           `gorm:"type:varchar(255)" json:"sender_name"`
+	// SenderPushName is the profile name the sender's phone attached, kept
+	// apart from SenderName so the page can mark it "~" the way WhatsApp does
+	// for someone the number has not saved.
+	SenderPushName string `gorm:"type:varchar(255);not null;default:''" json:"sender_push_name"`
 	// SenderUserID is the TikMan user who wrote an outbound row, nil for one
 	// typed on the phone.
 	SenderUserID  *uuid.UUID    `gorm:"type:uuid" json:"sender_user_id,omitempty"`
@@ -37,6 +42,16 @@ type WAGroupMessage struct {
 	// keeps WhatsApp's own form, "@<address>", because that is what has to be
 	// sent; the history shows it with names (see services.ResolveMentions).
 	Mentions string `gorm:"type:text;not null;default:''" json:"-"`
+	// Extra holds what a location, contact card or poll carries, as JSON; the
+	// body is a plain summary of it for the list and for search.
+	Extra     string     `gorm:"type:text;not null;default:''" json:"-"`
+	Edited    bool       `gorm:"not null;default:false" json:"edited"`
+	Deleted   bool       `gorm:"not null;default:false" json:"deleted"`
+	Forwarded bool       `gorm:"not null;default:false" json:"forwarded"`
+	StarredAt *time.Time `json:"-"`
+	// MemberCount is how many others were in the group when an outgoing
+	// message was queued: "read" means all of them read it.
+	MemberCount int `gorm:"not null;default:0" json:"member_count,omitempty"`
 
 	PreviewURL         string `gorm:"type:text" json:"preview_url,omitempty"`
 	PreviewTitle       string `gorm:"type:text" json:"preview_title,omitempty"`
@@ -47,6 +62,38 @@ type WAGroupMessage struct {
 	CreatedAt   time.Time `json:"created_at"`
 
 	ReplyTo *GroupQuotedMessage `gorm:"-" json:"reply_to,omitempty"`
+
+	// Filled in on the way out of the service, never stored on this row.
+	Starred         bool              `gorm:"-" json:"starred"`
+	MentionNames    []string          `gorm:"-" json:"mention_names,omitempty"`
+	Reactions       []ReactionSummary `gorm:"-" json:"reactions,omitempty"`
+	ReadCount       *int              `gorm:"-" json:"read_count,omitempty"`
+	DeliveredCount  *int              `gorm:"-" json:"delivered_count,omitempty"`
+	SenderHasAvatar bool              `gorm:"-" json:"sender_has_avatar"`
+	ExtraData       json.RawMessage   `gorm:"-" json:"extra,omitempty"`
+}
+
+// ReactionSummary is one emoji under a message and who chose it.
+type ReactionSummary struct {
+	Emoji    string       `json:"emoji"`
+	Count    int          `json:"count"`
+	Reactors []GroupActor `json:"reactors"`
+}
+
+// GroupActor is a member as the page names them.
+type GroupActor struct {
+	JID    string `json:"jid"`
+	Name   string `json:"name"`
+	IsSelf bool   `json:"is_self"`
+}
+
+// AfterFind derives what is answered but not stored as such.
+func (m *WAGroupMessage) AfterFind(tx *gorm.DB) error {
+	m.Starred = m.StarredAt != nil
+	if m.Extra != "" {
+		m.ExtraData = json.RawMessage(m.Extra)
+	}
+	return nil
 }
 
 // GroupQuotedMessage is the block a group reply draws above itself. Unlike a
@@ -98,6 +145,13 @@ const (
 	GroupActionInviteLink      GroupActionKind = "invite_link"
 	GroupActionResetInviteLink GroupActionKind = "reset_invite_link"
 	GroupActionLeave           GroupActionKind = "leave"
+	// The ones below act on a message, not on the group, and are open to the
+	// whole team rather than to admins.
+	GroupActionReact   GroupActionKind = "react"
+	GroupActionEdit    GroupActionKind = "edit"
+	GroupActionRevoke  GroupActionKind = "revoke"
+	GroupActionVote    GroupActionKind = "vote"
+	GroupActionHistory GroupActionKind = "history"
 )
 
 // GroupActionStatus is how far a requested action got.

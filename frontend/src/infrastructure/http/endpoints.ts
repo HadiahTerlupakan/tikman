@@ -155,6 +155,16 @@ export const API_ENDPOINTS = {
   CS_GROUPS_REFRESH: "/api/v1/cs/groups/refresh",
   CS_GROUP_ACTIONS: (id: string) => `/api/v1/cs/groups/${id}/actions`,
   CS_GROUP_ACTION: (id: string) => `/api/v1/cs/group-actions/${id}`,
+  CS_GROUP_AVATAR: (id: string) => `/api/v1/cs/groups/${id}/avatar`,
+  CS_GROUP_MEMBER_AVATAR: (id: string, jid: string) =>
+    `/api/v1/cs/groups/${id}/member-avatar?jid=${encodeURIComponent(jid)}`,
+  CS_GROUP_PIN: (id: string) => `/api/v1/cs/groups/${id}/pin`,
+  CS_GROUP_TYPING: (id: string) => `/api/v1/cs/groups/${id}/typing`,
+  CS_GROUP_HISTORY_REQUEST: (id: string) => `/api/v1/cs/groups/${id}/history`,
+  CS_GROUP_STARRED: (id: string) => `/api/v1/cs/groups/${id}/starred`,
+  CS_GROUP_POLLS: (id: string) => `/api/v1/cs/groups/${id}/polls`,
+  CS_GROUP_MESSAGE: (id: string, messageId: string) =>
+    `/api/v1/cs/groups/${id}/messages/${messageId}`,
 
   // Network map: free-form nodes and the fiber runs between them
   MAPPING_NODES: "/api/v1/mapping/nodes",

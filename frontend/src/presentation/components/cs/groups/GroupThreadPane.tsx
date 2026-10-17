@@ -4,6 +4,7 @@ import type {
   WaGroup,
   WaGroupMessage,
   WaGroupParticipant,
+  WaGroupPollRequest,
 } from "@/domain/entities";
 import {
   chatBackdropColor,
@@ -12,9 +13,11 @@ import {
 } from "@/shared/theme/chatBackdrop";
 import { colors } from "@/shared/theme/colors";
 import { useStickToBottom } from "../useStickToBottom";
+import { GroupAvatar } from "./GroupAvatars";
 import { GroupComposer } from "./GroupComposer";
 import { GroupThread } from "./GroupThread";
-import { sendBlockedReason } from "./groupSummary";
+import type { GroupMessageHandlers } from "./groupMessageActions";
+import { memberSummary, sendBlockedReason, typingLine } from "./groupSummary";
 
 const { Text } = Typography;
 
@@ -36,8 +39,15 @@ interface GroupThreadPaneProps {
     caption: string,
     mentions?: string[],
   ) => Promise<boolean>;
-  onReply: (message: WaGroupMessage) => void;
   onCancelReply: () => void;
+  /** The viewer is a TikMan admin, which widens who may delete a message. */
+  isAdmin: boolean;
+  handlers: GroupMessageHandlers;
+  /** Members writing in this group right now. */
+  typingNames: string[];
+  onTypingChange: (groupId: string, typing: boolean) => void;
+  onCreatePoll: (poll: WaGroupPollRequest) => Promise<boolean>;
+  creatingPoll: boolean;
   /** Present only where the panes take turns. */
   onBack?: () => void;
   onOpenInfo?: () => void;
@@ -45,13 +55,18 @@ interface GroupThreadPaneProps {
 
 function GroupHeader({
   group,
+  participants,
+  typingNames,
   onBack,
   onOpenInfo,
 }: {
   group: WaGroup;
+  participants: WaGroupParticipant[];
+  typingNames: string[];
   onBack?: () => void;
   onOpenInfo?: () => void;
 }) {
+  const typing = typingLine(typingNames);
   return (
     <div
       style={{
@@ -70,12 +85,21 @@ function GroupHeader({
           aria-label="Kembali ke daftar grup"
         />
       )}
+      <GroupAvatar groupId={group.id} hasAvatar={group.hasAvatar} size={36} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Text strong ellipsis style={{ display: "block", fontSize: 15 }}>
           {group.name || group.jid}
         </Text>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          {group.participantCount} anggota
+        <Text
+          ellipsis
+          type={typing ? undefined : "secondary"}
+          style={{
+            display: "block",
+            fontSize: 12,
+            color: typing ? colors.success : undefined,
+          }}
+        >
+          {typing ?? memberSummary(participants, group.participantCount)}
         </Text>
       </div>
       {group.left && <Tag bordered={false}>Keluar</Tag>}
@@ -118,6 +142,8 @@ export function GroupThreadPane(props: GroupThreadPaneProps) {
     <>
       <GroupHeader
         group={group}
+        participants={props.participants}
+        typingNames={props.typingNames}
         onBack={props.onBack}
         onOpenInfo={props.onOpenInfo}
       />
@@ -153,7 +179,8 @@ export function GroupThreadPane(props: GroupThreadPaneProps) {
             <GroupThread
               messages={messages}
               onRetry={onSend}
-              onReply={canSend ? props.onReply : undefined}
+              context={{ group, isAdmin: props.isAdmin, canSend }}
+              handlers={props.handlers}
             />
           )}
         </div>
@@ -173,6 +200,9 @@ export function GroupThreadPane(props: GroupThreadPaneProps) {
         attaching={props.attaching}
         replyTo={props.replyTo}
         onCancelReply={props.onCancelReply}
+        onTypingChange={props.onTypingChange}
+        onCreatePoll={props.onCreatePoll}
+        creatingPoll={props.creatingPoll}
       />
     </>
   );

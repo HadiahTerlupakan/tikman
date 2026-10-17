@@ -3,6 +3,7 @@ import { CreateGroupModal } from "@/presentation/components/cs/groups/CreateGrou
 import { GroupInfoPane } from "@/presentation/components/cs/groups/GroupInfoPane";
 import { GroupList } from "@/presentation/components/cs/groups/GroupList";
 import { GroupListToolbar } from "@/presentation/components/cs/groups/GroupListToolbar";
+import { GroupMessageDialogs } from "@/presentation/components/cs/groups/GroupMessageDialogs";
 import { GroupThreadPane } from "@/presentation/components/cs/groups/GroupThreadPane";
 import { InviteLinkModal } from "@/presentation/components/cs/groups/InviteLinkModal";
 import { fullHeightPage } from "@/presentation/components/layout/layoutPadding";
@@ -25,6 +26,7 @@ const panel = {
  */
 export function CsGroupsPage() {
   const g = useCsGroups();
+  const m = g.messageActions;
   const paneWidth = (column: number) =>
     g.layout.columns ? { width: column } : { flex: 1, minWidth: 0 };
   // Labels only matter once there is more than one number to tell apart.
@@ -64,7 +66,9 @@ export function CsGroupsPage() {
                 groups={g.groups}
                 selectedId={g.selectedId}
                 accountLabels={accountLabels}
+                typing={g.groupTyping}
                 onSelect={g.handleSelect}
+                onPin={m.togglePin}
               />
             </div>
           </div>
@@ -85,8 +89,13 @@ export function CsGroupsPage() {
               participants={g.detailQuery.data?.participants ?? []}
               onSend={g.handleSend}
               onAttach={g.handleAttach}
-              onReply={g.setReplyTo}
               onCancelReply={() => g.setReplyTo(undefined)}
+              isAdmin={g.isAdmin}
+              handlers={m.handlers}
+              typingNames={(g.selected && g.groupTyping[g.selected.id]) || []}
+              onTypingChange={m.setTyping}
+              onCreatePoll={m.submitPoll}
+              creatingPoll={m.creatingPoll}
               onBack={g.layout.columns ? undefined : () => g.navigate(-1)}
               onOpenInfo={
                 g.layout.columns
@@ -108,6 +117,8 @@ export function CsGroupsPage() {
               onAction={(request) =>
                 g.selected && g.runAction(g.selected.id, request)
               }
+              requestingHistory={m.requestingHistory}
+              onRequestHistory={m.requestHistory}
               onBack={g.layout.columns ? undefined : () => g.navigate(-1)}
             />
           </div>
@@ -124,6 +135,14 @@ export function CsGroupsPage() {
         />
       )}
       <InviteLinkModal link={g.inviteLink} onClose={g.closeInviteLink} />
+      <GroupMessageDialogs
+        dialog={m.dialog}
+        groups={g.groups}
+        forwarding={m.forwarding}
+        onEdit={m.submitEdit}
+        onForward={m.submitForward}
+        onClose={m.closeDialog}
+      />
     </div>
   );
 }

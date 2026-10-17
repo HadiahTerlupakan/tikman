@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ClipboardEvent } from "react";
+import { useState, type ClipboardEvent } from "react";
 import { Button, Input, Typography, Upload, message } from "antd";
 import {
   CloseOutlined,
@@ -17,22 +17,12 @@ import { CS_MEDIA_ACCEPT, attachmentRejection } from "@/shared/config/csMedia";
 import { mayReply } from "./holding";
 import { PendingAttachment } from "./PendingAttachment";
 import { QuickReplyPicker } from "./QuickReplyPicker";
+import { useTypingSignal } from "./useTypingSignal";
 import { QuotedBlock } from "./QuotedBlock";
 import { TakeOverNotice } from "./TakeOverNotice";
 
 const { TextArea } = Input;
 const { Text } = Typography;
-
-/** How often the "typing…" line is refreshed while a CS keeps writing. A CS
- * types faster than WhatsApp needs to hear about it, and the line looks
- * identical whether it was refreshed once a keystroke or once every few
- * seconds. */
-const TYPING_REFRESH_MS = 5_000;
-
-/** How long a CS can stop mid-word before the line comes down. Shorter than
- * the stream's own expiry, so the customer stops seeing it because the CS
- * stopped rather than because a timer ran out. */
-const TYPING_IDLE_MS = 3_000;
 
 interface MessageComposerProps {
   conversation: CsConversation;
@@ -87,56 +77,7 @@ export function MessageComposer({
   const staged =
     pending?.conversationId === conversation.id ? pending.file : null;
 
-  // Which thread the customer currently sees a line on, null when none does.
-  const typingFor = useRef<string | null>(null);
-  const lastSignalAt = useRef(0);
-  const idle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // The latest callback, so the unmount cleanup below does not have to hold a
-  // stale one — the thread it names travels with the call, not with the
-  // closure.
-  const notify = useRef(onTypingChange);
-  notify.current = onTypingChange;
-
-  const signalTyping = (typing: boolean) => {
-    clearTimeout(idle.current);
-    if (typing) {
-      idle.current = setTimeout(() => signalTyping(false), TYPING_IDLE_MS);
-      const unchanged = typingFor.current === conversation.id;
-      if (unchanged && Date.now() - lastSignalAt.current < TYPING_REFRESH_MS) {
-        return;
-      }
-      typingFor.current = conversation.id;
-      lastSignalAt.current = Date.now();
-      notify.current(conversation.id, true);
-      return;
-    }
-    const showing = typingFor.current;
-    if (!showing) return;
-    typingFor.current = null;
-    notify.current(showing, false);
-  };
-
-  useEffect(() => {
-    // Switching threads mid-word clears the line on the thread that was left.
-    // typingFor still names it here: this runs after the render that brought
-    // the new thread in, and nothing has signalled on it yet.
-    if (typingFor.current && typingFor.current !== conversation.id) {
-      const left = typingFor.current;
-      typingFor.current = null;
-      clearTimeout(idle.current);
-      notify.current(left, false);
-    }
-  }, [conversation.id]);
-
-  useEffect(
-    () => () => {
-      clearTimeout(idle.current);
-      if (typingFor.current) {
-        notify.current(typingFor.current, false);
-      }
-    },
-    [],
-  );
+  const signalTyping = useTypingSignal(conversation.id, onTypingChange);
 
   if (!mayReply(conversation, currentUserId)) {
     return (

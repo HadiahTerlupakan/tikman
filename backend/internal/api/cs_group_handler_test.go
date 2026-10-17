@@ -54,7 +54,7 @@ func (e *csGroupEnv) router(id uuid.UUID, role models.UserRole) *gin.Engine {
 	cs := router.Group("/api/v1/cs")
 	cs.Use(middleware.RequireRole(models.UserRoleAdmin, models.UserRoleCS, models.UserRoleTechnician))
 	h := &handlers{csGroupHandler: NewCSGroupHandler(e.handler, e.groups, e.messages,
-		services.NewWAGroupActionService(e.db), zap.NewNop())}
+		services.NewWAGroupActionService(e.db), services.NewWAAvatarService(e.db), zap.NewNop())}
 	h.registerCSGroupRoutes(cs)
 	return router
 }

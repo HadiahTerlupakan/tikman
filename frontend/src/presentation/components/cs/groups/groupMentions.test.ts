@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { WaGroupParticipant } from "@/domain/entities";
-import { mentionOptions, toWhatsAppMentions } from "./groupMentions";
+import {
+  mentionOptions,
+  splitMentions,
+  toWhatsAppMentions,
+} from "./groupMentions";
 
 const member = (
   over: Partial<WaGroupParticipant> = {},
@@ -8,6 +12,8 @@ const member = (
   jid: "55511122233344@lid",
   phone: "",
   name: "Pak Joko",
+  pushName: "",
+  hasAvatar: false,
   role: "member",
   isSelf: false,
   ...over,
@@ -53,5 +59,28 @@ describe("mentionOptions", () => {
       member({ jid: "628999@s.whatsapp.net", isSelf: true, name: "" }),
     ]);
     expect(options.map((o) => o.value)).toEqual(["Pak Joko"]);
+  });
+});
+
+describe("splitMentions", () => {
+  it("picks out the tagged names, longest first", () => {
+    expect(
+      splitMentions("@Budi Santoso dan @Budi cek ODP", [
+        "Budi",
+        "Budi Santoso",
+      ]),
+    ).toEqual([
+      { text: "@Budi Santoso", mention: true },
+      { text: " dan ", mention: false },
+      { text: "@Budi", mention: true },
+      { text: " cek ODP", mention: false },
+    ]);
+  });
+
+  // An "@" typed by hand notified nobody, so it is not drawn as a mention.
+  it("leaves an @ that tags nobody as text", () => {
+    expect(splitMentions("kirim ke rohadi@mail.id", ["Budi"])).toEqual([
+      { text: "kirim ke rohadi@mail.id", mention: false },
+    ]);
   });
 });

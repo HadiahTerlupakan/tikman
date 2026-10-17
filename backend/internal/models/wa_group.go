@@ -48,6 +48,12 @@ type WAGroup struct {
 	// stay readable; sending to it is refused. The column is has_left because
 	// LEFT is reserved in SQL.
 	Left bool `gorm:"column:has_left;not null;default:false" json:"left"`
+	// PinnedAt puts a group at the top of the list for the whole team, the
+	// way pinning a chat does on a phone; nil when it is not pinned.
+	PinnedAt *time.Time `json:"-"`
+	Pinned   bool       `gorm:"-" json:"pinned"`
+	// HasAvatar is filled in on the way out from wa_avatars.
+	HasAvatar bool `gorm:"-" json:"has_avatar"`
 
 	LastMessageAt      *time.Time  `gorm:"index" json:"last_message_at,omitempty"`
 	LastMessagePreview string      `gorm:"type:varchar(255)" json:"last_message_preview"`
@@ -61,6 +67,12 @@ type WAGroup struct {
 	SyncedAt  *time.Time `json:"-"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+// AfterFind derives what is answered but not stored as such.
+func (g *WAGroup) AfterFind(tx *gorm.DB) error {
+	g.Pinned = g.PinnedAt != nil
+	return nil
 }
 
 func (g *WAGroup) BeforeCreate(tx *gorm.DB) error {
@@ -80,15 +92,21 @@ type WAGroupParticipant struct {
 	ID      uuid.UUID `gorm:"type:uuid;primaryKey" json:"-"`
 	GroupID uuid.UUID `gorm:"type:uuid;not null;index" json:"-"`
 	// JID is the address WhatsApp sends to, a LID as often as a phone number.
-	JID   string    `gorm:"column:jid;type:varchar(128);not null" json:"jid"`
-	LID   string    `gorm:"column:lid;type:varchar(128)" json:"-"`
-	Phone string    `gorm:"type:varchar(20)" json:"phone"`
-	Name  string    `gorm:"type:varchar(255)" json:"name"`
-	Role  GroupRole `gorm:"type:varchar(20);not null" json:"role"`
+	JID   string `gorm:"column:jid;type:varchar(128);not null" json:"jid"`
+	LID   string `gorm:"column:lid;type:varchar(128)" json:"-"`
+	Phone string `gorm:"type:varchar(20)" json:"phone"`
+	Name  string `gorm:"type:varchar(255)" json:"name"`
+	// PushName is the name the member gave their own WhatsApp profile, which
+	// is what a phone shows as "~Name" for someone not in its address book.
+	// Learnt from their messages, so it survives the sync's rewrite of Name.
+	PushName string    `gorm:"type:varchar(255);not null;default:''" json:"push_name"`
+	Role     GroupRole `gorm:"type:varchar(20);not null" json:"role"`
 	// IsSelf marks the paired number itself. Stored rather than worked out on
 	// the way out because only the wa process knows the number's LID, and in a
 	// LID-addressed group that is the only name it appears under.
 	IsSelf bool `gorm:"not null;default:false" json:"is_self"`
+	// HasAvatar is filled in on the way out from wa_avatars.
+	HasAvatar bool `gorm:"-" json:"has_avatar"`
 }
 
 func (p *WAGroupParticipant) BeforeCreate(tx *gorm.DB) error {

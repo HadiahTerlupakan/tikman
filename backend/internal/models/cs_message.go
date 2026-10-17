@@ -25,6 +25,12 @@ const (
 	MessageKindAudio    MessageKind = "audio"
 	MessageKindVideo    MessageKind = "video"
 	MessageKindSticker  MessageKind = "sticker"
+	// The four below only occur in groups: a notice of who joined, left or
+	// changed something, and the shapes the customer inbox cannot hold.
+	MessageKindSystem   MessageKind = "system"
+	MessageKindLocation MessageKind = "location"
+	MessageKindContact  MessageKind = "contact"
+	MessageKindPoll     MessageKind = "poll"
 )
 
 // MessageStatus is how far an outbound message has travelled. Inbound messages

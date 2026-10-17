@@ -1,9 +1,11 @@
-import { Avatar, Badge, Tag, Typography } from "antd";
-import { TeamOutlined } from "@ant-design/icons";
+import { useState } from "react";
+import { Badge, Button, Dropdown, Tag, Typography } from "antd";
+import { DownOutlined, PushpinFilled } from "@ant-design/icons";
 import type { WaGroup } from "@/domain/entities";
 import { colors } from "@/shared/theme/colors";
 import { shortTime } from "../conversationSummary";
-import { groupPreview } from "./groupSummary";
+import { GroupAvatar } from "./GroupAvatars";
+import { groupPreview, typingLine } from "./groupSummary";
 
 const { Text } = Typography;
 
@@ -19,26 +21,82 @@ interface GroupListProps {
   /** Number labels by account id. Passed only when there is more than one
    * number, so a single-number install is not given a tag that says nothing. */
   accountLabels?: Record<string, string>;
+  /** Who is writing in each group, by group id. */
+  typing?: Record<string, string[]>;
   onSelect: (id: string) => void;
+  /** Pins or unpins a group for the whole team. */
+  onPin?: (group: WaGroup) => void;
+}
+
+/** The chevron WhatsApp shows on a hovered row, opening its menu. Clicks
+ * stop here, or opening the menu would also open the group. */
+function RowMenu({
+  group,
+  visible,
+  onPin,
+}: {
+  group: WaGroup;
+  visible: boolean;
+  onPin: (group: WaGroup) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <span
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <Dropdown
+        trigger={["click"]}
+        menu={{
+          items: [
+            { key: "pin", label: group.pinned ? "Lepas sematan" : "Sematkan" },
+          ],
+          onClick: () => onPin(group),
+        }}
+      >
+        <Button
+          type="text"
+          size="small"
+          icon={<DownOutlined />}
+          aria-label={`Menu grup ${group.name}`}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            opacity: visible || focused ? 1 : 0,
+            transition: "opacity 120ms",
+          }}
+        />
+      </Dropdown>
+    </span>
+  );
 }
 
 function GroupRow({
   group,
   selected,
   accountLabel,
+  typingNames,
   onSelect,
+  onPin,
 }: {
   group: WaGroup;
   selected: boolean;
   accountLabel?: string;
+  typingNames: string[];
   onSelect: (id: string) => void;
+  onPin?: (group: WaGroup) => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   const unread = group.unreadCount > 0;
+  const typing = typingLine(typingNames);
+  const previewColor = unread ? colors.textBody : colors.textSecondary;
   return (
     <div
       role="listitem"
       tabIndex={0}
       aria-label={group.name}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={() => onSelect(group.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -58,7 +116,7 @@ function GroupRow({
         opacity: group.left ? 0.6 : 1,
       }}
     >
-      <Avatar size={42} icon={<TeamOutlined />} style={{ flexShrink: 0 }} />
+      <GroupAvatar groupId={group.id} hasAvatar={group.hasAvatar} size={42} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{ display: "flex", justifyContent: "space-between", gap: 8 }}
@@ -84,11 +142,24 @@ function GroupRow({
               ...ellipsis,
               flex: 1,
               fontSize: 13,
-              color: unread ? colors.textBody : colors.textSecondary,
+              color: typing ? colors.success : previewColor,
             }}
           >
-            {groupPreview(group)}
+            {typing ?? groupPreview(group)}
           </Text>
+          {group.pinned && (
+            <PushpinFilled
+              aria-label="Disematkan"
+              style={{ color: colors.textMuted, fontSize: 12 }}
+            />
+          )}
+          {onPin && (
+            <RowMenu
+              group={group}
+              visible={hovered || selected}
+              onPin={onPin}
+            />
+          )}
           <Badge
             count={group.unreadCount}
             style={{ backgroundColor: colors.success, color: "#0b1f16" }}
@@ -120,12 +191,15 @@ const tagStyle = {
   padding: "0 5px",
 } as const;
 
-/** The groups of every connected number, newest activity first. */
+/** The groups of every connected number: pinned ones first, then newest
+ * activity, in the order the server sends them. */
 export function GroupList({
   groups,
   selectedId,
   accountLabels,
+  typing = {},
   onSelect,
+  onPin,
 }: GroupListProps) {
   if (groups.length === 0) {
     return (
@@ -146,7 +220,9 @@ export function GroupList({
           group={group}
           selected={group.id === selectedId}
           accountLabel={accountLabels?.[group.waAccountId]}
+          typingNames={typing[group.id] ?? []}
           onSelect={onSelect}
+          onPin={onPin}
         />
       ))}
     </div>
