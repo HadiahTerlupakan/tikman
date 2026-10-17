@@ -23,5 +23,7 @@ func (h *handlers) registerCSGroupRoutes(cs *gin.RouterGroup) {
 
 	cs.POST("/groups", admin, h.csGroupHandler.CreateGroup)
 	cs.POST("/groups/:id/actions", admin, h.csGroupHandler.ActOnGroup)
-	cs.GET("/group-actions/:id", h.csGroupHandler.GetGroupAction)
+	// Admin only like the requests themselves: an answer can be the group's
+	// invite link, and anyone holding it can join the group.
+	cs.GET("/group-actions/:id", admin, h.csGroupHandler.GetGroupAction)
 }

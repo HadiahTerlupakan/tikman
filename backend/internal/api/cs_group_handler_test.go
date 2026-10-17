@@ -156,8 +156,10 @@ func TestOnlyAnAdminMayManageAGroup(t *testing.T) {
 	require.NoError(t, json.Unmarshal(accepted.Body.Bytes(), &answer))
 	assert.Equal(t, models.GroupActionQueued, answer.Data.Status)
 
-	status := env.do(t, env.cs, models.UserRoleCS, http.MethodGet, "/group-actions/"+answer.Data.ID.String(), "")
-	assert.Equal(t, http.StatusOK, status.Code, "anyone on the team may see how a request went")
+	path = "/group-actions/" + answer.Data.ID.String()
+	assert.Equal(t, http.StatusOK, env.do(t, env.admin, models.UserRoleAdmin, http.MethodGet, path, "").Code)
+	assert.Equal(t, http.StatusForbidden, env.do(t, env.cs, models.UserRoleCS, http.MethodGet, path, "").Code,
+		"an answer can be the invite link, which is the admin's to hand out")
 }
 
 func TestCreatingAGroupWithANameWhatsAppRefusesIsA400(t *testing.T) {
