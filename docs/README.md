@@ -28,6 +28,5 @@ the time — not maintained against the code.
 
 ## Usage
 
-Refer to the main [README.md](../README.md) for project overview.
 
 For setup instructions, see backend and frontend specific documentation in their respective directories.
