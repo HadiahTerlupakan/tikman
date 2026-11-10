@@ -22,6 +22,12 @@ const SettingGoogleMapsAPIKey = "google_maps_api_key"
 // it unset gets a map with no plant on it.
 const SettingGoogleMapsMapID = "google_maps_map_id"
 
+// SettingLibreNMSURL is where the daily graph reports read port graphs from.
+const SettingLibreNMSURL = "librenms_url"
+
+// SettingLibreNMSAPIToken authenticates those reads.
+const SettingLibreNMSAPIToken = "librenms_api_token"
+
 // SettingDefinition describes a setting the installation understands.
 type SettingDefinition struct {
 	Name        string
@@ -42,6 +48,16 @@ var settingRegistry = []SettingDefinition{
 		Label:       "Google Maps Map ID",
 		Description: "Identifies the map style the pins are drawn on. Create one under Map Management in the same Google Cloud project as the key above, with map type JavaScript and Vector. It is delivered to the browser and is not a secret.",
 		Visibility:  VisibilityBrowser,
+	},
+	{
+		Name:        SettingLibreNMSURL,
+		Label:       "LibreNMS URL",
+		Description: "Address of the LibreNMS server the daily graph reports read port graphs from, e.g. http://librenms.example. Stays on the server.",
+	},
+	{
+		Name:        SettingLibreNMSAPIToken,
+		Label:       "LibreNMS API token",
+		Description: "API token created under Settings → API in LibreNMS, used for the daily graph reports. Stays on the server.",
 	},
 }
 

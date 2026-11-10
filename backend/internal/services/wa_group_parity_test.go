@@ -94,7 +94,7 @@ func TestReactionsAreOnePerMemberAndSummarisedByEmoji(t *testing.T) {
 func TestAMessageIsReadOnceEveryMemberHasReadIt(t *testing.T) {
 	f := newGroupFixture(t)
 	queued, err := f.messages.Queue(GroupOutgoing{
-		GroupID: f.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "rapat jam 3", MemberCount: 2,
+		GroupID: f.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "rapat jam 3", MemberCount: 2,
 	})
 	require.NoError(t, err)
 	require.NoError(t, f.messages.MarkSent(queued.ID, "WOUT", nil))

@@ -18,7 +18,7 @@ import (
 func (e *csGroupEnv) sent(t *testing.T, body string, at time.Time) *models.WAGroupMessage {
 	t.Helper()
 	msg, err := e.messages.Queue(services.GroupOutgoing{
-		GroupID: e.group.ID, SenderUserID: e.cs, Kind: models.MessageKindText, Body: body,
+		GroupID: e.group.ID, SenderUserID: &e.cs, Kind: models.MessageKindText, Body: body,
 	})
 	require.NoError(t, err)
 	require.NoError(t, e.messages.MarkSent(msg.ID, "W"+uuid.NewString()[:8], nil))

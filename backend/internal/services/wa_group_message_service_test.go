@@ -119,7 +119,7 @@ func TestQuoteTargetRefusesAnotherGroupsMessageAndAnUnsentOne(t *testing.T) {
 	elsewhere, _, err := f.messages.SaveArrived(arrival(other.ID, "W9", "rahasia"))
 	require.NoError(t, err)
 	queued, err := f.messages.Queue(GroupOutgoing{
-		GroupID: f.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "antre",
+		GroupID: f.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "antre",
 	})
 	require.NoError(t, err)
 
@@ -138,9 +138,9 @@ func TestClaimQueuedAnswersOnlyThisNumbersGroupMessages(t *testing.T) {
 	otherGroup, err := f.groups.Upsert(otherAccount.ID, groupSnap("5@g.us", "Lain"))
 	require.NoError(t, err)
 
-	mine, err := f.messages.Queue(GroupOutgoing{GroupID: f.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "a"})
+	mine, err := f.messages.Queue(GroupOutgoing{GroupID: f.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "a"})
 	require.NoError(t, err)
-	_, err = f.messages.Queue(GroupOutgoing{GroupID: otherGroup.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "b"})
+	_, err = f.messages.Queue(GroupOutgoing{GroupID: otherGroup.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "b"})
 	require.NoError(t, err)
 
 	claimed, err := f.messages.ClaimQueued(f.account.ID, 10)

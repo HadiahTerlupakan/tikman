@@ -37,6 +37,18 @@ export function sendBlockedReason(group: WaGroup): string | null {
   return null;
 }
 
+/**
+ * The footer note on an outgoing message no CS wrote: TikMan's automated
+ * senders (the daily graph report) queue it with no sender JID and under their
+ * own name, while one typed on the phone comes back carrying our JID. "" for a
+ * message a CS wrote, or an incoming one.
+ */
+export function outgoingOrigin(message: WaGroupMessage): string {
+  if (message.direction !== "out" || message.senderUserId) return "";
+  if (!message.senderJid && message.senderName) return message.senderName;
+  return "dari HP";
+}
+
 /** WhatsApp's rule for naming a member: the address-book name when there is
  * one, else the name they gave themselves marked with "~" so nobody takes it
  * for a verified contact, else the number. WhatsApp often hides the number
@@ -118,6 +130,13 @@ export function parseParticipants(text: string): string[] {
 
 /** WhatsApp's own limit on a group name. */
 export const GROUP_NAME_MAX = 25;
+
+/** Whether the viewer may delete a group from TikMan: an admin, and only once
+ * the number has left it, since a group it is still in comes back on the
+ * next sync with its history gone. */
+export function mayDeleteGroup(group: WaGroup, isAdmin: boolean): boolean {
+  return isAdmin && group.left;
+}
 
 /** Whether our number may change the name and description: any member may
  * while the group is unlocked, only an admin once it is locked. */

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"github.com/tikman/olt-provisioning/internal/wa"
 )
 
@@ -30,7 +31,7 @@ func (h *CSHandler) ServeAvatar(c *gin.Context) {
 	}
 
 	mime := wa.AvatarMime(conv.AvatarPath)
-	full, within := mediaPathWithin(h.mediaRoot, conv.AvatarPath)
+	full, within := services.MediaPathWithin(h.mediaRoot, conv.AvatarPath)
 	if conv.AvatarPath == "" || mime == "" || !within {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "conversation has no profile photo",

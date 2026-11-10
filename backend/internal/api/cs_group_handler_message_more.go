@@ -125,7 +125,7 @@ func (h *CSGroupHandler) CreateGroupPoll(c *gin.Context) {
 	}
 	userID, _ := middleware.GetUserID(c)
 	msg, err := h.messages.Queue(services.GroupOutgoing{
-		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
+		GroupID: group.ID, SenderUserID: &userID, SenderName: h.senderName(userID),
 		Kind: models.MessageKindPoll, Body: "Polling: " + req.Question, Extra: extra,
 		MemberCount: h.memberCount(group.ID),
 	})
@@ -247,7 +247,7 @@ func (h *CSGroupHandler) forwardTo(target *models.WAGroup, msg *models.WAGroupMe
 		media = copied
 	}
 	queued, err := h.messages.Queue(services.GroupOutgoing{
-		GroupID: target.ID, SenderUserID: userID, SenderName: h.senderName(userID),
+		GroupID: target.ID, SenderUserID: &userID, SenderName: h.senderName(userID),
 		Kind: msg.Kind, Body: msg.Body, Media: media, Forwarded: true, MemberCount: h.memberCount(target.ID),
 	})
 	if err != nil && media != nil {
@@ -257,7 +257,7 @@ func (h *CSGroupHandler) forwardTo(target *models.WAGroup, msg *models.WAGroupMe
 }
 
 func (h *CSGroupHandler) copyMedia(msg *models.WAGroupMessage) (*services.MediaFile, error) {
-	src, ok := mediaPathWithin(h.inbox.mediaRoot, msg.MediaPath)
+	src, ok := services.MediaPathWithin(h.inbox.mediaRoot, msg.MediaPath)
 	if !ok {
 		return nil, fmt.Errorf("lampiran tidak ditemukan")
 	}

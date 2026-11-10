@@ -33,7 +33,7 @@ func TestGroupsAgainstPostgres(t *testing.T) {
 	assert.False(t, created)
 
 	queued, err := messages.Queue(GroupOutgoing{
-		GroupID: group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "OTW",
+		GroupID: group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "OTW",
 	})
 	require.NoError(t, err)
 	claimed, err := messages.ClaimQueued(account.ID, 10)
@@ -85,7 +85,7 @@ func TestGroupParityAgainstPostgres(t *testing.T) {
 	require.NoError(t, err)
 
 	queued, err := messages.Queue(GroupOutgoing{
-		GroupID: group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "OTW", MemberCount: 2,
+		GroupID: group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "OTW", MemberCount: 2,
 	})
 	require.NoError(t, err)
 	require.NoError(t, messages.MarkSent(queued.ID, "WOUT", nil))

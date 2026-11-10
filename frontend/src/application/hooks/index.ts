@@ -29,3 +29,4 @@ export * from "./useMapping";
 export * from "./useWaGroups";
 export * from "./useWaGroupActions";
 export * from "./useWaGroupMessageActions";
+export * from "./useGraphReports";

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { WaGroup, WaGroupMessage } from "@/domain/entities";
 import {
   groupPreview,
+  mayDeleteGroup,
+  outgoingOrigin,
   parseParticipants,
   participantLabel,
   sendBlockedReason,
@@ -140,6 +142,31 @@ describe("senderLabel", () => {
   });
 });
 
+describe("outgoingOrigin", () => {
+  const out = {
+    direction: "out",
+    senderJid: "62811@s.whatsapp.net",
+    senderPhone: "",
+    senderName: "",
+  } as WaGroupMessage;
+
+  it("names the automated sender instead of calling its report phone-typed", () => {
+    expect(
+      outgoingOrigin({ ...out, senderJid: "", senderName: "Laporan Otomatis" }),
+    ).toBe("Laporan Otomatis");
+  });
+
+  it("marks a message typed on the phone", () => {
+    expect(outgoingOrigin(out)).toBe("dari HP");
+    expect(outgoingOrigin({ ...out, senderName: "Kantor" })).toBe("dari HP");
+  });
+
+  it("says nothing for a CS's message or an incoming one", () => {
+    expect(outgoingOrigin({ ...out, senderUserId: "u1" })).toBe("");
+    expect(outgoingOrigin({ ...out, direction: "in" })).toBe("");
+  });
+});
+
 describe("parseParticipants", () => {
   it("splits on lines, commas and semicolons but keeps a spaced number whole", () => {
     expect(
@@ -160,5 +187,14 @@ describe("typingLine", () => {
     expect(typingLine(["Budi", "Ani", "Rina"])).toBe(
       "3 orang sedang mengetik…",
     );
+  });
+});
+
+describe("mayDeleteGroup", () => {
+  // A group the number is still in would come back on the next sync, empty.
+  it("offers deletion to an admin only once the number has left", () => {
+    expect(mayDeleteGroup(group({ left: true }), true)).toBe(true);
+    expect(mayDeleteGroup(group({ left: false }), true)).toBe(false);
+    expect(mayDeleteGroup(group({ left: true }), false)).toBe(false);
   });
 });

@@ -8,7 +8,7 @@ import { MemberAvatar } from "./GroupAvatars";
 import { GroupBubbleBody } from "./GroupBubbleBody";
 import { GroupMessageMenu } from "./GroupMessageMenu";
 import { GroupReactions } from "./GroupReactions";
-import { senderLabel } from "./groupSummary";
+import { outgoingOrigin, senderLabel } from "./groupSummary";
 import { messageAnchor } from "./groupThreadLayout";
 import { senderColor } from "./senderColor";
 import type {
@@ -35,6 +35,7 @@ function BubbleFooter({
   onRetry: (body: string) => void;
 }) {
   const outgoing = message.direction === "out";
+  const origin = outgoingOrigin(message);
   return (
     <>
       <div
@@ -51,7 +52,7 @@ function BubbleFooter({
         {message.starred && (
           <StarFilled aria-label="Berbintang" style={{ fontSize: 10 }} />
         )}
-        {outgoing && !message.senderUserId && <span>dari HP</span>}
+        {origin && <span>{origin}</span>}
         {message.edited && !message.deleted && <span>Diedit</span>}
         <span>{clock(message.waTimestamp)}</span>
         {outgoing && !message.deleted && (

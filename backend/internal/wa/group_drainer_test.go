@@ -72,7 +72,7 @@ func groupDrainSetup(t *testing.T) groupDrainEnv {
 func TestGroupDrainSendsToTheGroupAndMarksItSent(t *testing.T) {
 	env := groupDrainSetup(t)
 	queued, err := env.messages.Queue(services.GroupOutgoing{
-		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "OTW",
+		GroupID: env.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "OTW",
 	})
 	require.NoError(t, err)
 	sender := &fakeGroupSender{}
@@ -102,7 +102,7 @@ func TestAGroupReplyQuotesTheMemberWhoWroteTheMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = env.messages.Queue(services.GroupOutgoing{
-		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "dicek", ReplyToID: &original.ID,
+		GroupID: env.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "dicek", ReplyToID: &original.ID,
 	})
 	require.NoError(t, err)
 	sender := &fakeGroupSender{}
@@ -119,7 +119,7 @@ func TestAGroupReplyQuotesTheMemberWhoWroteTheMessage(t *testing.T) {
 func TestARefusedGroupMessageIsMarkedFailedWithWhatsAppsReason(t *testing.T) {
 	env := groupDrainSetup(t)
 	queued, err := env.messages.Queue(services.GroupOutgoing{
-		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "x",
+		GroupID: env.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "x",
 	})
 	require.NoError(t, err)
 	sender := &fakeGroupSender{err: errors.New("not-authorized")}
@@ -146,7 +146,7 @@ func TestBuildContextInfoNamesTheGroupMemberBeingQuoted(t *testing.T) {
 func TestAGroupMessageTagsTheMembersItMentions(t *testing.T) {
 	env := groupDrainSetup(t)
 	_, err := env.messages.Queue(services.GroupOutgoing{
-		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText,
+		GroupID: env.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText,
 		Body: "@55511122233344 cek", Mentions: []string{"55511122233344@lid"},
 	})
 	require.NoError(t, err)

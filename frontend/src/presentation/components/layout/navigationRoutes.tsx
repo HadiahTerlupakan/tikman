@@ -15,6 +15,7 @@ import {
   NodeIndexOutlined,
   ClusterOutlined,
   TeamOutlined,
+  PictureOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { UserRole } from "@/domain/entities";
@@ -77,6 +78,11 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
       ? [
           { path: "/users", name: "Users", icon: <UserOutlined /> },
           { path: "/settings", name: "Settings", icon: <SettingOutlined /> },
+          {
+            path: "/graph-reports",
+            name: "Laporan Grafik Harian",
+            icon: <PictureOutlined />,
+          },
         ]
       : []),
   ];

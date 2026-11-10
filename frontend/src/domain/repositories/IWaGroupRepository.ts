@@ -38,6 +38,8 @@ export interface IWaGroupRepository {
   ): Promise<WaGroupAction>;
   act(groupId: string, request: WaGroupActionRequest): Promise<WaGroupAction>;
   getAction(actionId: string): Promise<WaGroupAction>;
+  /** Removes a group the number has left from TikMan; WhatsApp is not told. */
+  remove(groupId: string): Promise<void>;
   setPinned(groupId: string, pinned: boolean): Promise<WaGroup>;
   /** Shows or clears our "sedang mengetik" to the group. */
   setTyping(groupId: string, typing: boolean): Promise<void>;

@@ -42,6 +42,7 @@ func (h *handlers) registerCSGroupRoutes(cs *gin.RouterGroup) {
 
 	cs.POST("/groups", admin, h.csGroupHandler.CreateGroup)
 	cs.POST("/groups/:id/actions", admin, h.csGroupHandler.ActOnGroup)
+	cs.DELETE("/groups/:id", admin, h.csGroupHandler.DeleteGroup)
 	// Who may read an answer is decided inside: an admin any, anyone else
 	// only their own, since an admin's answer can be the invite link.
 	cs.GET("/group-actions/:id", h.csGroupHandler.GetGroupAction)

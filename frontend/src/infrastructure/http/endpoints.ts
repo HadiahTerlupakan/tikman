@@ -176,4 +176,13 @@ export const API_ENDPOINTS = {
   MAPPING_EXPORT: "/api/v1/mapping/export",
   MAPPING_IMPORT_PREVIEW: "/api/v1/mapping/import/preview",
   MAPPING_IMPORT_COMMIT: "/api/v1/mapping/import/commit",
+
+  // Daily LibreNMS graph reports sent to WhatsApp groups
+  GRAPH_REPORTS: "/api/v1/graph-reports",
+  GRAPH_REPORT: (id: string) => `/api/v1/graph-reports/${id}`,
+  GRAPH_REPORT_SEND: (id: string) => `/api/v1/graph-reports/${id}/send`,
+  LIBRENMS_DEVICES: "/api/v1/graph-reports/librenms/devices",
+  LIBRENMS_DEVICE_PORTS: (deviceId: number) =>
+    `/api/v1/graph-reports/librenms/devices/${deviceId}/ports`,
+  LIBRENMS_GRAPH: "/api/v1/graph-reports/librenms/graph",
 } as const;

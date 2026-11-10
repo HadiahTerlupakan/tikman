@@ -174,7 +174,7 @@ func TestOurOwnReactionAndDeletionAreRecordedOnceWhatsAppAccepts(t *testing.T) {
 	env := groupDrainSetup(t)
 	root := t.TempDir()
 	mine, err := env.messages.Queue(services.GroupOutgoing{
-		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText, Body: "salah ketik",
+		GroupID: env.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "salah ketik",
 	})
 	require.NoError(t, err)
 	require.NoError(t, env.messages.MarkSent(mine.ID, "WMINE", nil))
@@ -223,7 +223,7 @@ func TestAPollIsSentAsAPoll(t *testing.T) {
 	extra, err := services.NewPollExtra("Lembur?", []string{"Ya", "Tidak"}, 1)
 	require.NoError(t, err)
 	_, err = env.messages.Queue(services.GroupOutgoing{
-		GroupID: env.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindPoll, Body: "Polling: Lembur?", Extra: extra,
+		GroupID: env.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindPoll, Body: "Polling: Lembur?", Extra: extra,
 	})
 	require.NoError(t, err)
 	sender := &fakeGroupSender{}

@@ -120,6 +120,8 @@ export function CsGroupsPage() {
               }
               requestingHistory={m.requestingHistory}
               onRequestHistory={m.requestHistory}
+              deleting={g.deleting}
+              onDelete={() => g.selected && g.deleteGroup(g.selected.id)}
               onBack={g.layout.columns ? undefined : () => g.navigate(-1)}
             />
           </div>

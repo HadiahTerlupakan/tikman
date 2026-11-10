@@ -26,7 +26,7 @@ const (
 	loginRequestsPerMinute = 10
 )
 
-func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener) {
+func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger, wgService *services.WireGuardService, firebaseApp *firebase.App) (*gin.Engine, *services.PushNotifierService, *PushEventListener, *services.GraphReportScheduler) {
 	router := ginEngine
 
 	router.Use(corsMiddleware(cfg.AllowedOrigins))
@@ -34,7 +34,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 
 	router.GET("/health", NewHealthHandler(db, authStore).Check)
 
-	h, pushNotifier, pushListener := newHandlers(cfg, db, authStore, logger, wgService, firebaseApp)
+	h, pushNotifier, pushListener, graphReports := newHandlers(cfg, db, authStore, logger, wgService, firebaseApp)
 
 	api := router.Group("/api/v1")
 	authenticated := middleware.AuthMiddleware(authStore, logger)
@@ -47,8 +47,9 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	h.registerOperationsRoutes(api, authenticated)
 	h.registerVPNRoutes(api, authenticated)
 	h.registerMikrotikRoutes(api, authenticated)
+	h.registerGraphReportRoutes(api, authenticated)
 
-	return router, pushNotifier, pushListener
+	return router, pushNotifier, pushListener, graphReports
 }
 
 // registerAccountRoutes covers who is signed in and what the installation is

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useNavigate,
   useOutletContext,
@@ -8,6 +8,7 @@ import { Grid, message } from "antd";
 import { useAuthStore } from "@/application/stores";
 import {
   useCreateWaGroup,
+  useDeleteWaGroup,
   useRefreshWaGroups,
   useSendWaGroupMedia,
   useSendWaGroupMessage,
@@ -20,6 +21,7 @@ import {
 } from "@/application/hooks";
 import { useDebouncedValue } from "@/application/hooks/useDebouncedValue";
 import { UserRole } from "@/domain/entities";
+import { ApiError } from "@/infrastructure/http";
 import type {
   WaGroup,
   WaGroupAction,
@@ -32,6 +34,13 @@ import { inboxLayout, type InboxPane } from "./inboxLayout";
 import { useGroupMessageActions } from "./useGroupMessageActions";
 
 const SEARCH_DEBOUNCE_MS = 300;
+const HTTP_NOT_FOUND = 404;
+
+/** A group deleted elsewhere answers its detail with 404, while React Query
+ * keeps the last good data it had; this tells the two apart. */
+export function isGroupGone(error: unknown): boolean {
+  return error instanceof ApiError && error.statusCode === HTTP_NOT_FOUND;
+}
 
 /** The selected group and number filter ride the URL, as the inbox's thread
  * does: a link to a group then opens it, and on a phone Back walks the panes. */
@@ -119,11 +128,15 @@ function useGroupSending(group: WaGroup | undefined) {
   };
 }
 
-function useGroupManagement(onCreated: (groupId: string) => void) {
+function useGroupManagement(
+  onCreated: (groupId: string) => void,
+  onDeleted: (groupId: string) => void,
+) {
   const [inviteLink, setInviteLink] = useState<string>();
   const [createOpen, setCreateOpen] = useState(false);
   const action = useWaGroupAction();
   const create = useCreateWaGroup();
+  const remove = useDeleteWaGroup();
 
   const track = useWaGroupActionTracker((settled: WaGroupAction) => {
     const outcome = describeOutcome(settled);
@@ -150,6 +163,14 @@ function useGroupManagement(onCreated: (groupId: string) => void) {
       },
     });
 
+  const deleteGroup = (groupId: string) =>
+    remove.mutate(groupId, {
+      onSuccess: () => {
+        message.success("Grup dihapus");
+        onDeleted(groupId);
+      },
+    });
+
   return {
     inviteLink,
     closeInviteLink: () => setInviteLink(undefined),
@@ -159,7 +180,33 @@ function useGroupManagement(onCreated: (groupId: string) => void) {
     createGroup,
     acting: action.isPending,
     runAction,
+    deleting: remove.isPending,
+    deleteGroup,
   };
+}
+
+/** Closes a group once it is deleted, here or in another browser. */
+function useDeletedGroupDrop(
+  { selectedId, patchParams }: ReturnType<typeof useGroupSelection>,
+  gone: boolean,
+) {
+  // A delete answers after the admin may have opened another group, and its
+  // callback was made with the selection of the render that asked for it.
+  const current = useRef({ selectedId, patchParams });
+  current.current = { selectedId, patchParams };
+  const handleDeleted = (id: string) => {
+    if (id !== current.current.selectedId) return;
+    current.current.patchParams({ group: undefined, panel: undefined });
+  };
+
+  // Another browser's delete reaches this one only as a group event, whose
+  // refetch of the open group then answers 404.
+  useEffect(() => {
+    if (gone && selectedId) handleDeleted(selectedId);
+    // handleDeleted reads the selection through the ref, not its closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gone, selectedId]);
+  return handleDeleted;
 }
 
 /**
@@ -185,17 +232,21 @@ export function useCsGroups() {
   const refresh = useRefreshWaGroups();
 
   const groups = groupsQuery.data ?? [];
+  const gone = isGroupGone(detailQuery.error);
   // The detail covers a group the current search or filter hides, such as one
   // opened from a link.
-  const selected =
-    groups.find((g) => g.id === selectedId) ?? detailQuery.data?.group;
+  const selected = gone
+    ? undefined
+    : groups.find((g) => g.id === selectedId) ?? detailQuery.data?.group;
   const sending = useGroupSending(selected);
+
+  const handleDeleted = useDeletedGroupDrop(selection, gone);
 
   const handleSelect = (id: string) => {
     patchParams({ group: id, panel: undefined }, !layout.columns);
     sending.setReplyTo(undefined);
   };
-  const management = useGroupManagement(handleSelect);
+  const management = useGroupManagement(handleSelect, handleDeleted);
   const messageActions = useGroupMessageActions(selected, sending.setReplyTo);
   // Absent outside the app shell, which is where the stream runs.
   const groupTyping =

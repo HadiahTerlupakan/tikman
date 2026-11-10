@@ -30,7 +30,7 @@ func TestAMentionIsStoredForWhatsAppAndShownByName(t *testing.T) {
 	withJoko(t, f)
 
 	queued, err := f.messages.Queue(GroupOutgoing{
-		GroupID: f.group.ID, SenderUserID: uuid.New(), Kind: models.MessageKindText,
+		GroupID: f.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText,
 		Body: "@55511122233344 tolong cek ODP 3", Mentions: []string{jokoLID, jokoLID},
 	})
 	require.NoError(t, err)

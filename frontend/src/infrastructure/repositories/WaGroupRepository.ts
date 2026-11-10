@@ -124,6 +124,10 @@ export class WaGroupRepository implements IWaGroupRepository {
     return response.data.data;
   }
 
+  async remove(groupId: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.CS_GROUP(groupId));
+  }
+
   async setPinned(groupId: string, pinned: boolean): Promise<WaGroup> {
     const response = await apiClient.put(API_ENDPOINTS.CS_GROUP_PIN(groupId), {
       pinned,

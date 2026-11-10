@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"github.com/tikman/olt-provisioning/internal/wa"
 	"go.uber.org/zap"
 )
@@ -37,7 +38,7 @@ func (h *CSGroupHandler) serveAvatar(c *gin.Context, accountID uuid.UUID, jid st
 		return
 	}
 	mime := wa.AvatarMime(path)
-	full, within := mediaPathWithin(h.inbox.mediaRoot, path)
+	full, within := services.MediaPathWithin(h.inbox.mediaRoot, path)
 	if path == "" || mime == "" || !within {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "no profile photo", Code: "AVATAR_NOT_FOUND"})
 		return

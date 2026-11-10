@@ -44,14 +44,16 @@ type handlers struct {
 	routerHandler          *RouterHandler
 	routerFlowHandler      *RouterFlowHandler
 	routerPathHandler      *RouterPathHandler
+	graphReportHandler     *GraphReportHandler
 }
 
 // newHandlers builds the services and handlers one API process needs, and
-// returns alongside them the two things cmd/api drives itself: the push
-// notifier whose Firebase sender it sets, and the listener it starts.
+// returns alongside them the three things cmd/api drives itself: the push
+// notifier whose Firebase sender it sets, and the listener and the graph
+// report scheduler it starts.
 func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger *zap.Logger,
 	wgService *services.WireGuardService, firebaseApp *firebase.App) (
-	*handlers, *services.PushNotifierService, *PushEventListener) {
+	*handlers, *services.PushNotifierService, *PushEventListener, *services.GraphReportScheduler) {
 
 	// Created before the services because the OLT service uses it to read CLI
 	// profile lists during discovery.
@@ -65,6 +67,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 	routerService := services.NewRouterService(db, cfg.EncryptionKey)
 
 	cs := newCSStack(cfg, db, logger, auditService, ontService, userService)
+	graphReportHandler, graphReportScheduler := newGraphReports(cfg, db, logger, auditService, cs.redis)
 	provisionHandler, zteProvisionHandler := newProvisioningHandlers(cfg, db, logger, auditService, configTemplateService, commanderFactory)
 
 	return &handlers{
@@ -96,7 +99,8 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		routerFlowHandler: NewRouterFlowHandler(routerService, services.NewFlowQueryService(db)),
 		routerPathHandler: NewRouterPathHandler(routerService,
 			services.NewRouterPollService(db, routerService), services.NewFlowQueryService(db)),
-	}, cs.notifier, cs.listener
+		graphReportHandler: graphReportHandler,
+	}, cs.notifier, cs.listener, graphReportScheduler
 }
 
 // csStack is the CS inbox's half of the wiring: its handlers, and the two
@@ -108,6 +112,9 @@ type csStack struct {
 	push        *PushHandler
 	notifier    *services.PushNotifierService
 	listener    *PushEventListener
+	// redis is the CS pub/sub connection, which anything else queueing group
+	// messages announces them on.
+	redis *redis.Client
 }
 
 func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditService *services.AuditService,
@@ -147,7 +154,18 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 	pushNotifier := services.NewPushNotifierService(nil, pushService, csConversationService, csMessageService)
 	pushListener := NewPushEventListener(csRedisClient, pushNotifier, logger)
 
-	return csStack{handler: csHandler, groups: groupHandler, performance: performanceHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener}
+	return csStack{handler: csHandler, groups: groupHandler, performance: performanceHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener, redis: csRedisClient}
+}
+
+// newGraphReports builds the report page's handler and the daily scheduler
+// cmd/api runs around one sender, so both announce queued messages on the CS
+// pub/sub connection.
+func newGraphReports(cfg *config.Config, db *gorm.DB, logger *zap.Logger,
+	auditService *services.AuditService, redisClient *redis.Client) (*GraphReportHandler, *services.GraphReportScheduler) {
+	sender := services.NewGraphReportSender(db, services.NewSettingService(db, cfg.EncryptionKey),
+		cfg.WAMediaDir, wa.NewGroupQueueNotifier(redisClient, logger))
+	return NewGraphReportHandler(services.NewGraphReportService(db), sender, auditService),
+		services.NewGraphReportScheduler(db, sender, logger)
 }
 
 func newProvisioningHandlers(cfg *config.Config, db *gorm.DB, logger *zap.Logger,

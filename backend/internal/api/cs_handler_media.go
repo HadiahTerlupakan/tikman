@@ -113,7 +113,7 @@ func (h *CSHandler) ServeMedia(c *gin.Context) {
 		return
 	}
 
-	full, ok := mediaPathWithin(h.mediaRoot, msg.MediaPath)
+	full, ok := services.MediaPathWithin(h.mediaRoot, msg.MediaPath)
 	if !ok {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "attachment not found", Code: "MEDIA_NOT_FOUND"})
 		return
@@ -121,17 +121,6 @@ func (h *CSHandler) ServeMedia(c *gin.Context) {
 
 	setMediaResponseHeaders(c, msg.MediaMime, msg.MediaFilename)
 	c.File(full)
-}
-
-// mediaPathWithin joins a stored relative path onto the media root and
-// reports whether the result is still inside it.
-func mediaPathWithin(root, rel string) (string, bool) {
-	cleanRoot := filepath.Clean(root)
-	full := filepath.Join(cleanRoot, rel)
-	if full != cleanRoot && !strings.HasPrefix(full, cleanRoot+string(filepath.Separator)) {
-		return "", false
-	}
-	return full, true
 }
 
 // setMediaResponseHeaders locks the response to exactly the type a message

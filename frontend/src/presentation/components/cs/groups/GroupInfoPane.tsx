@@ -1,5 +1,9 @@
-import { Button, Divider, Empty, Spin, Typography } from "antd";
-import { ArrowLeftOutlined, HistoryOutlined } from "@ant-design/icons";
+import { Button, Divider, Empty, Popconfirm, Spin, Typography } from "antd";
+import {
+  ArrowLeftOutlined,
+  DeleteOutlined,
+  HistoryOutlined,
+} from "@ant-design/icons";
 import type {
   WaGroup,
   WaGroupActionRequest,
@@ -8,6 +12,7 @@ import type {
 import { colors } from "@/shared/theme/colors";
 import { GroupAvatar } from "./GroupAvatars";
 import { GroupManagement } from "./GroupManagement";
+import { mayDeleteGroup } from "./groupSummary";
 import { ParticipantList } from "./ParticipantList";
 import { StarredMessages } from "./StarredMessages";
 
@@ -23,6 +28,8 @@ interface GroupInfoPaneProps {
   onAction: (request: WaGroupActionRequest) => void;
   requestingHistory: boolean;
   onRequestHistory: () => void;
+  deleting: boolean;
+  onDelete: () => void;
   /** Present only where the panes take turns. */
   onBack?: () => void;
 }
@@ -46,6 +53,8 @@ export function GroupInfoPane({
   onAction,
   requestingHistory,
   onRequestHistory,
+  deleting,
+  onDelete,
   onBack,
 }: GroupInfoPaneProps) {
   if (!group) {
@@ -88,6 +97,29 @@ export function GroupInfoPane({
           <Divider style={{ margin: "12px 0" }} />
           <Text style={sectionTitle}>Kelola grup</Text>
           <GroupManagement group={group} busy={busy} onAction={onAction} />
+        </>
+      )}
+
+      {mayDeleteGroup(group, isAdmin) && (
+        <>
+          <Divider style={{ margin: "12px 0" }} />
+          <Popconfirm
+            title="Hapus grup ini dari TikMan?"
+            description="Riwayat pesan, media, dan laporan grafik untuk grup ini ikut terhapus. Grup di WhatsApp tidak berubah."
+            okText="Hapus"
+            okButtonProps={{ danger: true }}
+            cancelText="Batal"
+            onConfirm={onDelete}
+          >
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleting}
+            >
+              Hapus grup
+            </Button>
+          </Popconfirm>
         </>
       )}
 

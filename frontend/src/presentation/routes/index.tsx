@@ -18,6 +18,7 @@ import CsGroupsPage from "../pages/CsGroupsPage";
 import VpnPage from "../pages/VpnPage";
 import RoutersPage from "../pages/RoutersPage";
 import SettingsPage from "../pages/SettingsPage";
+import GraphReportsPage from "../pages/GraphReportsPage";
 import NotFoundPage from "../pages/NotFound";
 
 // Graphs and Kinerja CS are the routes that pull in recharts, so they load on
@@ -136,6 +137,10 @@ export const router = createBrowserRouter([
           {
             path: "settings",
             element: <SettingsPage />,
+          },
+          {
+            path: "graph-reports",
+            element: <GraphReportsPage />,
           },
           {
             path: "graphs",

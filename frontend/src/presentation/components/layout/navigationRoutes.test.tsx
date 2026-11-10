@@ -31,6 +31,12 @@ describe("buildNavigationRoutes", () => {
     expect(paths(undefined)).not.toContain("/settings");
   });
 
+  it("shows Laporan Grafik Harian only to an admin, whose API alone serves it", () => {
+    expect(paths(UserRole.ADMIN)).toContain("/graph-reports");
+    expect(paths(UserRole.TECHNICIAN)).not.toContain("/graph-reports");
+    expect(paths(UserRole.CS)).not.toContain("/graph-reports");
+  });
+
   it("keeps the CS inbox away from a viewer, who is 403'd inside it", () => {
     expect(paths(UserRole.CS)).toContain("/cs");
     expect(paths(UserRole.TECHNICIAN)).toContain("/cs");

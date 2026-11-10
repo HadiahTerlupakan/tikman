@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQueries } from "@tanstack/react-query";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { WaGroupRepository } from "@/infrastructure/repositories";
 import { reportCsMutationError } from "./csMutationError";
 import { waGroupKeys } from "./waGroupKeys";
@@ -30,6 +30,21 @@ export function useWaGroupAction() {
   return useMutation({
     mutationFn: (vars: { groupId: string; request: WaGroupActionRequest }) =>
       waGroupRepository.act(vars.groupId, vars.request),
+    onError: reportCsMutationError,
+  });
+}
+
+/** Deletes a group the number has left. Admin only on the server. The group's
+ * own queries are dropped rather than refetched: refetching would only 404. */
+export function useDeleteWaGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => waGroupRepository.remove(groupId),
+    onSuccess: (_, groupId) => {
+      queryClient.removeQueries({ queryKey: waGroupKeys.detail(groupId) });
+      queryClient.removeQueries({ queryKey: waGroupKeys.messages(groupId) });
+      queryClient.invalidateQueries({ queryKey: waGroupKeys.lists() });
+    },
     onError: reportCsMutationError,
   });
 }

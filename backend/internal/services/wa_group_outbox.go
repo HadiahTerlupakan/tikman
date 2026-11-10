@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -67,6 +68,27 @@ func (s *WAGroupMessageService) update(id uuid.UUID, fields map[string]any) erro
 	}
 	if res.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+var (
+	// ErrGroupLeft is a group the number is no longer in.
+	ErrGroupLeft = errors.New("nomor ini sudah tidak menjadi anggota grup")
+	// ErrGroupAnnounceOnly is an admins-only group the number does not
+	// administer.
+	ErrGroupAnnounceOnly = errors.New("hanya admin grup yang boleh mengirim pesan di grup ini")
+)
+
+// CheckGroupSendable refuses a group the number cannot post in. WhatsApp would
+// refuse both anyway, but only after the message sat in the queue looking
+// sent.
+func CheckGroupSendable(group *models.WAGroup) error {
+	switch {
+	case group.Left:
+		return ErrGroupLeft
+	case group.Announce && !group.IsAdmin:
+		return ErrGroupAnnounceOnly
 	}
 	return nil
 }

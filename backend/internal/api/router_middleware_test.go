@@ -35,7 +35,7 @@ func newMiddlewareTestRouter(t *testing.T, allowedOrigins string) *gin.Engine {
 		AllowedOrigins: allowedOrigins,
 	}
 
-	router, _, _ := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
+	router, _, _, _ := Setup(gin.New(), cfg, db, auth.NewMemoryStore(24*time.Hour), logger,
 		services.NewWireGuardService(db, testEncryptionKey, &connectivity.MemoryTunnelDevice{}), nil)
 	return router
 }

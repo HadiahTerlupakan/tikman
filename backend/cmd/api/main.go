@@ -34,6 +34,9 @@ const wireguardStatusInterval = 30 * time.Second
 // often cannot see a change sooner.
 const workerAlertInterval = time.Minute
 
+// graphReportInterval is the resolution of the daily report's 06:00 start.
+const graphReportInterval = time.Minute
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -131,7 +134,7 @@ func main() {
 		log.Warn("Firebase is not available", zap.Error(err))
 	}
 
-	router, pushNotifier, pushListener := api.Setup(engine, cfg, db, sessionStore, log, wgService, firebaseApp)
+	router, pushNotifier, pushListener, graphReports := api.Setup(engine, cfg, db, sessionStore, log, wgService, firebaseApp)
 
 	pushClient, err := push.NewClient(context.Background(), firebaseApp)
 	if err != nil {
@@ -146,6 +149,9 @@ func main() {
 	} else {
 		log.Info("FIREBASE_SERVICE_ACCOUNT_JSON_B64 not set — push notifications disabled")
 	}
+
+	go graphReports.Run(context.Background(), graphReportInterval)
+	log.Info("Daily graph reports scheduled")
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))

@@ -43,7 +43,7 @@ func (h *CSGroupHandler) SendGroupMessage(c *gin.Context) {
 
 	userID, _ := middleware.GetUserID(c)
 	msg, err := h.messages.Queue(services.GroupOutgoing{
-		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
+		GroupID: group.ID, SenderUserID: &userID, SenderName: h.senderName(userID),
 		Kind: models.MessageKindText, Body: h.inbox.sign(userID, req.Body), ReplyToID: replyTo,
 		Mentions: req.Mentions, MemberCount: h.memberCount(group.ID),
 	})
@@ -84,7 +84,7 @@ func (h *CSGroupHandler) SendGroupMedia(c *gin.Context) {
 		caption = h.inbox.sign(userID, caption)
 	}
 	msg, err := h.messages.Queue(services.GroupOutgoing{
-		GroupID: group.ID, SenderUserID: userID, SenderName: h.senderName(userID),
+		GroupID: group.ID, SenderUserID: &userID, SenderName: h.senderName(userID),
 		Kind: kindForMime(mime), Body: caption, Media: media, ReplyToID: replyTo,
 		Mentions: mentions, MemberCount: h.memberCount(group.ID),
 	})
@@ -97,21 +97,19 @@ func (h *CSGroupHandler) SendGroupMedia(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": msg})
 }
 
-// sendableGroup refuses a group the number cannot post in: one it has left,
-// and an admins-only group it does not administer. WhatsApp would refuse both
-// anyway, but only after the message sat in the queue looking sent.
+// sendableGroup refuses a group the number cannot post in.
 func (h *CSGroupHandler) sendableGroup(c *gin.Context, code string) (*models.WAGroup, bool) {
 	group, ok := h.loadGroup(c, code)
 	if !ok {
 		return nil, false
 	}
-	switch {
-	case group.Left:
+	switch services.CheckGroupSendable(group) {
+	case services.ErrGroupLeft:
 		c.JSON(http.StatusConflict, ErrorResponse{
 			Error: "Nomor ini sudah tidak menjadi anggota grup", Code: "GROUP_LEFT",
 		})
 		return nil, false
-	case group.Announce && !group.IsAdmin:
+	case services.ErrGroupAnnounceOnly:
 		c.JSON(http.StatusConflict, ErrorResponse{
 			Error: "Hanya admin grup yang boleh mengirim pesan di grup ini", Code: "GROUP_ANNOUNCE",
 		})
@@ -179,7 +177,7 @@ func (h *CSGroupHandler) ServeGroupMedia(c *gin.Context) {
 		mapCSError(c, err, "MEDIA_NOT_FOUND")
 		return
 	}
-	full, ok := mediaPathWithin(h.inbox.mediaRoot, msg.MediaPath)
+	full, ok := services.MediaPathWithin(h.inbox.mediaRoot, msg.MediaPath)
 	if msg.MediaPath == "" || !ok {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "attachment not found", Code: "MEDIA_NOT_FOUND"})
 		return

@@ -46,10 +46,12 @@ type GroupArrival struct {
 	Forwarded bool
 }
 
-// GroupOutgoing is one message a TikMan user writes to a group.
+// GroupOutgoing is one message TikMan writes to a group.
 type GroupOutgoing struct {
-	GroupID      uuid.UUID
-	SenderUserID uuid.UUID
+	GroupID uuid.UUID
+	// SenderUserID is nil for a message no user wrote, such as a scheduled
+	// report, which then nobody may edit.
+	SenderUserID *uuid.UUID
 	SenderName   string
 	Kind         models.MessageKind
 	Body         string
@@ -208,12 +210,44 @@ func clampRunes(s string, limit int) string {
 
 // Queue writes a message as waiting to be sent.
 func (s *WAGroupMessageService) Queue(out GroupOutgoing) (*models.WAGroupMessage, error) {
-	sender := out.SenderUserID
+	msg := outgoingGroupRow(out, time.Now())
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		return queueGroupRow(tx, &msg, out.Mentions)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &msg, nil
+}
+
+// QueueBatch writes several messages as waiting, all or none, and runs also on
+// the same transaction so a caller's own bookkeeping commits with them. The
+// drain sends by created_at, which is spaced here so the order survives a
+// clock that does not tick between inserts.
+func (s *WAGroupMessageService) QueueBatch(outs []GroupOutgoing, also func(tx *gorm.DB) error) ([]models.WAGroupMessage, error) {
+	start := time.Now()
+	rows := make([]models.WAGroupMessage, len(outs))
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		for i, out := range outs {
+			rows[i] = outgoingGroupRow(out, start.Add(time.Duration(i)*time.Millisecond))
+			if err := queueGroupRow(tx, &rows[i], out.Mentions); err != nil {
+				return err
+			}
+		}
+		return also(tx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func outgoingGroupRow(out GroupOutgoing, at time.Time) models.WAGroupMessage {
 	msg := models.WAGroupMessage{
 		GroupID:      out.GroupID,
 		Direction:    models.MessageOut,
 		SenderName:   out.SenderName,
-		SenderUserID: &sender,
+		SenderUserID: out.SenderUserID,
 		Kind:         out.Kind,
 		Body:         out.Body,
 		Status:       models.MessageQueued,
@@ -222,20 +256,18 @@ func (s *WAGroupMessageService) Queue(out GroupOutgoing) (*models.WAGroupMessage
 		Forwarded:    out.Forwarded,
 		MemberCount:  out.MemberCount,
 		Mentions:     encodeJIDs(out.Mentions),
-		WATimestamp:  time.Now(),
+		WATimestamp:  at,
+		CreatedAt:    at,
 	}
 	applyGroupMedia(&msg, out.Media)
+	return msg
+}
 
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&msg).Error; err != nil {
-			return fmt.Errorf("queue group message: %w", err)
-		}
-		return bumpGroup(tx, &msg, withNames(tx, msg.GroupID, msg.Body, out.Mentions), false)
-	})
-	if err != nil {
-		return nil, err
+func queueGroupRow(tx *gorm.DB, msg *models.WAGroupMessage, mentions []string) error {
+	if err := tx.Create(msg).Error; err != nil {
+		return fmt.Errorf("queue group message: %w", err)
 	}
-	return &msg, nil
+	return bumpGroup(tx, msg, withNames(tx, msg.GroupID, msg.Body, mentions), false)
 }
 
 // QuoteTarget answers the message a reply may quote: one in this group that

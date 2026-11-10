@@ -3,11 +3,13 @@ import { WaGroupRepository } from "./WaGroupRepository";
 
 const get = vi.fn();
 const post = vi.fn();
+const del = vi.fn();
 
 vi.mock("../http/apiClient", () => ({
   apiClient: {
     get: (...args: unknown[]) => get(...args),
     post: (...args: unknown[]) => post(...args),
+    delete: (...args: unknown[]) => del(...args),
   },
 }));
 
@@ -15,6 +17,7 @@ describe("WaGroupRepository", () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset();
+    del.mockReset();
   });
 
   // Query params skip the request interceptor's decamelize, so they have to
@@ -46,5 +49,13 @@ describe("WaGroupRepository", () => {
     const [url, form] = post.mock.calls[0];
     expect(url).toBe("/api/v1/cs/groups/g1/media?reply_to_id=m0");
     expect((form as FormData).get("caption")).toBe("lihat");
+  });
+
+  it("deletes a group at its own address", async () => {
+    del.mockResolvedValue({ data: { data: { deleted: true } } });
+
+    await new WaGroupRepository().remove("g1");
+
+    expect(del).toHaveBeenCalledWith("/api/v1/cs/groups/g1");
   });
 });
