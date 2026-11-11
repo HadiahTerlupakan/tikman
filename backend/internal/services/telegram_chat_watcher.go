@@ -42,6 +42,9 @@ type TelegramChatWatcher struct {
 	// restart only means re-reading updates, which Apply takes twice.
 	offset int64
 	token  string
+	// chatsRefreshed is whether this bot's chats have been asked about once
+	// since the process started or the token changed.
+	chatsRefreshed bool
 }
 
 // NewTelegramChatWatcher constructs a TelegramChatWatcher.
@@ -81,7 +84,11 @@ func (w *TelegramChatWatcher) Poll(ctx context.Context) time.Duration {
 			return telegramBackoff
 		}
 	}
-	updates, err := w.newClient(token).GetUpdates(ctx, w.offset, telegramPollSeconds)
+	client := w.newClient(token)
+	if !w.chatsRefreshed {
+		w.chatsRefreshed = w.refreshChats(ctx, client)
+	}
+	updates, err := client.GetUpdates(ctx, w.offset, telegramPollSeconds)
 	if err != nil {
 		if ctx.Err() == nil {
 			w.logger.Warn("Telegram getUpdates failed", zap.Error(err))
@@ -115,8 +122,41 @@ func (w *TelegramChatWatcher) switchBot(token string) error {
 			return err
 		}
 	}
-	w.token, w.offset = token, 0
+	w.token, w.offset, w.chatsRefreshed = token, 0, false
 	return nil
+}
+
+// refreshChats asks Telegram afresh about each supergroup the bot is in.
+// Updates are otherwise the only source of is_forum, and a bot in privacy
+// mode may hear nothing from a group for weeks: a forum recorded before
+// is_forum was, or given topics since, would offer no Topik and keep its
+// report in General. Answers whether it ran to the end; a Telegram it could
+// not reach is tried again on the next poll.
+func (w *TelegramChatWatcher) refreshChats(ctx context.Context, client *telegram.Client) bool {
+	ids, err := w.chats.ActiveSupergroupIDs()
+	if err != nil {
+		w.logger.Warn("Could not list the Telegram chats to refresh", zap.Error(err))
+		return false
+	}
+	for _, id := range ids {
+		chat, err := client.GetChat(ctx, id)
+		var refused *telegram.APIError
+		if errors.As(err, &refused) {
+			// The bot was removed or the chat is gone; the next send to it
+			// is refused as well, and that is what retires the chat.
+			continue
+		}
+		if err == nil {
+			err = w.chats.Refresh(id, chat)
+		}
+		if err != nil {
+			if ctx.Err() == nil {
+				w.logger.Warn("Could not refresh a Telegram chat", zap.Int64("chat_id", id), zap.Error(err))
+			}
+			return false
+		}
+	}
+	return true
 }
 
 // constraintViolation is the database refusing a write for what it holds,

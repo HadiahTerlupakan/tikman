@@ -28,6 +28,9 @@ const sendTimeout = 60 * time.Second
 // may take before it is given up on.
 const pollGrace = 10 * time.Second
 
+// lookupTimeout covers one getChat, a small answer.
+const lookupTimeout = 10 * time.Second
+
 // maxBodyBytes bounds an answer; a hundred updates are tens of kilobytes.
 const maxBodyBytes = 4 << 20
 
@@ -71,6 +74,9 @@ type Chat struct {
 	ID    int64  `json:"id"`
 	Title string `json:"title"`
 	Type  string `json:"type"`
+	// IsForum is a supergroup with topics, where a post without a thread ID
+	// lands in General.
+	IsForum bool `json:"is_forum"`
 }
 
 // ChatMember is the bot's own membership after a change.
@@ -84,11 +90,27 @@ type ChatMemberUpdated struct {
 	NewChatMember ChatMember `json:"new_chat_member"`
 }
 
-// Message is the part of a message discovery reads.
+// ForumTopic is the part of a topic's creation or edit that names it.
+type ForumTopic struct {
+	Name string `json:"name"`
+}
+
+// Message is the part of a message discovery reads. The Bot API cannot list
+// a forum's topics, so they too are learnt from messages: a topic's creation,
+// its renaming, and any message posted inside it.
 type Message struct {
 	Chat              Chat  `json:"chat"`
 	MigrateToChatID   int64 `json:"migrate_to_chat_id"`
 	MigrateFromChatID int64 `json:"migrate_from_chat_id"`
+	MessageThreadID   int64 `json:"message_thread_id"`
+	// IsTopicMessage tells a message inside a topic from a reply in General,
+	// which carries a thread ID as well.
+	IsTopicMessage    bool        `json:"is_topic_message"`
+	ForumTopicCreated *ForumTopic `json:"forum_topic_created"`
+	ForumTopicEdited  *ForumTopic `json:"forum_topic_edited"`
+	// ReplyToMessage of a message in a topic is the topic's creation, unless
+	// it replies to something else.
+	ReplyToMessage *Message `json:"reply_to_message"`
 }
 
 // Update is one event from getUpdates.
@@ -152,18 +174,31 @@ func (c *Client) GetUpdates(ctx context.Context, offset int64, timeoutSeconds in
 	return updates, err
 }
 
-// SendPhoto posts one photo.
-func (c *Client) SendPhoto(ctx context.Context, chatID int64, photo Photo) error {
+// GetChat reads what Telegram says of a chat now, whether or not any update
+// has carried it lately.
+func (c *Client) GetChat(ctx context.Context, chatID int64) (Chat, error) {
+	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
+	defer cancel()
+	form := url.Values{"chat_id": {strconv.FormatInt(chatID, 10)}}
+	var chat Chat
+	err := c.call(ctx, "getChat", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()), &chat)
+	return chat, err
+}
+
+// SendPhoto posts one photo into a forum's topic threadID, or with 0 into
+// the chat itself, which in a forum is General.
+func (c *Client) SendPhoto(ctx context.Context, chatID, threadID int64, photo Photo) error {
 	return c.upload(ctx, "sendPhoto", func(w *multipart.Writer) error {
-		if err := writeFields(w, chatID, map[string]string{"caption": photo.Caption}); err != nil {
+		if err := writeFields(w, chatID, threadID, map[string]string{"caption": photo.Caption}); err != nil {
 			return err
 		}
 		return writePhoto(w, "photo", photo)
 	})
 }
 
-// SendMediaGroup posts photos as one album. Telegram takes 2 to 10 of them.
-func (c *Client) SendMediaGroup(ctx context.Context, chatID int64, photos []Photo) error {
+// SendMediaGroup posts photos as one album, into threadID as SendPhoto does.
+// Telegram takes 2 to 10 of them.
+func (c *Client) SendMediaGroup(ctx context.Context, chatID, threadID int64, photos []Photo) error {
 	type inputMedia struct {
 		Type    string `json:"type"`
 		Media   string `json:"media"`
@@ -178,7 +213,7 @@ func (c *Client) SendMediaGroup(ctx context.Context, chatID int64, photos []Phot
 		return fmt.Errorf("encode media group: %w", err)
 	}
 	return c.upload(ctx, "sendMediaGroup", func(w *multipart.Writer) error {
-		if err := writeFields(w, chatID, map[string]string{"media": string(encoded)}); err != nil {
+		if err := writeFields(w, chatID, threadID, map[string]string{"media": string(encoded)}); err != nil {
 			return err
 		}
 		for i, photo := range photos {
@@ -192,8 +227,11 @@ func (c *Client) SendMediaGroup(ctx context.Context, chatID int64, photos []Phot
 
 func partName(i int) string { return "p" + strconv.Itoa(i) }
 
-func writeFields(w *multipart.Writer, chatID int64, fields map[string]string) error {
+func writeFields(w *multipart.Writer, chatID, threadID int64, fields map[string]string) error {
 	fields["chat_id"] = strconv.FormatInt(chatID, 10)
+	if threadID != 0 {
+		fields["message_thread_id"] = strconv.FormatInt(threadID, 10)
+	}
 	for name, value := range fields {
 		if err := w.WriteField(name, value); err != nil {
 			return fmt.Errorf("write %s: %w", name, err)

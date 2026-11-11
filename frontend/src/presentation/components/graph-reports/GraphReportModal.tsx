@@ -10,7 +10,11 @@ import {
   TimePicker,
 } from "antd";
 import { FileImageOutlined } from "@ant-design/icons";
-import { useGraphReportPreview, useLibrenmsDevices } from "@/application/hooks";
+import {
+  useGraphReportPreview,
+  useLibrenmsDevices,
+  useTelegramChats,
+} from "@/application/hooks";
 import {
   DEFAULT_GRAPH_REPORT_MESSAGE,
   GRAPH_REPORT_MESSAGE_MAX,
@@ -25,6 +29,7 @@ import {
   toPreviewInput,
   type GraphReportFormValues,
 } from "./graphReportForm";
+import { initialTopic } from "./telegramDestination";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 import { PortList } from "./PortList";
 import { PortPreviewModal, type PreviewTarget } from "./PortPreviewModal";
@@ -55,6 +60,7 @@ export function GraphReportModal({
   const [previewOpen, setPreviewOpen] = useState(false);
   const reportPreview = useGraphReportPreview();
   const devices = useLibrenmsDevices(open);
+  const { data: telegramChats = [] } = useTelegramChats(open);
   const waGroupId = Form.useWatch("waGroupId", form);
 
   // A group row belongs to one number, so the old choice is never valid for
@@ -64,6 +70,14 @@ export function GraphReportModal({
   // already sends no tag while no group is chosen.
   const handleValuesChange = (changed: Partial<GraphReportFormValues>) => {
     if ("waAccountId" in changed) form.setFieldValue("waGroupId", undefined);
+    // A topic belongs to one forum.
+    if ("telegramChatId" in changed) {
+      const chat = telegramChats.find((c) => c.id === changed.telegramChatId);
+      form.setFieldValue(
+        "telegramThreadId",
+        initialTopic(chat, reports, { report }),
+      );
+    }
     if ("waGroupId" in changed && !changed.waGroupId)
       form.setFieldValue("mentionAll", false);
   };

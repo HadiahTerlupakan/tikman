@@ -9,13 +9,20 @@ import (
 
 // GraphReport sends a customer's LibreNMS port graphs once a day into a
 // WhatsApp group, a Telegram chat, or both. Each carries at most one report,
-// so the group is the report's identity as far as the admins are concerned.
+// so the group is the report's identity as far as the admins are concerned;
+// in a Telegram forum that holds per topic, General counting as one.
 type GraphReport struct {
-	ID             uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	WAGroupID      *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"wa_group_id"`
-	TelegramChatID *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"telegram_chat_id"`
-	CustomerName   string     `gorm:"type:varchar(255);not null" json:"customer_name"`
-	Enabled        bool       `gorm:"not null;default:true" json:"enabled"`
+	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	WAGroupID *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"wa_group_id"`
+	// TelegramChatID has no index tag: a report is unique per topic, through
+	// an expression index migration 76 builds, and AutoMigrate, which runs
+	// before the SQL files, would rebuild the per-chat one it drops.
+	TelegramChatID *uuid.UUID `gorm:"type:uuid" json:"telegram_chat_id"`
+	// TelegramThreadID is the forum topic the report goes to; nil is General,
+	// or the chat itself when it is no forum.
+	TelegramThreadID *int64 `json:"telegram_thread_id"`
+	CustomerName     string `gorm:"type:varchar(255);not null" json:"customer_name"`
+	Enabled          bool   `gorm:"not null;default:true" json:"enabled"`
 	// Message is the caption the image is sent with; empty means the default
 	// greeting (services.DefaultGraphReportMessage).
 	Message string `gorm:"type:text;not null;default:''" json:"message"`

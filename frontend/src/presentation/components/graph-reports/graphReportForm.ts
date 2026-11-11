@@ -6,11 +6,11 @@ import {
   type GraphReportPreviewInput,
   type LibrenmsDevice,
   type LibrenmsPort,
-  type TelegramChat,
   type WaAccount,
   type WaGroup,
 } from "@/domain/entities";
 import { sendBlockedReason } from "../cs/groups/groupSummary";
+import { GENERAL_TOPIC, telegramDestinationLabel } from "./telegramDestination";
 
 /** One port row as the form holds it; blank until the operator picks. */
 export interface PortFormValue {
@@ -26,6 +26,8 @@ export interface GraphReportFormValues {
   waAccountId?: string;
   waGroupId?: string;
   telegramChatId?: string;
+  /** GENERAL_TOPIC for General; only read while the chat is a forum. */
+  telegramThreadId?: number;
   customerName?: string;
   message?: string;
   enabled: boolean;
@@ -70,6 +72,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
     waAccountId: report.waAccountId || undefined,
     waGroupId: report.waGroupId ?? undefined,
     telegramChatId: report.telegramChatId ?? undefined,
+    telegramThreadId: report.telegramThreadId ?? GENERAL_TOPIC,
     customerName: report.customerName,
     message: report.message,
     enabled: report.enabled,
@@ -113,6 +116,12 @@ export function toGraphReportInput(
     // update as well as a create.
     waGroupId: values.waGroupId ?? null,
     telegramChatId: values.telegramChatId ?? null,
+    // Changing the chat resets the topic, so a thread id only survives
+    // while it belongs to the chosen forum.
+    telegramThreadId:
+      values.telegramChatId && values.telegramThreadId
+        ? values.telegramThreadId
+        : null,
     enabled: values.enabled,
     // Switching number clears the group but leaves the box ticked, so a
     // later pick on the new number keeps the choice; with no group there is
@@ -135,37 +144,10 @@ export function missingDestination(
 export function destinationNames(report: GraphReport): string {
   return [
     report.waGroupId && report.groupName,
-    report.telegramChatId && report.telegramChatTitle,
+    report.telegramChatId && telegramDestinationLabel(report),
   ]
     .filter(Boolean)
     .join(" dan ");
-}
-
-/** Only chats the bot is still in, and none another report already uses:
- * the API refuses both. The edited report's own chat stays listed even after
- * the bot left it, disabled, so the admin sees why it no longer sends rather
- * than a bare id. */
-export function telegramChatOptions(
-  chats: TelegramChat[],
-  reports: GraphReport[],
-  currentChatId?: string,
-): SelectOption<string>[] {
-  const taken = new Set(
-    reports
-      .map((r) => r.telegramChatId)
-      .filter((id) => id && id !== currentChatId),
-  );
-  return chats
-    .filter((c) => (c.active && !taken.has(c.id)) || c.id === currentChatId)
-    .map((c) => {
-      const name = c.title || String(c.chatId);
-      if (c.active) return { value: c.id, label: name };
-      return {
-        value: c.id,
-        label: `${name} (bot sudah keluar)`,
-        disabled: true,
-      };
-    });
 }
 
 /** The API's update replaces the whole report, so flipping "Aktif" resends

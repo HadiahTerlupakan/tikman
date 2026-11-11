@@ -5,16 +5,16 @@ import {
   useWaAccounts,
   useWaGroups,
 } from "@/application/hooks";
-import type { GraphReport } from "@/domain/entities";
+import type { GraphReport, TelegramChat } from "@/domain/entities";
 import {
   NO_DESTINATION_MESSAGE,
   accountOptions,
   groupOptions,
   initialAccountId,
   missingDestination,
-  telegramChatOptions,
   type GraphReportFormValues,
 } from "./graphReportForm";
+import { telegramChatOptions, topicOptions } from "./telegramDestination";
 
 interface DestinationFieldsProps {
   form: FormInstance<GraphReportFormValues>;
@@ -36,7 +36,12 @@ function TelegramHelp() {
   );
 }
 
-type TelegramChatFieldProps = Omit<DestinationFieldsProps, "form">;
+interface TelegramChatFieldProps {
+  chats: TelegramChat[];
+  loading: boolean;
+  report?: GraphReport;
+  reports: GraphReport[];
+}
 
 function destinationRule({
   getFieldValue,
@@ -54,8 +59,12 @@ function destinationRule({
 
 // The rule sits on this field and depends on the WhatsApp group, so the
 // "pick one" message shows once, and clears as soon as either is chosen.
-function TelegramChatField({ open, report, reports }: TelegramChatFieldProps) {
-  const { data: chats = [], isLoading: chatsLoading } = useTelegramChats(open);
+function TelegramChatField({
+  chats,
+  loading: chatsLoading,
+  report,
+  reports,
+}: TelegramChatFieldProps) {
   return (
     <Form.Item
       name="telegramChatId"
@@ -80,6 +89,67 @@ function TelegramChatField({ open, report, reports }: TelegramChatFieldProps) {
         }
       />
     </Form.Item>
+  );
+}
+
+interface TelegramTopicFieldProps {
+  chat: TelegramChat;
+  report?: GraphReport;
+  reports: GraphReport[];
+}
+
+// Telegram has no call that lists a forum's topics; the bot learns one from
+// a message posted in it, and a command is what reaches it in privacy mode.
+function TelegramTopicField({
+  chat,
+  report,
+  reports,
+}: TelegramTopicFieldProps) {
+  return (
+    <Form.Item
+      name="telegramThreadId"
+      label="Topik"
+      extra={
+        <>
+          Topik belum ada di daftar? Kirim{" "}
+          <Typography.Text code>/start@nama_bot</Typography.Text> di dalam topik
+          itu, lalu buka form ini lagi.
+        </>
+      }
+      // An empty topic would be sent as General, which may be taken.
+      rules={[{ required: true, message: "Pilih topik" }]}
+    >
+      <Select
+        showSearch
+        placeholder="Pilih topik"
+        optionFilterProp="label"
+        options={topicOptions(chat, reports, { report })}
+      />
+    </Form.Item>
+  );
+}
+
+function TelegramFields({
+  form,
+  open,
+  report,
+  reports,
+}: DestinationFieldsProps) {
+  const { data: chats = [], isLoading } = useTelegramChats(open);
+  const chatId = Form.useWatch("telegramChatId", form);
+  const chat = chats.find((c) => c.id === chatId);
+  return (
+    <>
+      <TelegramChatField
+        chats={chats}
+        loading={isLoading}
+        report={report}
+        reports={reports}
+      />
+      {chat?.isForum && (
+        <TelegramTopicField chat={chat} report={report} reports={reports} />
+      )}
+    </>
   );
 }
 
@@ -138,7 +208,12 @@ export function DestinationFields({
           }
         />
       </Form.Item>
-      <TelegramChatField open={open} report={report} reports={reports} />
+      <TelegramFields
+        form={form}
+        open={open}
+        report={report}
+        reports={reports}
+      />
     </>
   );
 }

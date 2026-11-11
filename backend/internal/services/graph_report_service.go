@@ -43,10 +43,13 @@ type GraphReportInput struct {
 	// report needs at least one.
 	WAGroupID      *uuid.UUID
 	TelegramChatID *uuid.UUID
-	CustomerName   string
-	Message        string
-	Enabled        bool
-	MentionAll     bool
+	// TelegramThreadID is the forum topic within the chat; nil is General,
+	// or the chat itself when it is no forum.
+	TelegramThreadID *int64
+	CustomerName     string
+	Message          string
+	Enabled          bool
+	MentionAll       bool
 	// SendTime is "HH:MM" in WIB; blank means DefaultGraphReportSendTime.
 	SendTime string
 	Ports    []GraphReportPortInput
@@ -65,9 +68,12 @@ type GraphReportView struct {
 	WAAccountID *uuid.UUID `json:"wa_account_id"`
 	// WAAccountLabel is the number that sends the report, by its label or,
 	// unlabelled, the number itself.
-	WAAccountLabel    string                   `json:"wa_account_label"`
-	TelegramChatID    *uuid.UUID               `json:"telegram_chat_id"`
-	TelegramChatTitle string                   `json:"telegram_chat_title"`
+	WAAccountLabel    string     `json:"wa_account_label"`
+	TelegramChatID    *uuid.UUID `json:"telegram_chat_id"`
+	TelegramChatTitle string     `json:"telegram_chat_title"`
+	TelegramThreadID  *int64     `json:"telegram_thread_id"`
+	// TelegramTopicName is empty for General and for a topic never named.
+	TelegramTopicName string                   `json:"telegram_topic_name"`
 	CustomerName      string                   `json:"customer_name"`
 	Message           string                   `json:"message"`
 	Enabled           bool                     `json:"enabled"`
@@ -117,9 +123,9 @@ func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*Grap
 		return nil, err
 	}
 	report := models.GraphReport{
-		WAGroupID: in.WAGroupID, TelegramChatID: in.TelegramChatID, CustomerName: strings.TrimSpace(in.CustomerName),
-		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, MentionAll: in.MentionAll,
-		SendTime: in.SendTime, CreatedBy: &actor,
+		WAGroupID: in.WAGroupID, TelegramChatID: in.TelegramChatID, TelegramThreadID: in.TelegramThreadID,
+		CustomerName: strings.TrimSpace(in.CustomerName), Message: strings.TrimSpace(in.Message),
+		Enabled: in.Enabled, MentionAll: in.MentionAll, SendTime: in.SendTime, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := claimDestinations(tx, in, uuid.Nil); err != nil {
@@ -147,7 +153,7 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 	if err := s.db.First(&report, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	if err := s.validate(&in, report.TelegramChatID); err != nil {
+	if err := s.validate(&in, &report); err != nil {
 		return nil, err
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -155,9 +161,9 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 			return err
 		}
 		err := tx.Model(&report).Updates(map[string]any{
-			"wa_group_id": in.WAGroupID, "telegram_chat_id": in.TelegramChatID, "customer_name": strings.TrimSpace(in.CustomerName),
-			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled, "mention_all": in.MentionAll,
-			"send_time": in.SendTime,
+			"wa_group_id": in.WAGroupID, "telegram_chat_id": in.TelegramChatID, "telegram_thread_id": in.TelegramThreadID,
+			"customer_name": strings.TrimSpace(in.CustomerName), "message": strings.TrimSpace(in.Message),
+			"enabled": in.Enabled, "mention_all": in.MentionAll, "send_time": in.SendTime,
 		}).Error
 		if err != nil {
 			return fmt.Errorf("update graph report: %w", err)

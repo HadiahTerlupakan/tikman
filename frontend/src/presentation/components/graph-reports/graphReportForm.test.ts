@@ -2,7 +2,6 @@ import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import {
   type GraphReport,
-  type TelegramChat,
   type WaAccount,
   type WaGroup,
 } from "@/domain/entities";
@@ -20,11 +19,11 @@ import {
   portOptionLabel,
   reportToFormValues,
   reportWithEnabled,
-  telegramChatOptions,
   toGraphReportInput,
   toPreviewInput,
   type GraphReportFormValues,
 } from "./graphReportForm";
+import { GENERAL_TOPIC } from "./telegramDestination";
 
 const report: GraphReport = {
   id: "r1",
@@ -35,6 +34,8 @@ const report: GraphReport = {
   waAccountLabel: "Kantor",
   telegramChatId: null,
   telegramChatTitle: "",
+  telegramThreadId: null,
+  telegramTopicName: "",
   customerName: "PT Contoh",
   message: "Halo {pelanggan}",
   enabled: true,
@@ -91,6 +92,7 @@ describe("toGraphReportInput", () => {
     expect(input).toEqual({
       waGroupId: "g1",
       telegramChatId: null,
+      telegramThreadId: null,
       customerName: "PT Contoh",
       message: "Halo {pelanggan}",
       enabled: false,
@@ -193,41 +195,56 @@ describe("destinations", () => {
         telegramChatTitle: "NOC Telegram",
       }),
     ).toBe("TEST MRTG dan NOC Telegram");
+    expect(
+      destinationNames({
+        ...telegramReport,
+        telegramThreadId: 42,
+        telegramTopicName: "PT Contoh",
+      }),
+    ).toBe("NOC Telegram › PT Contoh");
   });
 });
 
-describe("telegramChatOptions", () => {
-  const chat = (id: string, extra: Partial<TelegramChat> = {}) =>
-    ({
-      id,
-      chatId: -100,
-      title: `Chat ${id}`,
-      type: "supergroup",
-      active: true,
-      ...extra,
-    }) as TelegramChat;
+describe("forum topics", () => {
+  it("sends the chosen topic's thread id", () => {
+    const values = {
+      ...formValues({ telegramChatId: "t1" }),
+      telegramThreadId: 42,
+    };
 
-  it("lists only chats the bot is still in and no other report uses", () => {
-    const chats = [chat("t1"), chat("t2", { active: false }), chat("t3")];
-
-    expect(
-      telegramChatOptions(chats, [telegramReport]).map((o) => o.value),
-    ).toEqual(["t3"]);
+    expect(toGraphReportInput(values).telegramThreadId).toBe(42);
   });
 
-  it("keeps the edited report's own chat, disabled once the bot has left it", () => {
-    expect(telegramChatOptions([chat("t1")], [telegramReport], "t1")).toEqual([
-      { value: "t1", label: "Chat t1" },
-    ]);
+  it("sends null for General, and for a chat with no topic chosen", () => {
+    const general = {
+      ...formValues({ telegramChatId: "t1" }),
+      telegramThreadId: GENERAL_TOPIC,
+    };
+
+    expect(toGraphReportInput(general).telegramThreadId).toBeNull();
     expect(
-      telegramChatOptions(
-        [chat("t1", { active: false })],
-        [telegramReport],
-        "t1",
-      ),
-    ).toEqual([
-      { value: "t1", label: "Chat t1 (bot sudah keluar)", disabled: true },
-    ]);
+      toGraphReportInput(formValues({ telegramChatId: "t1" })).telegramThreadId,
+    ).toBeNull();
+  });
+
+  it("never sends a topic without a Telegram chat", () => {
+    const values = { ...formValues({ waGroupId: "g1" }), telegramThreadId: 42 };
+
+    expect(toGraphReportInput(values).telegramThreadId).toBeNull();
+  });
+
+  it("round-trips a report's topic, and General as General", () => {
+    const inTopic = { ...telegramReport, telegramThreadId: 42 };
+
+    expect(
+      toGraphReportInput(reportToFormValues(inTopic)).telegramThreadId,
+    ).toBe(42);
+    expect(reportToFormValues(telegramReport).telegramThreadId).toBe(
+      GENERAL_TOPIC,
+    );
+    expect(
+      toGraphReportInput(reportToFormValues(telegramReport)).telegramThreadId,
+    ).toBeNull();
   });
 });
 

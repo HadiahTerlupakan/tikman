@@ -8,8 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// views attaches the groups, their numbers, the Telegram chats and the ports
-// in four queries for the whole page.
+// views attaches the groups, their numbers, the Telegram chats and topics,
+// and the ports in five queries for the whole page.
 func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportView, error) {
 	ids := make([]uuid.UUID, len(reports))
 	var groupIDs, chatIDs []uuid.UUID
@@ -34,6 +34,10 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 	if err != nil {
 		return nil, err
 	}
+	topics, err := reportTopics(s.db, chatIDs)
+	if err != nil {
+		return nil, err
+	}
 	byReport := make(map[uuid.UUID][]models.GraphReportPort, len(reports))
 	for _, port := range ports {
 		byReport[port.ReportID] = append(byReport[port.ReportID], port)
@@ -48,6 +52,9 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 		}
 		if report.TelegramChatID != nil {
 			views[i].TelegramChatTitle = chats[*report.TelegramChatID]
+		}
+		if report.TelegramThreadID != nil {
+			views[i].TelegramTopicName = topics[topicKey{*report.TelegramChatID, *report.TelegramThreadID}]
 		}
 	}
 	return views, nil
@@ -85,10 +92,31 @@ func reportChats(db *gorm.DB, ids []uuid.UUID) (map[uuid.UUID]string, error) {
 	return titles, nil
 }
 
+// topicKey names a forum topic: thread IDs are only unique within a chat.
+type topicKey struct {
+	chatID   uuid.UUID
+	threadID int64
+}
+
+// reportTopics answers the names of the topics in the reports' chats.
+func reportTopics(db *gorm.DB, chatIDs []uuid.UUID) (map[topicKey]string, error) {
+	var topics []models.TelegramTopic
+	err := db.Select("telegram_chat_id", "thread_id", "name").Where("telegram_chat_id IN ?", chatIDs).Find(&topics).Error
+	if err != nil {
+		return nil, fmt.Errorf("load graph report Telegram topics: %w", err)
+	}
+	names := make(map[topicKey]string, len(topics))
+	for _, topic := range topics {
+		names[topicKey{topic.TelegramChatID, topic.ThreadID}] = topic.Name
+	}
+	return names, nil
+}
+
 func graphReportView(report models.GraphReport, ports []models.GraphReportPort) GraphReportView {
 	view := GraphReportView{
 		ID: report.ID, WAGroupID: report.WAGroupID, TelegramChatID: report.TelegramChatID,
-		CustomerName: report.CustomerName, Message: report.Message, Enabled: report.Enabled,
+		TelegramThreadID: report.TelegramThreadID,
+		CustomerName:     report.CustomerName, Message: report.Message, Enabled: report.Enabled,
 		MentionAll: report.MentionAll, SendTime: report.SendTime, LastAttemptAt: report.LastAttemptAt,
 		LastError: report.LastError, Ports: ports,
 	}

@@ -10,6 +10,15 @@ export interface GraphReportPort {
   position: number;
 }
 
+/** A topic of a forum supergroup. Telegram has no call that lists them, so
+ * only topics the bot has seen a message in are known. */
+export interface TelegramTopic {
+  /** Telegram's message_thread_id. */
+  threadId: number;
+  /** "" when the bot saw a message in the topic but not its name. */
+  name: string;
+}
+
 /** A Telegram group or channel the bot has been added to, learned from the
  * updates Telegram sends it. */
 export interface TelegramChat {
@@ -20,6 +29,10 @@ export interface TelegramChat {
   type: string;
   /** False once the bot has left or been removed. */
   active: boolean;
+  /** A supergroup with topics: a report goes to one topic, or to General. */
+  isForum: boolean;
+  /** Ordered by name, then thread id. */
+  topics: TelegramTopic[];
 }
 
 /** A daily traffic report: its ports, sent to a WhatsApp group, a Telegram
@@ -39,6 +52,11 @@ export interface GraphReport {
   telegramChatId: string | null;
   /** "" when the report has no Telegram chat. */
   telegramChatTitle: string;
+  /** The forum topic it posts in; null posts in General, or the chat is not
+   * a forum. */
+  telegramThreadId: number | null;
+  /** "" for General, and for a topic whose name the bot has not seen. */
+  telegramTopicName: string;
   customerName: string;
   /** The caption's text; "" sends DEFAULT_GRAPH_REPORT_MESSAGE. */
   message: string;
@@ -76,6 +94,7 @@ export interface GraphReportPreviewInput {
 export interface GraphReportInput extends GraphReportPreviewInput {
   waGroupId?: string | null;
   telegramChatId?: string | null;
+  telegramThreadId?: number | null;
   enabled: boolean;
   mentionAll: boolean;
   sendTime: string;

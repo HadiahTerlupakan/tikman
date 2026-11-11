@@ -25,10 +25,18 @@ func (e graphReportEnv) telegramChat(t *testing.T, chatID int64, title string) m
 	return chat
 }
 
+func (e graphReportEnv) forumTopic(t *testing.T, chat *models.TelegramChat, threadID int64, name string) {
+	t.Helper()
+	require.NoError(t, e.db.Model(chat).Update("is_forum", true).Error)
+	require.NoError(t, e.db.Create(&models.TelegramTopic{TelegramChatID: chat.ID, ThreadID: threadID, Name: name}).Error)
+}
+
 func TestTelegramChatsAreListedByTitle(t *testing.T) {
 	env := newGraphReportEnv(t)
 	noc := env.telegramChat(t, -100123, "NOC")
-	env.telegramChat(t, -100456, "Akses")
+	forum := env.telegramChat(t, -100456, "Akses")
+	env.forumTopic(t, &forum, 9, "PT Zeta")
+	env.forumTopic(t, &forum, 4, "PT Alfa")
 
 	rec := env.do(http.MethodGet, "/api/v1/graph-reports/telegram/chats", nil)
 
@@ -39,9 +47,37 @@ func TestTelegramChatsAreListedByTitle(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Len(t, body.Data, 2)
 	assert.Equal(t, "Akses", body.Data[0]["title"])
+	assert.Equal(t, true, body.Data[0]["is_forum"])
+	assert.Equal(t, []any{
+		map[string]any{"thread_id": float64(4), "name": "PT Alfa"},
+		map[string]any{"thread_id": float64(9), "name": "PT Zeta"},
+	}, body.Data[0]["topics"])
 	assert.Equal(t, map[string]any{
-		"id": noc.ID.String(), "chat_id": float64(-100123), "title": "NOC", "type": "supergroup", "active": true,
+		"id": noc.ID.String(), "chat_id": float64(-100123), "title": "NOC", "type": "supergroup",
+		"is_forum": false, "active": true, "topics": []any{},
 	}, body.Data[1])
+}
+
+func TestGraphReportIntoAForumTopicRoundTrips(t *testing.T) {
+	env := newGraphReportEnv(t)
+	chat := env.telegramChat(t, -100123, "Pelanggan")
+	env.forumTopic(t, &chat, 9, "PT Contoh")
+	body := env.reportBody()
+	body["wa_group_id"] = nil
+	body["telegram_chat_id"] = chat.ID
+	body["telegram_thread_id"] = 9
+
+	rec := env.do(http.MethodPost, "/api/v1/graph-reports", body)
+
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var report map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &report))
+	assert.Equal(t, float64(9), report["telegram_thread_id"])
+	assert.Equal(t, "PT Contoh", report["telegram_topic_name"])
+
+	body["telegram_thread_id"] = 10
+	rec = env.do(http.MethodPost, "/api/v1/graph-reports", body)
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "a topic the bot has not seen is refused")
 }
 
 func TestGraphReportTelegramOnlyRoundTrips(t *testing.T) {
@@ -58,6 +94,8 @@ func TestGraphReportTelegramOnlyRoundTrips(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &report))
 	assert.Equal(t, chat.ID.String(), report["telegram_chat_id"])
 	assert.Equal(t, "NOC", report["telegram_chat_title"])
+	assert.Nil(t, report["telegram_thread_id"])
+	assert.Equal(t, "", report["telegram_topic_name"])
 	assert.Nil(t, report["wa_group_id"])
 	assert.Nil(t, report["wa_account_id"])
 	assert.Equal(t, "", report["group_name"])

@@ -37,10 +37,12 @@ type telegramSendError struct{ err error }
 func (e *telegramSendError) Error() string   { return e.err.Error() }
 func (e *telegramSendError) Unwrap() []error { return []error{ErrTelegramSend, e.err} }
 
-// telegramTarget is a Telegram chat checked to take the report.
+// telegramTarget is a Telegram chat checked to take the report, and the
+// forum topic it goes into, 0 for General or a chat that is no forum.
 type telegramTarget struct {
-	chat   models.TelegramChat
-	client *telegram.Client
+	chat     models.TelegramChat
+	threadID int64
+	client   *telegram.Client
 }
 
 func (s *GraphReportSender) prepareTelegram(report *models.GraphReport) (*telegramTarget, error) {
@@ -63,7 +65,11 @@ func (s *GraphReportSender) prepareTelegram(report *models.GraphReport) (*telegr
 	if !telegram.ValidToken(token) {
 		return nil, telegram.ErrInvalidToken
 	}
-	return &telegramTarget{chat: chat, client: s.telegram(token)}, nil
+	target := &telegramTarget{chat: chat, client: s.telegram(token)}
+	if report.TelegramThreadID != nil {
+		target.threadID = *report.TelegramThreadID
+	}
+	return target, nil
 }
 
 // sendTelegram posts the images as one album, or as a photo when there is
@@ -81,9 +87,9 @@ func (s *GraphReportSender) sendTelegram(
 	}
 	var err error
 	if len(photos) == 1 {
-		err = tg.client.SendPhoto(ctx, tg.chat.ChatID, photos[0])
+		err = tg.client.SendPhoto(ctx, tg.chat.ChatID, tg.threadID, photos[0])
 	} else {
-		err = tg.client.SendMediaGroup(ctx, tg.chat.ChatID, photos)
+		err = tg.client.SendMediaGroup(ctx, tg.chat.ChatID, tg.threadID, photos)
 	}
 	if err != nil {
 		return s.telegramFailure(report.ID, tg.chat, err, now, daily)
@@ -144,7 +150,8 @@ const telegramChatNotFound = "chat not found"
 
 // botLostChat says whether a refusal means the bot cannot post in the chat
 // at all: a 403 is the bot kicked, not a member or blocked, and a 400 naming
-// no chat is one deleted or never joined.
+// no chat is one deleted or never joined. A deleted topic ("message thread
+// not found") is not: the chat still takes posts in its other topics.
 func botLostChat(apiErr *telegram.APIError) bool {
 	if apiErr.StatusCode == http.StatusForbidden {
 		return true

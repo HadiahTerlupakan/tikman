@@ -33,15 +33,6 @@ func NewTelegramChatService(db *gorm.DB) *TelegramChatService {
 	return &TelegramChatService{db: db}
 }
 
-// List answers every chat, by title.
-func (s *TelegramChatService) List() ([]models.TelegramChat, error) {
-	chats := []models.TelegramChat{}
-	if err := s.db.Order("title ASC").Find(&chats).Error; err != nil {
-		return nil, fmt.Errorf("list Telegram chats: %w", err)
-	}
-	return chats, nil
-}
-
 // Apply records what one update says about a chat. Re-applying an update is
 // harmless, as the bot's offset lives only in memory and a restart reads the
 // unconfirmed ones again.
@@ -64,7 +55,10 @@ func (s *TelegramChatService) Apply(update telegram.Update) error {
 		}
 	}
 	// A message reaching the bot means the bot is in the chat.
-	return s.upsert(msg.Chat, true)
+	if err := s.upsert(msg.Chat, true); err != nil {
+		return err
+	}
+	return s.recordTopic(msg)
 }
 
 func (s *TelegramChatService) upsert(chat telegram.Chat, active bool) error {
@@ -72,11 +66,12 @@ func (s *TelegramChatService) upsert(chat telegram.Chat, active bool) error {
 		return nil
 	}
 	row := models.TelegramChat{
-		ChatID: chat.ID, Title: clampRunes(chat.Title, graphReportTextRunes), Type: chat.Type, Active: active,
+		ChatID: chat.ID, Title: clampRunes(chat.Title, graphReportTextRunes), Type: chat.Type,
+		IsForum: chat.IsForum, Active: active,
 	}
 	err := s.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "chat_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"title", "type", "active", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"title", "type", "is_forum", "active", "updated_at"}),
 	}).Create(&row).Error
 	if err != nil {
 		return fmt.Errorf("store Telegram chat: %w", err)
@@ -121,6 +116,30 @@ func (s *TelegramChatService) Migrate(fromChatID, toChatID int64) error {
 		}
 		return nil
 	})
+}
+
+// ActiveSupergroupIDs answers the chats the bot is in that can be forums;
+// only a supergroup can have topics.
+func (s *TelegramChatService) ActiveSupergroupIDs() ([]int64, error) {
+	var ids []int64
+	err := s.db.Model(&models.TelegramChat{}).Where("active AND type = ?", telegram.ChatTypeSupergroup).
+		Order("chat_id ASC").Pluck("chat_id", &ids).Error
+	if err != nil {
+		return nil, fmt.Errorf("list Telegram supergroups: %w", err)
+	}
+	return ids, nil
+}
+
+// Refresh records what getChat said of chatID: its title and whether it is a
+// forum. Whether the bot is in it is left to the updates that say so.
+func (s *TelegramChatService) Refresh(chatID int64, chat telegram.Chat) error {
+	err := s.db.Model(&models.TelegramChat{}).Where("chat_id = ?", chatID).Updates(map[string]any{
+		"title": clampRunes(chat.Title, graphReportTextRunes), "is_forum": chat.IsForum, "updated_at": time.Now(),
+	}).Error
+	if err != nil {
+		return fmt.Errorf("refresh Telegram chat: %w", err)
+	}
+	return nil
 }
 
 // DeactivateAll marks every chat as one the bot is not in. Rows are learnt

@@ -29,21 +29,24 @@ type GraphReportPortRequest struct {
 
 // GraphReportRequest creates or rewrites a report. Enabled defaults to true
 // when left out, which is what registering a report is for. Either
-// destination may be null or left out, but not both.
+// destination may be null or left out, but not both. A null or absent
+// TelegramThreadID posts to General, or to a chat that is no forum.
 type GraphReportRequest struct {
-	WAGroupID      *uuid.UUID               `json:"wa_group_id"`
-	TelegramChatID *uuid.UUID               `json:"telegram_chat_id"`
-	CustomerName   string                   `json:"customer_name"`
-	Message        string                   `json:"message"`
-	Enabled        *bool                    `json:"enabled"`
-	MentionAll     bool                     `json:"mention_all"`
-	SendTime       string                   `json:"send_time"`
-	Ports          []GraphReportPortRequest `json:"ports"`
+	WAGroupID        *uuid.UUID               `json:"wa_group_id"`
+	TelegramChatID   *uuid.UUID               `json:"telegram_chat_id"`
+	TelegramThreadID *int64                   `json:"telegram_thread_id"`
+	CustomerName     string                   `json:"customer_name"`
+	Message          string                   `json:"message"`
+	Enabled          *bool                    `json:"enabled"`
+	MentionAll       bool                     `json:"mention_all"`
+	SendTime         string                   `json:"send_time"`
+	Ports            []GraphReportPortRequest `json:"ports"`
 }
 
 func (r GraphReportRequest) input() services.GraphReportInput {
 	return services.GraphReportInput{
-		WAGroupID: r.WAGroupID, TelegramChatID: r.TelegramChatID, CustomerName: r.CustomerName, Message: r.Message,
+		WAGroupID: r.WAGroupID, TelegramChatID: r.TelegramChatID, TelegramThreadID: r.TelegramThreadID,
+		CustomerName: r.CustomerName, Message: r.Message,
 		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll, SendTime: r.SendTime, Ports: portInputs(r.Ports),
 	}
 }
@@ -73,7 +76,8 @@ func NewGraphReportHandler(
 }
 
 // TelegramChats answers the chats the bot has been seen in, by title, the
-// ones it has left included so a report bound to one still names it.
+// ones it has left included so a report bound to one still names it, each
+// with the forum topics seen in it.
 func (h *GraphReportHandler) TelegramChats(c *gin.Context) {
 	chats, err := h.chats.List()
 	if err != nil {

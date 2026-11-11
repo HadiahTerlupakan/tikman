@@ -12,9 +12,9 @@ import (
 )
 
 // validate checks a submitted report and writes its send time in canonical
-// form, the default when left blank. currentChat is the Telegram chat the
-// report already has, nil for a new one.
-func (s *GraphReportService) validate(in *GraphReportInput, currentChat *uuid.UUID) error {
+// form, the default when left blank. current is the report as stored, nil
+// for a new one.
+func (s *GraphReportService) validate(in *GraphReportInput, current *models.GraphReport) error {
 	if err := validateGraphReportFields(*in); err != nil {
 		return err
 	}
@@ -33,11 +33,7 @@ func (s *GraphReportService) validate(in *GraphReportInput, currentChat *uuid.UU
 			return err
 		}
 	}
-	if in.TelegramChatID != nil {
-		keeping := currentChat != nil && *currentChat == *in.TelegramChatID
-		return s.validateTelegramChat(*in.TelegramChatID, keeping)
-	}
-	return nil
+	return s.validateTelegram(*in, current)
 }
 
 func (s *GraphReportService) validateWAGroup(id uuid.UUID) error {
@@ -48,47 +44,6 @@ func (s *GraphReportService) validateWAGroup(id uuid.UUID) error {
 	}
 	if err != nil {
 		return fmt.Errorf("look up group: %w", err)
-	}
-	return nil
-}
-
-// validateTelegramChat refuses a chat the bot has left, unless the report
-// already goes there: the table's on/off switch resends the whole report, and
-// turning off a report whose bot was removed must not need a new chat first.
-func (s *GraphReportService) validateTelegramChat(id uuid.UUID, keeping bool) error {
-	var chat models.TelegramChat
-	err := s.db.Select("id", "active").First(&chat, "id = ?", id).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("%w: grup Telegram tidak ditemukan", ErrValidation)
-	}
-	if err != nil {
-		return fmt.Errorf("look up Telegram chat: %w", err)
-	}
-	if !chat.Active && !keeping {
-		return fmt.Errorf("%w: bot sudah tidak ada di grup Telegram ini", ErrValidation)
-	}
-	return nil
-}
-
-// claimDestinations refuses a report for a group or chat that already has
-// one. It runs in the write's transaction.
-func claimDestinations(tx *gorm.DB, in GraphReportInput, self uuid.UUID) error {
-	if in.WAGroupID != nil {
-		if err := claimGroup(tx, *in.WAGroupID, self); err != nil {
-			return err
-		}
-	}
-	if in.TelegramChatID == nil {
-		return nil
-	}
-	var taken int64
-	err := tx.Model(&models.GraphReport{}).
-		Where("telegram_chat_id = ? AND id <> ?", *in.TelegramChatID, self).Count(&taken).Error
-	if err != nil {
-		return fmt.Errorf("look for existing graph report: %w", err)
-	}
-	if taken > 0 {
-		return fmt.Errorf("%w: grup Telegram ini sudah memiliki laporan grafik", ErrValidation)
 	}
 	return nil
 }

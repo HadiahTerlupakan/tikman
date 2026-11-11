@@ -22,6 +22,7 @@ import (
 type telegramPost struct {
 	method   string
 	chatID   int64
+	threadID string
 	captions []string
 	files    []string
 }
@@ -57,6 +58,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseMultipartForm(32 << 20)
 	post := telegramPost{}
 	post.chatID, _ = strconv.ParseInt(r.FormValue("chat_id"), 10, 64)
+	post.threadID = r.FormValue("message_thread_id")
 	if media := r.FormValue("media"); media != "" {
 		post.method = "sendMediaGroup"
 		var items []struct{ Caption, Media string }

@@ -20,6 +20,7 @@ import {
   formatAttemptAt,
   formatSentOn,
 } from "./graphReportForm";
+import { telegramDestinationLabel } from "./telegramDestination";
 
 const { Text } = Typography;
 
@@ -70,7 +71,7 @@ function DestinationCell({ report }: { report: GraphReport }) {
       {report.telegramChatId && (
         <Space size={4} wrap>
           <Tag color="blue">Telegram</Tag>
-          {report.telegramChatTitle}
+          {telegramDestinationLabel(report)}
         </Space>
       )}
     </Space>
