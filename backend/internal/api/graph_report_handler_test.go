@@ -247,3 +247,25 @@ func TestGraphReportMentionAllRoundTrips(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `"mention_all":true`)
 	assert.Contains(t, env.do(http.MethodGet, "/api/v1/graph-reports", nil).Body.String(), `"mention_all":true`)
 }
+
+func TestGraphReportSendTimeRoundTrips(t *testing.T) {
+	env := newGraphReportEnv(t)
+	body := env.reportBody()
+	created := env.do(http.MethodPost, "/api/v1/graph-reports", body)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	assert.Contains(t, created.Body.String(), `"send_time":"06:00"`, "left out, a report goes at 06:00")
+	var report services.GraphReportView
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &report))
+	path := "/api/v1/graph-reports/" + report.ID.String()
+
+	body["send_time"] = "14:30"
+	rec := env.do(http.MethodPut, path, body)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"send_time":"14:30"`)
+	assert.Contains(t, env.do(http.MethodGet, "/api/v1/graph-reports", nil).Body.String(), `"send_time":"14:30"`)
+
+	body["send_time"] = "7:00"
+	rec = env.do(http.MethodPut, path, body)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "jam kirim harus berformat HH:MM")
+}

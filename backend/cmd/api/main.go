@@ -34,7 +34,7 @@ const wireguardStatusInterval = 30 * time.Second
 // often cannot see a change sooner.
 const workerAlertInterval = time.Minute
 
-// graphReportInterval is the resolution of the daily report's 06:00 start.
+// graphReportInterval is the resolution of each report's daily send time.
 const graphReportInterval = time.Minute
 
 func main() {

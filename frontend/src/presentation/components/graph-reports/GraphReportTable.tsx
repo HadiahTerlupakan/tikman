@@ -125,6 +125,12 @@ export function GraphReportTable(props: GraphReportTableProps) {
       render: (_, r) => `${r.ports.length} — ${portLabels(r)}`,
     },
     {
+      title: "Jam kirim",
+      key: "sendTime",
+      width: 110,
+      render: (_, r) => `${r.sendTime} WIB`,
+    },
+    {
       title: "Aktif",
       key: "enabled",
       width: 80,

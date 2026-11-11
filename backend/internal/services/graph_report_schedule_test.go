@@ -34,6 +34,7 @@ func TestDailyGraphAction(t *testing.T) {
 		{"09:00 with no attempt", models.GraphReport{Enabled: true, CreatedAt: created}, atWIB(11, 9, 0), graphReportMissed},
 		{"created after 06:00", models.GraphReport{Enabled: true, CreatedAt: atWIB(11, 10, 0)}, atWIB(11, 10, 1), graphReportIdle},
 		{"next day", models.GraphReport{Enabled: true, CreatedAt: created, LastSentOn: &today}, atWIB(12, 6, 0), graphReportDue},
+		{"06:00 report after midnight", models.GraphReport{Enabled: true, CreatedAt: created}, atWIB(12, 0, 5), graphReportIdle},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

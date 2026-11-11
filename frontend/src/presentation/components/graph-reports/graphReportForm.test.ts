@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GRAPH_REPORT_MESSAGE,
@@ -8,6 +9,7 @@ import {
   defaultPortLabel,
   deviceOptions,
   emptyFormValues,
+  formatSendTime,
   formatSentOn,
   groupOptions,
   portOptionLabel,
@@ -26,6 +28,7 @@ const report: GraphReport = {
   message: "Halo {pelanggan}",
   enabled: true,
   mentionAll: true,
+  sendTime: "14:30",
   lastSentOn: null,
   lastAttemptAt: null,
   lastError: "",
@@ -66,6 +69,7 @@ describe("toGraphReportInput", () => {
       message: "  Halo {pelanggan}\n ",
       enabled: false,
       mentionAll: true,
+      sendTime: dayjs("2026-11-11T07:05:00"),
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: " B " },
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
@@ -78,6 +82,7 @@ describe("toGraphReportInput", () => {
       message: "Halo {pelanggan}",
       enabled: false,
       mentionAll: true,
+      sendTime: "07:05",
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: "B" },
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
@@ -134,6 +139,25 @@ describe("reportToFormValues", () => {
   });
 });
 
+describe("send time", () => {
+  it("round-trips the saved HH:MM through the TimePicker's value", () => {
+    const values = reportToFormValues(report);
+
+    expect(formatSendTime(values.sendTime)).toBe("14:30");
+    expect(toGraphReportInput(values).sendTime).toBe("14:30");
+  });
+
+  it("zero-pads early hours, since the API accepts only two digits each", () => {
+    const values = reportToFormValues({ ...report, sendTime: "00:05" });
+
+    expect(toGraphReportInput(values).sendTime).toBe("00:05");
+  });
+
+  it("starts a new report at 06:00", () => {
+    expect(formatSendTime(emptyFormValues().sendTime)).toBe("06:00");
+  });
+});
+
 describe("emptyFormValues", () => {
   // Tagging everyone reaches members who muted the group, so it is opt-in.
   it("starts a new report without tagging everyone", () => {
@@ -149,6 +173,7 @@ describe("reportWithEnabled", () => {
     expect(input.customerName).toBe("PT Contoh");
     expect(input.message).toBe("Halo {pelanggan}");
     expect(input.mentionAll).toBe(true);
+    expect(input.sendTime).toBe("14:30");
     expect(input.ports.map((p) => p.ifName)).toEqual(["ether 1/1", "sfp2"]);
   });
 });

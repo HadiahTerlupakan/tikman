@@ -1,5 +1,7 @@
+import dayjs, { type Dayjs } from "dayjs";
 import {
   DEFAULT_GRAPH_REPORT_MESSAGE,
+  DEFAULT_GRAPH_REPORT_SEND_TIME,
   GRAPH_REPORT_CUSTOMER_PLACEHOLDER,
   type GraphReport,
   type GraphReportInput,
@@ -24,6 +26,8 @@ export interface GraphReportFormValues {
   message?: string;
   enabled: boolean;
   mentionAll: boolean;
+  /** Only its hour and minute are read; the TimePicker needs a Dayjs. */
+  sendTime: Dayjs;
   ports: PortFormValue[];
 }
 
@@ -33,9 +37,27 @@ export interface SelectOption<T> {
 }
 
 const WIB = "Asia/Jakarta";
+const SEND_TIME_FORMAT = "HH:mm";
+
+/** Reads the API's "HH:MM" without the customParseFormat plugin; the date
+ * part is today's and never sent. */
+export function parseSendTime(value: string): Dayjs {
+  const [hour, minute] = value.split(":").map(Number);
+  return dayjs().hour(hour).minute(minute).second(0).millisecond(0);
+}
+
+export function formatSendTime(value: Dayjs): string {
+  return value.format(SEND_TIME_FORMAT);
+}
 
 export function emptyFormValues(): GraphReportFormValues {
-  return { message: "", enabled: true, mentionAll: false, ports: [{}] };
+  return {
+    message: "",
+    enabled: true,
+    mentionAll: false,
+    sendTime: parseSendTime(DEFAULT_GRAPH_REPORT_SEND_TIME),
+    ports: [{}],
+  };
 }
 
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
@@ -45,6 +67,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
     message: report.message,
     enabled: report.enabled,
     mentionAll: report.mentionAll,
+    sendTime: parseSendTime(report.sendTime || DEFAULT_GRAPH_REPORT_SEND_TIME),
     ports: [...report.ports]
       .sort((a, b) => a.position - b.position)
       .map(({ deviceId, deviceName, ifName, label }) => ({
@@ -60,7 +83,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
  * ports' graphs in this order. A preview needs no group, so it is built
  * without one. */
 export function toPreviewInput(
-  values: Omit<GraphReportFormValues, "enabled" | "mentionAll">,
+  values: Omit<GraphReportFormValues, "enabled" | "mentionAll" | "sendTime">,
 ): GraphReportPreviewInput {
   return {
     customerName: (values.customerName ?? "").trim(),
@@ -82,6 +105,7 @@ export function toGraphReportInput(
     waGroupId: values.waGroupId ?? "",
     enabled: values.enabled,
     mentionAll: values.mentionAll,
+    sendTime: formatSendTime(values.sendTime),
   };
 }
 

@@ -87,7 +87,7 @@ func (s *GraphReportSender) LibreNMS() (*librenms.Client, error) {
 }
 
 // SendNow sends a report on demand. It leaves last_sent_on alone, so a test
-// send before 06:00 does not stand in for that morning's report.
+// send before the send time does not stand in for that day's report.
 func (s *GraphReportSender) SendNow(ctx context.Context, id uuid.UUID) error {
 	var report models.GraphReport
 	if err := s.db.First(&report, "id = ?", id).Error; err != nil {

@@ -22,6 +22,8 @@ export interface GraphReport {
   /** Tags every member but our own number, without naming them in the
    * caption. */
   mentionAll: boolean;
+  /** "HH:MM", 24-hour, WIB: when the daily send's window opens. */
+  sendTime: string;
   /** WIB calendar date (YYYY-MM-DD) of the last scheduled send. A manual
    * send does not move it. */
   lastSentOn: string | null;
@@ -51,6 +53,7 @@ export interface GraphReportInput extends GraphReportPreviewInput {
   waGroupId: string;
   enabled: boolean;
   mentionAll: boolean;
+  sendTime: string;
 }
 
 export interface LibrenmsDevice {
@@ -76,6 +79,9 @@ export const GRAPH_REPORT_CUSTOMER_PLACEHOLDER = "{pelanggan}";
  * identical to the backend's so the preview shows what the group gets. */
 export const DEFAULT_GRAPH_REPORT_MESSAGE =
   "Selamat pagi Rekan,\n\nBerikut kami lampirkan hasil monitoring trafik 24 jam terakhir untuk {pelanggan}.\n\nTerima kasih";
+
+/** What the API stores when a report gives no send time. */
+export const DEFAULT_GRAPH_REPORT_SEND_TIME = "06:00";
 
 /** The API refuses a longer message. */
 export const GRAPH_REPORT_MESSAGE_MAX = 1000;

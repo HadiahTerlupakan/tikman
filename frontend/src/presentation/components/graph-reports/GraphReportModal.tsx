@@ -8,6 +8,7 @@ import {
   Modal,
   Select,
   Switch,
+  TimePicker,
 } from "antd";
 import { FileImageOutlined } from "@ant-design/icons";
 import {
@@ -142,6 +143,19 @@ export function GraphReportModal({
             autoSize={{ minRows: 4, maxRows: 10 }}
             maxLength={GRAPH_REPORT_MESSAGE_MAX}
             showCount
+          />
+        </Form.Item>
+        <Form.Item
+          name="sendTime"
+          label="Jam kirim"
+          extra="Waktu WIB. Jika gagal, dicoba ulang tiap 10 menit selama 3 jam (maksimal sampai 24:00)."
+          rules={[{ required: true, message: "Pilih jam kirim" }]}
+        >
+          <TimePicker
+            format="HH:mm"
+            minuteStep={5}
+            needConfirm={false}
+            allowClear={false}
           />
         </Form.Item>
         <Form.Item name="enabled" label="Aktif" valuePropName="checked">

@@ -34,13 +34,14 @@ type GraphReportRequest struct {
 	Message      string                   `json:"message"`
 	Enabled      *bool                    `json:"enabled"`
 	MentionAll   bool                     `json:"mention_all"`
+	SendTime     string                   `json:"send_time"`
 	Ports        []GraphReportPortRequest `json:"ports"`
 }
 
 func (r GraphReportRequest) input() services.GraphReportInput {
 	return services.GraphReportInput{
 		WAGroupID: r.WAGroupID, CustomerName: r.CustomerName, Message: r.Message,
-		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll, Ports: portInputs(r.Ports),
+		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll, SendTime: r.SendTime, Ports: portInputs(r.Ports),
 	}
 }
 

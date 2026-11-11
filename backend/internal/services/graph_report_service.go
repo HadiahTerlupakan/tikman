@@ -45,7 +45,9 @@ type GraphReportInput struct {
 	Message      string
 	Enabled      bool
 	MentionAll   bool
-	Ports        []GraphReportPortInput
+	// SendTime is "HH:MM" in WIB; blank means DefaultGraphReportSendTime.
+	SendTime string
+	Ports    []GraphReportPortInput
 }
 
 // GraphReportView is a report as the management page shows it.
@@ -57,6 +59,7 @@ type GraphReportView struct {
 	Message       string                   `json:"message"`
 	Enabled       bool                     `json:"enabled"`
 	MentionAll    bool                     `json:"mention_all"`
+	SendTime      string                   `json:"send_time"`
 	LastSentOn    *string                  `json:"last_sent_on"`
 	LastAttemptAt *time.Time               `json:"last_attempt_at"`
 	LastError     string                   `json:"last_error"`
@@ -97,12 +100,13 @@ func (s *GraphReportService) Get(id uuid.UUID) (*GraphReportView, error) {
 
 // Create registers a report for a group that has none.
 func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*GraphReportView, error) {
-	if err := s.validate(in, uuid.Nil); err != nil {
+	if err := s.validate(&in, uuid.Nil); err != nil {
 		return nil, err
 	}
 	report := models.GraphReport{
 		WAGroupID: in.WAGroupID, CustomerName: strings.TrimSpace(in.CustomerName),
-		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, MentionAll: in.MentionAll, CreatedBy: &actor,
+		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, MentionAll: in.MentionAll,
+		SendTime: in.SendTime, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Enabled is written explicitly: GORM skips a false bool on create
@@ -127,13 +131,14 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 	if err := s.db.First(&report, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	if err := s.validate(in, id); err != nil {
+	if err := s.validate(&in, id); err != nil {
 		return nil, err
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&report).Updates(map[string]any{
 			"wa_group_id": in.WAGroupID, "customer_name": strings.TrimSpace(in.CustomerName),
 			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled, "mention_all": in.MentionAll,
+			"send_time": in.SendTime,
 		}).Error
 		if err != nil {
 			return fmt.Errorf("update graph report: %w", err)
@@ -178,8 +183,17 @@ func replacePorts(tx *gorm.DB, reportID uuid.UUID, ports []GraphReportPortInput)
 	return nil
 }
 
-func (s *GraphReportService) validate(in GraphReportInput, self uuid.UUID) error {
-	if err := validateGraphReportFields(in); err != nil {
+// validate checks a submitted report and writes its send time in canonical
+// form, the default when left blank.
+func (s *GraphReportService) validate(in *GraphReportInput, self uuid.UUID) error {
+	if err := validateGraphReportFields(*in); err != nil {
+		return err
+	}
+	in.SendTime = strings.TrimSpace(in.SendTime)
+	if in.SendTime == "" {
+		in.SendTime = DefaultGraphReportSendTime
+	}
+	if _, err := parseSendTime(in.SendTime); err != nil {
 		return err
 	}
 	var group models.WAGroup
@@ -276,7 +290,7 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 func graphReportView(report models.GraphReport, groupName string, ports []models.GraphReportPort) GraphReportView {
 	view := GraphReportView{
 		ID: report.ID, WAGroupID: report.WAGroupID, GroupName: groupName, CustomerName: report.CustomerName,
-		Message: report.Message, Enabled: report.Enabled, MentionAll: report.MentionAll, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
+		Message: report.Message, Enabled: report.Enabled, MentionAll: report.MentionAll, SendTime: report.SendTime, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
 	}
 	if view.Ports == nil {
 		view.Ports = []models.GraphReportPort{}

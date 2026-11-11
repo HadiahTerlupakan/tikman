@@ -8,7 +8,7 @@ import (
 )
 
 // GraphReport sends a customer's LibreNMS port graphs into one WhatsApp group
-// every morning. A group carries at most one report, so the group is the
+// once a day. A group carries at most one report, so the group is the
 // report's identity as far as the admins are concerned.
 type GraphReport struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
@@ -21,6 +21,8 @@ type GraphReport struct {
 	// MentionAll tags every member but our own number without writing their
 	// addresses into the caption, so even those who muted the group are told.
 	MentionAll bool `gorm:"not null;default:false" json:"mention_all"`
+	// SendTime is when the daily send starts, "HH:MM" in WIB.
+	SendTime string `gorm:"type:varchar(5);not null;default:'06:00'" json:"send_time"`
 	// LastSentOn is the WIB calendar date of the last daily send, stored as
 	// that date at UTC midnight: a WIB midnight written to a date column is
 	// cast through the session zone and lands on the day before.

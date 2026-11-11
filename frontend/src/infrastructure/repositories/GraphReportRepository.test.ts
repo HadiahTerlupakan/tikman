@@ -101,8 +101,9 @@ describe("GraphReportRepository.create", () => {
     post.mockReset();
   });
 
-  // humps turns mentionAll into the API's mention_all on the way out.
-  it("sends the tag-everyone choice with the report", async () => {
+  // humps turns mentionAll and sendTime into mention_all and send_time on
+  // the way out.
+  it("sends the tag-everyone choice and send time with the report", async () => {
     post.mockResolvedValue({ status: 201, data: {} });
     const input = {
       waGroupId: "g1",
@@ -110,6 +111,7 @@ describe("GraphReportRepository.create", () => {
       message: "",
       enabled: true,
       mentionAll: true,
+      sendTime: "14:30",
       ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
     };
 
@@ -118,5 +120,6 @@ describe("GraphReportRepository.create", () => {
     const [url, body] = post.mock.calls[0];
     expect(url).toBe("/api/v1/graph-reports");
     expect(body.mentionAll).toBe(true);
+    expect(body.sendTime).toBe("14:30");
   });
 });

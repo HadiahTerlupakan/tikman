@@ -77,8 +77,9 @@ export default function GraphReportsPage() {
       />
       <DarkCard>
         <Typography.Paragraph type="secondary">
-          Dikirim otomatis setiap hari pukul 06:00 WIB (grafik 24 jam terakhir).
-          URL dan token LibreNMS diatur di Pengaturan.
+          Setiap laporan dikirim otomatis tiap hari pada jam kirimnya sendiri
+          (WIB), berisi grafik 24 jam terakhir. URL dan token LibreNMS diatur di
+          Pengaturan.
         </Typography.Paragraph>
         <GraphReportTable
           reports={reports}
