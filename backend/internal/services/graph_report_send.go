@@ -27,6 +27,10 @@ const graphFilenameRunes = 200
 // graphFilenameDateLayout dates the image's filename, "PT Contoh 11-11-2026".
 const graphFilenameDateLayout = "02-01-2006"
 
+// graphFilenamePartFormat numbers the images of a report sent as several,
+// "PT Contoh 11-11-2026 (2 dari 5)".
+const graphFilenamePartFormat = "%s (%d dari %d)"
+
 var (
 	// ErrLibreNMSNotConfigured is a send with no LibreNMS address or token.
 	ErrLibreNMSNotConfigured = errors.New("LibreNMS belum diatur di Pengaturan")
@@ -45,7 +49,7 @@ type GroupQueueNotifier interface {
 }
 
 // GraphReportSender fetches a report's graphs and queues them to its group
-// as one image.
+// as images of graphPortsPerImage ports each.
 type GraphReportSender struct {
 	db        *gorm.DB
 	settings  *SettingService
@@ -135,15 +139,15 @@ func (s *GraphReportSender) deliver(ctx context.Context, report *models.GraphRep
 	if err := s.db.Where("report_id = ?", report.ID).Order("position ASC").Find(&ports).Error; err != nil {
 		return fmt.Errorf("load graph report ports: %w", err)
 	}
-	image, err := renderReport(ctx, client, ports, now)
+	images, err := renderReport(ctx, client, ports, now)
 	if err != nil {
 		return err
 	}
-	file, err := s.storeImage(report.CustomerName, image, now)
+	files, err := s.storeImages(report.CustomerName, images, now)
 	if err != nil {
 		return err
 	}
-	return s.queue(ctx, report, file, mentions, now, daily)
+	return s.queue(ctx, report, files, mentions, now, daily)
 }
 
 // mentions answers who the report tags, read at send time so it follows the
@@ -165,44 +169,72 @@ func (s *GraphReportSender) mentions(report *models.GraphReport) ([]string, erro
 	return jids, nil
 }
 
-// storeImage writes the report where the wa process reads attachments, under
-// the <year>/<month>/<uuid> layout the inbox's uploads use.
-func (s *GraphReportSender) storeImage(customer string, image []byte, now time.Time) (MediaFile, error) {
+// storeImages writes a report's images where the wa process reads
+// attachments, under the <year>/<month>/<uuid> layout the inbox's uploads use.
+// A write that fails removes the images already written, as nothing is queued.
+func (s *GraphReportSender) storeImages(customer string, images [][]byte, now time.Time) ([]MediaFile, error) {
 	dir := filepath.Join(now.Format("2006"), now.Format("01"))
 	if err := os.MkdirAll(filepath.Join(s.mediaRoot, dir), 0o750); err != nil {
-		return MediaFile{}, fmt.Errorf("create media directory: %w", err)
+		return nil, fmt.Errorf("create media directory: %w", err)
 	}
-	rel := filepath.Join(dir, uuid.NewString()+".png")
-	if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image, 0o640); err != nil {
-		return MediaFile{}, fmt.Errorf("write report image: %w", err)
+	base := customer + " " + now.In(wib).Format(graphFilenameDateLayout)
+	files := make([]MediaFile, 0, len(images))
+	for i, image := range images {
+		rel := filepath.Join(dir, uuid.NewString()+".png")
+		if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image, 0o640); err != nil {
+			s.removeImages(files)
+			return nil, fmt.Errorf("write report image: %w", err)
+		}
+		files = append(files, MediaFile{
+			Path: rel, Mime: "image/png", Filename: imageFilename(base, i, len(images)), Size: int64(len(image)),
+		})
 	}
-	name := customer + " " + now.In(wib).Format(graphFilenameDateLayout)
-	return MediaFile{
-		Path: rel, Mime: "image/png", Filename: clampRunes(name, graphFilenameRunes) + ".png",
-		Size: int64(len(image)),
-	}, nil
+	return files, nil
 }
 
-// queue writes the message and the report's success in one transaction, so a
-// restart cannot see the message queued but the day still unsent.
+// imageFilename numbers the image only when the report is sent as several,
+// so a short report keeps the plain "PT Contoh 11-11-2026.png".
+func imageFilename(base string, index, total int) string {
+	if total > 1 {
+		base = fmt.Sprintf(graphFilenamePartFormat, base, index+1, total)
+	}
+	return clampRunes(base, graphFilenameRunes) + ".png"
+}
+
+func (s *GraphReportSender) removeImages(files []MediaFile) {
+	for _, file := range files {
+		_ = os.Remove(filepath.Join(s.mediaRoot, file.Path))
+	}
+}
+
+// queue writes the messages and the report's success in one transaction, so a
+// restart cannot see the images queued but the day still unsent. Only the last
+// image carries the caption and the tags, so the text closes the report: a
+// caption under every image repeats itself, and tags on every image would
+// notify each member once per image.
 func (s *GraphReportSender) queue(
-	ctx context.Context, report *models.GraphReport, file MediaFile, mentions []string, now time.Time, daily bool,
+	ctx context.Context, report *models.GraphReport, files []MediaFile, mentions []string, now time.Time, daily bool,
 ) error {
 	members, _ := s.groups.MembersOtherThanUs(report.WAGroupID)
-	out := GroupOutgoing{
-		GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
-		Body: GraphReportCaption(report.Message, report.CustomerName), Media: &file, MemberCount: members,
-		Mentions: mentions,
+	outs := make([]GroupOutgoing, len(files))
+	for i := range files {
+		outs[i] = GroupOutgoing{
+			GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
+			Media: &files[i], MemberCount: members,
+		}
 	}
+	last := &outs[len(outs)-1]
+	last.Body = GraphReportCaption(report.Message, report.CustomerName)
+	last.Mentions = mentions
 	fields := map[string]any{"last_attempt_at": now, "last_error": ""}
 	if daily {
 		fields["last_sent_on"] = wibDate(now)
 	}
-	msgs, err := s.messages.QueueBatch([]GroupOutgoing{out}, func(tx *gorm.DB) error {
+	msgs, err := s.messages.QueueBatch(outs, func(tx *gorm.DB) error {
 		return tx.Model(&models.GraphReport{}).Where("id = ?", report.ID).Updates(fields).Error
 	})
 	if err != nil {
-		_ = os.Remove(filepath.Join(s.mediaRoot, file.Path))
+		s.removeImages(files)
 		return fmt.Errorf("queue graph report: %w", err)
 	}
 	if s.notifier != nil {

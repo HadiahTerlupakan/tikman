@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useLibrenmsGraph } from "@/application/hooks";
 import { ImagePreviewModal } from "./ImagePreviewModal";
 
@@ -19,13 +20,15 @@ export function PortPreviewModal({ target, onClose }: PortPreviewModalProps) {
     target?.ifName,
     target?.label,
   );
+  // A fresh array each render would mint new object URLs and remount the image.
+  const images = useMemo(() => (data ? [data] : undefined), [data]);
 
   return (
     <ImagePreviewModal
       open={!!target}
       title={`Pratinjau — ${target?.label ?? ""}`}
       alt={`Grafik trafik ${target?.label ?? ""}`}
-      image={data}
+      images={images}
       loading={isFetching}
       error={error}
       onClose={onClose}

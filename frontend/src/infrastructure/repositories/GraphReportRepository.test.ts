@@ -14,6 +14,14 @@ vi.mock("../http/apiClient", () => ({
 const jsonBlob = (body: unknown) =>
   new Blob([JSON.stringify(body)], { type: "application/json" });
 
+// FileReader, as jsdom's Blob has no text().
+const readBlob = (blob: Blob) =>
+  new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsText(blob);
+  });
+
 describe("GraphReportRepository.graph", () => {
   beforeEach(() => {
     get.mockReset();
@@ -71,23 +79,28 @@ describe("GraphReportRepository.preview", () => {
     post.mockReset();
   });
 
-  it("posts the unsaved report and returns the composed PNG", async () => {
-    const png = new Blob(["png"], { type: "image/png" });
-    post.mockResolvedValue({ status: 200, data: png });
+  it("posts the unsaved report and returns each image as a PNG", async () => {
+    post.mockResolvedValue({
+      status: 200,
+      data: { images: [btoa("first"), btoa("second")] },
+    });
 
-    const blob = await new GraphReportRepository().preview(input);
+    const images = await new GraphReportRepository().preview(input);
 
-    expect(blob).toBe(png);
-    const [url, body, config] = post.mock.calls[0];
+    expect(images.map((image) => image.type)).toEqual([
+      "image/png",
+      "image/png",
+    ]);
+    expect(await readBlob(images[1])).toBe("second");
+    const [url, body] = post.mock.calls[0];
     expect(url).toBe("/api/v1/graph-reports/preview");
     expect(body).toEqual(input);
-    expect(config.responseType).toBe("blob");
   });
 
   it("reports why LibreNMS failed instead of a generic error", async () => {
     post.mockResolvedValue({
       status: 502,
-      data: jsonBlob({ error: "LibreNMS tidak menjawab" }),
+      data: { error: "LibreNMS tidak menjawab" },
     });
 
     await expect(new GraphReportRepository().preview(input)).rejects.toThrow(

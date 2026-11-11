@@ -217,8 +217,10 @@ func TestGraphReportPreviewStatuses(t *testing.T) {
 	failing = false
 	ok := env.do(http.MethodPost, path, body)
 	require.Equal(t, http.StatusOK, ok.Code, ok.Body.String())
-	assert.Equal(t, "image/png", ok.Header().Get("Content-Type"))
-	_, err := png.Decode(ok.Body)
+	var preview GraphReportPreviewResponse
+	require.NoError(t, json.Unmarshal(ok.Body.Bytes(), &preview))
+	require.Len(t, preview.Images, 1)
+	_, err := png.Decode(bytes.NewReader(preview.Images[0]))
 	assert.NoError(t, err)
 
 	body["ports"] = []map[string]any{}

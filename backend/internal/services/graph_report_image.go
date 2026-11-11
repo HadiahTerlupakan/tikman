@@ -19,8 +19,8 @@ const DefaultGraphReportMessage = "Selamat pagi Rekan,\n\nBerikut kami lampirkan
 const customerPlaceholder = "{pelanggan}"
 
 // maxGraphReportImageBytes matches the inbox's upload cap, the largest
-// attachment the wa process is meant to send. Ten stacked graphs are far
-// below it; anything near it means a graph was not what LibreNMS should send.
+// attachment the wa process is meant to send. An image's stacked graphs are
+// far below it; anything near it means a graph was not what LibreNMS should send.
 const maxGraphReportImageBytes = 16 << 20
 
 // graphRangeLayout is how each graph's window is written above it.
@@ -40,9 +40,15 @@ func graphRange(now time.Time) string {
 		now.In(wib).Format(graphRangeLayout) + " WIB"
 }
 
-// renderReport fetches every port's graph and stacks them into one image. It
-// is all or nothing: one graph LibreNMS cannot draw fails the whole report.
-func renderReport(ctx context.Context, client *librenms.Client, ports []models.GraphReportPort, now time.Time) ([]byte, error) {
+// graphPortsPerImage is how many ports one image of a report holds. A report
+// with ten ports stacked into one image shrank every graph to an unreadable
+// strip on a phone, so a longer report is split across several images.
+const graphPortsPerImage = 2
+
+// renderReport fetches every port's graph and stacks them, graphPortsPerImage
+// to an image, in the ports' order. It is all or nothing: one graph LibreNMS
+// cannot draw fails the whole report, so no image is answered for half of it.
+func renderReport(ctx context.Context, client *librenms.Client, ports []models.GraphReportPort, now time.Time) ([][]byte, error) {
 	if len(ports) == 0 {
 		return nil, fmt.Errorf("%w: laporan tidak punya port", ErrValidation)
 	}
@@ -55,6 +61,18 @@ func renderReport(ctx context.Context, client *librenms.Client, ports []models.G
 		}
 		sections[i] = librenms.Section{Title: port.Label, Subtitle: span, Graph: graph}
 	}
+	images := make([][]byte, 0, (len(sections)+graphPortsPerImage-1)/graphPortsPerImage)
+	for start := 0; start < len(sections); start += graphPortsPerImage {
+		image, err := composeImage(sections[start:min(start+graphPortsPerImage, len(sections))])
+		if err != nil {
+			return nil, err
+		}
+		images = append(images, image)
+	}
+	return images, nil
+}
+
+func composeImage(sections []librenms.Section) ([]byte, error) {
 	image, err := librenms.Compose(sections)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrGraphFetch, err)
@@ -73,9 +91,9 @@ func checkGraphReportImageSize(size int) error {
 	return nil
 }
 
-// Preview renders the image a report with these ports would be sent as now.
+// Preview renders the images a report with these ports would be sent as now.
 // The group is not needed for it and is not checked.
-func (s *GraphReportSender) Preview(ctx context.Context, in GraphReportInput) ([]byte, error) {
+func (s *GraphReportSender) Preview(ctx context.Context, in GraphReportInput) ([][]byte, error) {
 	if err := validateGraphReportFields(in); err != nil {
 		return nil, err
 	}
@@ -98,7 +116,11 @@ func (s *GraphReportSender) PortPreview(ctx context.Context, deviceID int, ifNam
 		return nil, err
 	}
 	port := models.GraphReportPort{DeviceID: deviceID, IfName: ifName, Label: label}
-	return renderReport(ctx, client, []models.GraphReportPort{port}, s.now())
+	images, err := renderReport(ctx, client, []models.GraphReportPort{port}, s.now())
+	if err != nil {
+		return nil, err
+	}
+	return images[0], nil
 }
 
 func portRows(ports []GraphReportPortInput) []models.GraphReportPort {

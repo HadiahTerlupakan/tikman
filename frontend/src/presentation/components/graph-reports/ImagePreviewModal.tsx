@@ -1,14 +1,15 @@
-import { useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { Alert, Modal, Spin, Typography } from "antd";
 
 interface ImagePreviewModalProps {
   open: boolean;
   title: string;
   alt: string;
-  image?: Blob;
+  /** In the order they are sent. */
+  images?: Blob[];
   loading: boolean;
   error: Error | null;
-  /** Shown under the image the way WhatsApp shows a caption. */
+  /** Shown under the last image, the only one sent with the caption. */
   caption?: string;
   onClose: () => void;
 }
@@ -19,22 +20,22 @@ export function ImagePreviewModal({
   open,
   title,
   alt,
-  image,
+  images,
   loading,
   error,
   caption,
   onClose,
 }: ImagePreviewModalProps) {
-  const url = useMemo(
-    () => (image ? URL.createObjectURL(image) : undefined),
-    [image],
+  const urls = useMemo(
+    () => (images ?? []).map((image) => URL.createObjectURL(image)),
+    [images],
   );
 
   useEffect(
     () => () => {
-      if (url) URL.revokeObjectURL(url);
+      urls.forEach((url) => URL.revokeObjectURL(url));
     },
-    [url],
+    [urls],
   );
 
   return (
@@ -52,18 +53,35 @@ export function ImagePreviewModal({
         </div>
       )}
       {error && <Alert type="error" showIcon message={error.message} />}
-      {url && !loading && (
-        <>
-          <img src={url} alt={alt} style={{ width: "100%", height: "auto" }} />
-          {caption && (
-            <Typography.Paragraph
-              style={{ whiteSpace: "pre-wrap", marginTop: 12, marginBottom: 0 }}
-            >
-              {caption}
-            </Typography.Paragraph>
-          )}
-        </>
-      )}
+      {!loading &&
+        urls.map((url, index) => (
+          <Fragment key={url}>
+            {urls.length > 1 && (
+              <Typography.Text
+                type="secondary"
+                style={{ display: "block", marginTop: index ? 24 : 0 }}
+              >
+                Gambar {index + 1} dari {urls.length}
+              </Typography.Text>
+            )}
+            <img
+              src={url}
+              alt={`${alt} ${index + 1}`}
+              style={{ width: "100%", height: "auto" }}
+            />
+            {index === urls.length - 1 && caption && (
+              <Typography.Paragraph
+                style={{
+                  whiteSpace: "pre-wrap",
+                  marginTop: 12,
+                  marginBottom: 0,
+                }}
+              >
+                {caption}
+              </Typography.Paragraph>
+            )}
+          </Fragment>
+        ))}
     </Modal>
   );
 }

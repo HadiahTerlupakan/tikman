@@ -232,7 +232,7 @@ export function GraphReportModal({
         open={caption !== null}
         title="Pratinjau laporan"
         alt="Grafik trafik laporan"
-        image={reportPreview.data}
+        images={reportPreview.data}
         loading={reportPreview.isPending}
         error={reportPreview.error}
         caption={caption ?? undefined}

@@ -40,6 +40,11 @@ async function blobErrorMessage(blob: Blob, status: number): Promise<string> {
   }
 }
 
+function pngFromBase64(encoded: string): Blob {
+  const bytes = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
+  return new Blob([bytes], { type: "image/png" });
+}
+
 async function pngOrThrow(response: AxiosResponse<Blob>): Promise<Blob> {
   if (response.status !== HTTP_OK) {
     throw new Error(await blobErrorMessage(response.data, response.status));
@@ -98,18 +103,21 @@ export class GraphReportRepository {
     return pngOrThrow(response);
   }
 
-  /** The whole composed image exactly as the group would receive it. It
-   * fetches every port's graph like a send does, hence the same timeout. */
-  async preview(input: GraphReportPreviewInput): Promise<Blob> {
+  /** The images exactly as the group would receive them, in order, two
+   * ports to an image. It fetches every port's graph like a send does, hence
+   * the same timeout. */
+  async preview(input: GraphReportPreviewInput): Promise<Blob[]> {
     const response = await apiClient.post(
       API_ENDPOINTS.GRAPH_REPORT_PREVIEW,
       input,
-      {
-        responseType: "blob",
-        timeout: SEND_TIMEOUT_MS,
-        validateStatus: () => true,
-      },
+      { timeout: SEND_TIMEOUT_MS, validateStatus: () => true },
     );
-    return pngOrThrow(response);
+    if (response.status !== HTTP_OK) {
+      throw new Error(
+        response.data?.error ||
+          `Pratinjau gagal dimuat (HTTP ${response.status})`,
+      );
+    }
+    return (response.data.images ?? []).map(pngFromBase64);
   }
 }

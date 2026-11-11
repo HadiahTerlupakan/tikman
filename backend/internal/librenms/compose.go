@@ -75,8 +75,8 @@ func newFace(ttf []byte, size float64) (font.Face, error) {
 	return opentype.NewFace(parsed, &opentype.FaceOptions{Size: size, DPI: 72, Hinting: font.HintingFull})
 }
 
-// Compose stacks the sections into one PNG on white, so a customer gets the
-// whole report as a single picture instead of one message per port.
+// Compose stacks the sections into one PNG on white, so a customer gets
+// several ports in one picture instead of one message per port.
 func Compose(sections []Section) ([]byte, error) {
 	if len(sections) == 0 {
 		return nil, fmt.Errorf("tidak ada grafik untuk disusun")
