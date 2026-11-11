@@ -52,18 +52,25 @@ type GraphReportInput struct {
 
 // GraphReportView is a report as the management page shows it.
 type GraphReportView struct {
-	ID            uuid.UUID                `json:"id"`
-	WAGroupID     uuid.UUID                `json:"wa_group_id"`
-	GroupName     string                   `json:"group_name"`
-	CustomerName  string                   `json:"customer_name"`
-	Message       string                   `json:"message"`
-	Enabled       bool                     `json:"enabled"`
-	MentionAll    bool                     `json:"mention_all"`
-	SendTime      string                   `json:"send_time"`
-	LastSentOn    *string                  `json:"last_sent_on"`
-	LastAttemptAt *time.Time               `json:"last_attempt_at"`
-	LastError     string                   `json:"last_error"`
-	Ports         []models.GraphReportPort `json:"ports"`
+	ID        uuid.UUID `json:"id"`
+	WAGroupID uuid.UUID `json:"wa_group_id"`
+	GroupName string    `json:"group_name"`
+	// WAGroupJID is the WhatsApp group itself, the same through every number,
+	// so the form can tell a group already reported through another number.
+	WAGroupJID  string    `json:"wa_group_jid"`
+	WAAccountID uuid.UUID `json:"wa_account_id"`
+	// WAAccountLabel is the number that sends the report, by its label or,
+	// unlabelled, the number itself.
+	WAAccountLabel string                   `json:"wa_account_label"`
+	CustomerName   string                   `json:"customer_name"`
+	Message        string                   `json:"message"`
+	Enabled        bool                     `json:"enabled"`
+	MentionAll     bool                     `json:"mention_all"`
+	SendTime       string                   `json:"send_time"`
+	LastSentOn     *string                  `json:"last_sent_on"`
+	LastAttemptAt  *time.Time               `json:"last_attempt_at"`
+	LastError      string                   `json:"last_error"`
+	Ports          []models.GraphReportPort `json:"ports"`
 }
 
 // GraphReportService stores the daily graph reports.
@@ -100,7 +107,7 @@ func (s *GraphReportService) Get(id uuid.UUID) (*GraphReportView, error) {
 
 // Create registers a report for a group that has none.
 func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*GraphReportView, error) {
-	if err := s.validate(&in, uuid.Nil); err != nil {
+	if err := s.validate(&in); err != nil {
 		return nil, err
 	}
 	report := models.GraphReport{
@@ -109,6 +116,9 @@ func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*Grap
 		SendTime: in.SendTime, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := claimGroup(tx, in.WAGroupID, uuid.Nil); err != nil {
+			return err
+		}
 		// Enabled is written explicitly: GORM skips a false bool on create
 		// and the column default would turn the report on.
 		if err := tx.Create(&report).Error; err != nil {
@@ -131,10 +141,13 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 	if err := s.db.First(&report, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	if err := s.validate(&in, id); err != nil {
+	if err := s.validate(&in); err != nil {
 		return nil, err
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := claimGroup(tx, in.WAGroupID, id); err != nil {
+			return err
+		}
 		err := tx.Model(&report).Updates(map[string]any{
 			"wa_group_id": in.WAGroupID, "customer_name": strings.TrimSpace(in.CustomerName),
 			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled, "mention_all": in.MentionAll,
@@ -185,7 +198,7 @@ func replacePorts(tx *gorm.DB, reportID uuid.UUID, ports []GraphReportPortInput)
 
 // validate checks a submitted report and writes its send time in canonical
 // form, the default when left blank.
-func (s *GraphReportService) validate(in *GraphReportInput, self uuid.UUID) error {
+func (s *GraphReportService) validate(in *GraphReportInput) error {
 	if err := validateGraphReportFields(*in); err != nil {
 		return err
 	}
@@ -203,14 +216,6 @@ func (s *GraphReportService) validate(in *GraphReportInput, self uuid.UUID) erro
 	}
 	if err != nil {
 		return fmt.Errorf("look up group: %w", err)
-	}
-	var taken int64
-	err = s.db.Model(&models.GraphReport{}).Where("wa_group_id = ? AND id <> ?", in.WAGroupID, self).Count(&taken).Error
-	if err != nil {
-		return fmt.Errorf("look for existing graph report: %w", err)
-	}
-	if taken > 0 {
-		return ErrGraphReportDuplicate
 	}
 	return nil
 }
@@ -257,7 +262,8 @@ func requireText(value, name string) error {
 	return nil
 }
 
-// views attaches the group names and ports in two queries for the whole page.
+// views attaches the groups, their numbers and the ports in three queries for
+// the whole page.
 func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportView, error) {
 	ids := make([]uuid.UUID, len(reports))
 	groupIDs := make([]uuid.UUID, len(reports))
@@ -269,12 +275,17 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 		return nil, fmt.Errorf("load graph report ports: %w", err)
 	}
 	var groups []models.WAGroup
-	if err := s.db.Select("id", "name").Where("id IN ?", groupIDs).Find(&groups).Error; err != nil {
+	if err := s.db.Select("id", "name", "jid", "wa_account_id").Where("id IN ?", groupIDs).Find(&groups).Error; err != nil {
 		return nil, fmt.Errorf("load graph report groups: %w", err)
 	}
-	names := make(map[uuid.UUID]string, len(groups))
-	for _, group := range groups {
-		names[group.ID] = group.Name
+	byID := make(map[uuid.UUID]models.WAGroup, len(groups))
+	accountIDs := make([]uuid.UUID, len(groups))
+	for i, group := range groups {
+		byID[group.ID], accountIDs[i] = group, group.WAAccountID
+	}
+	numbers, err := accountNames(s.db, accountIDs)
+	if err != nil {
+		return nil, err
 	}
 	byReport := make(map[uuid.UUID][]models.GraphReportPort, len(reports))
 	for _, port := range ports {
@@ -282,7 +293,10 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 	}
 	views := make([]GraphReportView, len(reports))
 	for i, report := range reports {
-		views[i] = graphReportView(report, names[report.WAGroupID], byReport[report.ID])
+		group := byID[report.WAGroupID]
+		views[i] = graphReportView(report, group.Name, byReport[report.ID])
+		views[i].WAGroupJID = group.JID
+		views[i].WAAccountID, views[i].WAAccountLabel = group.WAAccountID, numbers[group.WAAccountID]
 	}
 	return views, nil
 }

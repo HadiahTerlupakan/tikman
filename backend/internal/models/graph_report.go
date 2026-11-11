@@ -18,7 +18,7 @@ type GraphReport struct {
 	// Message is the caption the image is sent with; empty means the default
 	// greeting (services.DefaultGraphReportMessage).
 	Message string `gorm:"type:text;not null;default:''" json:"message"`
-	// MentionAll tags every member but our own number without writing their
+	// MentionAll tags every member but TikMan's own numbers without writing their
 	// addresses into the caption, so even those who muted the group are told.
 	MentionAll bool `gorm:"not null;default:false" json:"mention_all"`
 	// SendTime is when the daily send starts, "HH:MM" in WIB.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -14,6 +14,7 @@ import { FileImageOutlined } from "@ant-design/icons";
 import {
   useGraphReportPreview,
   useLibrenmsDevices,
+  useWaAccounts,
   useWaGroups,
 } from "@/application/hooks";
 import {
@@ -23,8 +24,10 @@ import {
   type GraphReportInput,
 } from "@/domain/entities";
 import {
+  accountOptions,
   emptyFormValues,
   groupOptions,
+  initialAccountId,
   reportCaption,
   reportToFormValues,
   toGraphReportInput,
@@ -60,8 +63,32 @@ export function GraphReportModal({
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const [caption, setCaption] = useState<string | null>(null);
   const reportPreview = useGraphReportPreview();
-  const { data: groups = [], isLoading: groupsLoading } = useWaGroups();
+  const { data: accounts = [], isLoading: accountsLoading } = useWaAccounts();
   const devices = useLibrenmsDevices(open);
+  const waAccountId = Form.useWatch("waAccountId", form);
+  // The unfiltered list is capped across every number, so a quiet number's
+  // groups could fall off it; asking for the chosen number's own is not.
+  const { data: groups = [], isLoading: groupsLoading } = useWaGroups(
+    waAccountId ? { waAccountId } : undefined,
+  );
+  const options = groupOptions(groups, reports, {
+    waAccountId,
+    currentGroupId: report?.waGroupId,
+  });
+
+  // A report listed without its number gets it from its group, which may
+  // load after the form has mounted.
+  useEffect(() => {
+    if (!report || form.getFieldValue("waAccountId")) return;
+    const id = initialAccountId(report, groups);
+    if (id) form.setFieldValue("waAccountId", id);
+  }, [report, groups, form]);
+
+  // A group row belongs to one number, so the old choice is never valid for
+  // the new one.
+  const handleValuesChange = (changed: Partial<GraphReportFormValues>) => {
+    if ("waAccountId" in changed) form.setFieldValue("waGroupId", undefined);
+  };
 
   const handleOk = () => {
     form
@@ -108,7 +135,20 @@ export function GraphReportModal({
         form={form}
         layout="vertical"
         initialValues={report ? reportToFormValues(report) : emptyFormValues()}
+        onValuesChange={handleValuesChange}
       >
+        <Form.Item
+          name="waAccountId"
+          label="Nomor WhatsApp"
+          extra="Laporan dikirim dari nomor ini."
+          rules={[{ required: true, message: "Pilih nomor" }]}
+        >
+          <Select
+            placeholder="Pilih nomor"
+            loading={accountsLoading}
+            options={accountOptions(accounts)}
+          />
+        </Form.Item>
         <Form.Item
           name="waGroupId"
           label="Grup WhatsApp"
@@ -116,10 +156,16 @@ export function GraphReportModal({
         >
           <Select
             showSearch
-            placeholder="Pilih grup"
+            placeholder={waAccountId ? "Pilih grup" : "Pilih nomor dahulu"}
             optionFilterProp="label"
+            disabled={!waAccountId}
             loading={groupsLoading}
-            options={groupOptions(groups, reports, report?.waGroupId)}
+            options={options}
+            notFoundContent={
+              waAccountId && !groupsLoading
+                ? "Nomor ini belum punya grup yang bisa dikirimi"
+                : undefined
+            }
           />
         </Form.Item>
         <Form.Item

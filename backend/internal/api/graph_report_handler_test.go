@@ -26,6 +26,7 @@ type graphReportEnv struct {
 	router   *gin.Engine
 	settings *services.SettingService
 	group    models.WAGroup
+	db       *gorm.DB
 }
 
 func newGraphReportEnv(t *testing.T) graphReportEnv {
@@ -45,7 +46,7 @@ func newGraphReportEnv(t *testing.T) graphReportEnv {
 	router := gin.New()
 	pass := func(c *gin.Context) { c.Set("user_id", uuid.New()); c.Set("user_role", models.UserRoleAdmin) }
 	h.registerGraphReportRoutes(router.Group("/api/v1"), pass)
-	return graphReportEnv{router: router, settings: settings, group: group}
+	return graphReportEnv{router: router, settings: settings, group: group, db: db}
 }
 
 // useLibreNMS points the settings at a server answering every request with
@@ -85,6 +86,9 @@ func TestGraphReportCreateAnswersTheReport(t *testing.T) {
 	var report map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &report))
 	assert.Equal(t, "TEST MRTG", report["group_name"])
+	assert.Equal(t, env.group.WAAccountID.String(), report["wa_account_id"])
+	assert.Equal(t, "CS", report["wa_account_label"])
+	assert.Equal(t, env.group.JID, report["wa_group_jid"])
 	assert.Contains(t, report, "last_sent_on")
 	assert.Nil(t, report["last_sent_on"])
 	assert.Len(t, report["ports"], 1)
@@ -268,4 +272,23 @@ func TestGraphReportSendTimeRoundTrips(t *testing.T) {
 	rec = env.do(http.MethodPut, path, body)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "jam kirim harus berformat HH:MM")
+}
+
+func TestGraphReportSameGroupThroughAnotherNumberIsTaken(t *testing.T) {
+	env := newGraphReportEnv(t)
+	require.Equal(t, http.StatusCreated, env.do(http.MethodPost, "/api/v1/graph-reports", env.reportBody()).Code)
+	account := models.WAAccount{Label: "Kantor", Status: models.WAAccountConnected}
+	require.NoError(t, env.db.Create(&account).Error)
+	twin := models.WAGroup{WAAccountID: account.ID, JID: env.group.JID, Name: env.group.Name}
+	require.NoError(t, env.db.Create(&twin).Error)
+	body := env.reportBody()
+	body["wa_group_id"] = twin.ID
+
+	rec := env.do(http.MethodPost, "/api/v1/graph-reports", body)
+
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	var resp ErrorResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "GRAPH_REPORT_GROUP_TAKEN", resp.Code)
+	assert.Equal(t, "Grup ini sudah punya laporan lewat nomor CS", resp.Error)
 }

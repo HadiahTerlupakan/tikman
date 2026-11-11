@@ -3,15 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_GRAPH_REPORT_MESSAGE,
   type GraphReport,
+  type WaAccount,
   type WaGroup,
 } from "@/domain/entities";
 import {
+  accountOptions,
   defaultPortLabel,
   deviceOptions,
   emptyFormValues,
   formatSendTime,
   formatSentOn,
   groupOptions,
+  initialAccountId,
   portOptionLabel,
   reportCaption,
   reportToFormValues,
@@ -24,6 +27,9 @@ const report: GraphReport = {
   id: "r1",
   waGroupId: "g1",
   groupName: "TEST MRTG",
+  waGroupJid: "g1@g.us",
+  waAccountId: "a1",
+  waAccountLabel: "Kantor",
   customerName: "PT Contoh",
   message: "Halo {pelanggan}",
   enabled: true,
@@ -57,6 +63,7 @@ const group = (id: string, extra: Partial<WaGroup> = {}) =>
     id,
     name: `Grup ${id}`,
     jid: `${id}@g.us`,
+    waAccountId: "a1",
     left: false,
     ...extra,
   }) as WaGroup;
@@ -129,6 +136,13 @@ describe("reportToFormValues", () => {
 
     expect(values.ports.map((p) => p.label)).toEqual(["Pertama", "Kedua"]);
     expect(values.ports[0]).not.toHaveProperty("id");
+  });
+
+  it("preselects the report's sending number but never sends it", () => {
+    const values = reportToFormValues(report);
+
+    expect(values.waAccountId).toBe("a1");
+    expect(toGraphReportInput(values)).not.toHaveProperty("waAccountId");
   });
 
   it("carries the saved tag-everyone choice into the form", () => {
@@ -211,10 +225,14 @@ describe("deviceOptions", () => {
 });
 
 describe("groupOptions", () => {
+  const own = { waAccountId: "a1" };
+
   it("leaves out groups the number left and groups that already have a report", () => {
     const groups = [group("g1"), group("g2", { left: true }), group("g3")];
 
-    expect(groupOptions(groups, [report]).map((o) => o.value)).toEqual(["g3"]);
+    expect(groupOptions(groups, [report], own).map((o) => o.value)).toEqual([
+      "g3",
+    ]);
   });
 
   it("leaves out admins-only groups unless the number is an admin there", () => {
@@ -223,13 +241,95 @@ describe("groupOptions", () => {
       group("g3", { announce: true, isAdmin: true }),
     ];
 
-    expect(groupOptions(groups, []).map((o) => o.value)).toEqual(["g3"]);
+    expect(groupOptions(groups, [], own).map((o) => o.value)).toEqual(["g3"]);
   });
 
   it("keeps the report's own group while it is being edited", () => {
-    expect(groupOptions([group("g1")], [report], "g1")).toEqual([
-      { value: "g1", label: "Grup g1" },
+    expect(
+      groupOptions([group("g1")], [report], { ...own, currentGroupId: "g1" }),
+    ).toEqual([{ value: "g1", label: "Grup g1" }]);
+  });
+
+  it("lists only the chosen number's groups, and none before one is chosen", () => {
+    const groups = [group("g1"), group("g2", { waAccountId: "a2" })];
+
+    expect(
+      groupOptions(groups, [], { waAccountId: "a2" }).map((o) => o.value),
+    ).toEqual(["g2"]);
+    expect(groupOptions(groups, [])).toEqual([]);
+  });
+
+  // Two TikMan numbers in one WhatsApp group mirror it as two rows with the
+  // same JID; a report on each would deliver it twice.
+  it("disables the same group reached through another number", () => {
+    const groups = [
+      group("g1"),
+      group("g9", { jid: "g1@g.us", name: "Grup g1", waAccountId: "a2" }),
+    ];
+
+    expect(groupOptions(groups, [report], { waAccountId: "a2" })).toEqual([
+      {
+        value: "g9",
+        label: "Grup g1 (sudah ada laporan lewat Kantor)",
+        disabled: true,
+      },
     ]);
+  });
+
+  it("disables a reported group whose own row is not among the loaded groups", () => {
+    const groups = [
+      group("g9", { jid: "g1@g.us", name: "Grup g1", waAccountId: "a2" }),
+    ];
+
+    expect(
+      groupOptions(groups, [report], { waAccountId: "a2" })[0].disabled,
+    ).toBe(true);
+  });
+
+  it("lets the report being edited move to its group's other number", () => {
+    const groups = [
+      group("g1"),
+      group("g9", { jid: "g1@g.us", name: "Grup g1", waAccountId: "a2" }),
+    ];
+
+    expect(
+      groupOptions(groups, [report], {
+        waAccountId: "a2",
+        currentGroupId: "g1",
+      }),
+    ).toEqual([{ value: "g9", label: "Grup g1" }]);
+  });
+});
+
+describe("accountOptions", () => {
+  const account = (extra: Partial<WaAccount>) =>
+    ({ id: "a1", label: "Kantor", status: "connected", ...extra }) as WaAccount;
+
+  it("names each number with its label and phone, without the device suffix", () => {
+    expect(
+      accountOptions([account({ jid: "6281234567890:12@s.whatsapp.net" })]),
+    ).toEqual([{ value: "a1", label: "Kantor — +6281234567890" }]);
+  });
+
+  it("marks a number that is not connected, or not paired yet", () => {
+    expect(
+      accountOptions([
+        account({ jid: "62811@s.whatsapp.net", status: "disconnected" }),
+        account({ id: "a2", label: "Baru", status: "pairing" }),
+      ]).map((o) => o.label),
+    ).toEqual(["Kantor — +62811 (tidak terhubung)", "Baru (tidak terhubung)"]);
+  });
+});
+
+describe("initialAccountId", () => {
+  it("uses the report's number, else its group's", () => {
+    const groups = [group("g1", { waAccountId: "a2" })];
+
+    expect(initialAccountId(report, groups)).toBe("a1");
+    expect(initialAccountId({ ...report, waAccountId: "" }, groups)).toBe("a2");
+    expect(
+      initialAccountId({ ...report, waAccountId: "" }, []),
+    ).toBeUndefined();
   });
 });
 

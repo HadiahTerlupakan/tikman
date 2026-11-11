@@ -15,6 +15,12 @@ export interface GraphReport {
   id: string;
   waGroupId: string;
   groupName: string;
+  /** The WhatsApp group's JID, the same through every number in it. */
+  waGroupJid: string;
+  /** The number that sends it: the group row's own account. */
+  waAccountId: string;
+  /** The account's label, or its number when it has none. */
+  waAccountLabel: string;
   customerName: string;
   /** The caption's text; "" sends DEFAULT_GRAPH_REPORT_MESSAGE. */
   message: string;

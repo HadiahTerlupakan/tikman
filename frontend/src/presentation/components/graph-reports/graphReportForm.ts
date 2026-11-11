@@ -8,6 +8,7 @@ import {
   type GraphReportPreviewInput,
   type LibrenmsDevice,
   type LibrenmsPort,
+  type WaAccount,
   type WaGroup,
 } from "@/domain/entities";
 import { sendBlockedReason } from "../cs/groups/groupSummary";
@@ -21,6 +22,9 @@ export interface PortFormValue {
 }
 
 export interface GraphReportFormValues {
+  /** Only narrows the group picker; the group row already names its
+   * number, so it is not sent. */
+  waAccountId?: string;
   waGroupId?: string;
   customerName?: string;
   message?: string;
@@ -34,6 +38,7 @@ export interface GraphReportFormValues {
 export interface SelectOption<T> {
   value: T;
   label: string;
+  disabled?: boolean;
 }
 
 const WIB = "Asia/Jakarta";
@@ -62,6 +67,7 @@ export function emptyFormValues(): GraphReportFormValues {
 
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
   return {
+    waAccountId: report.waAccountId || undefined,
     waGroupId: report.waGroupId,
     customerName: report.customerName,
     message: report.message,
@@ -160,20 +166,78 @@ export function deviceOptions(
   return options;
 }
 
+/** The phone number in a JID, without the ":NN" device suffix a linked
+ * session's own JID carries. */
+export function waNumber(jid?: string): string {
+  return jid?.split("@")[0].split(":")[0] ?? "";
+}
+
+/** A number that is not connected stays pickable: its groups are still
+ * known, and the report will send once it reconnects. */
+export function accountOptions(accounts: WaAccount[]): SelectOption<string>[] {
+  return accounts.map((account) => {
+    const number = waNumber(account.jid);
+    const name = number ? `${account.label} — +${number}` : account.label;
+    const label =
+      account.status === "connected" ? name : `${name} (tidak terhubung)`;
+    return { value: account.id, label };
+  });
+}
+
+/** The sending number of a report being edited, falling back to its
+ * group's account for a report listed without one. */
+export function initialAccountId(
+  report: GraphReport,
+  groups: WaGroup[],
+): string | undefined {
+  if (report.waAccountId) return report.waAccountId;
+  return groups.find((g) => g.id === report.waGroupId)?.waAccountId;
+}
+
+export interface GroupOptionScope {
+  /** The chosen number; nothing is listed until one is. */
+  waAccountId?: string;
+  /** The edited report's own group, which must stay selectable. */
+  currentGroupId?: string;
+}
+
+/** The account label of every group JID that already has a report, so the
+ * same WhatsApp group reached through a second number is not sent twice. It
+ * is read from the reports, not from the loaded groups, which hold only the
+ * chosen number's rows. */
+function reportedJids(reports: GraphReport[]): Map<string, string> {
+  return new Map(reports.map((r) => [r.waGroupJid, r.waAccountLabel]));
+}
+
 /** A group the number cannot post in (left, or admins-only without us as
  * admin) would fail every morning, and one already holding a report would be
- * refused as a duplicate. */
+ * refused as a duplicate. The same group through another number is shown
+ * disabled rather than hidden, so the admin sees why it cannot be picked. */
 export function groupOptions(
   groups: WaGroup[],
   reports: GraphReport[],
-  currentGroupId?: string,
+  { waAccountId, currentGroupId }: GroupOptionScope = {},
 ): SelectOption<string>[] {
-  const taken = new Set(
-    reports.map((r) => r.waGroupId).filter((id) => id !== currentGroupId),
-  );
+  const others = reports.filter((r) => r.waGroupId !== currentGroupId);
+  const takenRows = new Set(others.map((r) => r.waGroupId));
+  const takenJids = reportedJids(others);
   return groups
-    .filter((g) => sendBlockedReason(g) === null && !taken.has(g.id))
-    .map((g) => ({ value: g.id, label: g.name || g.jid }));
+    .filter(
+      (g) =>
+        g.waAccountId === waAccountId &&
+        sendBlockedReason(g) === null &&
+        !takenRows.has(g.id),
+    )
+    .map((g) => {
+      const name = g.name || g.jid;
+      const by = takenJids.get(g.jid);
+      if (by === undefined) return { value: g.id, label: name };
+      return {
+        value: g.id,
+        label: `${name} (sudah ada laporan lewat ${by})`,
+        disabled: true,
+      };
+    });
 }
 
 /** lastSentOn is a bare WIB date, so it is formatted as UTC to stop the

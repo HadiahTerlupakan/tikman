@@ -61,15 +61,54 @@ func (s *WAGroupService) MembersOtherThanUs(groupID uuid.UUID) (int, error) {
 }
 
 // MemberJIDsOtherThanUs answers the address of everyone a message to the
-// group reaches, the list a tag of the whole group names.
+// group reaches, the list a tag of the whole group names. TikMan's other
+// numbers in the group are left out as well as the sending one: is_self marks
+// only the number whose mirror this is, and tagging our own second phone tells
+// no customer anything.
 func (s *WAGroupService) MemberJIDsOtherThanUs(groupID uuid.UUID) ([]string, error) {
-	var jids []string
-	err := s.db.Model(&models.WAGroupParticipant{}).Where("group_id = ? AND NOT is_self", groupID).
-		Order("jid").Pluck("jid", &jids).Error
+	var members []models.WAGroupParticipant
+	err := s.db.Select("jid", "lid", "phone").Where("group_id = ? AND NOT is_self", groupID).
+		Order("jid").Find(&members).Error
 	if err != nil {
 		return nil, fmt.Errorf("list group members: %w", err)
 	}
+	ours, err := s.ourNumbers()
+	if err != nil {
+		return nil, err
+	}
+	jids := make([]string, 0, len(members))
+	for _, member := range members {
+		if !ours[member.Phone] && !ours[numberUser(member.JID)] && !ours[numberUser(member.LID)] {
+			jids = append(jids, member.JID)
+		}
+	}
 	return uniqueStrings(jids), nil
+}
+
+// ourNumbers answers the user part of every address TikMan's numbers go by.
+// An account stores only its phone number, and in a LID-addressed group
+// another of our numbers often shows by LID alone, with no phone behind it.
+// Each number knows its own LID, though: the mirror it keeps marks its own
+// member row is_self, so those rows name every LID we hold.
+func (s *WAGroupService) ourNumbers() (map[string]bool, error) {
+	var addresses []string
+	if err := s.db.Model(&models.WAAccount{}).Where("jid <> ''").Pluck("jid", &addresses).Error; err != nil {
+		return nil, fmt.Errorf("list WhatsApp numbers: %w", err)
+	}
+	var selves []models.WAGroupParticipant
+	if err := s.db.Distinct("jid", "lid", "phone").Where("is_self").Find(&selves).Error; err != nil {
+		return nil, fmt.Errorf("list our group addresses: %w", err)
+	}
+	for _, self := range selves {
+		addresses = append(addresses, self.JID, self.LID, self.Phone)
+	}
+	ours := make(map[string]bool, len(addresses))
+	for _, address := range addresses {
+		if user := numberUser(address); user != "" {
+			ours[user] = true
+		}
+	}
+	return ours, nil
 }
 
 func (s *WAGroupService) markGroupAvatars(groups []models.WAGroup) error {

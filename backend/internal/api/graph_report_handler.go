@@ -159,11 +159,14 @@ func (h *GraphReportHandler) record(c *gin.Context, action string, id uuid.UUID,
 
 // graphReportError answers the statuses the page tells apart: an unset
 // LibreNMS is the admin's to fix (400), a group that cannot be posted in or
-// already has a report is a conflict (409), and LibreNMS failing is upstream
-// (502).
+// already has a report, through this number or another, is a conflict (409),
+// and LibreNMS failing is upstream (502).
 func graphReportError(c *gin.Context, err error, code string) {
 	status := 0
 	switch {
+	case errors.Is(err, services.ErrGraphReportGroupTaken):
+		// Its own code so the form can point at the number picker.
+		status, code = http.StatusConflict, "GRAPH_REPORT_GROUP_TAKEN"
 	case errors.Is(err, services.ErrLibreNMSNotConfigured):
 		status = http.StatusBadRequest
 	case errors.Is(err, services.ErrGraphReportDuplicate),

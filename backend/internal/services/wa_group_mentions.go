@@ -46,6 +46,17 @@ func jidUser(address string) string {
 	return user
 }
 
+// numberUser strips a JID to its user part, dropping a device suffix
+// ("62811:12@s.whatsapp.net" is 62811) so two forms of one number compare equal.
+func numberUser(jid string) string {
+	user := jidUser(jid)
+	if user == "" {
+		user = jid
+	}
+	user, _, _ = strings.Cut(user, ":")
+	return user
+}
+
 // ResolveMentions rewrites "@628123…" or "@<LID>" into "@Name". WhatsApp
 // carries a mention as the address in the text, and in a LID-addressed group
 // that is a long number that is nobody's phone: read as is, it tells the team

@@ -39,16 +39,21 @@ function portLabels(report: GraphReport): string {
 
 function GroupCell({ report }: { report: GraphReport }) {
   return (
-    <Space size={4} wrap>
-      {report.groupName}
-      {report.mentionAll && (
-        <Tag
-          icon={<NotificationOutlined />}
-          title="Semua anggota grup ditag saat laporan dikirim"
-        >
-          Tag semua
-        </Tag>
-      )}
+    <Space direction="vertical" size={0}>
+      <Space size={4} wrap>
+        {report.groupName}
+        {report.mentionAll && (
+          <Tag
+            icon={<NotificationOutlined />}
+            title="Semua anggota grup ditag saat laporan dikirim"
+          >
+            Tag semua
+          </Tag>
+        )}
+      </Space>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        Lewat {report.waAccountLabel}
+      </Text>
     </Space>
   );
 }
