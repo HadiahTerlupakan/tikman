@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { GraphReport, WaGroup } from "@/domain/entities";
+import {
+  DEFAULT_GRAPH_REPORT_MESSAGE,
+  type GraphReport,
+  type WaGroup,
+} from "@/domain/entities";
 import {
   defaultPortLabel,
   deviceOptions,
   formatSentOn,
   groupOptions,
   portOptionLabel,
+  reportCaption,
   reportToFormValues,
   reportWithEnabled,
   toGraphReportInput,
+  toPreviewInput,
 } from "./graphReportForm";
 
 const report: GraphReport = {
@@ -16,6 +22,7 @@ const report: GraphReport = {
   waGroupId: "g1",
   groupName: "TEST MRTG",
   customerName: "PT Contoh",
+  message: "Halo {pelanggan}",
   enabled: true,
   lastSentOn: null,
   lastAttemptAt: null,
@@ -54,6 +61,7 @@ describe("toGraphReportInput", () => {
     const input = toGraphReportInput({
       waGroupId: "g1",
       customerName: "  PT Contoh ",
+      message: "  Halo {pelanggan}\n ",
       enabled: false,
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: " B " },
@@ -64,12 +72,45 @@ describe("toGraphReportInput", () => {
     expect(input).toEqual({
       waGroupId: "g1",
       customerName: "PT Contoh",
+      message: "Halo {pelanggan}",
       enabled: false,
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: "B" },
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
       ],
     });
+  });
+});
+
+describe("toPreviewInput", () => {
+  it("sends no group, so a preview works before one is chosen", () => {
+    const input = toPreviewInput({
+      customerName: "PT Contoh",
+      ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
+    });
+
+    expect(input).toEqual({
+      customerName: "PT Contoh",
+      message: "",
+      ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
+    });
+  });
+});
+
+describe("reportCaption", () => {
+  it("puts the customer name in every {pelanggan}", () => {
+    expect(reportCaption("{pelanggan}: grafik {pelanggan}", "PT A")).toBe(
+      "PT A: grafik PT A",
+    );
+  });
+
+  it("falls back to the default message when the message is blank", () => {
+    const caption = reportCaption("  \n", "PT Contoh");
+
+    expect(caption).toBe(
+      DEFAULT_GRAPH_REPORT_MESSAGE.replace("{pelanggan}", "PT Contoh"),
+    );
+    expect(caption).toContain("untuk PT Contoh.");
   });
 });
 
@@ -88,6 +129,7 @@ describe("reportWithEnabled", () => {
 
     expect(input.enabled).toBe(false);
     expect(input.customerName).toBe("PT Contoh");
+    expect(input.message).toBe("Halo {pelanggan}");
     expect(input.ports.map((p) => p.ifName)).toEqual(["ether 1/1", "sfp2"]);
   });
 });

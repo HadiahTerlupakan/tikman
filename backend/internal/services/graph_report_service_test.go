@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -46,6 +47,29 @@ func TestGraphReportUpdateMayKeepItsOwnGroupAndReplacesPorts(t *testing.T) {
 	assert.Equal(t, "Baru", updated.Ports[0].Label)
 }
 
+func TestGraphReportMessageIsStoredAndRewritten(t *testing.T) {
+	f := newGraphReportFixture(t)
+	in := reportInput(f.group.ID, "Uplink")
+	in.Message = "  Halo {pelanggan}  "
+	report, err := f.reports.Create(in, uuid.New())
+	require.NoError(t, err)
+	assert.Equal(t, "Halo {pelanggan}", report.Message)
+
+	in.Message = ""
+	updated, err := f.reports.Update(report.ID, in)
+	require.NoError(t, err)
+	assert.Empty(t, updated.Message, "blank goes back to the default greeting")
+
+	in.Message = strings.Repeat("é", MaxGraphReportMessageRunes)
+	_, err = f.reports.Update(report.ID, in)
+	assert.NoError(t, err, "the limit counts characters, not bytes")
+}
+
+func TestGraphReportCaptionFallsBackToTheDefault(t *testing.T) {
+	assert.Equal(t, strings.ReplaceAll(DefaultGraphReportMessage, "{pelanggan}", "PT A"), GraphReportCaption(" \n", "PT A"))
+	assert.Equal(t, "Untuk PT A", GraphReportCaption("Untuk {pelanggan}", "PT A"))
+}
+
 func TestGraphReportPortCountBounds(t *testing.T) {
 	f := newGraphReportFixture(t)
 	for _, count := range []int{0, MaxGraphReportPorts + 1} {
@@ -72,6 +96,7 @@ func TestGraphReportRefusesBlankFieldsAndUnknownGroup(t *testing.T) {
 		"if_name":       func(in *GraphReportInput) { in.Ports[0].IfName = "" },
 		"label":         func(in *GraphReportInput) { in.Ports[0].Label = " " },
 		"unknown group": func(in *GraphReportInput) { in.WAGroupID = uuid.New() },
+		"long message":  func(in *GraphReportInput) { in.Message = strings.Repeat("a", MaxGraphReportMessageRunes+1) },
 	}
 	for name, mutate := range cases {
 		in := reportInput(f.group.ID, "Uplink")

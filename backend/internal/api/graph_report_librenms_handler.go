@@ -4,14 +4,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tikman/olt-provisioning/internal/librenms"
+	"github.com/tikman/olt-provisioning/internal/services"
 )
-
-// previewWindow matches what the daily report sends.
-const previewWindow = 24 * time.Hour
 
 // LibreNMSDevice is a device as the port picker lists it.
 type LibreNMSDevice struct {
@@ -70,7 +67,8 @@ func (h *GraphReportHandler) LibreNMSPorts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": out})
 }
 
-// LibreNMSGraph answers the graph a port would be reported with now.
+// LibreNMSGraph answers one port's section of the report image as it would
+// be sent now, titled with label, or with the ifName when none is given yet.
 func (h *GraphReportHandler) LibreNMSGraph(c *gin.Context) {
 	deviceID, err := strconv.Atoi(c.Query("device_id"))
 	ifName := strings.TrimSpace(c.Query("if_name"))
@@ -80,16 +78,43 @@ func (h *GraphReportHandler) LibreNMSGraph(c *gin.Context) {
 		})
 		return
 	}
-	client, ok := h.libreNMS(c)
-	if !ok {
-		return
+	label := strings.TrimSpace(c.Query("label"))
+	if label == "" {
+		label = ifName
 	}
-	now := time.Now()
-	image, err := client.PortGraph(c.Request.Context(), deviceID, ifName, now.Add(-previewWindow), now)
+	image, err := h.sender.PortPreview(c.Request.Context(), deviceID, ifName, label)
 	if err != nil {
-		upstreamError(c, err)
+		graphReportError(c, err, "LIBRENMS_FAILED")
 		return
 	}
+	pngResponse(c, image)
+}
+
+// GraphReportPreviewRequest is a report's form as it stands, before it is
+// saved; the group is not needed to draw it.
+type GraphReportPreviewRequest struct {
+	CustomerName string                   `json:"customer_name"`
+	Message      string                   `json:"message"`
+	Ports        []GraphReportPortRequest `json:"ports"`
+}
+
+// Preview answers the exact image a report would be sent as now.
+func (h *GraphReportHandler) Preview(c *gin.Context) {
+	var req GraphReportPreviewRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	image, err := h.sender.Preview(c.Request.Context(), services.GraphReportInput{
+		CustomerName: req.CustomerName, Message: req.Message, Ports: portInputs(req.Ports),
+	})
+	if err != nil {
+		graphReportError(c, err, "GRAPH_REPORT_PREVIEW_FAILED")
+		return
+	}
+	pngResponse(c, image)
+}
+
+func pngResponse(c *gin.Context, image []byte) {
 	c.Header("Cache-Control", "no-store")
 	c.Data(http.StatusOK, "image/png", image)
 }

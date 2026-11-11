@@ -18,6 +18,7 @@ func (h *handlers) registerGraphReportRoutes(api *gin.RouterGroup, authenticated
 		reports.PUT("/:id", h.graphReportHandler.Update)
 		reports.DELETE("/:id", h.graphReportHandler.Delete)
 		reports.POST("/:id/send", h.graphReportHandler.Send)
+		reports.POST("/preview", h.graphReportHandler.Preview)
 
 		reports.GET("/librenms/devices", h.graphReportHandler.LibreNMSDevices)
 		reports.GET("/librenms/devices/:deviceId/ports", h.graphReportHandler.LibreNMSPorts)

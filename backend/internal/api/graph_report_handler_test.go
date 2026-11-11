@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -87,6 +88,7 @@ func TestGraphReportCreateAnswersTheReport(t *testing.T) {
 	assert.Contains(t, report, "last_sent_on")
 	assert.Nil(t, report["last_sent_on"])
 	assert.Len(t, report["ports"], 1)
+	assert.Equal(t, "", report["message"], "an unset message is sent with the default greeting")
 
 	again := env.do(http.MethodPost, "/api/v1/graph-reports", env.reportBody())
 	assert.Equal(t, http.StatusConflict, again.Code)
@@ -159,9 +161,66 @@ func TestLibreNMSPortsAndPreview(t *testing.T) {
 	require.Equal(t, http.StatusOK, ports.Code)
 	assert.JSONEq(t, `{"data":[{"port_id":3,"if_name":"ether1","if_alias":"Uplink","oper_status":"up"}]}`, ports.Body.String())
 
-	preview := env.do(http.MethodGet, "/api/v1/graph-reports/librenms/graph?device_id=7&if_name=ether1", nil)
+	preview := env.do(http.MethodGet, "/api/v1/graph-reports/librenms/graph?device_id=7&if_name=ether1&label=Uplink", nil)
 	require.Equal(t, http.StatusOK, preview.Code)
 	assert.Equal(t, "image/png", preview.Header().Get("Content-Type"))
+	section, err := png.Decode(preview.Body)
+	require.NoError(t, err)
+	assert.Greater(t, section.Bounds().Dy(), 2, "the graph comes with its title band")
+
+	long := env.do(http.MethodGet,
+		"/api/v1/graph-reports/librenms/graph?device_id=7&if_name=ether1&label="+strings.Repeat("x", 256), nil)
+	assert.Equal(t, http.StatusBadRequest, long.Code)
+}
+
+func TestGraphReportUpdateStoresTheMessage(t *testing.T) {
+	env := newGraphReportEnv(t)
+	created := env.do(http.MethodPost, "/api/v1/graph-reports", env.reportBody())
+	var report services.GraphReportView
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &report))
+
+	body := env.reportBody()
+	body["message"] = "Halo {pelanggan}"
+	rec := env.do(http.MethodPut, "/api/v1/graph-reports/"+report.ID.String(), body)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"message":"Halo {pelanggan}"`)
+
+	body["message"] = strings.Repeat("a", services.MaxGraphReportMessageRunes+1)
+	assert.Equal(t, http.StatusBadRequest, env.do(http.MethodPut, "/api/v1/graph-reports/"+report.ID.String(), body).Code)
+}
+
+func TestGraphReportPreviewStatuses(t *testing.T) {
+	env := newGraphReportEnv(t)
+	body := env.reportBody()
+	delete(body, "wa_group_id")
+	path := "/api/v1/graph-reports/preview"
+
+	assert.Equal(t, http.StatusBadRequest, env.do(http.MethodPost, path, body).Code, "LibreNMS not configured")
+
+	failing := true
+	var graph bytes.Buffer
+	require.NoError(t, png.Encode(&graph, image.NewNRGBA(image.Rect(0, 0, 2, 2))))
+	env.useLibreNMS(t, func(w http.ResponseWriter, r *http.Request) {
+		if failing {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(graph.Bytes())
+	})
+	assert.Equal(t, http.StatusBadGateway, env.do(http.MethodPost, path, body).Code)
+
+	failing = false
+	ok := env.do(http.MethodPost, path, body)
+	require.Equal(t, http.StatusOK, ok.Code, ok.Body.String())
+	assert.Equal(t, "image/png", ok.Header().Get("Content-Type"))
+	_, err := png.Decode(ok.Body)
+	assert.NoError(t, err)
+
+	body["ports"] = []map[string]any{}
+	invalid := env.do(http.MethodPost, path, body)
+	assert.Equal(t, http.StatusBadRequest, invalid.Code)
+	assert.Contains(t, invalid.Body.String(), `"code"`)
 }
 
 func TestGraphReportsAreAdminOnly(t *testing.T) {

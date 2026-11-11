@@ -15,7 +15,7 @@ import (
 )
 
 // GraphReportSenderName is who the group sees the report from. No user wrote
-// it, so the messages carry no sender user and nobody can edit them.
+// it, so the message carries no sender user and nobody can edit it.
 const GraphReportSenderName = "Laporan Otomatis"
 
 // graphWindow is how far back each graph reaches.
@@ -23,6 +23,9 @@ const graphWindow = 24 * time.Hour
 
 // graphFilenameRunes leaves room for the extension inside varchar(255).
 const graphFilenameRunes = 200
+
+// graphFilenameDateLayout dates the image's filename, "PT Contoh 11-11-2026".
+const graphFilenameDateLayout = "02-01-2006"
 
 var (
 	// ErrLibreNMSNotConfigured is a send with no LibreNMS address or token.
@@ -38,7 +41,8 @@ type GroupQueueNotifier interface {
 	GroupMessagesQueued(ctx context.Context, msgs []models.WAGroupMessage)
 }
 
-// GraphReportSender fetches a report's graphs and queues them to its group.
+// GraphReportSender fetches a report's graphs and queues them to its group
+// as one image.
 type GraphReportSender struct {
 	db        *gorm.DB
 	settings  *SettingService
@@ -124,83 +128,54 @@ func (s *GraphReportSender) deliver(ctx context.Context, report *models.GraphRep
 	if err := s.db.Where("report_id = ?", report.ID).Order("position ASC").Find(&ports).Error; err != nil {
 		return fmt.Errorf("load graph report ports: %w", err)
 	}
-	images, err := fetchGraphs(ctx, client, ports, now)
+	image, err := renderReport(ctx, client, ports, now)
 	if err != nil {
 		return err
 	}
-	files, err := s.storeGraphs(ports, images, now)
+	file, err := s.storeImage(report.CustomerName, image, now)
 	if err != nil {
 		return err
 	}
-	return s.queue(ctx, report, ports, files, now, daily)
+	return s.queue(ctx, report, file, now, daily)
 }
 
-func fetchGraphs(ctx context.Context, client *librenms.Client, ports []models.GraphReportPort, now time.Time) ([][]byte, error) {
-	if len(ports) == 0 {
-		return nil, fmt.Errorf("%w: laporan tidak punya port", ErrValidation)
-	}
-	images := make([][]byte, len(ports))
-	for i, port := range ports {
-		image, err := client.PortGraph(ctx, port.DeviceID, port.IfName, now.Add(-graphWindow), now)
-		if err != nil {
-			return nil, fmt.Errorf("%w: port %s (%s %s): %v", ErrGraphFetch, port.Label, port.DeviceName, port.IfName, err)
-		}
-		images[i] = image
-	}
-	return images, nil
-}
-
-// storeGraphs writes the images where the wa process reads attachments, under
+// storeImage writes the report where the wa process reads attachments, under
 // the <year>/<month>/<uuid> layout the inbox's uploads use.
-func (s *GraphReportSender) storeGraphs(ports []models.GraphReportPort, images [][]byte, now time.Time) ([]MediaFile, error) {
+func (s *GraphReportSender) storeImage(customer string, image []byte, now time.Time) (MediaFile, error) {
 	dir := filepath.Join(now.Format("2006"), now.Format("01"))
 	if err := os.MkdirAll(filepath.Join(s.mediaRoot, dir), 0o750); err != nil {
-		return nil, fmt.Errorf("create media directory: %w", err)
+		return MediaFile{}, fmt.Errorf("create media directory: %w", err)
 	}
-	files := make([]MediaFile, 0, len(images))
-	for i, image := range images {
-		rel := filepath.Join(dir, uuid.NewString()+".png")
-		if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image, 0o640); err != nil {
-			s.removeGraphs(files)
-			return nil, fmt.Errorf("write graph: %w", err)
-		}
-		files = append(files, MediaFile{
-			Path: rel, Mime: "image/png", Filename: clampRunes(ports[i].Label, graphFilenameRunes) + ".png",
-			Size: int64(len(image)),
-		})
+	rel := filepath.Join(dir, uuid.NewString()+".png")
+	if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image, 0o640); err != nil {
+		return MediaFile{}, fmt.Errorf("write report image: %w", err)
 	}
-	return files, nil
+	name := customer + " " + now.In(wib).Format(graphFilenameDateLayout)
+	return MediaFile{
+		Path: rel, Mime: "image/png", Filename: clampRunes(name, graphFilenameRunes) + ".png",
+		Size: int64(len(image)),
+	}, nil
 }
 
-func (s *GraphReportSender) removeGraphs(files []MediaFile) {
-	for _, file := range files {
-		_ = os.Remove(filepath.Join(s.mediaRoot, file.Path))
-	}
-}
-
-// queue writes the messages and the report's success in one transaction, so a
-// restart cannot see the messages queued but the day still unsent.
+// queue writes the message and the report's success in one transaction, so a
+// restart cannot see the message queued but the day still unsent.
 func (s *GraphReportSender) queue(
-	ctx context.Context, report *models.GraphReport, ports []models.GraphReportPort, files []MediaFile,
-	now time.Time, daily bool,
+	ctx context.Context, report *models.GraphReport, file MediaFile, now time.Time, daily bool,
 ) error {
 	members, _ := s.groups.MembersOtherThanUs(report.WAGroupID)
-	outs := make([]GroupOutgoing, len(ports))
-	for i, port := range ports {
-		outs[i] = GroupOutgoing{
-			GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
-			Body: graphCaption(report.CustomerName, port.Label, now, i == 0), Media: &files[i], MemberCount: members,
-		}
+	out := GroupOutgoing{
+		GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
+		Body: GraphReportCaption(report.Message, report.CustomerName), Media: &file, MemberCount: members,
 	}
 	fields := map[string]any{"last_attempt_at": now, "last_error": ""}
 	if daily {
 		fields["last_sent_on"] = wibDate(now)
 	}
-	msgs, err := s.messages.QueueBatch(outs, func(tx *gorm.DB) error {
+	msgs, err := s.messages.QueueBatch([]GroupOutgoing{out}, func(tx *gorm.DB) error {
 		return tx.Model(&models.GraphReport{}).Where("id = ?", report.ID).Updates(fields).Error
 	})
 	if err != nil {
-		s.removeGraphs(files)
+		_ = os.Remove(filepath.Join(s.mediaRoot, file.Path))
 		return fmt.Errorf("queue graph report: %w", err)
 	}
 	if s.notifier != nil {
@@ -211,25 +186,10 @@ func (s *GraphReportSender) queue(
 
 var indonesianMonths = [...]string{"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"}
 
-// wibDay writes a date the way the captions do, "10 Nov".
+// wibDay writes a date the way the scheduler's messages do, "10 Nov".
 func wibDay(t time.Time) string {
 	local := t.In(wib)
 	return fmt.Sprintf("%02d %s", local.Day(), indonesianMonths[local.Month()-1])
-}
-
-func wibStamp(t time.Time) string {
-	return wibDay(t) + " " + t.In(wib).Format("15:04")
-}
-
-// graphCaption heads the first image with the report's title and window; the
-// rest only name their port, since they arrive directly beneath it.
-func graphCaption(customer, label string, now time.Time, first bool) string {
-	port := "Port: " + label
-	if !first {
-		return port
-	}
-	return fmt.Sprintf("📊 Laporan Trafik Harian — %s\n%s – %s WIB\n%s",
-		customer, wibStamp(now.Add(-graphWindow)), wibStamp(now), port)
 }
 
 // wibDate is the WIB calendar day of t at UTC midnight, the form last_sent_on

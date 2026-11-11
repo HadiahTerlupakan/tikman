@@ -19,6 +19,10 @@ const MaxGraphReportPorts = 10
 // graphReportTextRunes matches the varchar(255) the names are stored in.
 const graphReportTextRunes = 255
 
+// MaxGraphReportMessageRunes keeps the caption to a greeting; WhatsApp would
+// take far more, but a report's text is not the place for a letter.
+const MaxGraphReportMessageRunes = 1000
+
 // dateLayout is how last_sent_on travels to the browser.
 const dateLayout = "2006-01-02"
 
@@ -38,6 +42,7 @@ type GraphReportPortInput struct {
 type GraphReportInput struct {
 	WAGroupID    uuid.UUID
 	CustomerName string
+	Message      string
 	Enabled      bool
 	Ports        []GraphReportPortInput
 }
@@ -48,6 +53,7 @@ type GraphReportView struct {
 	WAGroupID     uuid.UUID                `json:"wa_group_id"`
 	GroupName     string                   `json:"group_name"`
 	CustomerName  string                   `json:"customer_name"`
+	Message       string                   `json:"message"`
 	Enabled       bool                     `json:"enabled"`
 	LastSentOn    *string                  `json:"last_sent_on"`
 	LastAttemptAt *time.Time               `json:"last_attempt_at"`
@@ -94,7 +100,7 @@ func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*Grap
 	}
 	report := models.GraphReport{
 		WAGroupID: in.WAGroupID, CustomerName: strings.TrimSpace(in.CustomerName),
-		Enabled: in.Enabled, CreatedBy: &actor,
+		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Enabled is written explicitly: GORM skips a false bool on create
@@ -124,7 +130,8 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&report).Updates(map[string]any{
-			"wa_group_id": in.WAGroupID, "customer_name": strings.TrimSpace(in.CustomerName), "enabled": in.Enabled,
+			"wa_group_id": in.WAGroupID, "customer_name": strings.TrimSpace(in.CustomerName),
+			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled,
 		}).Error
 		if err != nil {
 			return fmt.Errorf("update graph report: %w", err)
@@ -159,12 +166,9 @@ func replacePorts(tx *gorm.DB, reportID uuid.UUID, ports []GraphReportPortInput)
 	if err := tx.Where("report_id = ?", reportID).Delete(&models.GraphReportPort{}).Error; err != nil {
 		return fmt.Errorf("clear graph report ports: %w", err)
 	}
-	rows := make([]models.GraphReportPort, len(ports))
-	for i, port := range ports {
-		rows[i] = models.GraphReportPort{
-			ReportID: reportID, DeviceID: port.DeviceID, DeviceName: strings.TrimSpace(port.DeviceName),
-			IfName: strings.TrimSpace(port.IfName), Label: strings.TrimSpace(port.Label), Position: i,
-		}
+	rows := portRows(ports)
+	for i := range rows {
+		rows[i].ReportID = reportID
 	}
 	if err := tx.Create(&rows).Error; err != nil {
 		return fmt.Errorf("store graph report ports: %w", err)
@@ -198,6 +202,9 @@ func (s *GraphReportService) validate(in GraphReportInput, self uuid.UUID) error
 func validateGraphReportFields(in GraphReportInput) error {
 	if err := requireText(in.CustomerName, "nama pelanggan"); err != nil {
 		return err
+	}
+	if utf8.RuneCountInString(strings.TrimSpace(in.Message)) > MaxGraphReportMessageRunes {
+		return fmt.Errorf("%w: pesan paling panjang %d karakter", ErrValidation, MaxGraphReportMessageRunes)
 	}
 	if len(in.Ports) == 0 || len(in.Ports) > MaxGraphReportPorts {
 		return fmt.Errorf("%w: jumlah port harus 1 sampai %d", ErrValidation, MaxGraphReportPorts)
@@ -267,7 +274,7 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 func graphReportView(report models.GraphReport, groupName string, ports []models.GraphReportPort) GraphReportView {
 	view := GraphReportView{
 		ID: report.ID, WAGroupID: report.WAGroupID, GroupName: groupName, CustomerName: report.CustomerName,
-		Enabled: report.Enabled, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
+		Message: report.Message, Enabled: report.Enabled, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
 	}
 	if view.Ports == nil {
 		view.Ports = []models.GraphReportPort{}

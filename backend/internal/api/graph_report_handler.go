@@ -31,17 +31,22 @@ type GraphReportPortRequest struct {
 type GraphReportRequest struct {
 	WAGroupID    uuid.UUID                `json:"wa_group_id" binding:"required"`
 	CustomerName string                   `json:"customer_name"`
+	Message      string                   `json:"message"`
 	Enabled      *bool                    `json:"enabled"`
 	Ports        []GraphReportPortRequest `json:"ports"`
 }
 
 func (r GraphReportRequest) input() services.GraphReportInput {
-	in := services.GraphReportInput{
-		WAGroupID: r.WAGroupID, CustomerName: r.CustomerName, Enabled: r.Enabled == nil || *r.Enabled,
-		Ports: make([]services.GraphReportPortInput, len(r.Ports)),
+	return services.GraphReportInput{
+		WAGroupID: r.WAGroupID, CustomerName: r.CustomerName, Message: r.Message,
+		Enabled: r.Enabled == nil || *r.Enabled, Ports: portInputs(r.Ports),
 	}
-	for i, port := range r.Ports {
-		in.Ports[i] = services.GraphReportPortInput(port)
+}
+
+func portInputs(ports []GraphReportPortRequest) []services.GraphReportPortInput {
+	in := make([]services.GraphReportPortInput, len(ports))
+	for i, port := range ports {
+		in[i] = services.GraphReportPortInput(port)
 	}
 	return in
 }

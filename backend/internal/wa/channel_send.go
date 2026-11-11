@@ -54,7 +54,7 @@ func (c *Client) SendChannelMedia(
 	}
 
 	resp, err := c.wa.SendMessage(ctx, to,
-		buildMediaMessage(kind, uploaded, mime, filename, caption, nil),
+		c.mediaMessage(kind, uploaded, data, mime, filename, caption, nil),
 		whatsmeow.SendRequestExtra{MediaHandle: uploaded.Handle},
 	)
 	if err != nil {

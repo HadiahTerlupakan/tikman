@@ -1,15 +1,17 @@
 import { apiClient } from "../http/apiClient";
 import { API_ENDPOINTS } from "../http/endpoints";
+import type { AxiosResponse } from "axios";
 import type {
   GraphReport,
   GraphReportInput,
+  GraphReportPreviewInput,
   LibrenmsDevice,
   LibrenmsPort,
 } from "@/domain/entities";
 
 const HTTP_OK = 200;
 
-// A send fetches up to ten graphs one after another, each allowed 30s by the
+// A send or preview fetches up to ten graphs one after another, each allowed 30s by the
 // server, which itself gives up at six minutes. Waiting a little longer than
 // that lets the server's reason reach the admin instead of a client timeout.
 const SEND_TIMEOUT_MS = 390_000;
@@ -38,6 +40,13 @@ async function blobErrorMessage(blob: Blob, status: number): Promise<string> {
   }
 }
 
+async function pngOrThrow(response: AxiosResponse<Blob>): Promise<Blob> {
+  if (response.status !== HTTP_OK) {
+    throw new Error(await blobErrorMessage(response.data, response.status));
+  }
+  return response.data;
+}
+
 /** The daily LibreNMS graph reports and the LibreNMS lookups that build one. */
 export class GraphReportRepository {
   async list(): Promise<GraphReport[]> {
@@ -57,7 +66,7 @@ export class GraphReportRepository {
     await apiClient.delete(API_ENDPOINTS.GRAPH_REPORT(id));
   }
 
-  /** Resolves once the images are queued; rejects with the server's reason. */
+  /** Resolves once the image is queued; rejects with the server's reason. */
   async send(id: string): Promise<string> {
     const response = await apiClient.post(
       API_ENDPOINTS.GRAPH_REPORT_SEND(id),
@@ -79,15 +88,28 @@ export class GraphReportRepository {
     return response.data.data ?? [];
   }
 
-  async graph(deviceId: number, ifName: string): Promise<Blob> {
+  /** One port's section of the report image, titled with label. */
+  async graph(deviceId: number, ifName: string, label: string): Promise<Blob> {
     const response = await apiClient.get(API_ENDPOINTS.LIBRENMS_GRAPH, {
-      params: { device_id: deviceId, if_name: ifName },
+      params: { device_id: deviceId, if_name: ifName, label },
       responseType: "blob",
       validateStatus: () => true,
     });
-    if (response.status !== HTTP_OK) {
-      throw new Error(await blobErrorMessage(response.data, response.status));
-    }
-    return response.data;
+    return pngOrThrow(response);
+  }
+
+  /** The whole composed image exactly as the group would receive it. It
+   * fetches every port's graph like a send does, hence the same timeout. */
+  async preview(input: GraphReportPreviewInput): Promise<Blob> {
+    const response = await apiClient.post(
+      API_ENDPOINTS.GRAPH_REPORT_PREVIEW,
+      input,
+      {
+        responseType: "blob",
+        timeout: SEND_TIMEOUT_MS,
+        validateStatus: () => true,
+      },
+    );
+    return pngOrThrow(response);
   }
 }

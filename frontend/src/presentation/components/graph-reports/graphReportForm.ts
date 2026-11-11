@@ -1,9 +1,12 @@
-import type {
-  GraphReport,
-  GraphReportInput,
-  LibrenmsDevice,
-  LibrenmsPort,
-  WaGroup,
+import {
+  DEFAULT_GRAPH_REPORT_MESSAGE,
+  GRAPH_REPORT_CUSTOMER_PLACEHOLDER,
+  type GraphReport,
+  type GraphReportInput,
+  type GraphReportPreviewInput,
+  type LibrenmsDevice,
+  type LibrenmsPort,
+  type WaGroup,
 } from "@/domain/entities";
 import { sendBlockedReason } from "../cs/groups/groupSummary";
 
@@ -18,6 +21,7 @@ export interface PortFormValue {
 export interface GraphReportFormValues {
   waGroupId?: string;
   customerName?: string;
+  message?: string;
   enabled: boolean;
   ports: PortFormValue[];
 }
@@ -30,13 +34,14 @@ export interface SelectOption<T> {
 const WIB = "Asia/Jakarta";
 
 export function emptyFormValues(): GraphReportFormValues {
-  return { enabled: true, ports: [{}] };
+  return { message: "", enabled: true, ports: [{}] };
 }
 
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
   return {
     waGroupId: report.waGroupId,
     customerName: report.customerName,
+    message: report.message,
     enabled: report.enabled,
     ports: [...report.ports]
       .sort((a, b) => a.position - b.position)
@@ -49,22 +54,39 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
   };
 }
 
-/** The form's rules have already required every field; the API takes the
- * ports' order as their send order. */
-export function toGraphReportInput(
-  values: GraphReportFormValues,
-): GraphReportInput {
+/** The form's rules have already required every field; the API stacks the
+ * ports' graphs in this order. A preview needs no group, so it is built
+ * without one. */
+export function toPreviewInput(
+  values: Omit<GraphReportFormValues, "enabled">,
+): GraphReportPreviewInput {
   return {
-    waGroupId: values.waGroupId ?? "",
     customerName: (values.customerName ?? "").trim(),
-    enabled: values.enabled,
-    ports: values.ports.map((port) => ({
+    message: (values.message ?? "").trim(),
+    ports: (values.ports ?? []).map((port) => ({
       deviceId: port.deviceId as number,
       deviceName: port.deviceName ?? "",
       ifName: port.ifName ?? "",
       label: (port.label ?? "").trim(),
     })),
   };
+}
+
+export function toGraphReportInput(
+  values: GraphReportFormValues,
+): GraphReportInput {
+  return {
+    ...toPreviewInput(values),
+    waGroupId: values.waGroupId ?? "",
+    enabled: values.enabled,
+  };
+}
+
+/** The caption the API writes under the image, so the preview can show it
+ * before anything is sent. */
+export function reportCaption(message: string, customerName: string): string {
+  const text = message.trim() || DEFAULT_GRAPH_REPORT_MESSAGE;
+  return text.split(GRAPH_REPORT_CUSTOMER_PLACEHOLDER).join(customerName);
 }
 
 /** The API's update replaces the whole report, so flipping "Aktif" resends

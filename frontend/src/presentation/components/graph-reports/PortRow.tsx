@@ -104,7 +104,7 @@ export function PortRow({
         ]}
         style={FIELD_STYLE}
       >
-        <Input placeholder="Label di keterangan gambar" />
+        <Input placeholder="Judul di atas grafik" />
       </Form.Item>
       <PortRowActions
         index={index}

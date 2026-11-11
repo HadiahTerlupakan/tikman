@@ -19,15 +19,16 @@ import (
 // which takes seconds on a busy server.
 const requestTimeout = 30 * time.Second
 
-// maxBodyBytes bounds what one answer may weigh; a 900x300 graph is tens of
+// maxBodyBytes bounds what one answer may weigh; a 900x250 graph is tens of
 // kilobytes, so anything near this is not a graph.
 const maxBodyBytes = 16 << 20
 
 // Graph dimensions: wide enough for WhatsApp to show the legend legibly
-// without the viewer zooming.
+// without the viewer zooming, and short enough that ten of them stacked in one
+// report image stay readable.
 const (
 	graphWidth  = "900"
-	graphHeight = "300"
+	graphHeight = "250"
 )
 
 const statusOK = "ok"

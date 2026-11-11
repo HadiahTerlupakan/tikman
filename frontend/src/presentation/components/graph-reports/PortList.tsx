@@ -31,7 +31,7 @@ export function PortList({
       {(fields, { add, remove, move }, { errors }) => (
         <>
           <Typography.Text strong>
-            Port ({fields.length}/{GRAPH_REPORT_MAX_PORTS}) — dikirim sesuai
+            Port ({fields.length}/{GRAPH_REPORT_MAX_PORTS}) — disusun sesuai
             urutan
           </Typography.Text>
           <div style={{ marginTop: 8 }}>

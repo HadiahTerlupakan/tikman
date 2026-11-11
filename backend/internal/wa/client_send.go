@@ -54,7 +54,7 @@ func (c *Client) sendMedia(
 		return "", fmt.Errorf("unggah lampiran: %w", err)
 	}
 
-	resp, err := c.wa.SendMessage(ctx, to, buildMediaMessage(kind, uploaded, mime, filename, caption, info))
+	resp, err := c.wa.SendMessage(ctx, to, c.mediaMessage(kind, uploaded, data, mime, filename, caption, info))
 	if err != nil {
 		return "", err
 	}

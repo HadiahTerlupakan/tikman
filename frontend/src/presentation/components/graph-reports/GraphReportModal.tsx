@@ -1,16 +1,33 @@
 import { useState } from "react";
-import { Alert, Form, Input, Modal, Select, Switch } from "antd";
-import { useLibrenmsDevices, useWaGroups } from "@/application/hooks";
-import type { GraphReport, GraphReportInput } from "@/domain/entities";
+import { Alert, Button, Form, Input, Modal, Select, Switch } from "antd";
+import { FileImageOutlined } from "@ant-design/icons";
+import {
+  useGraphReportPreview,
+  useLibrenmsDevices,
+  useWaGroups,
+} from "@/application/hooks";
+import {
+  DEFAULT_GRAPH_REPORT_MESSAGE,
+  GRAPH_REPORT_MESSAGE_MAX,
+  type GraphReport,
+  type GraphReportInput,
+} from "@/domain/entities";
 import {
   emptyFormValues,
   groupOptions,
+  reportCaption,
   reportToFormValues,
   toGraphReportInput,
+  toPreviewInput,
   type GraphReportFormValues,
 } from "./graphReportForm";
+import { ImagePreviewModal } from "./ImagePreviewModal";
 import { PortList } from "./PortList";
 import { PortPreviewModal, type PreviewTarget } from "./PortPreviewModal";
+
+// The group is not part of the image or caption, so a preview does not wait
+// for one to be chosen.
+const PREVIEW_FIELDS = ["customerName", "message", "ports"];
 
 interface GraphReportModalProps {
   open: boolean;
@@ -31,6 +48,8 @@ export function GraphReportModal({
 }: GraphReportModalProps) {
   const [form] = Form.useForm<GraphReportFormValues>();
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
+  const [caption, setCaption] = useState<string | null>(null);
+  const reportPreview = useGraphReportPreview();
   const { data: groups = [], isLoading: groupsLoading } = useWaGroups();
   const devices = useLibrenmsDevices(open);
 
@@ -39,6 +58,17 @@ export function GraphReportModal({
       .validateFields()
       .then((values) => onSubmit(toGraphReportInput(values)))
       // antd has already marked each failed field.
+      .catch(() => undefined);
+  };
+
+  const handlePreview = () => {
+    form
+      .validateFields(PREVIEW_FIELDS, { recursive: true })
+      .then((values) => {
+        const input = toPreviewInput(values);
+        setCaption(reportCaption(input.message, input.customerName));
+        reportPreview.mutate(input);
+      })
       .catch(() => undefined);
   };
 
@@ -92,6 +122,19 @@ export function GraphReportModal({
         >
           <Input />
         </Form.Item>
+        <Form.Item
+          name="message"
+          label="Pesan"
+          extra="Kosongkan untuk memakai pesan bawaan. {pelanggan} diganti nama pelanggan."
+          rules={[{ max: GRAPH_REPORT_MESSAGE_MAX }]}
+        >
+          <Input.TextArea
+            placeholder={DEFAULT_GRAPH_REPORT_MESSAGE}
+            autoSize={{ minRows: 4, maxRows: 10 }}
+            maxLength={GRAPH_REPORT_MESSAGE_MAX}
+            showCount
+          />
+        </Form.Item>
         <Form.Item name="enabled" label="Aktif" valuePropName="checked">
           <Switch />
         </Form.Item>
@@ -101,7 +144,24 @@ export function GraphReportModal({
           onPreview={setPreview}
         />
       </Form>
+      <Button
+        icon={<FileImageOutlined />}
+        style={{ marginTop: 16 }}
+        onClick={handlePreview}
+      >
+        Pratinjau laporan
+      </Button>
       <PortPreviewModal target={preview} onClose={() => setPreview(null)} />
+      <ImagePreviewModal
+        open={caption !== null}
+        title="Pratinjau laporan"
+        alt="Grafik trafik laporan"
+        image={reportPreview.data}
+        loading={reportPreview.isPending}
+        error={reportPreview.error}
+        caption={caption ?? undefined}
+        onClose={() => setCaption(null)}
+      />
     </Modal>
   );
 }

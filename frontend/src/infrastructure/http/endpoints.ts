@@ -181,6 +181,7 @@ export const API_ENDPOINTS = {
   GRAPH_REPORTS: "/api/v1/graph-reports",
   GRAPH_REPORT: (id: string) => `/api/v1/graph-reports/${id}`,
   GRAPH_REPORT_SEND: (id: string) => `/api/v1/graph-reports/${id}/send`,
+  GRAPH_REPORT_PREVIEW: "/api/v1/graph-reports/preview",
   LIBRENMS_DEVICES: "/api/v1/graph-reports/librenms/devices",
   LIBRENMS_DEVICE_PORTS: (deviceId: number) =>
     `/api/v1/graph-reports/librenms/devices/${deviceId}/ports`,

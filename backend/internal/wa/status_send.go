@@ -45,7 +45,7 @@ func (c *Client) SendStatusMedia(
 	}
 
 	resp, err := c.wa.SendMessage(ctx, types.StatusBroadcastJID,
-		buildMediaMessage(kind, uploaded, mime, filename, caption, nil))
+		c.mediaMessage(kind, uploaded, data, mime, filename, caption, nil))
 	if err != nil {
 		return "", err
 	}

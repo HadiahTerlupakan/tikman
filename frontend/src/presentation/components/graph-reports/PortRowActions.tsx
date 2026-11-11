@@ -15,7 +15,7 @@ interface PortRowActionsProps {
   onPreview: () => void;
 }
 
-/** Order here is the order the images arrive in the group. */
+/** Order here is the order the graphs are stacked in the image. */
 export function PortRowActions({
   index,
   count,

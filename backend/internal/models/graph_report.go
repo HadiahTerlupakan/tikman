@@ -15,6 +15,9 @@ type GraphReport struct {
 	WAGroupID    uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"wa_group_id"`
 	CustomerName string    `gorm:"type:varchar(255);not null" json:"customer_name"`
 	Enabled      bool      `gorm:"not null;default:true" json:"enabled"`
+	// Message is the caption the image is sent with; empty means the default
+	// greeting (services.DefaultGraphReportMessage).
+	Message string `gorm:"type:text;not null;default:''" json:"message"`
 	// LastSentOn is the WIB calendar date of the last daily send, stored as
 	// that date at UTC midnight: a WIB midnight written to a date column is
 	// cast through the session zone and lands on the day before.
