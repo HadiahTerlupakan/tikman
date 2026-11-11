@@ -231,3 +231,19 @@ func TestGraphReportsAreAdminOnly(t *testing.T) {
 	}
 	assert.Equal(t, http.StatusOK, requestAs(t, router, store, models.UserRoleAdmin, http.MethodGet, "/api/v1/graph-reports"))
 }
+
+func TestGraphReportMentionAllRoundTrips(t *testing.T) {
+	env := newGraphReportEnv(t)
+	body := env.reportBody()
+	created := env.do(http.MethodPost, "/api/v1/graph-reports", body)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	assert.Contains(t, created.Body.String(), `"mention_all":false`, "left out, a report tags nobody")
+	var report services.GraphReportView
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &report))
+
+	body["mention_all"] = true
+	rec := env.do(http.MethodPut, "/api/v1/graph-reports/"+report.ID.String(), body)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"mention_all":true`)
+	assert.Contains(t, env.do(http.MethodGet, "/api/v1/graph-reports", nil).Body.String(), `"mention_all":true`)
+}

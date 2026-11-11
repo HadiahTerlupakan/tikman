@@ -60,6 +60,18 @@ func (s *WAGroupService) MembersOtherThanUs(groupID uuid.UUID) (int, error) {
 	return int(count), nil
 }
 
+// MemberJIDsOtherThanUs answers the address of everyone a message to the
+// group reaches, the list a tag of the whole group names.
+func (s *WAGroupService) MemberJIDsOtherThanUs(groupID uuid.UUID) ([]string, error) {
+	var jids []string
+	err := s.db.Model(&models.WAGroupParticipant{}).Where("group_id = ? AND NOT is_self", groupID).
+		Order("jid").Pluck("jid", &jids).Error
+	if err != nil {
+		return nil, fmt.Errorf("list group members: %w", err)
+	}
+	return uniqueStrings(jids), nil
+}
+
 func (s *WAGroupService) markGroupAvatars(groups []models.WAGroup) error {
 	if len(groups) == 0 {
 		return nil

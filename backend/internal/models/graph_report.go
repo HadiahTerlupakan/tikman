@@ -18,6 +18,9 @@ type GraphReport struct {
 	// Message is the caption the image is sent with; empty means the default
 	// greeting (services.DefaultGraphReportMessage).
 	Message string `gorm:"type:text;not null;default:''" json:"message"`
+	// MentionAll tags every member but our own number without writing their
+	// addresses into the caption, so even those who muted the group are told.
+	MentionAll bool `gorm:"not null;default:false" json:"mention_all"`
 	// LastSentOn is the WIB calendar date of the last daily send, stored as
 	// that date at UTC midnight: a WIB midnight written to a date column is
 	// cast through the session zone and lands on the day before.

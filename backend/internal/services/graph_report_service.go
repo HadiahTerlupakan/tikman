@@ -44,6 +44,7 @@ type GraphReportInput struct {
 	CustomerName string
 	Message      string
 	Enabled      bool
+	MentionAll   bool
 	Ports        []GraphReportPortInput
 }
 
@@ -55,6 +56,7 @@ type GraphReportView struct {
 	CustomerName  string                   `json:"customer_name"`
 	Message       string                   `json:"message"`
 	Enabled       bool                     `json:"enabled"`
+	MentionAll    bool                     `json:"mention_all"`
 	LastSentOn    *string                  `json:"last_sent_on"`
 	LastAttemptAt *time.Time               `json:"last_attempt_at"`
 	LastError     string                   `json:"last_error"`
@@ -100,7 +102,7 @@ func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*Grap
 	}
 	report := models.GraphReport{
 		WAGroupID: in.WAGroupID, CustomerName: strings.TrimSpace(in.CustomerName),
-		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, CreatedBy: &actor,
+		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, MentionAll: in.MentionAll, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		// Enabled is written explicitly: GORM skips a false bool on create
@@ -131,7 +133,7 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&report).Updates(map[string]any{
 			"wa_group_id": in.WAGroupID, "customer_name": strings.TrimSpace(in.CustomerName),
-			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled,
+			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled, "mention_all": in.MentionAll,
 		}).Error
 		if err != nil {
 			return fmt.Errorf("update graph report: %w", err)
@@ -274,7 +276,7 @@ func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportV
 func graphReportView(report models.GraphReport, groupName string, ports []models.GraphReportPort) GraphReportView {
 	view := GraphReportView{
 		ID: report.ID, WAGroupID: report.WAGroupID, GroupName: groupName, CustomerName: report.CustomerName,
-		Message: report.Message, Enabled: report.Enabled, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
+		Message: report.Message, Enabled: report.Enabled, MentionAll: report.MentionAll, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
 	}
 	if view.Ports == nil {
 		view.Ports = []models.GraphReportPort{}

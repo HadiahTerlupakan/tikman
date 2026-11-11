@@ -26,7 +26,11 @@ import { QuotedBlock } from "../QuotedBlock";
 import { useTypingSignal } from "../useTypingSignal";
 import { CreatePollModal } from "./CreatePollModal";
 import { sendBlockedReason, senderLabel } from "./groupSummary";
-import { mentionOptions, toWhatsAppMentions } from "./groupMentions";
+import {
+  mentionLimitError,
+  mentionOptions,
+  toWhatsAppMentions,
+} from "./groupMentions";
 
 interface GroupComposerProps {
   group: WaGroup;
@@ -165,8 +169,13 @@ export function GroupComposer({
   const handleSend = async () => {
     const typed = text.trim();
     if (!staged && !typed) return;
-    signalTyping(false);
     const { body, mentions } = toWhatsAppMentions(typed, participants);
+    const tooMany = mentionLimitError(mentions);
+    if (tooMany) {
+      toast.error(tooMany);
+      return;
+    }
+    signalTyping(false);
     const sent = staged
       ? await onAttach(staged, body, mentions)
       : await onSend(body, mentions);

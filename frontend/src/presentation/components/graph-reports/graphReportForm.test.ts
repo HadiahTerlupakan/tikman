@@ -7,6 +7,7 @@ import {
 import {
   defaultPortLabel,
   deviceOptions,
+  emptyFormValues,
   formatSentOn,
   groupOptions,
   portOptionLabel,
@@ -24,6 +25,7 @@ const report: GraphReport = {
   customerName: "PT Contoh",
   message: "Halo {pelanggan}",
   enabled: true,
+  mentionAll: true,
   lastSentOn: null,
   lastAttemptAt: null,
   lastError: "",
@@ -63,6 +65,7 @@ describe("toGraphReportInput", () => {
       customerName: "  PT Contoh ",
       message: "  Halo {pelanggan}\n ",
       enabled: false,
+      mentionAll: true,
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: " B " },
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
@@ -74,6 +77,7 @@ describe("toGraphReportInput", () => {
       customerName: "PT Contoh",
       message: "Halo {pelanggan}",
       enabled: false,
+      mentionAll: true,
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: "B" },
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
@@ -121,6 +125,20 @@ describe("reportToFormValues", () => {
     expect(values.ports.map((p) => p.label)).toEqual(["Pertama", "Kedua"]);
     expect(values.ports[0]).not.toHaveProperty("id");
   });
+
+  it("carries the saved tag-everyone choice into the form", () => {
+    expect(reportToFormValues(report).mentionAll).toBe(true);
+    expect(
+      reportToFormValues({ ...report, mentionAll: false }).mentionAll,
+    ).toBe(false);
+  });
+});
+
+describe("emptyFormValues", () => {
+  // Tagging everyone reaches members who muted the group, so it is opt-in.
+  it("starts a new report without tagging everyone", () => {
+    expect(emptyFormValues().mentionAll).toBe(false);
+  });
 });
 
 describe("reportWithEnabled", () => {
@@ -130,6 +148,7 @@ describe("reportWithEnabled", () => {
     expect(input.enabled).toBe(false);
     expect(input.customerName).toBe("PT Contoh");
     expect(input.message).toBe("Halo {pelanggan}");
+    expect(input.mentionAll).toBe(true);
     expect(input.ports.map((p) => p.ifName)).toEqual(["ether 1/1", "sfp2"]);
   });
 });

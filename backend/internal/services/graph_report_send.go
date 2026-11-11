@@ -32,6 +32,9 @@ var (
 	ErrLibreNMSNotConfigured = errors.New("LibreNMS belum diatur di Pengaturan")
 	// ErrGraphFetch is LibreNMS failing to hand over a graph.
 	ErrGraphFetch = errors.New("grafik gagal diambil dari LibreNMS")
+	// ErrGraphReportTooManyMentions is a tag-everyone report for a group past
+	// what one message may tag.
+	ErrGraphReportTooManyMentions = fmt.Errorf("grup terlalu besar untuk tag semua (maks %d anggota)", maxMentions)
 )
 
 // GroupQueueNotifier tells the browsers about queued group messages and wakes
@@ -120,6 +123,10 @@ func (s *GraphReportSender) deliver(ctx context.Context, report *models.GraphRep
 	if err := CheckGroupSendable(group); err != nil {
 		return err
 	}
+	mentions, err := s.mentions(report)
+	if err != nil {
+		return err
+	}
 	client, err := s.LibreNMS()
 	if err != nil {
 		return err
@@ -136,7 +143,26 @@ func (s *GraphReportSender) deliver(ctx context.Context, report *models.GraphRep
 	if err != nil {
 		return err
 	}
-	return s.queue(ctx, report, file, now, daily)
+	return s.queue(ctx, report, file, mentions, now, daily)
+}
+
+// mentions answers who the report tags, read at send time so it follows the
+// group as members come and go. The caption is left as written: WhatsApp
+// notifies every tagged member whether or not the text names them.
+func (s *GraphReportSender) mentions(report *models.GraphReport) ([]string, error) {
+	if !report.MentionAll {
+		return nil, nil
+	}
+	jids, err := s.groups.MemberJIDsOtherThanUs(report.WAGroupID)
+	if err != nil {
+		return nil, err
+	}
+	// Failing beats sending untagged: a report quietly missing its tags
+	// reads as sent while nobody muted was told.
+	if len(jids) > maxMentions {
+		return nil, ErrGraphReportTooManyMentions
+	}
+	return jids, nil
 }
 
 // storeImage writes the report where the wa process reads attachments, under
@@ -160,12 +186,13 @@ func (s *GraphReportSender) storeImage(customer string, image []byte, now time.T
 // queue writes the message and the report's success in one transaction, so a
 // restart cannot see the message queued but the day still unsent.
 func (s *GraphReportSender) queue(
-	ctx context.Context, report *models.GraphReport, file MediaFile, now time.Time, daily bool,
+	ctx context.Context, report *models.GraphReport, file MediaFile, mentions []string, now time.Time, daily bool,
 ) error {
 	members, _ := s.groups.MembersOtherThanUs(report.WAGroupID)
 	out := GroupOutgoing{
 		GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
 		Body: GraphReportCaption(report.Message, report.CustomerName), Media: &file, MemberCount: members,
+		Mentions: mentions,
 	}
 	fields := map[string]any{"last_attempt_at": now, "last_error": ""}
 	if daily {

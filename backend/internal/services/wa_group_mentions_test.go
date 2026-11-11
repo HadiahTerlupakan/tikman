@@ -45,6 +45,37 @@ func TestAMentionIsStoredForWhatsAppAndShownByName(t *testing.T) {
 	assert.Equal(t, "@Pak Joko tolong cek ODP 3", f.reload(t).LastMessagePreview)
 }
 
+// "@semua" tags members the group has no name for yet, such as a LID-only
+// member who never posted; the bubble still has to know someone was tagged.
+func TestAMessageTaggingOnlyUnnamedMembersIsMarkedTagged(t *testing.T) {
+	f := newGroupFixture(t)
+	const unnamed = "77788899900011@lid"
+	_, err := f.groups.Upsert(f.account.ID, GroupSnapshot{
+		JID: "1@g.us", Name: "Teknisi",
+		Participants: []models.WAGroupParticipant{{JID: unnamed, LID: unnamed, Role: models.GroupRoleMember}},
+	})
+	require.NoError(t, err)
+	_, err = f.messages.Queue(GroupOutgoing{
+		GroupID: f.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText,
+		Body: "@semua rapat jam 3", Mentions: []string{unnamed},
+	})
+	require.NoError(t, err)
+	_, err = f.messages.Queue(GroupOutgoing{
+		GroupID: f.group.ID, SenderUserID: new(uuid.New()), Kind: models.MessageKindText, Body: "tanpa tag",
+	})
+	require.NoError(t, err)
+
+	history, err := f.messages.History(f.group.ID, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, history, 2)
+	tagged := map[string]bool{}
+	for _, m := range history {
+		assert.Empty(t, m.MentionNames)
+		tagged[m.Body] = m.Tagged
+	}
+	assert.Equal(t, map[string]bool{"@semua rapat jam 3": true, "tanpa tag": false}, tagged)
+}
+
 func TestCheckMentionsRefusesSomeoneOutsideTheGroup(t *testing.T) {
 	f := newGroupFixture(t)
 	withJoko(t, f)

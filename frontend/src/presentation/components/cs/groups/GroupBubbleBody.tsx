@@ -12,7 +12,7 @@ import { LinkPreviewCard } from "../LinkPreviewCard";
 import { ImageAttachment, MediaAttachment } from "../MessageAttachment";
 import { MessageText } from "../MessageText";
 import { QuotedBlock } from "../QuotedBlock";
-import { splitMentions } from "./groupMentions";
+import { highlightedNames, splitMentions } from "./groupMentions";
 import { messageAnchor } from "./groupThreadLayout";
 import { PollBubble } from "./PollBubble";
 import { ContactCards, LocationCard } from "./SharedContentCards";
@@ -48,7 +48,14 @@ function MentionText({ message }: { message: WaGroupMessage }) {
         wordBreak: "break-word",
       }}
     >
-      {splitMentions(message.body, message.mentionNames ?? []).map((part, i) =>
+      {splitMentions(
+        message.body,
+        highlightedNames(
+          message.body,
+          message.mentionNames ?? [],
+          message.tagged ?? false,
+        ),
+      ).map((part, i) =>
         part.mention ? (
           <span key={i} style={{ color: colors.success, fontWeight: 500 }}>
             {part.text}

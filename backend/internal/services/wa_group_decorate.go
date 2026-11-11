@@ -38,6 +38,7 @@ func (s *WAGroupMessageService) nameMentions(groupID uuid.UUID, rows []models.WA
 		if len(jids) == 0 {
 			continue
 		}
+		rows[i].Tagged = true
 		if names == nil {
 			names = memberNamesOf(s.db, groupID)
 		}

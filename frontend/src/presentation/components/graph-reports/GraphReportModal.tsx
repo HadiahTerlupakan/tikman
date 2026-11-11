@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Alert, Button, Form, Input, Modal, Select, Switch } from "antd";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Form,
+  Input,
+  Modal,
+  Select,
+  Switch,
+} from "antd";
 import { FileImageOutlined } from "@ant-design/icons";
 import {
   useGraphReportPreview,
@@ -137,6 +146,13 @@ export function GraphReportModal({
         </Form.Item>
         <Form.Item name="enabled" label="Aktif" valuePropName="checked">
           <Switch />
+        </Form.Item>
+        <Form.Item
+          name="mentionAll"
+          valuePropName="checked"
+          extra="Semua anggota mendapat notifikasi, termasuk yang membisukan grup."
+        >
+          <Checkbox>Tag semua anggota grup</Checkbox>
         </Form.Item>
         <PortList
           devices={devices.data ?? []}

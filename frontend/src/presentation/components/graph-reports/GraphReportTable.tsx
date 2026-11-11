@@ -1,6 +1,19 @@
-import { Button, Popconfirm, Space, Switch, Table, Typography } from "antd";
+import {
+  Button,
+  Popconfirm,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { DeleteOutlined, EditOutlined, SendOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  NotificationOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
 import type { GraphReport } from "@/domain/entities";
 import { formatAttemptAt, formatSentOn } from "./graphReportForm";
 
@@ -22,6 +35,22 @@ function portLabels(report: GraphReport): string {
     .sort((a, b) => a.position - b.position)
     .map((p) => p.label)
     .join(", ");
+}
+
+function GroupCell({ report }: { report: GraphReport }) {
+  return (
+    <Space size={4} wrap>
+      {report.groupName}
+      {report.mentionAll && (
+        <Tag
+          icon={<NotificationOutlined />}
+          title="Semua anggota grup ditag saat laporan dikirim"
+        >
+          Tag semua
+        </Tag>
+      )}
+    </Space>
+  );
 }
 
 function LastError({ report }: { report: GraphReport }) {
@@ -84,7 +113,11 @@ function ReportActions({
 export function GraphReportTable(props: GraphReportTableProps) {
   const { reports, loading, sendingId, togglingId } = props;
   const columns: ColumnsType<GraphReport> = [
-    { title: "Grup", dataIndex: "groupName", key: "group" },
+    {
+      title: "Grup",
+      key: "group",
+      render: (_, r) => <GroupCell report={r} />,
+    },
     { title: "Pelanggan", dataIndex: "customerName", key: "customer" },
     {
       title: "Port",

@@ -33,13 +33,14 @@ type GraphReportRequest struct {
 	CustomerName string                   `json:"customer_name"`
 	Message      string                   `json:"message"`
 	Enabled      *bool                    `json:"enabled"`
+	MentionAll   bool                     `json:"mention_all"`
 	Ports        []GraphReportPortRequest `json:"ports"`
 }
 
 func (r GraphReportRequest) input() services.GraphReportInput {
 	return services.GraphReportInput{
 		WAGroupID: r.WAGroupID, CustomerName: r.CustomerName, Message: r.Message,
-		Enabled: r.Enabled == nil || *r.Enabled, Ports: portInputs(r.Ports),
+		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll, Ports: portInputs(r.Ports),
 	}
 }
 
@@ -165,7 +166,8 @@ func graphReportError(c *gin.Context, err error, code string) {
 	case errors.Is(err, services.ErrLibreNMSNotConfigured):
 		status = http.StatusBadRequest
 	case errors.Is(err, services.ErrGraphReportDuplicate),
-		errors.Is(err, services.ErrGroupLeft), errors.Is(err, services.ErrGroupAnnounceOnly):
+		errors.Is(err, services.ErrGroupLeft), errors.Is(err, services.ErrGroupAnnounceOnly),
+		errors.Is(err, services.ErrGraphReportTooManyMentions):
 		status = http.StatusConflict
 	case errors.Is(err, services.ErrGraphFetch):
 		status = http.StatusBadGateway

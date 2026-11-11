@@ -95,3 +95,28 @@ describe("GraphReportRepository.preview", () => {
     );
   });
 });
+
+describe("GraphReportRepository.create", () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  // humps turns mentionAll into the API's mention_all on the way out.
+  it("sends the tag-everyone choice with the report", async () => {
+    post.mockResolvedValue({ status: 201, data: {} });
+    const input = {
+      waGroupId: "g1",
+      customerName: "PT Contoh",
+      message: "",
+      enabled: true,
+      mentionAll: true,
+      ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
+    };
+
+    await new GraphReportRepository().create(input);
+
+    const [url, body] = post.mock.calls[0];
+    expect(url).toBe("/api/v1/graph-reports");
+    expect(body.mentionAll).toBe(true);
+  });
+});

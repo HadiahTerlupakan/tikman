@@ -114,6 +114,9 @@ export interface WaGroupMessage {
   previewThumbnail?: string;
   /** Display names tagged in the body as "@<name>". */
   mentionNames: string[];
+  /** Whether the message tags anyone, including members with no name yet,
+   * whom mentionNames leaves out. */
+  tagged?: boolean;
   edited: boolean;
   /** Deleted for everyone: body and media are gone. */
   deleted: boolean;

@@ -19,6 +19,9 @@ export interface GraphReport {
   /** The caption's text; "" sends DEFAULT_GRAPH_REPORT_MESSAGE. */
   message: string;
   enabled: boolean;
+  /** Tags every member but our own number, without naming them in the
+   * caption. */
+  mentionAll: boolean;
   /** WIB calendar date (YYYY-MM-DD) of the last scheduled send. A manual
    * send does not move it. */
   lastSentOn: string | null;
@@ -47,6 +50,7 @@ export interface GraphReportPreviewInput {
 export interface GraphReportInput extends GraphReportPreviewInput {
   waGroupId: string;
   enabled: boolean;
+  mentionAll: boolean;
 }
 
 export interface LibrenmsDevice {

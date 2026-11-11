@@ -64,8 +64,12 @@ type WAGroupMessage struct {
 	ReplyTo *GroupQuotedMessage `gorm:"-" json:"reply_to,omitempty"`
 
 	// Filled in on the way out of the service, never stored on this row.
-	Starred         bool              `gorm:"-" json:"starred"`
-	MentionNames    []string          `gorm:"-" json:"mention_names,omitempty"`
+	Starred      bool     `gorm:"-" json:"starred"`
+	MentionNames []string `gorm:"-" json:"mention_names,omitempty"`
+	// Tagged is whether the message tags anyone, named or not: a member with
+	// no name, push name or phone yet is notified but has no entry in
+	// MentionNames.
+	Tagged          bool              `gorm:"-" json:"tagged,omitempty"`
 	Reactions       []ReactionSummary `gorm:"-" json:"reactions,omitempty"`
 	ReadCount       *int              `gorm:"-" json:"read_count,omitempty"`
 	DeliveredCount  *int              `gorm:"-" json:"delivered_count,omitempty"`

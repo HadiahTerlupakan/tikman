@@ -23,6 +23,7 @@ export interface GraphReportFormValues {
   customerName?: string;
   message?: string;
   enabled: boolean;
+  mentionAll: boolean;
   ports: PortFormValue[];
 }
 
@@ -34,7 +35,7 @@ export interface SelectOption<T> {
 const WIB = "Asia/Jakarta";
 
 export function emptyFormValues(): GraphReportFormValues {
-  return { message: "", enabled: true, ports: [{}] };
+  return { message: "", enabled: true, mentionAll: false, ports: [{}] };
 }
 
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
@@ -43,6 +44,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
     customerName: report.customerName,
     message: report.message,
     enabled: report.enabled,
+    mentionAll: report.mentionAll,
     ports: [...report.ports]
       .sort((a, b) => a.position - b.position)
       .map(({ deviceId, deviceName, ifName, label }) => ({
@@ -58,7 +60,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
  * ports' graphs in this order. A preview needs no group, so it is built
  * without one. */
 export function toPreviewInput(
-  values: Omit<GraphReportFormValues, "enabled">,
+  values: Omit<GraphReportFormValues, "enabled" | "mentionAll">,
 ): GraphReportPreviewInput {
   return {
     customerName: (values.customerName ?? "").trim(),
@@ -79,6 +81,7 @@ export function toGraphReportInput(
     ...toPreviewInput(values),
     waGroupId: values.waGroupId ?? "",
     enabled: values.enabled,
+    mentionAll: values.mentionAll,
   };
 }
 
