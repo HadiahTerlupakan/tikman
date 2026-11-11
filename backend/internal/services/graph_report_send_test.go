@@ -28,7 +28,7 @@ func TestSendNowQueuesTwoPortsToAnImage(t *testing.T) {
 	require.Len(t, msgs, 1)
 	msg := msgs[0]
 	assert.Equal(t, "Selamat pagi Rekan,\n\nBerikut kami lampirkan hasil monitoring trafik 24 jam terakhir "+
-		"untuk PT Contoh.\n\nTerima kasih", msg.Body)
+		"untuk PT Contoh.\n\nTerima kasih\n\nPort: Uplink, Backup", msg.Body)
 	assert.Nil(t, msg.SenderUserID)
 	assert.Equal(t, GraphReportSenderName, msg.SenderName)
 	assert.Equal(t, models.MessageKindImage, msg.Kind)
@@ -58,14 +58,13 @@ func TestSendNowSplitsALongReportTwoPortsAnImage(t *testing.T) {
 
 	msgs := f.queuedMessages(t)
 	require.Len(t, msgs, 3)
-	for i, want := range []int{2, 2, 1} {
-		assert.Equal(t, want, f.sectionsIn(t, msgs[i]), "image %d", i+1)
+	for i, ports := range [][]string{{"A", "B"}, {"C", "D"}, {"E"}} {
+		assert.Equal(t, len(ports), f.sectionsIn(t, msgs[i]), "image %d", i+1)
 		assert.Equal(t, fmt.Sprintf("PT Contoh 11-11-2026 (%d dari 3).png", i+1), msgs[i].MediaFilename)
+		assert.Equal(t, GraphImageCaption("", "PT Contoh", ports), msgs[i].Body, "every image names its ports")
 	}
-	assert.Equal(t, GraphReportCaption("", "PT Contoh"), msgs[2].Body)
 	assert.NotEmpty(t, Mentions(&msgs[2]))
 	for _, rest := range msgs[:2] {
-		assert.Empty(t, rest.Body, "the caption goes under the last image only")
 		assert.Empty(t, Mentions(&rest), "tagging every image would notify each member once per image")
 	}
 	assert.Len(t, f.notifier.queued, 3)
@@ -82,7 +81,7 @@ func TestSendNowCaptionsWithTheReportsMessage(t *testing.T) {
 
 	var msg models.WAGroupMessage
 	require.NoError(t, f.db.Where("group_id = ?", f.group.ID).First(&msg).Error)
-	assert.Equal(t, "Halo PT Contoh, ini grafik PT Contoh.", msg.Body)
+	assert.Equal(t, "Halo PT Contoh, ini grafik PT Contoh.\n\nPort: Uplink", msg.Body)
 }
 
 func TestPreviewNeedsNoGroup(t *testing.T) {
@@ -92,10 +91,11 @@ func TestPreviewNeedsNoGroup(t *testing.T) {
 	images, err := f.sender.Preview(context.Background(), reportInput(uuid.Nil, "A", "B", "C"))
 	require.NoError(t, err)
 	require.Len(t, images, 2, "the preview shows the images the group would get")
+	assert.Equal(t, GraphImageCaption("", "PT Contoh", []string{"C"}), images[1].Caption)
 	images, err = f.sender.Preview(context.Background(), in)
 	require.NoError(t, err)
 	require.Len(t, images, 1)
-	_, err = png.Decode(bytes.NewReader(images[0]))
+	_, err = png.Decode(bytes.NewReader(images[0].PNG))
 	assert.NoError(t, err)
 	assert.Zero(t, f.queuedCount(t))
 

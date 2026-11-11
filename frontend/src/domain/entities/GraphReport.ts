@@ -78,11 +78,14 @@ export interface LibrenmsPort {
 /** The API refuses a report with more ports than this. */
 export const GRAPH_REPORT_MAX_PORTS = 10;
 
-/** Replaced in the caption by the report's customer name. */
-export const GRAPH_REPORT_CUSTOMER_PLACEHOLDER = "{pelanggan}";
+/** One image of a previewed report, with the caption the group would get. */
+export interface GraphReportPreviewImage {
+  image: Blob;
+  caption: string;
+}
 
-/** The caption the API sends when a report's message is blank; kept
- * identical to the backend's so the preview shows what the group gets. */
+/** The caption the API sends when a report's message is blank, shown as
+ * the message field's placeholder; kept identical to the backend's. */
 export const DEFAULT_GRAPH_REPORT_MESSAGE =
   "Selamat pagi Rekan,\n\nBerikut kami lampirkan hasil monitoring trafik 24 jam terakhir untuk {pelanggan}.\n\nTerima kasih";
 

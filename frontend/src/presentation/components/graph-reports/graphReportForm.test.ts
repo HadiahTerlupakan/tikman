@@ -1,7 +1,6 @@
 import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_GRAPH_REPORT_MESSAGE,
   type GraphReport,
   type WaAccount,
   type WaGroup,
@@ -16,7 +15,6 @@ import {
   groupOptions,
   initialAccountId,
   portOptionLabel,
-  reportCaption,
   reportToFormValues,
   reportWithEnabled,
   toGraphReportInput,
@@ -110,23 +108,6 @@ describe("toPreviewInput", () => {
       message: "",
       ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
     });
-  });
-});
-
-describe("reportCaption", () => {
-  it("puts the customer name in every {pelanggan}", () => {
-    expect(reportCaption("{pelanggan}: grafik {pelanggan}", "PT A")).toBe(
-      "PT A: grafik PT A",
-    );
-  });
-
-  it("falls back to the default message when the message is blank", () => {
-    const caption = reportCaption("  \n", "PT Contoh");
-
-    expect(caption).toBe(
-      DEFAULT_GRAPH_REPORT_MESSAGE.replace("{pelanggan}", "PT Contoh"),
-    );
-    expect(caption).toContain("untuk PT Contoh.");
   });
 });
 

@@ -147,7 +147,7 @@ func (s *GraphReportSender) deliver(ctx context.Context, report *models.GraphRep
 	if err != nil {
 		return err
 	}
-	return s.queue(ctx, report, files, mentions, now, daily)
+	return s.queue(ctx, report, images, files, mentions, now, daily)
 }
 
 // mentions answers who the report tags, read at send time so it follows the
@@ -172,7 +172,7 @@ func (s *GraphReportSender) mentions(report *models.GraphReport) ([]string, erro
 // storeImages writes a report's images where the wa process reads
 // attachments, under the <year>/<month>/<uuid> layout the inbox's uploads use.
 // A write that fails removes the images already written, as nothing is queued.
-func (s *GraphReportSender) storeImages(customer string, images [][]byte, now time.Time) ([]MediaFile, error) {
+func (s *GraphReportSender) storeImages(customer string, images []ReportImage, now time.Time) ([]MediaFile, error) {
 	dir := filepath.Join(now.Format("2006"), now.Format("01"))
 	if err := os.MkdirAll(filepath.Join(s.mediaRoot, dir), 0o750); err != nil {
 		return nil, fmt.Errorf("create media directory: %w", err)
@@ -181,12 +181,12 @@ func (s *GraphReportSender) storeImages(customer string, images [][]byte, now ti
 	files := make([]MediaFile, 0, len(images))
 	for i, image := range images {
 		rel := filepath.Join(dir, uuid.NewString()+".png")
-		if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image, 0o640); err != nil {
+		if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image.PNG, 0o640); err != nil {
 			s.removeImages(files)
 			return nil, fmt.Errorf("write report image: %w", err)
 		}
 		files = append(files, MediaFile{
-			Path: rel, Mime: "image/png", Filename: imageFilename(base, i, len(images)), Size: int64(len(image)),
+			Path: rel, Mime: "image/png", Filename: imageFilename(base, i, len(images)), Size: int64(len(image.PNG)),
 		})
 	}
 	return files, nil
@@ -208,24 +208,23 @@ func (s *GraphReportSender) removeImages(files []MediaFile) {
 }
 
 // queue writes the messages and the report's success in one transaction, so a
-// restart cannot see the images queued but the day still unsent. Only the last
-// image carries the caption and the tags, so the text closes the report: a
-// caption under every image repeats itself, and tags on every image would
-// notify each member once per image.
+// restart cannot see the images queued but the day still unsent. Every image
+// is captioned with its ports; only the last carries the tags, as tags on
+// every image would notify each member once per image.
 func (s *GraphReportSender) queue(
-	ctx context.Context, report *models.GraphReport, files []MediaFile, mentions []string, now time.Time, daily bool,
+	ctx context.Context, report *models.GraphReport, images []ReportImage, files []MediaFile,
+	mentions []string, now time.Time, daily bool,
 ) error {
 	members, _ := s.groups.MembersOtherThanUs(report.WAGroupID)
 	outs := make([]GroupOutgoing, len(files))
 	for i := range files {
 		outs[i] = GroupOutgoing{
 			GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
+			Body:  GraphImageCaption(report.Message, report.CustomerName, images[i].Ports),
 			Media: &files[i], MemberCount: members,
 		}
 	}
-	last := &outs[len(outs)-1]
-	last.Body = GraphReportCaption(report.Message, report.CustomerName)
-	last.Mentions = mentions
+	outs[len(outs)-1].Mentions = mentions
 	fields := map[string]any{"last_attempt_at": now, "last_error": ""}
 	if daily {
 		fields["last_sent_on"] = wibDate(now)

@@ -1,8 +1,6 @@
 import dayjs, { type Dayjs } from "dayjs";
 import {
-  DEFAULT_GRAPH_REPORT_MESSAGE,
   DEFAULT_GRAPH_REPORT_SEND_TIME,
-  GRAPH_REPORT_CUSTOMER_PLACEHOLDER,
   type GraphReport,
   type GraphReportInput,
   type GraphReportPreviewInput,
@@ -113,13 +111,6 @@ export function toGraphReportInput(
     mentionAll: values.mentionAll,
     sendTime: formatSendTime(values.sendTime),
   };
-}
-
-/** The caption the API writes under the image, so the preview can show it
- * before anything is sent. */
-export function reportCaption(message: string, customerName: string): string {
-  const text = message.trim() || DEFAULT_GRAPH_REPORT_MESSAGE;
-  return text.split(GRAPH_REPORT_CUSTOMER_PLACEHOLDER).join(customerName);
 }
 
 /** The API's update replaces the whole report, so flipping "Aktif" resends

@@ -4,6 +4,7 @@ import type { AxiosResponse } from "axios";
 import type {
   GraphReport,
   GraphReportInput,
+  GraphReportPreviewImage,
   GraphReportPreviewInput,
   LibrenmsDevice,
   LibrenmsPort,
@@ -104,9 +105,11 @@ export class GraphReportRepository {
   }
 
   /** The images exactly as the group would receive them, in order, two
-   * ports to an image. It fetches every port's graph like a send does, hence
-   * the same timeout. */
-  async preview(input: GraphReportPreviewInput): Promise<Blob[]> {
+   * ports to an image, each with its caption. It fetches every port's graph
+   * like a send does, hence the same timeout. */
+  async preview(
+    input: GraphReportPreviewInput,
+  ): Promise<GraphReportPreviewImage[]> {
     const response = await apiClient.post(
       API_ENDPOINTS.GRAPH_REPORT_PREVIEW,
       input,
@@ -118,6 +121,11 @@ export class GraphReportRepository {
           `Pratinjau gagal dimuat (HTTP ${response.status})`,
       );
     }
-    return (response.data.images ?? []).map(pngFromBase64);
+    const images: { image: string; caption: string }[] =
+      response.data.images ?? [];
+    return images.map(({ image, caption }) => ({
+      image: pngFromBase64(image),
+      caption,
+    }));
   }
 }

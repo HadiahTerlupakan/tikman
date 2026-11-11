@@ -26,12 +26,28 @@ const maxGraphReportImageBytes = 16 << 20
 // graphRangeLayout is how each graph's window is written above it.
 const graphRangeLayout = "02/01/2006 15:04"
 
-// GraphReportCaption is the text a report's image is sent with.
+// graphPortsLinePrefix opens the caption line naming an image's ports.
+const graphPortsLinePrefix = "\n\nPort: "
+
+// GraphReportCaption is the report's message with the customer filled in.
 func GraphReportCaption(message, customer string) string {
 	if strings.TrimSpace(message) == "" {
 		message = DefaultGraphReportMessage
 	}
 	return strings.ReplaceAll(message, customerPlaceholder, customer)
+}
+
+// GraphImageCaption is the text one image of a report is sent with: the
+// report's message, then the ports that image shows. Every image carries it,
+// so an image read on its own in the chat still says what it is.
+func GraphImageCaption(message, customer string, ports []string) string {
+	return GraphReportCaption(message, customer) + graphPortsLinePrefix + strings.Join(ports, ", ")
+}
+
+// ReportImage is one image of a report and the labels of the ports it shows.
+type ReportImage struct {
+	PNG   []byte
+	Ports []string
 }
 
 // graphRange writes the window a graph covers, in WIB.
@@ -48,7 +64,7 @@ const graphPortsPerImage = 2
 // renderReport fetches every port's graph and stacks them, graphPortsPerImage
 // to an image, in the ports' order. It is all or nothing: one graph LibreNMS
 // cannot draw fails the whole report, so no image is answered for half of it.
-func renderReport(ctx context.Context, client *librenms.Client, ports []models.GraphReportPort, now time.Time) ([][]byte, error) {
+func renderReport(ctx context.Context, client *librenms.Client, ports []models.GraphReportPort, now time.Time) ([]ReportImage, error) {
 	if len(ports) == 0 {
 		return nil, fmt.Errorf("%w: laporan tidak punya port", ErrValidation)
 	}
@@ -61,13 +77,18 @@ func renderReport(ctx context.Context, client *librenms.Client, ports []models.G
 		}
 		sections[i] = librenms.Section{Title: port.Label, Subtitle: span, Graph: graph}
 	}
-	images := make([][]byte, 0, (len(sections)+graphPortsPerImage-1)/graphPortsPerImage)
+	images := make([]ReportImage, 0, (len(sections)+graphPortsPerImage-1)/graphPortsPerImage)
 	for start := 0; start < len(sections); start += graphPortsPerImage {
-		image, err := composeImage(sections[start:min(start+graphPortsPerImage, len(sections))])
+		chunk := sections[start:min(start+graphPortsPerImage, len(sections))]
+		image, err := composeImage(chunk)
 		if err != nil {
 			return nil, err
 		}
-		images = append(images, image)
+		labels := make([]string, len(chunk))
+		for i, section := range chunk {
+			labels[i] = section.Title
+		}
+		images = append(images, ReportImage{PNG: image, Ports: labels})
 	}
 	return images, nil
 }
@@ -91,9 +112,16 @@ func checkGraphReportImageSize(size int) error {
 	return nil
 }
 
-// Preview renders the images a report with these ports would be sent as now.
-// The group is not needed for it and is not checked.
-func (s *GraphReportSender) Preview(ctx context.Context, in GraphReportInput) ([][]byte, error) {
+// PreviewImage is one image of a previewed report with the caption it would
+// be sent with.
+type PreviewImage struct {
+	PNG     []byte
+	Caption string
+}
+
+// Preview renders the images a report with these ports would be sent as now,
+// each with its caption. The group is not needed for it and is not checked.
+func (s *GraphReportSender) Preview(ctx context.Context, in GraphReportInput) ([]PreviewImage, error) {
 	if err := validateGraphReportFields(in); err != nil {
 		return nil, err
 	}
@@ -101,7 +129,16 @@ func (s *GraphReportSender) Preview(ctx context.Context, in GraphReportInput) ([
 	if err != nil {
 		return nil, err
 	}
-	return renderReport(ctx, client, portRows(in.Ports), s.now())
+	images, err := renderReport(ctx, client, portRows(in.Ports), s.now())
+	if err != nil {
+		return nil, err
+	}
+	customer := strings.TrimSpace(in.CustomerName)
+	previews := make([]PreviewImage, len(images))
+	for i, image := range images {
+		previews[i] = PreviewImage{PNG: image.PNG, Caption: GraphImageCaption(in.Message, customer, image.Ports)}
+	}
+	return previews, nil
 }
 
 // PortPreview renders one port's section of a report, titled label.
@@ -120,7 +157,7 @@ func (s *GraphReportSender) PortPreview(ctx context.Context, deviceID int, ifNam
 	if err != nil {
 		return nil, err
 	}
-	return images[0], nil
+	return images[0].PNG, nil
 }
 
 func portRows(ports []GraphReportPortInput) []models.GraphReportPort {

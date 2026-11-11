@@ -52,7 +52,7 @@ func TestSendNowTagsEveryMemberButUs(t *testing.T) {
 
 	msg := f.queuedMessage(t)
 	assert.ElementsMatch(t, []string{"62811@s.whatsapp.net", "1000@lid", "1001@lid"}, Mentions(&msg))
-	assert.Equal(t, GraphReportCaption("", "PT Contoh"), msg.Body, "the caption names nobody")
+	assert.Equal(t, GraphImageCaption("", "PT Contoh", []string{"Uplink"}), msg.Body, "the caption names nobody")
 }
 
 func TestSendNowTagsNobodyByDefault(t *testing.T) {

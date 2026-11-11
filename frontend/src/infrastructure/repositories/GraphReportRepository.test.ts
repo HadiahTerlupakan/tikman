@@ -79,19 +79,25 @@ describe("GraphReportRepository.preview", () => {
     post.mockReset();
   });
 
-  it("posts the unsaved report and returns each image as a PNG", async () => {
+  it("posts the unsaved report and returns each image as a PNG with its caption", async () => {
     post.mockResolvedValue({
       status: 200,
-      data: { images: [btoa("first"), btoa("second")] },
+      data: {
+        images: [
+          { image: btoa("first"), caption: "Halo\n\nPort: A, B" },
+          { image: btoa("second"), caption: "Halo\n\nPort: C" },
+        ],
+      },
     });
 
     const images = await new GraphReportRepository().preview(input);
 
-    expect(images.map((image) => image.type)).toEqual([
+    expect(images.map(({ image }) => image.type)).toEqual([
       "image/png",
       "image/png",
     ]);
-    expect(await readBlob(images[1])).toBe("second");
+    expect(await readBlob(images[1].image)).toBe("second");
+    expect(images[1].caption).toBe("Halo\n\nPort: C");
     const [url, body] = post.mock.calls[0];
     expect(url).toBe("/api/v1/graph-reports/preview");
     expect(body).toEqual(input);

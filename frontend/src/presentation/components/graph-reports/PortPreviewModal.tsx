@@ -21,7 +21,7 @@ export function PortPreviewModal({ target, onClose }: PortPreviewModalProps) {
     target?.label,
   );
   // A fresh array each render would mint new object URLs and remount the image.
-  const images = useMemo(() => (data ? [data] : undefined), [data]);
+  const images = useMemo(() => (data ? [{ image: data }] : undefined), [data]);
 
   return (
     <ImagePreviewModal

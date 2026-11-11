@@ -220,8 +220,9 @@ func TestGraphReportPreviewStatuses(t *testing.T) {
 	var preview GraphReportPreviewResponse
 	require.NoError(t, json.Unmarshal(ok.Body.Bytes(), &preview))
 	require.Len(t, preview.Images, 1)
-	_, err := png.Decode(bytes.NewReader(preview.Images[0]))
+	_, err := png.Decode(bytes.NewReader(preview.Images[0].Image))
 	assert.NoError(t, err)
+	assert.True(t, strings.HasSuffix(preview.Images[0].Caption, "\n\nPort: Uplink"), preview.Images[0].Caption)
 
 	body["ports"] = []map[string]any{}
 	invalid := env.do(http.MethodPost, path, body)

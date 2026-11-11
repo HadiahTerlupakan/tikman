@@ -5,12 +5,11 @@ interface ImagePreviewModalProps {
   open: boolean;
   title: string;
   alt: string;
-  /** In the order they are sent. */
-  images?: Blob[];
+  /** In the order they are sent; a caption is shown under its image the way
+   * WhatsApp shows one. */
+  images?: { image: Blob; caption?: string }[];
   loading: boolean;
   error: Error | null;
-  /** Shown under the last image, the only one sent with the caption. */
-  caption?: string;
   onClose: () => void;
 }
 
@@ -23,19 +22,22 @@ export function ImagePreviewModal({
   images,
   loading,
   error,
-  caption,
   onClose,
 }: ImagePreviewModalProps) {
-  const urls = useMemo(
-    () => (images ?? []).map((image) => URL.createObjectURL(image)),
+  const shown = useMemo(
+    () =>
+      (images ?? []).map(({ image, caption }) => ({
+        url: URL.createObjectURL(image),
+        caption,
+      })),
     [images],
   );
 
   useEffect(
     () => () => {
-      urls.forEach((url) => URL.revokeObjectURL(url));
+      shown.forEach(({ url }) => URL.revokeObjectURL(url));
     },
-    [urls],
+    [shown],
   );
 
   return (
@@ -54,14 +56,14 @@ export function ImagePreviewModal({
       )}
       {error && <Alert type="error" showIcon message={error.message} />}
       {!loading &&
-        urls.map((url, index) => (
+        shown.map(({ url, caption }, index) => (
           <Fragment key={url}>
-            {urls.length > 1 && (
+            {shown.length > 1 && (
               <Typography.Text
                 type="secondary"
                 style={{ display: "block", marginTop: index ? 24 : 0 }}
               >
-                Gambar {index + 1} dari {urls.length}
+                Gambar {index + 1} dari {shown.length}
               </Typography.Text>
             )}
             <img
@@ -69,7 +71,7 @@ export function ImagePreviewModal({
               alt={`${alt} ${index + 1}`}
               style={{ width: "100%", height: "auto" }}
             />
-            {index === urls.length - 1 && caption && (
+            {caption && (
               <Typography.Paragraph
                 style={{
                   whiteSpace: "pre-wrap",

@@ -98,10 +98,16 @@ type GraphReportPreviewRequest struct {
 	Ports        []GraphReportPortRequest `json:"ports"`
 }
 
-// GraphReportPreviewResponse is the PNG images a report would be sent as, in
-// order; encoding/json writes each as base64.
+// GraphReportPreviewImage is one image a report would be sent as, with its
+// caption; encoding/json writes the PNG as base64.
+type GraphReportPreviewImage struct {
+	Image   []byte `json:"image"`
+	Caption string `json:"caption"`
+}
+
+// GraphReportPreviewResponse is the images a report would be sent as, in order.
 type GraphReportPreviewResponse struct {
-	Images [][]byte `json:"images"`
+	Images []GraphReportPreviewImage `json:"images"`
 }
 
 // Preview answers the exact images a report would be sent as now.
@@ -110,12 +116,16 @@ func (h *GraphReportHandler) Preview(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	images, err := h.sender.Preview(c.Request.Context(), services.GraphReportInput{
+	previews, err := h.sender.Preview(c.Request.Context(), services.GraphReportInput{
 		CustomerName: req.CustomerName, Message: req.Message, Ports: portInputs(req.Ports),
 	})
 	if err != nil {
 		graphReportError(c, err, "GRAPH_REPORT_PREVIEW_FAILED")
 		return
+	}
+	images := make([]GraphReportPreviewImage, len(previews))
+	for i, preview := range previews {
+		images[i] = GraphReportPreviewImage{Image: preview.PNG, Caption: preview.Caption}
 	}
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, GraphReportPreviewResponse{Images: images})

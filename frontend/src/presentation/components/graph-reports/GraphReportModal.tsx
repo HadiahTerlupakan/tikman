@@ -28,7 +28,6 @@ import {
   emptyFormValues,
   groupOptions,
   initialAccountId,
-  reportCaption,
   reportToFormValues,
   toGraphReportInput,
   toPreviewInput,
@@ -61,7 +60,7 @@ export function GraphReportModal({
 }: GraphReportModalProps) {
   const [form] = Form.useForm<GraphReportFormValues>();
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
-  const [caption, setCaption] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const reportPreview = useGraphReportPreview();
   const { data: accounts = [], isLoading: accountsLoading } = useWaAccounts();
   const devices = useLibrenmsDevices(open);
@@ -103,7 +102,7 @@ export function GraphReportModal({
       .validateFields(PREVIEW_FIELDS, { recursive: true })
       .then((values) => {
         const input = toPreviewInput(values);
-        setCaption(reportCaption(input.message, input.customerName));
+        setPreviewOpen(true);
         reportPreview.mutate(input);
       })
       .catch(() => undefined);
@@ -229,14 +228,13 @@ export function GraphReportModal({
       </Button>
       <PortPreviewModal target={preview} onClose={() => setPreview(null)} />
       <ImagePreviewModal
-        open={caption !== null}
+        open={previewOpen}
         title="Pratinjau laporan"
         alt="Grafik trafik laporan"
         images={reportPreview.data}
         loading={reportPreview.isPending}
         error={reportPreview.error}
-        caption={caption ?? undefined}
-        onClose={() => setCaption(null)}
+        onClose={() => setPreviewOpen(false)}
       />
     </Modal>
   );
