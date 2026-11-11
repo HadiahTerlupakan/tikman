@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Form, Select, Typography, type FormInstance } from "antd";
+import { Form, Radio, Select, Typography, type FormInstance } from "antd";
 import {
   useTelegramChats,
   useWaAccounts,
@@ -7,11 +7,12 @@ import {
 } from "@/application/hooks";
 import type { GraphReport, TelegramChat } from "@/domain/entities";
 import {
-  NO_DESTINATION_MESSAGE,
+  CHANNEL_OPTIONS,
   accountOptions,
   groupOptions,
   initialAccountId,
-  missingDestination,
+  sendsTelegram,
+  sendsWhatsApp,
   type GraphReportFormValues,
 } from "./graphReportForm";
 import { telegramChatOptions, topicOptions } from "./telegramDestination";
@@ -43,22 +44,6 @@ interface TelegramChatFieldProps {
   reports: GraphReport[];
 }
 
-function destinationRule({
-  getFieldValue,
-}: Pick<FormInstance<GraphReportFormValues>, "getFieldValue">) {
-  return {
-    validator: () =>
-      missingDestination({
-        waGroupId: getFieldValue("waGroupId"),
-        telegramChatId: getFieldValue("telegramChatId"),
-      })
-        ? Promise.reject(new Error(NO_DESTINATION_MESSAGE))
-        : Promise.resolve(),
-  };
-}
-
-// The rule sits on this field and depends on the WhatsApp group, so the
-// "pick one" message shows once, and clears as soon as either is chosen.
 function TelegramChatField({
   chats,
   loading: chatsLoading,
@@ -70,8 +55,7 @@ function TelegramChatField({
       name="telegramChatId"
       label="Grup Telegram"
       extra={<TelegramHelp />}
-      dependencies={["waGroupId"]}
-      rules={[destinationRule]}
+      rules={[{ required: true, message: "Pilih grup Telegram" }]}
     >
       <Select
         showSearch
@@ -153,13 +137,13 @@ function TelegramFields({
   );
 }
 
-/** Where a report goes: a WhatsApp group, a Telegram chat, or both. */
-export function DestinationFields({
-  form,
-  open,
-  report,
-  reports,
-}: DestinationFieldsProps) {
+interface WhatsAppFieldsProps {
+  form: FormInstance<GraphReportFormValues>;
+  report?: GraphReport;
+  reports: GraphReport[];
+}
+
+function WhatsAppFields({ form, report, reports }: WhatsAppFieldsProps) {
   const { data: accounts = [], isLoading: accountsLoading } = useWaAccounts();
   const waAccountId = Form.useWatch("waAccountId", form);
   // The unfiltered list is capped across every number, so a quiet number's
@@ -189,7 +173,11 @@ export function DestinationFields({
           options={accountOptions(accounts)}
         />
       </Form.Item>
-      <Form.Item name="waGroupId" label="Grup WhatsApp">
+      <Form.Item
+        name="waGroupId"
+        label="Grup WhatsApp"
+        rules={[{ required: true, message: "Pilih grup WhatsApp" }]}
+      >
         <Select
           showSearch
           allowClear
@@ -208,12 +196,40 @@ export function DestinationFields({
           }
         />
       </Form.Item>
-      <TelegramFields
-        form={form}
-        open={open}
-        report={report}
-        reports={reports}
-      />
+    </>
+  );
+}
+
+/** Where a report goes: a WhatsApp group, a Telegram chat, or both. A
+ * channel switched off keeps its fields' values, unsent, so switching it
+ * back on restores the picks. */
+export function DestinationFields({
+  form,
+  open,
+  report,
+  reports,
+}: DestinationFieldsProps) {
+  const channel = Form.useWatch("channel", form);
+  return (
+    <>
+      <Form.Item name="channel" label="Kirim ke">
+        <Radio.Group
+          optionType="button"
+          buttonStyle="solid"
+          options={CHANNEL_OPTIONS}
+        />
+      </Form.Item>
+      {sendsWhatsApp(channel) && (
+        <WhatsAppFields form={form} report={report} reports={reports} />
+      )}
+      {sendsTelegram(channel) && (
+        <TelegramFields
+          form={form}
+          open={open}
+          report={report}
+          reports={reports}
+        />
+      )}
     </>
   );
 }

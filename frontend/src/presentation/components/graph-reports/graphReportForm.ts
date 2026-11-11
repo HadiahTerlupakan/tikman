@@ -20,7 +20,31 @@ export interface PortFormValue {
   label?: string;
 }
 
+/** Where the report goes; the destinations of an unchosen channel are
+ * kept in the form but never sent. */
+export type DeliveryChannel = "whatsapp" | "telegram" | "both";
+
+export const CHANNEL_OPTIONS: SelectOption<DeliveryChannel>[] = [
+  { value: "whatsapp", label: "WhatsApp saja" },
+  { value: "telegram", label: "Telegram saja" },
+  { value: "both", label: "WhatsApp & Telegram" },
+];
+
+export function sendsWhatsApp(channel?: DeliveryChannel): boolean {
+  return channel === "whatsapp" || channel === "both";
+}
+
+export function sendsTelegram(channel?: DeliveryChannel): boolean {
+  return channel === "telegram" || channel === "both";
+}
+
+function reportChannel(report: GraphReport): DeliveryChannel {
+  if (report.waGroupId && report.telegramChatId) return "both";
+  return report.telegramChatId ? "telegram" : "whatsapp";
+}
+
 export interface GraphReportFormValues {
+  channel: DeliveryChannel;
   /** Only narrows the group picker; the group row already names its
    * number, so it is not sent. */
   waAccountId?: string;
@@ -59,6 +83,7 @@ export function formatSendTime(value: Dayjs): string {
 
 export function emptyFormValues(): GraphReportFormValues {
   return {
+    channel: "whatsapp",
     message: "",
     enabled: true,
     mentionAll: false,
@@ -69,6 +94,7 @@ export function emptyFormValues(): GraphReportFormValues {
 
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
   return {
+    channel: reportChannel(report),
     waAccountId: report.waAccountId || undefined,
     waGroupId: report.waGroupId ?? undefined,
     telegramChatId: report.telegramChatId ?? undefined,
@@ -93,7 +119,10 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
  * ports' graphs in this order. A preview needs no group, so it is built
  * without one. */
 export function toPreviewInput(
-  values: Omit<GraphReportFormValues, "enabled" | "mentionAll" | "sendTime">,
+  values: Omit<
+    GraphReportFormValues,
+    "channel" | "enabled" | "mentionAll" | "sendTime"
+  >,
 ): GraphReportPreviewInput {
   return {
     customerName: (values.customerName ?? "").trim(),
@@ -110,34 +139,32 @@ export function toPreviewInput(
 export function toGraphReportInput(
   values: GraphReportFormValues,
 ): GraphReportInput {
+  // A cleared Select leaves undefined; null tells the API "none" on an
+  // update as well as a create. Switching a channel off keeps its picks in
+  // the form, so switching back does not lose them, but they are not sent.
+  const waGroupId = sendsWhatsApp(values.channel)
+    ? values.waGroupId ?? null
+    : null;
+  const telegramChatId = sendsTelegram(values.channel)
+    ? values.telegramChatId ?? null
+    : null;
   return {
     ...toPreviewInput(values),
-    // A cleared Select leaves undefined; null tells the API "none" on an
-    // update as well as a create.
-    waGroupId: values.waGroupId ?? null,
-    telegramChatId: values.telegramChatId ?? null,
+    waGroupId,
+    telegramChatId,
     // Changing the chat resets the topic, so a thread id only survives
     // while it belongs to the chosen forum.
     telegramThreadId:
-      values.telegramChatId && values.telegramThreadId
+      telegramChatId && values.telegramThreadId
         ? values.telegramThreadId
         : null,
     enabled: values.enabled,
     // Switching number clears the group but leaves the box ticked, so a
     // later pick on the new number keeps the choice; with no group there is
     // no one to tag.
-    mentionAll: Boolean(values.waGroupId) && values.mentionAll,
+    mentionAll: Boolean(waGroupId) && values.mentionAll,
     sendTime: formatSendTime(values.sendTime),
   };
-}
-
-export const NO_DESTINATION_MESSAGE = "Pilih grup WhatsApp atau Telegram";
-
-/** The form-level rule: a report goes somewhere. */
-export function missingDestination(
-  values: Pick<GraphReportFormValues, "waGroupId" | "telegramChatId">,
-): boolean {
-  return !values.waGroupId && !values.telegramChatId;
 }
 
 /** The report's destinations by name, for the send confirmation. */

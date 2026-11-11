@@ -15,7 +15,6 @@ import {
   formatSentOn,
   groupOptions,
   initialAccountId,
-  missingDestination,
   portOptionLabel,
   reportToFormValues,
   reportWithEnabled,
@@ -77,6 +76,7 @@ const group = (id: string, extra: Partial<WaGroup> = {}) =>
 describe("toGraphReportInput", () => {
   it("trims names and keeps the ports in the order they will be sent", () => {
     const input = toGraphReportInput({
+      channel: "whatsapp",
       waGroupId: "g1",
       customerName: "  PT Contoh ",
       message: "  Halo {pelanggan}\n ",
@@ -121,9 +121,12 @@ const telegramReport: GraphReport = {
 };
 
 const formValues = (
-  destinations: Pick<GraphReportFormValues, "waGroupId" | "telegramChatId">,
+  destinations: Partial<
+    Pick<GraphReportFormValues, "channel" | "waGroupId" | "telegramChatId">
+  >,
 ): GraphReportFormValues => ({
   ...emptyFormValues(),
+  channel: "both",
   customerName: "PT Contoh",
   ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
   ...destinations,
@@ -133,7 +136,6 @@ describe("destinations", () => {
   it("sends a Telegram-only report with no WhatsApp group", () => {
     const values = formValues({ telegramChatId: "t1" });
 
-    expect(missingDestination(values)).toBe(false);
     expect(toGraphReportInput(values)).toMatchObject({
       waGroupId: null,
       telegramChatId: "t1",
@@ -143,18 +145,48 @@ describe("destinations", () => {
   it("sends both destinations when both are chosen", () => {
     const values = formValues({ waGroupId: "g1", telegramChatId: "t1" });
 
-    expect(missingDestination(values)).toBe(false);
     expect(toGraphReportInput(values)).toMatchObject({
       waGroupId: "g1",
       telegramChatId: "t1",
     });
   });
 
-  it("rejects a report with neither, including a cleared select's empty value", () => {
-    expect(missingDestination(formValues({}))).toBe(true);
+  it("sends only the chosen channel, keeping the other's pick unsent", () => {
+    const both = { waGroupId: "g1", telegramChatId: "t1" };
+
     expect(
-      missingDestination(formValues({ waGroupId: "", telegramChatId: "" })),
-    ).toBe(true);
+      toGraphReportInput(formValues({ ...both, channel: "whatsapp" })),
+    ).toMatchObject({ waGroupId: "g1", telegramChatId: null });
+    expect(
+      toGraphReportInput(formValues({ ...both, channel: "telegram" })),
+    ).toMatchObject({ waGroupId: null, telegramChatId: "t1" });
+  });
+
+  it("drops a topic and tag-everyone that belong to a channel switched off", () => {
+    const values = {
+      ...formValues({ waGroupId: "g1", telegramChatId: "t1" }),
+      telegramThreadId: 42,
+      mentionAll: true,
+    };
+
+    expect(
+      toGraphReportInput({ ...values, channel: "whatsapp" }).telegramThreadId,
+    ).toBeNull();
+    expect(
+      toGraphReportInput({ ...values, channel: "telegram" }).mentionAll,
+    ).toBe(false);
+  });
+
+  it("opens a saved report on the channel it sends to", () => {
+    expect(reportToFormValues(report).channel).toBe("whatsapp");
+    expect(reportToFormValues(telegramReport).channel).toBe("telegram");
+    expect(
+      reportToFormValues({ ...report, telegramChatId: "t1" }).channel,
+    ).toBe("both");
+  });
+
+  it("starts a new report on WhatsApp, as before the choice existed", () => {
+    expect(emptyFormValues().channel).toBe("whatsapp");
   });
 
   it("round-trips a Telegram-only report, so an edit does not invent a WhatsApp group", () => {

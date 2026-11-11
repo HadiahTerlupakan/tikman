@@ -24,6 +24,7 @@ import {
 import { DestinationFields } from "./DestinationFields";
 import {
   emptyFormValues,
+  sendsWhatsApp,
   reportToFormValues,
   toGraphReportInput,
   toPreviewInput,
@@ -62,6 +63,7 @@ export function GraphReportModal({
   const devices = useLibrenmsDevices(open);
   const { data: telegramChats = [] } = useTelegramChats(open);
   const waGroupId = Form.useWatch("waGroupId", form);
+  const channel = Form.useWatch("channel", form);
 
   // A group row belongs to one number, so the old choice is never valid for
   // the new one. Tagging everyone is WhatsApp's alone, so clearing the group
@@ -121,10 +123,12 @@ export function GraphReportModal({
           style={{ marginBottom: 16 }}
         />
       )}
-      {/* destroyOnHidden remounts the form on every open, so initialValues
-          are what each open starts from. */}
+      {/* The page keeps this modal mounted, so the form store outlives the
+          Form that destroyOnHidden unmounts; clearOnDestroy empties it, or
+          the next open would merge the last report's values over its own. */}
       <Form
         form={form}
+        clearOnDestroy
         layout="vertical"
         initialValues={report ? reportToFormValues(report) : emptyFormValues()}
         onValuesChange={handleValuesChange}
@@ -174,17 +178,15 @@ export function GraphReportModal({
         <Form.Item name="enabled" label="Aktif" valuePropName="checked">
           <Switch />
         </Form.Item>
-        <Form.Item
-          name="mentionAll"
-          valuePropName="checked"
-          extra={
-            waGroupId
-              ? "Semua anggota mendapat notifikasi, termasuk yang membisukan grup."
-              : "Hanya untuk grup WhatsApp; Telegram tidak punya tag semua."
-          }
-        >
-          <Checkbox disabled={!waGroupId}>Tag semua anggota grup</Checkbox>
-        </Form.Item>
+        {sendsWhatsApp(channel) && (
+          <Form.Item
+            name="mentionAll"
+            valuePropName="checked"
+            extra="Semua anggota grup WhatsApp mendapat notifikasi, termasuk yang membisukan grup."
+          >
+            <Checkbox disabled={!waGroupId}>Tag semua anggota grup</Checkbox>
+          </Form.Item>
+        )}
         <PortList
           devices={devices.data ?? []}
           devicesLoading={devices.isLoading}
