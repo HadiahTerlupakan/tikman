@@ -31,6 +31,10 @@ const SettingLibreNMSAPIToken = "librenms_api_token"
 // SettingTelegramBotToken is the bot the graph reports post to Telegram as.
 const SettingTelegramBotToken = "telegram_bot_token"
 
+// SettingLibreNMSWebhookToken is the shared secret LibreNMS's alert
+// transport sends in X-TikMan-Token to report a port going down or up.
+const SettingLibreNMSWebhookToken = "librenms_webhook_token"
+
 // SettingDefinition describes a setting the installation understands.
 type SettingDefinition struct {
 	Name        string
@@ -66,6 +70,11 @@ var settingRegistry = []SettingDefinition{
 		Name:        SettingTelegramBotToken,
 		Label:       "Telegram bot token",
 		Description: "Bot token from @BotFather, used to send the daily graph reports to Telegram groups. Add the bot to a group for it to appear in the report form. Stays on the server.",
+	},
+	{
+		Name:        SettingLibreNMSWebhookToken,
+		Label:       "LibreNMS webhook token",
+		Description: "Shared secret for port down/up notices, at least 16 characters. Put the same value in LibreNMS's API alert transport as the header X-TikMan-Token. Stays on the server.",
 	},
 }
 

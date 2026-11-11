@@ -86,7 +86,8 @@ func (s *TelegramChatService) upsert(chat telegram.Chat, active bool) error {
 
 // Migrate moves a group's row to the supergroup it was upgraded to, so a
 // report bound to the row follows. A row the supergroup already has, seen
-// before the upgrade was, gives way unless a report holds it; when one does,
+// before the upgrade was, gives way unless a report or the NOC destination
+// holds it (deleting it would quietly unset the NOC's); when one does,
 // that row is the supergroup and the group's row is only retired, since two
 // rows cannot share a chat ID. Migrating a group already migrated does nothing.
 func (s *TelegramChatService) Migrate(fromChatID, toChatID int64) error {
@@ -97,7 +98,9 @@ func (s *TelegramChatService) Migrate(fromChatID, toChatID int64) error {
 			return err
 		}
 		held := tx.Model(&models.GraphReport{}).Select("telegram_chat_id").Where("telegram_chat_id IS NOT NULL")
-		err = tx.Where("chat_id = ? AND id NOT IN (?)", toChatID, held).Delete(&models.TelegramChat{}).Error
+		nocHeld := tx.Model(&models.PortAlertDestination{}).Select("telegram_chat_id").Where("telegram_chat_id IS NOT NULL")
+		err = tx.Where("chat_id = ? AND id NOT IN (?) AND id NOT IN (?)", toChatID, held, nocHeld).
+			Delete(&models.TelegramChat{}).Error
 		if err != nil {
 			return fmt.Errorf("clear supergroup row: %w", err)
 		}

@@ -3,6 +3,7 @@ import { GraphReportRepository } from "@/infrastructure/repositories";
 import type {
   GraphReportInput,
   GraphReportPreviewInput,
+  PortAlertDestinationInput,
 } from "@/domain/entities";
 
 const graphReportRepository = new GraphReportRepository();
@@ -11,6 +12,7 @@ const graphReportKeys = {
   list: ["graph-reports", "list"] as const,
   devices: ["graph-reports", "librenms", "devices"] as const,
   telegramChats: ["graph-reports", "telegram", "chats"] as const,
+  portAlertDestination: ["graph-reports", "port-alert-destination"] as const,
   ports: (deviceId?: number) =>
     ["graph-reports", "librenms", "ports", deviceId] as const,
   graph: (deviceId?: number, ifName?: string, label?: string) =>
@@ -56,6 +58,26 @@ export function useSendGraphReport() {
   return useMutation({
     mutationFn: (id: string) => graphReportRepository.send(id),
     onSettled: invalidate,
+  });
+}
+
+export function usePortAlertDestination(enabled: boolean) {
+  return useQuery({
+    queryKey: graphReportKeys.portAlertDestination,
+    queryFn: () => graphReportRepository.portAlertDestination(),
+    enabled,
+  });
+}
+
+export function useSavePortAlertDestination() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PortAlertDestinationInput) =>
+      graphReportRepository.savePortAlertDestination(input),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: graphReportKeys.portAlertDestination,
+      }),
   });
 }
 

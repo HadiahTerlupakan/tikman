@@ -38,9 +38,13 @@ export function sendsTelegram(channel?: DeliveryChannel): boolean {
   return channel === "telegram" || channel === "both";
 }
 
-function reportChannel(report: GraphReport): DeliveryChannel {
-  if (report.waGroupId && report.telegramChatId) return "both";
-  return report.telegramChatId ? "telegram" : "whatsapp";
+/** The channel saved destinations imply; none at all opens on WhatsApp. */
+export function channelOf(
+  waGroupId: string | null,
+  telegramChatId: string | null,
+): DeliveryChannel {
+  if (waGroupId && telegramChatId) return "both";
+  return telegramChatId ? "telegram" : "whatsapp";
 }
 
 export interface GraphReportFormValues {
@@ -56,6 +60,7 @@ export interface GraphReportFormValues {
   message?: string;
   enabled: boolean;
   mentionAll: boolean;
+  notifyPortStatus: boolean;
   /** Only its hour and minute are read; the TimePicker needs a Dayjs. */
   sendTime: Dayjs;
   ports: PortFormValue[];
@@ -87,6 +92,7 @@ export function emptyFormValues(): GraphReportFormValues {
     message: "",
     enabled: true,
     mentionAll: false,
+    notifyPortStatus: false,
     sendTime: parseSendTime(DEFAULT_GRAPH_REPORT_SEND_TIME),
     ports: [{}],
   };
@@ -94,7 +100,7 @@ export function emptyFormValues(): GraphReportFormValues {
 
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
   return {
-    channel: reportChannel(report),
+    channel: channelOf(report.waGroupId, report.telegramChatId),
     waAccountId: report.waAccountId || undefined,
     waGroupId: report.waGroupId ?? undefined,
     telegramChatId: report.telegramChatId ?? undefined,
@@ -103,6 +109,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
     message: report.message,
     enabled: report.enabled,
     mentionAll: report.mentionAll,
+    notifyPortStatus: report.notifyPortStatus,
     sendTime: parseSendTime(report.sendTime || DEFAULT_GRAPH_REPORT_SEND_TIME),
     ports: [...report.ports]
       .sort((a, b) => a.position - b.position)
@@ -121,7 +128,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
 export function toPreviewInput(
   values: Omit<
     GraphReportFormValues,
-    "channel" | "enabled" | "mentionAll" | "sendTime"
+    "channel" | "enabled" | "mentionAll" | "notifyPortStatus" | "sendTime"
   >,
 ): GraphReportPreviewInput {
   return {
@@ -163,6 +170,7 @@ export function toGraphReportInput(
     // later pick on the new number keeps the choice; with no group there is
     // no one to tag.
     mentionAll: Boolean(waGroupId) && values.mentionAll,
+    notifyPortStatus: values.notifyPortStatus,
     sendTime: formatSendTime(values.sendTime),
   };
 }

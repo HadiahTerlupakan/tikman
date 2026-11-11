@@ -46,8 +46,14 @@ type telegramTarget struct {
 }
 
 func (s *GraphReportSender) prepareTelegram(report *models.GraphReport) (*telegramTarget, error) {
+	return s.prepareTelegramChat(*report.TelegramChatID, report.TelegramThreadID)
+}
+
+// prepareTelegramChat checks a chat can be posted in, as the bot it is
+// configured with, before anything is rendered or written for it.
+func (s *GraphReportSender) prepareTelegramChat(chatID uuid.UUID, threadID *int64) (*telegramTarget, error) {
 	var chat models.TelegramChat
-	if err := s.db.First(&chat, "id = ?", *report.TelegramChatID).Error; err != nil {
+	if err := s.db.First(&chat, "id = ?", chatID).Error; err != nil {
 		return nil, fmt.Errorf("load Telegram chat: %w", err)
 	}
 	if !chat.Active {
@@ -66,8 +72,8 @@ func (s *GraphReportSender) prepareTelegram(report *models.GraphReport) (*telegr
 		return nil, telegram.ErrInvalidToken
 	}
 	target := &telegramTarget{chat: chat, client: s.telegram(token)}
-	if report.TelegramThreadID != nil {
-		target.threadID = *report.TelegramThreadID
+	if threadID != nil {
+		target.threadID = *threadID
 	}
 	return target, nil
 }

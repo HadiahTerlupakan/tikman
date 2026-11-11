@@ -8,6 +8,8 @@ import type {
   GraphReportPreviewInput,
   LibrenmsDevice,
   LibrenmsPort,
+  PortAlertDestination,
+  PortAlertDestinationInput,
   TelegramChat,
 } from "@/domain/entities";
 
@@ -81,6 +83,17 @@ export class GraphReportRepository {
       { timeout: SEND_TIMEOUT_MS },
     );
     return response.data.message ?? "";
+  }
+
+  async portAlertDestination(): Promise<PortAlertDestination> {
+    const response = await apiClient.get(API_ENDPOINTS.PORT_ALERT_DESTINATION);
+    return response.data.data;
+  }
+
+  async savePortAlertDestination(
+    input: PortAlertDestinationInput,
+  ): Promise<void> {
+    await apiClient.put(API_ENDPOINTS.PORT_ALERT_DESTINATION, input);
   }
 
   /** Every chat the bot has seen, left ones included, ordered by title. */

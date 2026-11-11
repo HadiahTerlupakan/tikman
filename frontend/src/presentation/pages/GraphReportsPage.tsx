@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { App, Button, Typography } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { App, Button, Space, Typography } from "antd";
+import { BellOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   useDeleteGraphReport,
   useGraphReports,
@@ -12,6 +12,7 @@ import { PageHeader, DarkCard } from "../components/common";
 import {
   GraphReportModal,
   GraphReportTable,
+  PortAlertDestinationModal,
 } from "../components/graph-reports";
 import { reportWithEnabled } from "../components/graph-reports/graphReportForm";
 
@@ -24,6 +25,7 @@ export default function GraphReportsPage() {
   const sendMutation = useSendGraphReport();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<GraphReport | undefined>();
+  const [nocOpen, setNocOpen] = useState(false);
 
   const openModal = (report?: GraphReport) => {
     setEditing(report);
@@ -66,13 +68,18 @@ export default function GraphReportsPage() {
         title="Laporan Grafik Harian"
         description="Grafik trafik port LibreNMS yang dikirim ke grup WhatsApp dan Telegram"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => openModal()}
-          >
-            Tambah laporan
-          </Button>
+          <Space>
+            <Button icon={<BellOutlined />} onClick={() => setNocOpen(true)}>
+              Notifikasi NOC
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => openModal()}
+            >
+              Tambah laporan
+            </Button>
+          </Space>
         }
       />
       <DarkCard>
@@ -103,6 +110,10 @@ export default function GraphReportsPage() {
         loading={saveMutation.isPending}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
+      />
+      <PortAlertDestinationModal
+        open={nocOpen}
+        onClose={() => setNocOpen(false)}
       />
     </div>
   );

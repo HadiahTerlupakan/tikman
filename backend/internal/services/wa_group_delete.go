@@ -122,6 +122,9 @@ func deleteGroupRows(tx *gorm.DB, group *models.WAGroup) error {
 	if err := detachTelegramReports(tx, group.ID); err != nil {
 		return err
 	}
+	if err := detachPortAlertGroups(tx, group.ID); err != nil {
+		return err
+	}
 	messages := tx.Model(&models.WAGroupMessage{}).Select("id").Where("group_id = ?", group.ID)
 	reports := tx.Model(&models.GraphReport{}).Select("id").Where("wa_group_id = ?", group.ID)
 	steps := []struct {

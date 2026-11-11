@@ -50,6 +50,7 @@ type GraphReportInput struct {
 	Message          string
 	Enabled          bool
 	MentionAll       bool
+	NotifyPortStatus bool
 	// SendTime is "HH:MM" in WIB; blank means DefaultGraphReportSendTime.
 	SendTime string
 	Ports    []GraphReportPortInput
@@ -78,6 +79,7 @@ type GraphReportView struct {
 	Message           string                   `json:"message"`
 	Enabled           bool                     `json:"enabled"`
 	MentionAll        bool                     `json:"mention_all"`
+	NotifyPortStatus  bool                     `json:"notify_port_status"`
 	SendTime          string                   `json:"send_time"`
 	LastSentOn        *string                  `json:"last_sent_on"`
 	LastAttemptAt     *time.Time               `json:"last_attempt_at"`
@@ -125,7 +127,8 @@ func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*Grap
 	report := models.GraphReport{
 		WAGroupID: in.WAGroupID, TelegramChatID: in.TelegramChatID, TelegramThreadID: in.TelegramThreadID,
 		CustomerName: strings.TrimSpace(in.CustomerName), Message: strings.TrimSpace(in.Message),
-		Enabled: in.Enabled, MentionAll: in.MentionAll, SendTime: in.SendTime, CreatedBy: &actor,
+		Enabled: in.Enabled, MentionAll: in.MentionAll, NotifyPortStatus: in.NotifyPortStatus,
+		SendTime: in.SendTime, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := claimDestinations(tx, in, uuid.Nil); err != nil {
@@ -163,7 +166,8 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 		err := tx.Model(&report).Updates(map[string]any{
 			"wa_group_id": in.WAGroupID, "telegram_chat_id": in.TelegramChatID, "telegram_thread_id": in.TelegramThreadID,
 			"customer_name": strings.TrimSpace(in.CustomerName), "message": strings.TrimSpace(in.Message),
-			"enabled": in.Enabled, "mention_all": in.MentionAll, "send_time": in.SendTime,
+			"enabled": in.Enabled, "mention_all": in.MentionAll, "notify_port_status": in.NotifyPortStatus,
+			"send_time": in.SendTime,
 		}).Error
 		if err != nil {
 			return fmt.Errorf("update graph report: %w", err)

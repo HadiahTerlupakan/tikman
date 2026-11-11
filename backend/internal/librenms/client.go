@@ -49,6 +49,8 @@ type Port struct {
 	IfName       string `json:"ifName"`
 	IfAlias      string `json:"ifAlias"`
 	IfOperStatus string `json:"ifOperStatus"`
+	// IfAdminStatus tells a port someone shut down from one that failed.
+	IfAdminStatus string `json:"ifAdminStatus"`
 }
 
 // Client talks to one LibreNMS server.
@@ -97,7 +99,7 @@ func (c *Client) Ports(ctx context.Context, deviceID int) ([]Port, error) {
 		Message string `json:"message"`
 		Ports   []Port `json:"ports"`
 	}
-	path := "/devices/" + strconv.Itoa(deviceID) + "/ports?columns=port_id,ifName,ifAlias,ifOperStatus"
+	path := "/devices/" + strconv.Itoa(deviceID) + "/ports?columns=port_id,ifName,ifAlias,ifOperStatus,ifAdminStatus"
 	if err := c.getJSON(ctx, path, &answer); err != nil {
 		return nil, err
 	}

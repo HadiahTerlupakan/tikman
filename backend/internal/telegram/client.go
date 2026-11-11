@@ -1,5 +1,5 @@
 // Package telegram is the part of the Telegram Bot API the graph reports use:
-// reading which chats the bot is in, and posting photos to them.
+// reading which chats the bot is in, and posting photos and notices to them.
 package telegram
 
 import (
@@ -183,6 +183,18 @@ func (c *Client) GetChat(ctx context.Context, chatID int64) (Chat, error) {
 	var chat Chat
 	err := c.call(ctx, "getChat", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()), &chat)
 	return chat, err
+}
+
+// SendMessage posts text into a forum's topic threadID, or with 0 into the
+// chat itself, as SendPhoto does.
+func (c *Client) SendMessage(ctx context.Context, chatID, threadID int64, text string) error {
+	ctx, cancel := context.WithTimeout(ctx, lookupTimeout)
+	defer cancel()
+	form := url.Values{"chat_id": {strconv.FormatInt(chatID, 10)}, "text": {text}}
+	if threadID != 0 {
+		form.Set("message_thread_id", strconv.FormatInt(threadID, 10))
+	}
+	return c.call(ctx, "sendMessage", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()), nil)
 }
 
 // SendPhoto posts one photo into a forum's topic threadID, or with 0 into

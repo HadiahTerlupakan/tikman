@@ -41,6 +41,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&TelegramChat{},
 		&TelegramTopic{},
 		&GraphReportPort{},
+		&PortLinkState{},
+		&PortAlertDestination{},
 		&MikrotikRouter{},
 		&RouterInterface{},
 		&RouterInterfaceMetric{},

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ type telegramPost struct {
 	threadID string
 	captions []string
 	files    []string
+	text     string
 }
 
 // fakeTelegram records sends and answers them with refusal, under status,
@@ -59,7 +61,12 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	post := telegramPost{}
 	post.chatID, _ = strconv.ParseInt(r.FormValue("chat_id"), 10, 64)
 	post.threadID = r.FormValue("message_thread_id")
-	if media := r.FormValue("media"); media != "" {
+	media := r.FormValue("media")
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/sendMessage"):
+		post.method = "sendMessage"
+		post.text = r.FormValue("text")
+	case media != "":
 		post.method = "sendMediaGroup"
 		var items []struct{ Caption, Media string }
 		_ = json.Unmarshal([]byte(media), &items)
@@ -67,7 +74,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			post.captions = append(post.captions, item.Caption)
 			post.files = append(post.files, r.MultipartForm.File[item.Media[len("attach://"):]][0].Filename)
 		}
-	} else {
+	default:
 		post.method = "sendPhoto"
 		post.captions = []string{r.FormValue("caption")}
 		post.files = []string{r.MultipartForm.File["photo"][0].Filename}

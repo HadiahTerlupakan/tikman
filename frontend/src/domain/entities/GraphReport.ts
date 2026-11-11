@@ -64,6 +64,9 @@ export interface GraphReport {
   /** Tags every member but our own number, without naming them in the
    * caption. WhatsApp only: Telegram has no way to. */
   mentionAll: boolean;
+  /** Also posts a notice to its destinations when one of its ports goes
+   * down or comes back, as LibreNMS reports it. */
+  notifyPortStatus: boolean;
   /** "HH:MM", 24-hour, WIB: when the daily send's window opens. */
   sendTime: string;
   /** WIB calendar date (YYYY-MM-DD) of the last scheduled send. A manual
@@ -97,7 +100,31 @@ export interface GraphReportInput extends GraphReportPreviewInput {
   telegramThreadId?: number | null;
   enabled: boolean;
   mentionAll: boolean;
+  notifyPortStatus: boolean;
   sendTime: string;
+}
+
+/** The NOC's own destination for port down/up notices: every changed port
+ * of every report, whether or not the report itself notifies its customer.
+ * Both destinations null sends the NOC nothing. */
+export interface PortAlertDestination {
+  /** The WhatsApp group's number; null without a group. */
+  waAccountId: string | null;
+  waGroupId: string | null;
+  groupName: string;
+  telegramChatId: string | null;
+  telegramChatTitle: string;
+  /** null posts in General, or the chat is not a forum. */
+  telegramThreadId: number | null;
+  telegramTopicName: string;
+  enabled: boolean;
+}
+
+export interface PortAlertDestinationInput {
+  waGroupId: string | null;
+  telegramChatId: string | null;
+  telegramThreadId: number | null;
+  enabled: boolean;
 }
 
 export interface LibrenmsDevice {

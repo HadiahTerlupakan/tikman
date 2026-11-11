@@ -30,6 +30,7 @@ const whatsappReport: GraphReport = {
   message: "",
   enabled: true,
   mentionAll: true,
+  notifyPortStatus: false,
   sendTime: "07:00",
   lastSentOn: null,
   lastAttemptAt: null,

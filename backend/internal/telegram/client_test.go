@@ -196,3 +196,46 @@ func TestGetChatReadsWhetherTheChatIsAForum(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, Chat{ID: -100123, Title: "Pelanggan", Type: ChatTypeSupergroup, IsForum: true}, chat)
 }
+
+func TestSendMessagePostsTheTextIntoTheTopic(t *testing.T) {
+	var got map[string][]string
+	client := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/bot"+testToken+"/sendMessage", r.URL.Path)
+		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
+		require.NoError(t, r.ParseForm())
+		got = r.PostForm
+		_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+	})
+
+	require.NoError(t, client.SendMessage(context.Background(), -100123, 77, "🔴 DOWN — PT Contoh\nPort: Uplink"))
+
+	assert.Equal(t, map[string][]string{
+		"chat_id": {"-100123"}, "message_thread_id": {"77"}, "text": {"🔴 DOWN — PT Contoh\nPort: Uplink"},
+	}, got)
+}
+
+func TestSendMessageToGeneralCarriesNoThread(t *testing.T) {
+	var form map[string][]string
+	client := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		form = r.PostForm
+		_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+	})
+
+	require.NoError(t, client.SendMessage(context.Background(), -100123, 0, "UP"))
+
+	assert.NotContains(t, form, "message_thread_id")
+}
+
+func TestSendMessageAnswersTheRefusal(t *testing.T) {
+	client := serve(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"ok":false,"description":"Forbidden: bot was kicked from the supergroup chat"}`))
+	})
+
+	err := client.SendMessage(context.Background(), -100123, 0, "DOWN")
+
+	var apiErr *APIError
+	require.True(t, errors.As(err, &apiErr))
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+}

@@ -45,6 +45,7 @@ type handlers struct {
 	routerFlowHandler      *RouterFlowHandler
 	routerPathHandler      *RouterPathHandler
 	graphReportHandler     *GraphReportHandler
+	portAlertHandler       *PortAlertHandler
 }
 
 // newHandlers builds the services and handlers one API process needs, and
@@ -67,7 +68,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 	routerService := services.NewRouterService(db, cfg.EncryptionKey)
 
 	cs := newCSStack(cfg, db, logger, auditService, ontService, userService)
-	graphReportHandler, graphReportScheduler := newGraphReports(cfg, db, logger, auditService, cs.redis)
+	graphReportHandler, portAlertHandler, graphReportScheduler := newGraphReports(cfg, db, logger, auditService, cs.redis)
 	provisionHandler, zteProvisionHandler := newProvisioningHandlers(cfg, db, logger, auditService, configTemplateService, commanderFactory)
 
 	return &handlers{
@@ -100,6 +101,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 		routerPathHandler: NewRouterPathHandler(routerService,
 			services.NewRouterPollService(db, routerService), services.NewFlowQueryService(db)),
 		graphReportHandler: graphReportHandler,
+		portAlertHandler:   portAlertHandler,
 	}, cs.notifier, cs.listener, graphReportScheduler
 }
 
@@ -157,15 +159,18 @@ func newCSStack(cfg *config.Config, db *gorm.DB, logger *zap.Logger, auditServic
 	return csStack{handler: csHandler, groups: groupHandler, performance: performanceHandler, push: pushHandler, notifier: pushNotifier, listener: pushListener, redis: csRedisClient}
 }
 
-// newGraphReports builds the report page's handler and the daily scheduler
-// cmd/api runs around one sender, so both announce queued messages on the CS
-// pub/sub connection.
+// newGraphReports builds the report page's handlers and the daily scheduler
+// cmd/api runs around one sender, so the reports and the port notices both
+// announce queued messages on the CS pub/sub connection.
 func newGraphReports(cfg *config.Config, db *gorm.DB, logger *zap.Logger,
-	auditService *services.AuditService, redisClient *redis.Client) (*GraphReportHandler, *services.GraphReportScheduler) {
+	auditService *services.AuditService, redisClient *redis.Client,
+) (*GraphReportHandler, *PortAlertHandler, *services.GraphReportScheduler) {
 	sender := services.NewGraphReportSender(db, services.NewSettingService(db, cfg.EncryptionKey),
 		cfg.WAMediaDir, wa.NewGroupQueueNotifier(redisClient, logger))
-	return NewGraphReportHandler(services.NewGraphReportService(db), sender, services.NewTelegramChatService(db), auditService),
-		services.NewGraphReportScheduler(db, sender, logger)
+	reports := NewGraphReportHandler(services.NewGraphReportService(db), sender, services.NewTelegramChatService(db), auditService)
+	alerts := NewPortAlertHandler(services.NewPortAlertService(db, sender, logger),
+		services.NewPortAlertDestinationService(db), auditService)
+	return reports, alerts, services.NewGraphReportScheduler(db, sender, logger)
 }
 
 func newProvisioningHandlers(cfg *config.Config, db *gorm.DB, logger *zap.Logger,

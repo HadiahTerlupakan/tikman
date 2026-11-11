@@ -130,9 +130,11 @@ func (s *GraphReportSender) attempt(ctx context.Context, report *models.GraphRep
 
 func (s *GraphReportSender) recordFailure(id uuid.UUID, now time.Time, reason string) {
 	// A failure to record is not worth more than the failure it records; the
-	// caller already has the original error.
+	// caller already has the original error. UpdateColumns leaves updated_at
+	// alone: the schedule reads it as the admin's last edit, and a recorded
+	// failure is not one.
 	_ = s.db.Model(&models.GraphReport{}).Where("id = ?", id).
-		Updates(map[string]any{"last_attempt_at": now, "last_error": reason}).Error
+		UpdateColumns(map[string]any{"last_attempt_at": now, "last_error": reason}).Error
 }
 
 // deliver renders the report once and sends it to each destination still

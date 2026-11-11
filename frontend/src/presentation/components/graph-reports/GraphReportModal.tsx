@@ -140,6 +140,13 @@ export function GraphReportModal({
           reports={reports}
         />
         <Form.Item
+          name="notifyPortStatus"
+          valuePropName="checked"
+          extra="Dikirim saat LibreNMS mendeteksi port laporan ini down atau kembali up."
+        >
+          <Checkbox>Kirim notifikasi port down/up ke grup ini</Checkbox>
+        </Form.Item>
+        <Form.Item
           name="customerName"
           label="Nama pelanggan"
           rules={[

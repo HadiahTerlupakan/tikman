@@ -130,6 +130,7 @@ describe("GraphReportRepository.create", () => {
       message: "",
       enabled: true,
       mentionAll: true,
+      notifyPortStatus: false,
       sendTime: "14:30",
       ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
     };

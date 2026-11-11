@@ -182,6 +182,7 @@ export const API_ENDPOINTS = {
   GRAPH_REPORT: (id: string) => `/api/v1/graph-reports/${id}`,
   GRAPH_REPORT_SEND: (id: string) => `/api/v1/graph-reports/${id}/send`,
   GRAPH_REPORT_PREVIEW: "/api/v1/graph-reports/preview",
+  PORT_ALERT_DESTINATION: "/api/v1/graph-reports/port-alert-destination",
   TELEGRAM_CHATS: "/api/v1/graph-reports/telegram/chats",
   LIBRENMS_DEVICES: "/api/v1/graph-reports/librenms/devices",
   LIBRENMS_DEVICE_PORTS: (deviceId: number) =>

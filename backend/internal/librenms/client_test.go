@@ -48,14 +48,14 @@ func TestDevicesSendsTokenAndDecodes(t *testing.T) {
 func TestPortsAsksForTheColumnsItReads(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/v0/devices/7/ports", r.URL.Path)
-		assert.Equal(t, "port_id,ifName,ifAlias,ifOperStatus", r.URL.Query().Get("columns"))
-		_, _ = w.Write([]byte(`{"status":"ok","ports":[{"port_id":3,"ifName":"ether1","ifAlias":"Uplink","ifOperStatus":"up"}]}`))
+		assert.Equal(t, "port_id,ifName,ifAlias,ifOperStatus,ifAdminStatus", r.URL.Query().Get("columns"))
+		_, _ = w.Write([]byte(`{"status":"ok","ports":[{"port_id":3,"ifName":"ether1","ifAlias":"Uplink","ifOperStatus":"up","ifAdminStatus":"up"}]}`))
 	}))
 	defer server.Close()
 
 	ports, err := New(server.URL, testToken).Ports(context.Background(), 7)
 	require.NoError(t, err)
-	assert.Equal(t, []Port{{PortID: 3, IfName: "ether1", IfAlias: "Uplink", IfOperStatus: "up"}}, ports)
+	assert.Equal(t, []Port{{PortID: 3, IfName: "ether1", IfAlias: "Uplink", IfOperStatus: "up", IfAdminStatus: "up"}}, ports)
 }
 
 func TestPortGraphRequestsAPNGOfTheWindow(t *testing.T) {

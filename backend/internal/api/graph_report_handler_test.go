@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tikman/olt-provisioning/internal/models"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -42,7 +43,11 @@ func newGraphReportEnv(t *testing.T) graphReportEnv {
 
 	settings := services.NewSettingService(db, testEncryptionKey)
 	sender := services.NewGraphReportSender(db, settings, t.TempDir(), nil)
-	h := &handlers{graphReportHandler: NewGraphReportHandler(services.NewGraphReportService(db), sender, services.NewTelegramChatService(db), nil)}
+	h := &handlers{
+		graphReportHandler: NewGraphReportHandler(services.NewGraphReportService(db), sender, services.NewTelegramChatService(db), nil),
+		portAlertHandler: NewPortAlertHandler(services.NewPortAlertService(db, sender, zap.NewNop()),
+			services.NewPortAlertDestinationService(db), nil),
+	}
 	router := gin.New()
 	pass := func(c *gin.Context) { c.Set("user_id", uuid.New()); c.Set("user_role", models.UserRoleAdmin) }
 	h.registerGraphReportRoutes(router.Group("/api/v1"), pass)

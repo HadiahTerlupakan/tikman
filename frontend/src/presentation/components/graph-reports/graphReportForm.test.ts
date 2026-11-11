@@ -39,6 +39,7 @@ const report: GraphReport = {
   message: "Halo {pelanggan}",
   enabled: true,
   mentionAll: true,
+  notifyPortStatus: true,
   sendTime: "14:30",
   lastSentOn: null,
   lastAttemptAt: null,
@@ -82,6 +83,7 @@ describe("toGraphReportInput", () => {
       message: "  Halo {pelanggan}\n ",
       enabled: false,
       mentionAll: true,
+      notifyPortStatus: true,
       sendTime: dayjs("2026-11-11T07:05:00"),
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: " B " },
@@ -97,6 +99,7 @@ describe("toGraphReportInput", () => {
       message: "Halo {pelanggan}",
       enabled: false,
       mentionAll: true,
+      notifyPortStatus: true,
       sendTime: "07:05",
       ports: [
         { deviceId: 3, deviceName: "edge", ifName: "ether2", label: "B" },
@@ -341,6 +344,32 @@ describe("emptyFormValues", () => {
   // Tagging everyone reaches members who muted the group, so it is opt-in.
   it("starts a new report without tagging everyone", () => {
     expect(emptyFormValues().mentionAll).toBe(false);
+  });
+
+  // Existing customers never asked for outage notices, so a report starts
+  // silent like the reports saved before the option existed.
+  it("starts a new report without port notices", () => {
+    expect(emptyFormValues().notifyPortStatus).toBe(false);
+    expect(
+      toGraphReportInput({ ...emptyFormValues(), customerName: "A" })
+        .notifyPortStatus,
+    ).toBe(false);
+  });
+});
+
+describe("notifyPortStatus", () => {
+  it("round-trips the saved choice through the form", () => {
+    expect(
+      toGraphReportInput(reportToFormValues(report)).notifyPortStatus,
+    ).toBe(true);
+    const silent = { ...report, notifyPortStatus: false };
+    expect(
+      toGraphReportInput(reportToFormValues(silent)).notifyPortStatus,
+    ).toBe(false);
+  });
+
+  it("keeps it when only Aktif flips", () => {
+    expect(reportWithEnabled(report, false).notifyPortStatus).toBe(true);
   });
 });
 
