@@ -64,7 +64,7 @@ export default function GraphReportsPage() {
     <div>
       <PageHeader
         title="Laporan Grafik Harian"
-        description="Grafik trafik port LibreNMS yang dikirim ke grup WhatsApp"
+        description="Grafik trafik port LibreNMS yang dikirim ke grup WhatsApp dan Telegram"
         extra={
           <Button
             type="primary"
@@ -78,8 +78,8 @@ export default function GraphReportsPage() {
       <DarkCard>
         <Typography.Paragraph type="secondary">
           Setiap laporan dikirim otomatis tiap hari pada jam kirimnya sendiri
-          (WIB), berisi grafik 24 jam terakhir. URL dan token LibreNMS diatur di
-          Pengaturan.
+          (WIB), berisi grafik 24 jam terakhir. URL dan token LibreNMS, serta
+          token bot Telegram, diatur di Pengaturan.
         </Typography.Paragraph>
         <GraphReportTable
           reports={reports}

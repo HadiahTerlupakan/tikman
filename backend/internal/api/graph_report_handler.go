@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/middleware"
 	"github.com/tikman/olt-provisioning/internal/services"
+	"github.com/tikman/olt-provisioning/internal/telegram"
 )
 
 const graphReportResource = "graph_report"
@@ -27,20 +28,22 @@ type GraphReportPortRequest struct {
 }
 
 // GraphReportRequest creates or rewrites a report. Enabled defaults to true
-// when left out, which is what registering a report is for.
+// when left out, which is what registering a report is for. Either
+// destination may be null or left out, but not both.
 type GraphReportRequest struct {
-	WAGroupID    uuid.UUID                `json:"wa_group_id" binding:"required"`
-	CustomerName string                   `json:"customer_name"`
-	Message      string                   `json:"message"`
-	Enabled      *bool                    `json:"enabled"`
-	MentionAll   bool                     `json:"mention_all"`
-	SendTime     string                   `json:"send_time"`
-	Ports        []GraphReportPortRequest `json:"ports"`
+	WAGroupID      *uuid.UUID               `json:"wa_group_id"`
+	TelegramChatID *uuid.UUID               `json:"telegram_chat_id"`
+	CustomerName   string                   `json:"customer_name"`
+	Message        string                   `json:"message"`
+	Enabled        *bool                    `json:"enabled"`
+	MentionAll     bool                     `json:"mention_all"`
+	SendTime       string                   `json:"send_time"`
+	Ports          []GraphReportPortRequest `json:"ports"`
 }
 
 func (r GraphReportRequest) input() services.GraphReportInput {
 	return services.GraphReportInput{
-		WAGroupID: r.WAGroupID, CustomerName: r.CustomerName, Message: r.Message,
+		WAGroupID: r.WAGroupID, TelegramChatID: r.TelegramChatID, CustomerName: r.CustomerName, Message: r.Message,
 		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll, SendTime: r.SendTime, Ports: portInputs(r.Ports),
 	}
 }
@@ -57,14 +60,27 @@ func portInputs(ports []GraphReportPortRequest) []services.GraphReportPortInput 
 type GraphReportHandler struct {
 	reports *services.GraphReportService
 	sender  *services.GraphReportSender
+	chats   *services.TelegramChatService
 	audit   *services.AuditService
 }
 
 // NewGraphReportHandler constructs a GraphReportHandler.
 func NewGraphReportHandler(
-	reports *services.GraphReportService, sender *services.GraphReportSender, audit *services.AuditService,
+	reports *services.GraphReportService, sender *services.GraphReportSender,
+	chats *services.TelegramChatService, audit *services.AuditService,
 ) *GraphReportHandler {
-	return &GraphReportHandler{reports: reports, sender: sender, audit: audit}
+	return &GraphReportHandler{reports: reports, sender: sender, chats: chats, audit: audit}
+}
+
+// TelegramChats answers the chats the bot has been seen in, by title, the
+// ones it has left included so a report bound to one still names it.
+func (h *GraphReportHandler) TelegramChats(c *gin.Context) {
+	chats, err := h.chats.List()
+	if err != nil {
+		graphReportError(c, err, "TELEGRAM_CHAT_LIST_FAILED")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": chats})
 }
 
 // List answers every report.
@@ -126,7 +142,7 @@ func (h *GraphReportHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Send queues a report to its group now, answering only once every graph has
+// Send sends a report to its destinations now, answering only once every graph has
 // been fetched, so the admin learns of a LibreNMS failure on the spot. The
 // send outlives the request: a browser giving up halfway would otherwise
 // cancel the fetch in flight, or the wake-up after the messages are queued.
@@ -142,7 +158,7 @@ func (h *GraphReportHandler) Send(c *gin.Context) {
 		return
 	}
 	h.record(c, "send", id, "")
-	c.JSON(http.StatusOK, gin.H{"message": "Laporan masuk antrean kirim WhatsApp"})
+	c.JSON(http.StatusOK, gin.H{"message": "Laporan dikirim"})
 }
 
 func (h *GraphReportHandler) record(c *gin.Context, action string, id uuid.UUID, customer string) {
@@ -160,20 +176,23 @@ func (h *GraphReportHandler) record(c *gin.Context, action string, id uuid.UUID,
 // graphReportError answers the statuses the page tells apart: an unset
 // LibreNMS is the admin's to fix (400), a group that cannot be posted in or
 // already has a report, through this number or another, is a conflict (409),
-// and LibreNMS failing is upstream (502).
+// and LibreNMS or Telegram failing is upstream (502). An unset or malformed
+// Telegram token is the admin's like LibreNMS's, and a chat the bot left a conflict like a
+// group the number left.
 func graphReportError(c *gin.Context, err error, code string) {
 	status := 0
 	switch {
 	case errors.Is(err, services.ErrGraphReportGroupTaken):
 		// Its own code so the form can point at the number picker.
 		status, code = http.StatusConflict, "GRAPH_REPORT_GROUP_TAKEN"
-	case errors.Is(err, services.ErrLibreNMSNotConfigured):
+	case errors.Is(err, services.ErrLibreNMSNotConfigured), errors.Is(err, services.ErrTelegramNotConfigured),
+		errors.Is(err, telegram.ErrInvalidToken):
 		status = http.StatusBadRequest
 	case errors.Is(err, services.ErrGraphReportDuplicate),
 		errors.Is(err, services.ErrGroupLeft), errors.Is(err, services.ErrGroupAnnounceOnly),
-		errors.Is(err, services.ErrGraphReportTooManyMentions):
+		errors.Is(err, services.ErrGraphReportTooManyMentions), errors.Is(err, services.ErrTelegramChatInactive):
 		status = http.StatusConflict
-	case errors.Is(err, services.ErrGraphFetch):
+	case errors.Is(err, services.ErrGraphFetch), errors.Is(err, services.ErrTelegramSend):
 		status = http.StatusBadGateway
 	}
 	if status == 0 {

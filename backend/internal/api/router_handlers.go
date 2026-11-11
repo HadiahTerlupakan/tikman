@@ -164,7 +164,7 @@ func newGraphReports(cfg *config.Config, db *gorm.DB, logger *zap.Logger,
 	auditService *services.AuditService, redisClient *redis.Client) (*GraphReportHandler, *services.GraphReportScheduler) {
 	sender := services.NewGraphReportSender(db, services.NewSettingService(db, cfg.EncryptionKey),
 		cfg.WAMediaDir, wa.NewGroupQueueNotifier(redisClient, logger))
-	return NewGraphReportHandler(services.NewGraphReportService(db), sender, auditService),
+	return NewGraphReportHandler(services.NewGraphReportService(db), sender, services.NewTelegramChatService(db), auditService),
 		services.NewGraphReportScheduler(db, sender, logger)
 }
 

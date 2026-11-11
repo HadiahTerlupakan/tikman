@@ -10,6 +10,7 @@ const graphReportRepository = new GraphReportRepository();
 const graphReportKeys = {
   list: ["graph-reports", "list"] as const,
   devices: ["graph-reports", "librenms", "devices"] as const,
+  telegramChats: ["graph-reports", "telegram", "chats"] as const,
   ports: (deviceId?: number) =>
     ["graph-reports", "librenms", "ports", deviceId] as const,
   graph: (deviceId?: number, ifName?: string, label?: string) =>
@@ -55,6 +56,17 @@ export function useSendGraphReport() {
   return useMutation({
     mutationFn: (id: string) => graphReportRepository.send(id),
     onSettled: invalidate,
+  });
+}
+
+/** Refetched on each open, so a group the bot just joined shows up without
+ * reloading the page. */
+export function useTelegramChats(enabled: boolean) {
+  return useQuery({
+    queryKey: graphReportKeys.telegramChats,
+    queryFn: () => graphReportRepository.telegramChats(),
+    enabled,
+    refetchOnMount: "always",
   });
 }
 

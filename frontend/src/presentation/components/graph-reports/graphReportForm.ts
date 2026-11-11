@@ -6,6 +6,7 @@ import {
   type GraphReportPreviewInput,
   type LibrenmsDevice,
   type LibrenmsPort,
+  type TelegramChat,
   type WaAccount,
   type WaGroup,
 } from "@/domain/entities";
@@ -24,6 +25,7 @@ export interface GraphReportFormValues {
    * number, so it is not sent. */
   waAccountId?: string;
   waGroupId?: string;
+  telegramChatId?: string;
   customerName?: string;
   message?: string;
   enabled: boolean;
@@ -66,7 +68,8 @@ export function emptyFormValues(): GraphReportFormValues {
 export function reportToFormValues(report: GraphReport): GraphReportFormValues {
   return {
     waAccountId: report.waAccountId || undefined,
-    waGroupId: report.waGroupId,
+    waGroupId: report.waGroupId ?? undefined,
+    telegramChatId: report.telegramChatId ?? undefined,
     customerName: report.customerName,
     message: report.message,
     enabled: report.enabled,
@@ -106,11 +109,63 @@ export function toGraphReportInput(
 ): GraphReportInput {
   return {
     ...toPreviewInput(values),
-    waGroupId: values.waGroupId ?? "",
+    // A cleared Select leaves undefined; null tells the API "none" on an
+    // update as well as a create.
+    waGroupId: values.waGroupId ?? null,
+    telegramChatId: values.telegramChatId ?? null,
     enabled: values.enabled,
-    mentionAll: values.mentionAll,
+    // Switching number clears the group but leaves the box ticked, so a
+    // later pick on the new number keeps the choice; with no group there is
+    // no one to tag.
+    mentionAll: Boolean(values.waGroupId) && values.mentionAll,
     sendTime: formatSendTime(values.sendTime),
   };
+}
+
+export const NO_DESTINATION_MESSAGE = "Pilih grup WhatsApp atau Telegram";
+
+/** The form-level rule: a report goes somewhere. */
+export function missingDestination(
+  values: Pick<GraphReportFormValues, "waGroupId" | "telegramChatId">,
+): boolean {
+  return !values.waGroupId && !values.telegramChatId;
+}
+
+/** The report's destinations by name, for the send confirmation. */
+export function destinationNames(report: GraphReport): string {
+  return [
+    report.waGroupId && report.groupName,
+    report.telegramChatId && report.telegramChatTitle,
+  ]
+    .filter(Boolean)
+    .join(" dan ");
+}
+
+/** Only chats the bot is still in, and none another report already uses:
+ * the API refuses both. The edited report's own chat stays listed even after
+ * the bot left it, disabled, so the admin sees why it no longer sends rather
+ * than a bare id. */
+export function telegramChatOptions(
+  chats: TelegramChat[],
+  reports: GraphReport[],
+  currentChatId?: string,
+): SelectOption<string>[] {
+  const taken = new Set(
+    reports
+      .map((r) => r.telegramChatId)
+      .filter((id) => id && id !== currentChatId),
+  );
+  return chats
+    .filter((c) => (c.active && !taken.has(c.id)) || c.id === currentChatId)
+    .map((c) => {
+      const name = c.title || String(c.chatId);
+      if (c.active) return { value: c.id, label: name };
+      return {
+        value: c.id,
+        label: `${name} (bot sudah keluar)`,
+        disabled: true,
+      };
+    });
 }
 
 /** The API's update replaces the whole report, so flipping "Aktif" resends
@@ -197,7 +252,11 @@ export interface GroupOptionScope {
  * is read from the reports, not from the loaded groups, which hold only the
  * chosen number's rows. */
 function reportedJids(reports: GraphReport[]): Map<string, string> {
-  return new Map(reports.map((r) => [r.waGroupJid, r.waAccountLabel]));
+  return new Map(
+    reports
+      .filter((r) => r.waGroupId)
+      .map((r) => [r.waGroupJid, r.waAccountLabel]),
+  );
 }
 
 /** A group the number cannot post in (left, or admins-only without us as

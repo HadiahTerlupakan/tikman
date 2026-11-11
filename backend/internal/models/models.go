@@ -38,6 +38,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&WAGroupPollVote{},
 		&WAAvatar{},
 		&GraphReport{},
+		&TelegramChat{},
 		&GraphReportPort{},
 		&MikrotikRouter{},
 		&RouterInterface{},

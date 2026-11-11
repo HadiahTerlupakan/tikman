@@ -95,7 +95,7 @@ func TestGraphReportRefusesBlankFieldsAndUnknownGroup(t *testing.T) {
 		"customer":      func(in *GraphReportInput) { in.CustomerName = "  " },
 		"if_name":       func(in *GraphReportInput) { in.Ports[0].IfName = "" },
 		"label":         func(in *GraphReportInput) { in.Ports[0].Label = " " },
-		"unknown group": func(in *GraphReportInput) { in.WAGroupID = uuid.New() },
+		"unknown group": func(in *GraphReportInput) { id := uuid.New(); in.WAGroupID = &id },
 		"long message":  func(in *GraphReportInput) { in.Message = strings.Repeat("a", MaxGraphReportMessageRunes+1) },
 	}
 	for name, mutate := range cases {

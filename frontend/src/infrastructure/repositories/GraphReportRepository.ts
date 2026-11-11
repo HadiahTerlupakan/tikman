@@ -8,6 +8,7 @@ import type {
   GraphReportPreviewInput,
   LibrenmsDevice,
   LibrenmsPort,
+  TelegramChat,
 } from "@/domain/entities";
 
 const HTTP_OK = 200;
@@ -80,6 +81,12 @@ export class GraphReportRepository {
       { timeout: SEND_TIMEOUT_MS },
     );
     return response.data.message ?? "";
+  }
+
+  /** Every chat the bot has seen, left ones included, ordered by title. */
+  async telegramChats(): Promise<TelegramChat[]> {
+    const response = await apiClient.get(API_ENDPOINTS.TELEGRAM_CHATS);
+    return response.data.data ?? [];
   }
 
   async devices(): Promise<LibrenmsDevice[]> {

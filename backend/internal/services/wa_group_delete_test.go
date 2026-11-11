@@ -49,7 +49,7 @@ func newDeletableGroup(t *testing.T) deletableGroup {
 	require.NoError(t, f.db.Create(&models.WAGroupReceipt{MessageID: msg.ID, ReaderJID: "a"}).Error)
 	require.NoError(t, f.db.Create(&models.WAGroupPollVote{MessageID: msg.ID, VoterJID: "a", Options: "[]"}).Error)
 
-	report := models.GraphReport{WAGroupID: group.ID, CustomerName: "PT Contoh"}
+	report := models.GraphReport{WAGroupID: &group.ID, CustomerName: "PT Contoh"}
 	require.NoError(t, f.db.Create(&report).Error)
 	require.NoError(t, f.db.Create(&models.GraphReportPort{
 		ReportID: report.ID, DeviceID: 1, DeviceName: "r1", IfName: "ether1", Label: "Uplink",
@@ -196,7 +196,7 @@ func TestDeleteLeftAgainstPostgres(t *testing.T) {
 	msg, _, err := f.messages.SaveArrived(groupPhoto(f, "W1", rel, time.Now()))
 	require.NoError(t, err)
 	require.NoError(t, db.Create(&models.WAGroupReaction{MessageID: msg.ID, ReactorJID: "a", Emoji: "👍"}).Error)
-	report := models.GraphReport{WAGroupID: group.ID, CustomerName: "PT Contoh"}
+	report := models.GraphReport{WAGroupID: &group.ID, CustomerName: "PT Contoh"}
 	require.NoError(t, db.Create(&report).Error)
 	require.NoError(t, db.Create(&models.WAAvatar{WAAccountID: account.ID, JID: "62811@s.whatsapp.net"}).Error)
 

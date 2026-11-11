@@ -59,7 +59,7 @@ func TestGraphReportUpdateRefusesMovingOntoAGroupReportedThroughAnotherNumber(t 
 	_, err = f.reports.Update(report.ID, reportInput(twin.ID, "Lain"))
 
 	assert.True(t, errors.Is(err, ErrGraphReportGroupTaken))
-	assert.Equal(t, other.ID, f.load(t, report.ID).WAGroupID, "the report stays where it was")
+	assert.Equal(t, &other.ID, f.load(t, report.ID).WAGroupID, "the report stays where it was")
 }
 
 func TestGraphReportMayMoveToAnotherNumberInTheSameGroup(t *testing.T) {
@@ -73,7 +73,7 @@ func TestGraphReportMayMoveToAnotherNumberInTheSameGroup(t *testing.T) {
 
 	moved, err := f.reports.Update(report.ID, reportInput(twin.ID, "Uplink"))
 	require.NoError(t, err)
-	assert.Equal(t, account.ID, moved.WAAccountID)
+	assert.Equal(t, &account.ID, moved.WAAccountID)
 	assert.Equal(t, "Kantor", moved.WAAccountLabel)
 }
 
@@ -91,9 +91,9 @@ func TestGraphReportListNamesEachReportsNumber(t *testing.T) {
 	views, err := f.reports.List()
 	require.NoError(t, err)
 	require.Len(t, views, 2)
-	assert.Equal(t, f.group.WAAccountID, views[0].WAAccountID)
+	assert.Equal(t, &f.group.WAAccountID, views[0].WAAccountID)
 	assert.Equal(t, "CS Utama", views[0].WAAccountLabel)
-	assert.Equal(t, account.ID, views[1].WAAccountID)
+	assert.Equal(t, &account.ID, views[1].WAAccountID)
 	assert.Equal(t, "62822", views[1].WAAccountLabel)
 }
 

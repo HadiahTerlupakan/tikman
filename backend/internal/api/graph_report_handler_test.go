@@ -42,7 +42,7 @@ func newGraphReportEnv(t *testing.T) graphReportEnv {
 
 	settings := services.NewSettingService(db, testEncryptionKey)
 	sender := services.NewGraphReportSender(db, settings, t.TempDir(), nil)
-	h := &handlers{graphReportHandler: NewGraphReportHandler(services.NewGraphReportService(db), sender, nil)}
+	h := &handlers{graphReportHandler: NewGraphReportHandler(services.NewGraphReportService(db), sender, services.NewTelegramChatService(db), nil)}
 	router := gin.New()
 	pass := func(c *gin.Context) { c.Set("user_id", uuid.New()); c.Set("user_role", models.UserRoleAdmin) }
 	h.registerGraphReportRoutes(router.Group("/api/v1"), pass)

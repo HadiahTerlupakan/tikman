@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/librenms"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/telegram"
 	"gorm.io/gorm"
 )
 
@@ -48,15 +47,17 @@ type GroupQueueNotifier interface {
 	GroupMessagesQueued(ctx context.Context, msgs []models.WAGroupMessage)
 }
 
-// GraphReportSender fetches a report's graphs and queues them to its group
-// as images of graphPortsPerImage ports each.
+// GraphReportSender fetches a report's graphs and sends them, as images of
+// graphPortsPerImage ports each, to its WhatsApp group and its Telegram chat.
 type GraphReportSender struct {
 	db        *gorm.DB
 	settings  *SettingService
 	messages  *WAGroupMessageService
 	groups    *WAGroupService
+	chats     *TelegramChatService
 	mediaRoot string
 	notifier  GroupQueueNotifier
+	telegram  func(token string) *telegram.Client
 	now       func() time.Time
 }
 
@@ -67,7 +68,8 @@ func NewGraphReportSender(
 ) *GraphReportSender {
 	return &GraphReportSender{
 		db: db, settings: settings, messages: NewWAGroupMessageService(db), groups: NewWAGroupService(db),
-		mediaRoot: mediaRoot, notifier: notifier, now: time.Now,
+		chats: NewTelegramChatService(db), mediaRoot: mediaRoot, notifier: notifier, telegram: telegram.New,
+		now: time.Now,
 	}
 }
 
@@ -90,8 +92,9 @@ func (s *GraphReportSender) LibreNMS() (*librenms.Client, error) {
 	return librenms.New(base, token), nil
 }
 
-// SendNow sends a report on demand. It leaves last_sent_on alone, so a test
-// send before the send time does not stand in for that day's report.
+// SendNow sends a report on demand to every destination it has. It leaves
+// the sent-on dates alone, so a test send before the send time does not stand
+// in for that day's report.
 func (s *GraphReportSender) SendNow(ctx context.Context, id uuid.UUID) error {
 	var report models.GraphReport
 	if err := s.db.First(&report, "id = ?", id).Error; err != nil {
@@ -101,12 +104,27 @@ func (s *GraphReportSender) SendNow(ctx context.Context, id uuid.UUID) error {
 }
 
 // attempt sends a report and records the outcome on it. daily marks the send
-// as that day's report.
+// as that day's report: a success means every destination has it, the ones
+// skipped as already sent included.
 func (s *GraphReportSender) attempt(ctx context.Context, report *models.GraphReport, now time.Time, daily bool) error {
 	err := s.deliver(ctx, report, now, daily)
-	if err != nil {
+	var failures sendFailures
+	uncertain := errors.As(err, &failures) && failures.onlyUncertain()
+	if err != nil && !uncertain {
 		s.recordFailure(report.ID, now, err.Error())
+		return err
 	}
+	// A send that may have arrived ends the day like a success, keeping its
+	// warning: a retry would find nothing owed and wipe it.
+	fields := map[string]any{"last_attempt_at": now, "last_error": ""}
+	if uncertain {
+		fields["last_error"] = err.Error()
+	}
+	if daily {
+		fields["last_sent_on"] = wibDate(now)
+	}
+	// As with a failure, the send itself is what the caller needs to hear of.
+	_ = s.db.Model(&models.GraphReport{}).Where("id = ?", report.ID).Updates(fields).Error
 	return err
 }
 
@@ -117,79 +135,73 @@ func (s *GraphReportSender) recordFailure(id uuid.UUID, now time.Time, reason st
 		Updates(map[string]any{"last_attempt_at": now, "last_error": reason}).Error
 }
 
-// deliver is all or nothing: every graph is fetched before anything is
-// queued, so a group never receives half a report that reads as whole.
+// deliver renders the report once and sends it to each destination still
+// owed it; a daily send skips one that already has the day's report, so a
+// retry after Telegram failed does not post into the WhatsApp group twice.
+// One destination failing does not hold up the other, but every graph is
+// fetched before anything is sent, so no destination receives half a report
+// that reads as whole.
 func (s *GraphReportSender) deliver(ctx context.Context, report *models.GraphReport, now time.Time, daily bool) error {
-	group, err := s.groups.Get(report.WAGroupID)
+	today := wibDate(now)
+	failures := sendFailures{named: report.WAGroupID != nil && report.TelegramChatID != nil}
+	var wa *waTarget
+	if owed(report.WAGroupID, report.WASentOn, today, daily) {
+		target, err := s.prepareWA(report)
+		if err != nil {
+			failures.add(destinationWhatsApp, err)
+		}
+		wa = target
+	}
+	var tg *telegramTarget
+	if owed(report.TelegramChatID, report.TelegramSentOn, today, daily) {
+		target, err := s.prepareTelegram(report)
+		if err != nil {
+			failures.add(destinationTelegram, err)
+		}
+		tg = target
+	}
+	if wa == nil && tg == nil {
+		return failures.orNil()
+	}
+	images, err := s.render(ctx, report, now)
 	if err != nil {
-		return fmt.Errorf("load group: %w", err)
+		failures.add("", err)
+		return failures
 	}
-	if err := CheckGroupSendable(group); err != nil {
-		return err
+	if wa != nil {
+		failures.record(destinationWhatsApp, s.sendWA(ctx, report, wa, images, now, daily))
 	}
-	mentions, err := s.mentions(report)
-	if err != nil {
-		return err
+	if tg != nil {
+		failures.record(destinationTelegram, s.sendTelegram(ctx, report, tg, images, now, daily))
 	}
-	client, err := s.LibreNMS()
-	if err != nil {
-		return err
-	}
-	var ports []models.GraphReportPort
-	if err := s.db.Where("report_id = ?", report.ID).Order("position ASC").Find(&ports).Error; err != nil {
-		return fmt.Errorf("load graph report ports: %w", err)
-	}
-	images, err := renderReport(ctx, client, ports, now)
-	if err != nil {
-		return err
-	}
-	files, err := s.storeImages(report.CustomerName, images, now)
-	if err != nil {
-		return err
-	}
-	return s.queue(ctx, report, images, files, mentions, now, daily)
+	return failures.orNil()
 }
 
-// mentions answers who the report tags, read at send time so it follows the
-// group as members come and go. The caption is left as written: WhatsApp
-// notifies every tagged member whether or not the text names them.
-func (s *GraphReportSender) mentions(report *models.GraphReport) ([]string, error) {
-	if !report.MentionAll {
-		return nil, nil
-	}
-	jids, err := s.groups.MemberJIDsOtherThanUs(report.WAGroupID)
+// owed says whether a destination is to get this send: any it has on a
+// manual send, and on a daily one only if it lacks today's report.
+func owed(destination *uuid.UUID, sentOn *time.Time, today time.Time, daily bool) bool {
+	return destination != nil && (!daily || !sameDate(sentOn, today))
+}
+
+func sameDate(day *time.Time, date time.Time) bool {
+	return day != nil && day.UTC().Format(dateLayout) == date.Format(dateLayout)
+}
+
+func (s *GraphReportSender) render(ctx context.Context, report *models.GraphReport, now time.Time) ([]ReportImage, error) {
+	client, err := s.LibreNMS()
 	if err != nil {
 		return nil, err
 	}
-	// Failing beats sending untagged: a report quietly missing its tags
-	// reads as sent while nobody muted was told.
-	if len(jids) > maxMentions {
-		return nil, ErrGraphReportTooManyMentions
+	var ports []models.GraphReportPort
+	if err := s.db.Where("report_id = ?", report.ID).Order("position ASC").Find(&ports).Error; err != nil {
+		return nil, fmt.Errorf("load graph report ports: %w", err)
 	}
-	return jids, nil
+	return renderReport(ctx, client, ports, now)
 }
 
-// storeImages writes a report's images where the wa process reads
-// attachments, under the <year>/<month>/<uuid> layout the inbox's uploads use.
-// A write that fails removes the images already written, as nothing is queued.
-func (s *GraphReportSender) storeImages(customer string, images []ReportImage, now time.Time) ([]MediaFile, error) {
-	dir := filepath.Join(now.Format("2006"), now.Format("01"))
-	if err := os.MkdirAll(filepath.Join(s.mediaRoot, dir), 0o750); err != nil {
-		return nil, fmt.Errorf("create media directory: %w", err)
-	}
-	base := customer + " " + now.In(wib).Format(graphFilenameDateLayout)
-	files := make([]MediaFile, 0, len(images))
-	for i, image := range images {
-		rel := filepath.Join(dir, uuid.NewString()+".png")
-		if err := os.WriteFile(filepath.Join(s.mediaRoot, rel), image.PNG, 0o640); err != nil {
-			s.removeImages(files)
-			return nil, fmt.Errorf("write report image: %w", err)
-		}
-		files = append(files, MediaFile{
-			Path: rel, Mime: "image/png", Filename: imageFilename(base, i, len(images)), Size: int64(len(image.PNG)),
-		})
-	}
-	return files, nil
+// reportFileBase is what a report's images are named for, "PT Contoh 11-11-2026".
+func reportFileBase(customer string, now time.Time) string {
+	return customer + " " + now.In(wib).Format(graphFilenameDateLayout)
 }
 
 // imageFilename numbers the image only when the report is sent as several,
@@ -199,47 +211,6 @@ func imageFilename(base string, index, total int) string {
 		base = fmt.Sprintf(graphFilenamePartFormat, base, index+1, total)
 	}
 	return clampRunes(base, graphFilenameRunes) + ".png"
-}
-
-func (s *GraphReportSender) removeImages(files []MediaFile) {
-	for _, file := range files {
-		_ = os.Remove(filepath.Join(s.mediaRoot, file.Path))
-	}
-}
-
-// queue writes the messages and the report's success in one transaction, so a
-// restart cannot see the images queued but the day still unsent. Every image
-// is captioned with its ports; only the last carries the tags, as tags on
-// every image would notify each member once per image.
-func (s *GraphReportSender) queue(
-	ctx context.Context, report *models.GraphReport, images []ReportImage, files []MediaFile,
-	mentions []string, now time.Time, daily bool,
-) error {
-	members, _ := s.groups.MembersOtherThanUs(report.WAGroupID)
-	outs := make([]GroupOutgoing, len(files))
-	for i := range files {
-		outs[i] = GroupOutgoing{
-			GroupID: report.WAGroupID, SenderName: GraphReportSenderName, Kind: models.MessageKindImage,
-			Body:  GraphImageCaption(report.Message, report.CustomerName, images[i].Ports),
-			Media: &files[i], MemberCount: members,
-		}
-	}
-	outs[len(outs)-1].Mentions = mentions
-	fields := map[string]any{"last_attempt_at": now, "last_error": ""}
-	if daily {
-		fields["last_sent_on"] = wibDate(now)
-	}
-	msgs, err := s.messages.QueueBatch(outs, func(tx *gorm.DB) error {
-		return tx.Model(&models.GraphReport{}).Where("id = ?", report.ID).Updates(fields).Error
-	})
-	if err != nil {
-		s.removeImages(files)
-		return fmt.Errorf("queue graph report: %w", err)
-	}
-	if s.notifier != nil {
-		s.notifier.GroupMessagesQueued(ctx, msgs)
-	}
-	return nil
 }
 
 var indonesianMonths = [...]string{"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"}

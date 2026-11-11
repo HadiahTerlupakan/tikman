@@ -119,6 +119,9 @@ func deleteGroupRows(tx *gorm.DB, group *models.WAGroup) error {
 	if err := groupAvatars(tx, group).Delete(&models.WAAvatar{}).Error; err != nil {
 		return fmt.Errorf("delete group avatars: %w", err)
 	}
+	if err := detachTelegramReports(tx, group.ID); err != nil {
+		return err
+	}
 	messages := tx.Model(&models.WAGroupMessage{}).Select("id").Where("group_id = ?", group.ID)
 	reports := tx.Model(&models.GraphReport{}).Select("id").Where("wa_group_id = ?", group.ID)
 	steps := []struct {
@@ -168,4 +171,18 @@ func removeGroupFiles(root string, paths []string) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// detachTelegramReports lets a report that also goes to Telegram outlive the
+// WhatsApp groups being deleted and carry on there; without it the group's
+// foreign key cascades the whole report away. groups is one group's ID or a
+// subquery of several. Every path that deletes groups goes through here, so
+// they cannot disagree on which reports survive.
+func detachTelegramReports(tx *gorm.DB, groups any) error {
+	err := tx.Model(&models.GraphReport{}).Where("wa_group_id IN (?) AND telegram_chat_id IS NOT NULL", groups).
+		Updates(map[string]any{"wa_group_id": nil, "wa_sent_on": nil}).Error
+	if err != nil {
+		return fmt.Errorf("detach graph reports: %w", err)
+	}
+	return nil
 }

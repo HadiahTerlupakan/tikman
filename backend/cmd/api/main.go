@@ -152,6 +152,10 @@ func main() {
 
 	go graphReports.Run(context.Background(), graphReportInterval)
 	log.Info("Daily graph reports scheduled")
+	telegramChats := services.NewTelegramChatWatcher(services.NewTelegramChatService(db),
+		services.NewSettingService(db, cfg.EncryptionKey), log)
+	go telegramChats.Run(context.Background())
+	log.Info("Telegram chat discovery started")
 
 	addr := fmt.Sprintf(":%d", cfg.APIPort)
 	log.Info("Server starting", zap.String("address", addr))

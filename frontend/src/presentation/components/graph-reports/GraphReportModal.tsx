@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   Button,
@@ -6,28 +6,20 @@ import {
   Form,
   Input,
   Modal,
-  Select,
   Switch,
   TimePicker,
 } from "antd";
 import { FileImageOutlined } from "@ant-design/icons";
-import {
-  useGraphReportPreview,
-  useLibrenmsDevices,
-  useWaAccounts,
-  useWaGroups,
-} from "@/application/hooks";
+import { useGraphReportPreview, useLibrenmsDevices } from "@/application/hooks";
 import {
   DEFAULT_GRAPH_REPORT_MESSAGE,
   GRAPH_REPORT_MESSAGE_MAX,
   type GraphReport,
   type GraphReportInput,
 } from "@/domain/entities";
+import { DestinationFields } from "./DestinationFields";
 import {
-  accountOptions,
   emptyFormValues,
-  groupOptions,
-  initialAccountId,
   reportToFormValues,
   toGraphReportInput,
   toPreviewInput,
@@ -37,8 +29,8 @@ import { ImagePreviewModal } from "./ImagePreviewModal";
 import { PortList } from "./PortList";
 import { PortPreviewModal, type PreviewTarget } from "./PortPreviewModal";
 
-// The group is not part of the image or caption, so a preview does not wait
-// for one to be chosen.
+// The destination is not part of the image or caption, so a preview does not
+// wait for one to be chosen.
 const PREVIEW_FIELDS = ["customerName", "message", "ports"];
 
 interface GraphReportModalProps {
@@ -62,31 +54,18 @@ export function GraphReportModal({
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const reportPreview = useGraphReportPreview();
-  const { data: accounts = [], isLoading: accountsLoading } = useWaAccounts();
   const devices = useLibrenmsDevices(open);
-  const waAccountId = Form.useWatch("waAccountId", form);
-  // The unfiltered list is capped across every number, so a quiet number's
-  // groups could fall off it; asking for the chosen number's own is not.
-  const { data: groups = [], isLoading: groupsLoading } = useWaGroups(
-    waAccountId ? { waAccountId } : undefined,
-  );
-  const options = groupOptions(groups, reports, {
-    waAccountId,
-    currentGroupId: report?.waGroupId,
-  });
-
-  // A report listed without its number gets it from its group, which may
-  // load after the form has mounted.
-  useEffect(() => {
-    if (!report || form.getFieldValue("waAccountId")) return;
-    const id = initialAccountId(report, groups);
-    if (id) form.setFieldValue("waAccountId", id);
-  }, [report, groups, form]);
+  const waGroupId = Form.useWatch("waGroupId", form);
 
   // A group row belongs to one number, so the old choice is never valid for
-  // the new one.
+  // the new one. Tagging everyone is WhatsApp's alone, so clearing the group
+  // unticks it; switching number does not, since the admin is about to pick
+  // the same customer's group on the new number, and toGraphReportInput
+  // already sends no tag while no group is chosen.
   const handleValuesChange = (changed: Partial<GraphReportFormValues>) => {
     if ("waAccountId" in changed) form.setFieldValue("waGroupId", undefined);
+    if ("waGroupId" in changed && !changed.waGroupId)
+      form.setFieldValue("mentionAll", false);
   };
 
   const handleOk = () => {
@@ -136,37 +115,12 @@ export function GraphReportModal({
         initialValues={report ? reportToFormValues(report) : emptyFormValues()}
         onValuesChange={handleValuesChange}
       >
-        <Form.Item
-          name="waAccountId"
-          label="Nomor WhatsApp"
-          extra="Laporan dikirim dari nomor ini."
-          rules={[{ required: true, message: "Pilih nomor" }]}
-        >
-          <Select
-            placeholder="Pilih nomor"
-            loading={accountsLoading}
-            options={accountOptions(accounts)}
-          />
-        </Form.Item>
-        <Form.Item
-          name="waGroupId"
-          label="Grup WhatsApp"
-          rules={[{ required: true, message: "Pilih grup" }]}
-        >
-          <Select
-            showSearch
-            placeholder={waAccountId ? "Pilih grup" : "Pilih nomor dahulu"}
-            optionFilterProp="label"
-            disabled={!waAccountId}
-            loading={groupsLoading}
-            options={options}
-            notFoundContent={
-              waAccountId && !groupsLoading
-                ? "Nomor ini belum punya grup yang bisa dikirimi"
-                : undefined
-            }
-          />
-        </Form.Item>
+        <DestinationFields
+          form={form}
+          open={open}
+          report={report}
+          reports={reports}
+        />
         <Form.Item
           name="customerName"
           label="Nama pelanggan"
@@ -209,9 +163,13 @@ export function GraphReportModal({
         <Form.Item
           name="mentionAll"
           valuePropName="checked"
-          extra="Semua anggota mendapat notifikasi, termasuk yang membisukan grup."
+          extra={
+            waGroupId
+              ? "Semua anggota mendapat notifikasi, termasuk yang membisukan grup."
+              : "Hanya untuk grup WhatsApp; Telegram tidak punya tag semua."
+          }
         >
-          <Checkbox>Tag semua anggota grup</Checkbox>
+          <Checkbox disabled={!waGroupId}>Tag semua anggota grup</Checkbox>
         </Form.Item>
         <PortList
           devices={devices.data ?? []}

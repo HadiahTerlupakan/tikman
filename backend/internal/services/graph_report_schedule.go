@@ -187,5 +187,5 @@ func parseSendTime(value string) (time.Time, error) {
 }
 
 func sentOn(report *models.GraphReport, day time.Time) bool {
-	return report.LastSentOn != nil && report.LastSentOn.UTC().Format(dateLayout) == day.Format(dateLayout)
+	return sameDate(report.LastSentOn, day)
 }

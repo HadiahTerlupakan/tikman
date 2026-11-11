@@ -7,14 +7,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// GraphReport sends a customer's LibreNMS port graphs into one WhatsApp group
-// once a day. A group carries at most one report, so the group is the
-// report's identity as far as the admins are concerned.
+// GraphReport sends a customer's LibreNMS port graphs once a day into a
+// WhatsApp group, a Telegram chat, or both. Each carries at most one report,
+// so the group is the report's identity as far as the admins are concerned.
 type GraphReport struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
-	WAGroupID    uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"wa_group_id"`
-	CustomerName string    `gorm:"type:varchar(255);not null" json:"customer_name"`
-	Enabled      bool      `gorm:"not null;default:true" json:"enabled"`
+	ID             uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	WAGroupID      *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"wa_group_id"`
+	TelegramChatID *uuid.UUID `gorm:"type:uuid;uniqueIndex" json:"telegram_chat_id"`
+	CustomerName   string     `gorm:"type:varchar(255);not null" json:"customer_name"`
+	Enabled        bool       `gorm:"not null;default:true" json:"enabled"`
 	// Message is the caption the image is sent with; empty means the default
 	// greeting (services.DefaultGraphReportMessage).
 	Message string `gorm:"type:text;not null;default:''" json:"message"`
@@ -26,12 +27,17 @@ type GraphReport struct {
 	// LastSentOn is the WIB calendar date of the last daily send, stored as
 	// that date at UTC midnight: a WIB midnight written to a date column is
 	// cast through the session zone and lands on the day before.
-	LastSentOn    *time.Time `gorm:"type:date" json:"-"`
-	LastAttemptAt *time.Time `json:"-"`
-	LastError     string     `gorm:"type:text;not null;default:''" json:"-"`
-	CreatedBy     *uuid.UUID `gorm:"type:uuid" json:"-"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	// It is set once every destination has that day's report.
+	LastSentOn *time.Time `gorm:"type:date" json:"-"`
+	// WASentOn and TelegramSentOn are the same per destination, so a retry
+	// after one of them failed does not post into the other twice.
+	WASentOn       *time.Time `gorm:"type:date" json:"-"`
+	TelegramSentOn *time.Time `gorm:"type:date" json:"-"`
+	LastAttemptAt  *time.Time `json:"-"`
+	LastError      string     `gorm:"type:text;not null;default:''" json:"-"`
+	CreatedBy      *uuid.UUID `gorm:"type:uuid" json:"-"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 // TableName pins the table name.

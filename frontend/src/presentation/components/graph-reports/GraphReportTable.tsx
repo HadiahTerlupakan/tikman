@@ -15,7 +15,11 @@ import {
   SendOutlined,
 } from "@ant-design/icons";
 import type { GraphReport } from "@/domain/entities";
-import { formatAttemptAt, formatSentOn } from "./graphReportForm";
+import {
+  destinationNames,
+  formatAttemptAt,
+  formatSentOn,
+} from "./graphReportForm";
 
 const { Text } = Typography;
 
@@ -37,10 +41,11 @@ function portLabels(report: GraphReport): string {
     .join(", ");
 }
 
-function GroupCell({ report }: { report: GraphReport }) {
+function WhatsAppDestination({ report }: { report: GraphReport }) {
   return (
     <Space direction="vertical" size={0}>
       <Space size={4} wrap>
+        <Tag color="green">WA</Tag>
         {report.groupName}
         {report.mentionAll && (
           <Tag
@@ -54,6 +59,20 @@ function GroupCell({ report }: { report: GraphReport }) {
       <Text type="secondary" style={{ fontSize: 12 }}>
         Lewat {report.waAccountLabel}
       </Text>
+    </Space>
+  );
+}
+
+function DestinationCell({ report }: { report: GraphReport }) {
+  return (
+    <Space direction="vertical" size={4}>
+      {report.waGroupId && <WhatsAppDestination report={report} />}
+      {report.telegramChatId && (
+        <Space size={4} wrap>
+          <Tag color="blue">Telegram</Tag>
+          {report.telegramChatTitle}
+        </Space>
+      )}
     </Space>
   );
 }
@@ -88,7 +107,7 @@ function ReportActions({
   return (
     <Space>
       <Popconfirm
-        title={`Kirim laporan ke ${r.groupName} sekarang?`}
+        title={`Kirim laporan ke ${destinationNames(r)} sekarang?`}
         okText="Kirim"
         cancelText="Batal"
         onConfirm={() => onSend(r)}
@@ -119,9 +138,9 @@ export function GraphReportTable(props: GraphReportTableProps) {
   const { reports, loading, sendingId, togglingId } = props;
   const columns: ColumnsType<GraphReport> = [
     {
-      title: "Grup",
-      key: "group",
-      render: (_, r) => <GroupCell report={r} />,
+      title: "Tujuan",
+      key: "destination",
+      render: (_, r) => <DestinationCell report={r} />,
     },
     { title: "Pelanggan", dataIndex: "customerName", key: "customer" },
     {

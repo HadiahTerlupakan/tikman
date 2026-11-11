@@ -147,6 +147,9 @@ func (s *CSPurgeService) removeGroups(accountID uuid.UUID) error {
 		return err
 	}
 
+	if err := detachTelegramReports(s.db, groups()); err != nil {
+		return err
+	}
 	for _, rows := range []any{&models.WAGroupMessage{}, &models.WAGroupParticipant{}} {
 		if err := s.db.Where("group_id IN (?)", groups()).Delete(rows).Error; err != nil {
 			return fmt.Errorf("delete the group rows of a wa account: %w", err)

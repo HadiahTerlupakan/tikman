@@ -23,5 +23,7 @@ func (h *handlers) registerGraphReportRoutes(api *gin.RouterGroup, authenticated
 		reports.GET("/librenms/devices", h.graphReportHandler.LibreNMSDevices)
 		reports.GET("/librenms/devices/:deviceId/ports", h.graphReportHandler.LibreNMSPorts)
 		reports.GET("/librenms/graph", h.graphReportHandler.LibreNMSGraph)
+
+		reports.GET("/telegram/chats", h.graphReportHandler.TelegramChats)
 	}
 }

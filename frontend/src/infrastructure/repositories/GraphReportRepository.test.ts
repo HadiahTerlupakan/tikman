@@ -142,3 +142,35 @@ describe("GraphReportRepository.create", () => {
     expect(body.sendTime).toBe("14:30");
   });
 });
+
+describe("GraphReportRepository.telegramChats", () => {
+  beforeEach(() => {
+    get.mockReset();
+  });
+
+  it("lists the chats the bot has seen", async () => {
+    const chats = [
+      {
+        id: "t1",
+        chatId: -100123,
+        title: "NOC",
+        type: "supergroup",
+        active: true,
+      },
+    ];
+    get.mockResolvedValue({ status: 200, data: { data: chats } });
+
+    await expect(new GraphReportRepository().telegramChats()).resolves.toEqual(
+      chats,
+    );
+    expect(get).toHaveBeenCalledWith("/api/v1/graph-reports/telegram/chats");
+  });
+
+  it("treats a null list as no chats", async () => {
+    get.mockResolvedValue({ status: 200, data: { data: null } });
+
+    await expect(new GraphReportRepository().telegramChats()).resolves.toEqual(
+      [],
+    );
+  });
+});

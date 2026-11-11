@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -40,37 +39,44 @@ type GraphReportPortInput struct {
 // GraphReportInput is a report as the admin submitted it. Ports are sent in
 // the order given.
 type GraphReportInput struct {
-	WAGroupID    uuid.UUID
-	CustomerName string
-	Message      string
-	Enabled      bool
-	MentionAll   bool
+	// WAGroupID and TelegramChatID are the destinations; nil is none, and a
+	// report needs at least one.
+	WAGroupID      *uuid.UUID
+	TelegramChatID *uuid.UUID
+	CustomerName   string
+	Message        string
+	Enabled        bool
+	MentionAll     bool
 	// SendTime is "HH:MM" in WIB; blank means DefaultGraphReportSendTime.
 	SendTime string
 	Ports    []GraphReportPortInput
 }
 
 // GraphReportView is a report as the management page shows it.
+// The WhatsApp fields are null or empty for a report with no WhatsApp group,
+// and the Telegram ones for a report with no Telegram chat.
 type GraphReportView struct {
-	ID        uuid.UUID `json:"id"`
-	WAGroupID uuid.UUID `json:"wa_group_id"`
-	GroupName string    `json:"group_name"`
+	ID        uuid.UUID  `json:"id"`
+	WAGroupID *uuid.UUID `json:"wa_group_id"`
+	GroupName string     `json:"group_name"`
 	// WAGroupJID is the WhatsApp group itself, the same through every number,
 	// so the form can tell a group already reported through another number.
-	WAGroupJID  string    `json:"wa_group_jid"`
-	WAAccountID uuid.UUID `json:"wa_account_id"`
+	WAGroupJID  string     `json:"wa_group_jid"`
+	WAAccountID *uuid.UUID `json:"wa_account_id"`
 	// WAAccountLabel is the number that sends the report, by its label or,
 	// unlabelled, the number itself.
-	WAAccountLabel string                   `json:"wa_account_label"`
-	CustomerName   string                   `json:"customer_name"`
-	Message        string                   `json:"message"`
-	Enabled        bool                     `json:"enabled"`
-	MentionAll     bool                     `json:"mention_all"`
-	SendTime       string                   `json:"send_time"`
-	LastSentOn     *string                  `json:"last_sent_on"`
-	LastAttemptAt  *time.Time               `json:"last_attempt_at"`
-	LastError      string                   `json:"last_error"`
-	Ports          []models.GraphReportPort `json:"ports"`
+	WAAccountLabel    string                   `json:"wa_account_label"`
+	TelegramChatID    *uuid.UUID               `json:"telegram_chat_id"`
+	TelegramChatTitle string                   `json:"telegram_chat_title"`
+	CustomerName      string                   `json:"customer_name"`
+	Message           string                   `json:"message"`
+	Enabled           bool                     `json:"enabled"`
+	MentionAll        bool                     `json:"mention_all"`
+	SendTime          string                   `json:"send_time"`
+	LastSentOn        *string                  `json:"last_sent_on"`
+	LastAttemptAt     *time.Time               `json:"last_attempt_at"`
+	LastError         string                   `json:"last_error"`
+	Ports             []models.GraphReportPort `json:"ports"`
 }
 
 // GraphReportService stores the daily graph reports.
@@ -107,16 +113,16 @@ func (s *GraphReportService) Get(id uuid.UUID) (*GraphReportView, error) {
 
 // Create registers a report for a group that has none.
 func (s *GraphReportService) Create(in GraphReportInput, actor uuid.UUID) (*GraphReportView, error) {
-	if err := s.validate(&in); err != nil {
+	if err := s.validate(&in, nil); err != nil {
 		return nil, err
 	}
 	report := models.GraphReport{
-		WAGroupID: in.WAGroupID, CustomerName: strings.TrimSpace(in.CustomerName),
+		WAGroupID: in.WAGroupID, TelegramChatID: in.TelegramChatID, CustomerName: strings.TrimSpace(in.CustomerName),
 		Message: strings.TrimSpace(in.Message), Enabled: in.Enabled, MentionAll: in.MentionAll,
 		SendTime: in.SendTime, CreatedBy: &actor,
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := claimGroup(tx, in.WAGroupID, uuid.Nil); err != nil {
+		if err := claimDestinations(tx, in, uuid.Nil); err != nil {
 			return err
 		}
 		// Enabled is written explicitly: GORM skips a false bool on create
@@ -141,15 +147,15 @@ func (s *GraphReportService) Update(id uuid.UUID, in GraphReportInput) (*GraphRe
 	if err := s.db.First(&report, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	if err := s.validate(&in); err != nil {
+	if err := s.validate(&in, report.TelegramChatID); err != nil {
 		return nil, err
 	}
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := claimGroup(tx, in.WAGroupID, id); err != nil {
+		if err := claimDestinations(tx, in, id); err != nil {
 			return err
 		}
 		err := tx.Model(&report).Updates(map[string]any{
-			"wa_group_id": in.WAGroupID, "customer_name": strings.TrimSpace(in.CustomerName),
+			"wa_group_id": in.WAGroupID, "telegram_chat_id": in.TelegramChatID, "customer_name": strings.TrimSpace(in.CustomerName),
 			"message": strings.TrimSpace(in.Message), "enabled": in.Enabled, "mention_all": in.MentionAll,
 			"send_time": in.SendTime,
 		}).Error
@@ -194,124 +200,4 @@ func replacePorts(tx *gorm.DB, reportID uuid.UUID, ports []GraphReportPortInput)
 		return fmt.Errorf("store graph report ports: %w", err)
 	}
 	return nil
-}
-
-// validate checks a submitted report and writes its send time in canonical
-// form, the default when left blank.
-func (s *GraphReportService) validate(in *GraphReportInput) error {
-	if err := validateGraphReportFields(*in); err != nil {
-		return err
-	}
-	in.SendTime = strings.TrimSpace(in.SendTime)
-	if in.SendTime == "" {
-		in.SendTime = DefaultGraphReportSendTime
-	}
-	if _, err := parseSendTime(in.SendTime); err != nil {
-		return err
-	}
-	var group models.WAGroup
-	err := s.db.Select("id").First(&group, "id = ?", in.WAGroupID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("%w: grup WhatsApp tidak ditemukan", ErrValidation)
-	}
-	if err != nil {
-		return fmt.Errorf("look up group: %w", err)
-	}
-	return nil
-}
-
-func validateGraphReportFields(in GraphReportInput) error {
-	if err := requireText(in.CustomerName, "nama pelanggan"); err != nil {
-		return err
-	}
-	if utf8.RuneCountInString(strings.TrimSpace(in.Message)) > MaxGraphReportMessageRunes {
-		return fmt.Errorf("%w: pesan paling panjang %d karakter", ErrValidation, MaxGraphReportMessageRunes)
-	}
-	if len(in.Ports) == 0 || len(in.Ports) > MaxGraphReportPorts {
-		return fmt.Errorf("%w: jumlah port harus 1 sampai %d", ErrValidation, MaxGraphReportPorts)
-	}
-	for i, port := range in.Ports {
-		if port.DeviceID <= 0 {
-			return fmt.Errorf("%w: port ke-%d belum memilih perangkat", ErrValidation, i+1)
-		}
-		if err := validateGraphReportPort(port, i+1); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateGraphReportPort(port GraphReportPortInput, n int) error {
-	if utf8.RuneCountInString(strings.TrimSpace(port.DeviceName)) > graphReportTextRunes {
-		return fmt.Errorf("%w: nama perangkat port ke-%d paling panjang %d karakter", ErrValidation, n, graphReportTextRunes)
-	}
-	if err := requireText(port.IfName, fmt.Sprintf("nama interface port ke-%d", n)); err != nil {
-		return err
-	}
-	return requireText(port.Label, fmt.Sprintf("label port ke-%d", n))
-}
-
-func requireText(value, name string) error {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return fmt.Errorf("%w: %s wajib diisi", ErrValidation, name)
-	}
-	if utf8.RuneCountInString(trimmed) > graphReportTextRunes {
-		return fmt.Errorf("%w: %s paling panjang %d karakter", ErrValidation, name, graphReportTextRunes)
-	}
-	return nil
-}
-
-// views attaches the groups, their numbers and the ports in three queries for
-// the whole page.
-func (s *GraphReportService) views(reports []models.GraphReport) ([]GraphReportView, error) {
-	ids := make([]uuid.UUID, len(reports))
-	groupIDs := make([]uuid.UUID, len(reports))
-	for i, report := range reports {
-		ids[i], groupIDs[i] = report.ID, report.WAGroupID
-	}
-	var ports []models.GraphReportPort
-	if err := s.db.Where("report_id IN ?", ids).Order("position ASC").Find(&ports).Error; err != nil {
-		return nil, fmt.Errorf("load graph report ports: %w", err)
-	}
-	var groups []models.WAGroup
-	if err := s.db.Select("id", "name", "jid", "wa_account_id").Where("id IN ?", groupIDs).Find(&groups).Error; err != nil {
-		return nil, fmt.Errorf("load graph report groups: %w", err)
-	}
-	byID := make(map[uuid.UUID]models.WAGroup, len(groups))
-	accountIDs := make([]uuid.UUID, len(groups))
-	for i, group := range groups {
-		byID[group.ID], accountIDs[i] = group, group.WAAccountID
-	}
-	numbers, err := accountNames(s.db, accountIDs)
-	if err != nil {
-		return nil, err
-	}
-	byReport := make(map[uuid.UUID][]models.GraphReportPort, len(reports))
-	for _, port := range ports {
-		byReport[port.ReportID] = append(byReport[port.ReportID], port)
-	}
-	views := make([]GraphReportView, len(reports))
-	for i, report := range reports {
-		group := byID[report.WAGroupID]
-		views[i] = graphReportView(report, group.Name, byReport[report.ID])
-		views[i].WAGroupJID = group.JID
-		views[i].WAAccountID, views[i].WAAccountLabel = group.WAAccountID, numbers[group.WAAccountID]
-	}
-	return views, nil
-}
-
-func graphReportView(report models.GraphReport, groupName string, ports []models.GraphReportPort) GraphReportView {
-	view := GraphReportView{
-		ID: report.ID, WAGroupID: report.WAGroupID, GroupName: groupName, CustomerName: report.CustomerName,
-		Message: report.Message, Enabled: report.Enabled, MentionAll: report.MentionAll, SendTime: report.SendTime, LastAttemptAt: report.LastAttemptAt, LastError: report.LastError, Ports: ports,
-	}
-	if view.Ports == nil {
-		view.Ports = []models.GraphReportPort{}
-	}
-	if report.LastSentOn != nil {
-		day := report.LastSentOn.UTC().Format(dateLayout)
-		view.LastSentOn = &day
-	}
-	return view
 }

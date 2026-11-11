@@ -2,23 +2,28 @@ import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import {
   type GraphReport,
+  type TelegramChat,
   type WaAccount,
   type WaGroup,
 } from "@/domain/entities";
 import {
   accountOptions,
   defaultPortLabel,
+  destinationNames,
   deviceOptions,
   emptyFormValues,
   formatSendTime,
   formatSentOn,
   groupOptions,
   initialAccountId,
+  missingDestination,
   portOptionLabel,
   reportToFormValues,
   reportWithEnabled,
+  telegramChatOptions,
   toGraphReportInput,
   toPreviewInput,
+  type GraphReportFormValues,
 } from "./graphReportForm";
 
 const report: GraphReport = {
@@ -28,6 +33,8 @@ const report: GraphReport = {
   waGroupJid: "g1@g.us",
   waAccountId: "a1",
   waAccountLabel: "Kantor",
+  telegramChatId: null,
+  telegramChatTitle: "",
   customerName: "PT Contoh",
   message: "Halo {pelanggan}",
   enabled: true,
@@ -83,6 +90,7 @@ describe("toGraphReportInput", () => {
 
     expect(input).toEqual({
       waGroupId: "g1",
+      telegramChatId: null,
       customerName: "PT Contoh",
       message: "Halo {pelanggan}",
       enabled: false,
@@ -93,6 +101,133 @@ describe("toGraphReportInput", () => {
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
       ],
     });
+  });
+});
+
+// The shape a Telegram-only report comes back from the API in.
+const telegramReport: GraphReport = {
+  ...report,
+  id: "r2",
+  waGroupId: null,
+  groupName: "",
+  waGroupJid: "",
+  waAccountId: null,
+  waAccountLabel: "",
+  mentionAll: false,
+  telegramChatId: "t1",
+  telegramChatTitle: "NOC Telegram",
+};
+
+const formValues = (
+  destinations: Pick<GraphReportFormValues, "waGroupId" | "telegramChatId">,
+): GraphReportFormValues => ({
+  ...emptyFormValues(),
+  customerName: "PT Contoh",
+  ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
+  ...destinations,
+});
+
+describe("destinations", () => {
+  it("sends a Telegram-only report with no WhatsApp group", () => {
+    const values = formValues({ telegramChatId: "t1" });
+
+    expect(missingDestination(values)).toBe(false);
+    expect(toGraphReportInput(values)).toMatchObject({
+      waGroupId: null,
+      telegramChatId: "t1",
+    });
+  });
+
+  it("sends both destinations when both are chosen", () => {
+    const values = formValues({ waGroupId: "g1", telegramChatId: "t1" });
+
+    expect(missingDestination(values)).toBe(false);
+    expect(toGraphReportInput(values)).toMatchObject({
+      waGroupId: "g1",
+      telegramChatId: "t1",
+    });
+  });
+
+  it("rejects a report with neither, including a cleared select's empty value", () => {
+    expect(missingDestination(formValues({}))).toBe(true);
+    expect(
+      missingDestination(formValues({ waGroupId: "", telegramChatId: "" })),
+    ).toBe(true);
+  });
+
+  it("round-trips a Telegram-only report, so an edit does not invent a WhatsApp group", () => {
+    const values = reportToFormValues(telegramReport);
+
+    expect(values.waGroupId).toBeUndefined();
+    expect(values.waAccountId).toBeUndefined();
+    expect(toGraphReportInput(values)).toMatchObject({
+      waGroupId: null,
+      telegramChatId: "t1",
+    });
+  });
+
+  // Switching number clears the group without unticking the box, so the
+  // form can still hold mentionAll=true for a report with no WhatsApp group.
+  it("never tags everyone on a report without a WhatsApp group", () => {
+    const values = {
+      ...formValues({ telegramChatId: "t1" }),
+      mentionAll: true,
+    };
+
+    expect(toGraphReportInput(values).mentionAll).toBe(false);
+  });
+
+  it("keeps the tag-everyone choice while a WhatsApp group is chosen", () => {
+    const values = { ...formValues({ waGroupId: "g1" }), mentionAll: true };
+
+    expect(toGraphReportInput(values).mentionAll).toBe(true);
+  });
+
+  it("names every destination in the send confirmation", () => {
+    expect(destinationNames(report)).toBe("TEST MRTG");
+    expect(destinationNames(telegramReport)).toBe("NOC Telegram");
+    expect(
+      destinationNames({
+        ...report,
+        telegramChatId: "t1",
+        telegramChatTitle: "NOC Telegram",
+      }),
+    ).toBe("TEST MRTG dan NOC Telegram");
+  });
+});
+
+describe("telegramChatOptions", () => {
+  const chat = (id: string, extra: Partial<TelegramChat> = {}) =>
+    ({
+      id,
+      chatId: -100,
+      title: `Chat ${id}`,
+      type: "supergroup",
+      active: true,
+      ...extra,
+    }) as TelegramChat;
+
+  it("lists only chats the bot is still in and no other report uses", () => {
+    const chats = [chat("t1"), chat("t2", { active: false }), chat("t3")];
+
+    expect(
+      telegramChatOptions(chats, [telegramReport]).map((o) => o.value),
+    ).toEqual(["t3"]);
+  });
+
+  it("keeps the edited report's own chat, disabled once the bot has left it", () => {
+    expect(telegramChatOptions([chat("t1")], [telegramReport], "t1")).toEqual([
+      { value: "t1", label: "Chat t1" },
+    ]);
+    expect(
+      telegramChatOptions(
+        [chat("t1", { active: false })],
+        [telegramReport],
+        "t1",
+      ),
+    ).toEqual([
+      { value: "t1", label: "Chat t1 (bot sudah keluar)", disabled: true },
+    ]);
   });
 });
 
@@ -207,6 +342,21 @@ describe("deviceOptions", () => {
 
 describe("groupOptions", () => {
   const own = { waAccountId: "a1" };
+
+  // Its empty JID must not mark a group as reported, nor its null id
+  // anything as taken.
+  it("ignores Telegram-only reports when listing WhatsApp groups", () => {
+    expect(
+      groupOptions(
+        [group("g1"), group("g2", { jid: "" })],
+        [telegramReport],
+        own,
+      ),
+    ).toEqual([
+      { value: "g1", label: "Grup g1" },
+      { value: "g2", label: "Grup g2" },
+    ]);
+  });
 
   it("leaves out groups the number left and groups that already have a report", () => {
     const groups = [group("g1"), group("g2", { left: true }), group("g3")];

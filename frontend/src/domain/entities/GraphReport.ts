@@ -10,23 +10,41 @@ export interface GraphReportPort {
   position: number;
 }
 
-/** A daily traffic report: one registered WhatsApp group and its ports. */
+/** A Telegram group or channel the bot has been added to, learned from the
+ * updates Telegram sends it. */
+export interface TelegramChat {
+  id: string;
+  /** Telegram's own id, negative for groups. */
+  chatId: number;
+  title: string;
+  type: string;
+  /** False once the bot has left or been removed. */
+  active: boolean;
+}
+
+/** A daily traffic report: its ports, sent to a WhatsApp group, a Telegram
+ * chat, or both. The WhatsApp fields are empty when it has no WhatsApp
+ * group. */
 export interface GraphReport {
   id: string;
-  waGroupId: string;
+  waGroupId: string | null;
   groupName: string;
   /** The WhatsApp group's JID, the same through every number in it. */
   waGroupJid: string;
-  /** The number that sends it: the group row's own account. */
-  waAccountId: string;
+  /** The number that sends it: the group row's own account; null when the
+   * report has no WhatsApp group. */
+  waAccountId: string | null;
   /** The account's label, or its number when it has none. */
   waAccountLabel: string;
+  telegramChatId: string | null;
+  /** "" when the report has no Telegram chat. */
+  telegramChatTitle: string;
   customerName: string;
   /** The caption's text; "" sends DEFAULT_GRAPH_REPORT_MESSAGE. */
   message: string;
   enabled: boolean;
   /** Tags every member but our own number, without naming them in the
-   * caption. */
+   * caption. WhatsApp only: Telegram has no way to. */
   mentionAll: boolean;
   /** "HH:MM", 24-hour, WIB: when the daily send's window opens. */
   sendTime: string;
@@ -54,9 +72,10 @@ export interface GraphReportPreviewInput {
   ports: GraphReportPortInput[];
 }
 
-/** The body of a create or update. */
+/** The body of a create or update; at least one destination is set. */
 export interface GraphReportInput extends GraphReportPreviewInput {
-  waGroupId: string;
+  waGroupId?: string | null;
+  telegramChatId?: string | null;
   enabled: boolean;
   mentionAll: boolean;
   sendTime: string;

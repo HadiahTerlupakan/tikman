@@ -94,7 +94,10 @@ func newGraphReportFixture(t *testing.T) graphReportFixture {
 }
 
 func reportInput(groupID uuid.UUID, labels ...string) GraphReportInput {
-	in := GraphReportInput{WAGroupID: groupID, CustomerName: "PT Contoh", Enabled: true}
+	in := GraphReportInput{CustomerName: "PT Contoh", Enabled: true}
+	if groupID != uuid.Nil {
+		in.WAGroupID = &groupID
+	}
 	for _, label := range labels {
 		in.Ports = append(in.Ports, GraphReportPortInput{
 			DeviceID: 7, DeviceName: "core", IfName: "if-" + label, Label: label,
