@@ -95,16 +95,20 @@ func TestTelegramChatMigrationKeepsTheNOCsSupergroupRow(t *testing.T) {
 	assert.Equal(t, int64(-1005), rows[0].ChatID)
 }
 
-func TestReportStoresItsPortNoticeChoice(t *testing.T) {
+func TestReportStoresEachPortsNoticeChoice(t *testing.T) {
 	f := newGraphReportFixture(t)
-	in := reportInput(f.group.ID, "Uplink")
-	in.NotifyPortStatus = true
+	in := reportInput(f.group.ID, "Uplink", "Backup")
+	in.Ports[1].NotifyStatus = true
 	created, err := f.reports.Create(in, uuid.New())
 	require.NoError(t, err)
-	assert.True(t, created.NotifyPortStatus)
+	require.Len(t, created.Ports, 2)
+	assert.False(t, created.Ports[0].NotifyStatus)
+	assert.True(t, created.Ports[1].NotifyStatus)
 
-	in.NotifyPortStatus = false
+	in.Ports[0].NotifyStatus, in.Ports[1].NotifyStatus = true, false
 	updated, err := f.reports.Update(created.ID, in)
 	require.NoError(t, err)
-	assert.False(t, updated.NotifyPortStatus)
+	require.Len(t, updated.Ports, 2)
+	assert.True(t, updated.Ports[0].NotifyStatus)
+	assert.False(t, updated.Ports[1].NotifyStatus)
 }

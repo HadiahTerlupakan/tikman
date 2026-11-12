@@ -19,9 +19,11 @@ const noticeTimeLayout = "15:04 WIB"
 
 // noticePort is one changed port as one report names it.
 type noticePort struct {
-	customer   string
-	label      string
-	device     string
+	customer string
+	label    string
+	device   string
+	// notify is whether the report's customer is told of this port.
+	notify     bool
 	transition portTransition
 }
 

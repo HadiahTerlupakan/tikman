@@ -70,13 +70,23 @@ func newPortAlertFixture(t *testing.T) portAlertFixture {
 }
 
 // report registers a report on group whose ports are named by labels, each
-// on ifName "if-<label>" of device 7, "core".
+// on ifName "if-<label>" of device 7, "core", and each opted in to notices
+// when notify is set.
 func (f portAlertFixture) report(t *testing.T, groupID uuid.UUID, customer string, notify bool, labels ...string) {
 	t.Helper()
 	in := reportInput(groupID, labels...)
-	in.CustomerName, in.NotifyPortStatus = customer, notify
+	in.CustomerName = customer
+	if notify {
+		notifyEveryPort(&in)
+	}
 	_, err := f.reports.Create(in, uuid.New())
 	require.NoError(t, err)
+}
+
+func notifyEveryPort(in *GraphReportInput) {
+	for i := range in.Ports {
+		in.Ports[i].NotifyStatus = true
+	}
 }
 
 func (f portAlertFixture) processAt(t *testing.T, hour, minute int) {
@@ -193,7 +203,8 @@ func TestPortNoticesReachOnlyEnabledReportsThatAskForThem(t *testing.T) {
 	f.report(t, f.group.ID, "PT Contoh", false, "Uplink")
 	off := f.otherGroup(t, "7@g.us")
 	in := reportInput(off.ID, "Uplink")
-	in.CustomerName, in.NotifyPortStatus, in.Enabled = "PT Lain", true, false
+	in.CustomerName, in.Enabled = "PT Lain", false
+	notifyEveryPort(&in)
 	_, err := f.reports.Create(in, uuid.New())
 	require.NoError(t, err)
 	f.ports.set("if-Uplink", "down", "up")
@@ -205,6 +216,38 @@ func TestPortNoticesReachOnlyEnabledReportsThatAskForThem(t *testing.T) {
 	assert.Equal(t, []string{
 		"🔴 DOWN\nPT Contoh — Uplink (core if-Uplink)\nPT Lain — Uplink (core if-Uplink)\nSejak: 08:15 WIB",
 	}, f.texts(t, f.noc.ID), "the NOC hears of every monitored port")
+}
+
+func TestCustomerNoticeNamesOnlyThePortsOptedIn(t *testing.T) {
+	f := newPortAlertFixture(t)
+	in := reportInput(f.group.ID, "Uplink", "Backup")
+	in.Ports[1].NotifyStatus = true
+	_, err := f.reports.Create(in, uuid.New())
+	require.NoError(t, err)
+	f.ports.set("if-Uplink", "down", "up")
+	f.ports.set("if-Backup", "down", "up")
+
+	f.processAt(t, 8, 15)
+
+	assert.Equal(t, []string{"🔴 DOWN — PT Contoh\nPort: Backup (core if-Backup)\nSejak: 08:15 WIB"}, f.texts(t, f.group.ID))
+	assert.Equal(t, []string{
+		"🔴 DOWN\nPT Contoh — Uplink (core if-Uplink)\nPT Contoh — Backup (core if-Backup)\nSejak: 08:15 WIB",
+	}, f.texts(t, f.noc.ID), "the NOC hears of both")
+}
+
+func TestReportWithNoOptedInPortChangedTellsOnlyTheNOC(t *testing.T) {
+	f := newPortAlertFixture(t)
+	in := reportInput(f.group.ID, "Uplink", "Backup")
+	in.Ports[0].NotifyStatus = true
+	_, err := f.reports.Create(in, uuid.New())
+	require.NoError(t, err)
+	f.ports.set("if-Uplink", "up", "up")
+	f.ports.set("if-Backup", "down", "up")
+
+	f.processAt(t, 8, 15)
+
+	assert.Empty(t, f.texts(t, f.group.ID), "the port that fell is not opted in")
+	assert.Equal(t, []string{"🔴 DOWN\nPT Contoh — Backup (core if-Backup)\nSejak: 08:15 WIB"}, f.texts(t, f.noc.ID))
 }
 
 func TestPortSharedByTwoReportsNotifiesBoth(t *testing.T) {
@@ -239,7 +282,8 @@ func TestPortNoticeGoesToTheReportsTelegramChat(t *testing.T) {
 	f := newPortAlertFixture(t)
 	fake, chat := f.useTelegram(t)
 	in := reportInput(uuid.Nil, "Uplink")
-	in.TelegramChatID, in.NotifyPortStatus = &chat.ID, true
+	in.TelegramChatID = &chat.ID
+	notifyEveryPort(&in)
 	_, err := f.reports.Create(in, uuid.New())
 	require.NoError(t, err)
 	f.ports.set("if-Uplink", "down", "up")
@@ -260,7 +304,8 @@ func TestPortNoticeRefusedByTelegramDeactivatesTheChat(t *testing.T) {
 	fake, chat := f.useTelegram(t)
 	fake.refuse(http.StatusForbidden, `{"ok":false,"description":"Forbidden: bot was kicked"}`)
 	in := reportInput(f.group.ID, "Uplink")
-	in.TelegramChatID, in.NotifyPortStatus = &chat.ID, true
+	in.TelegramChatID = &chat.ID
+	notifyEveryPort(&in)
 	_, err := f.reports.Create(in, uuid.New())
 	require.NoError(t, err)
 	f.ports.set("if-Uplink", "down", "up")

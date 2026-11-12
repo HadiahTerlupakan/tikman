@@ -29,11 +29,6 @@ type GraphReport struct {
 	// MentionAll tags every member but TikMan's own numbers without writing their
 	// addresses into the caption, so even those who muted the group are told.
 	MentionAll bool `gorm:"not null;default:false" json:"mention_all"`
-	// NotifyPortStatus also posts a notice into the report's destinations when
-	// one of its ports goes down or comes back. Off by default: a customer
-	// group that only asked for the morning graphs is not told of outages
-	// unless an admin decides it should be.
-	NotifyPortStatus bool `gorm:"not null;default:false" json:"notify_port_status"`
 	// SendTime is when the daily send starts, "HH:MM" in WIB.
 	SendTime string `gorm:"type:varchar(5);not null;default:'06:00'" json:"send_time"`
 	// LastSentOn is the WIB calendar date of the last daily send, stored as
@@ -73,6 +68,11 @@ type GraphReportPort struct {
 	IfName     string `gorm:"type:varchar(255);not null" json:"if_name"`
 	Label      string `gorm:"type:varchar(255);not null" json:"label"`
 	Position   int    `gorm:"not null" json:"position"`
+	// NotifyStatus posts a notice into the report's destinations when this
+	// port goes down or comes back. Off by default: a customer who only asked
+	// for the morning graphs is not told of outages unless an admin decides
+	// that port's should reach them.
+	NotifyStatus bool `gorm:"not null;default:false" json:"notify_status"`
 }
 
 // TableName pins the table name.

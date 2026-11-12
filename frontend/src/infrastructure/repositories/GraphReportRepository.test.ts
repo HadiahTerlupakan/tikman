@@ -120,9 +120,9 @@ describe("GraphReportRepository.create", () => {
     post.mockReset();
   });
 
-  // humps turns mentionAll and sendTime into mention_all and send_time on
-  // the way out.
-  it("sends the tag-everyone choice and send time with the report", async () => {
+  // humps turns mentionAll, sendTime and notifyStatus into mention_all,
+  // send_time and notify_status on the way out.
+  it("sends the tag-everyone choice, send time and port notices with the report", async () => {
     post.mockResolvedValue({ status: 201, data: {} });
     const input = {
       waGroupId: "g1",
@@ -130,9 +130,16 @@ describe("GraphReportRepository.create", () => {
       message: "",
       enabled: true,
       mentionAll: true,
-      notifyPortStatus: false,
       sendTime: "14:30",
-      ports: [{ deviceId: 7, deviceName: "core", ifName: "sfp1", label: "A" }],
+      ports: [
+        {
+          deviceId: 7,
+          deviceName: "core",
+          ifName: "sfp1",
+          label: "A",
+          notifyStatus: true,
+        },
+      ],
     };
 
     await new GraphReportRepository().create(input);
@@ -141,6 +148,7 @@ describe("GraphReportRepository.create", () => {
     expect(url).toBe("/api/v1/graph-reports");
     expect(body.mentionAll).toBe(true);
     expect(body.sendTime).toBe("14:30");
+    expect(body.ports[0].notifyStatus).toBe(true);
   });
 });
 

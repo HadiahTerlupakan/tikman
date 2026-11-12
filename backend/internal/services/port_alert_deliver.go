@@ -28,8 +28,9 @@ type noticeTarget struct {
 	threadID  *int64
 }
 
-// notify sends one notice per report and direction to the reports that ask
-// for them, and one per direction to the NOC.
+// notify sends one notice per report and direction naming the report's
+// changed ports that are opted in, and one per direction to the NOC naming
+// every changed port.
 func (s *PortAlertService) notify(ctx context.Context, deviceID int, changed []portTransition) error {
 	byName := make(map[string]portTransition, len(changed))
 	names := make([]string, len(changed))
@@ -61,8 +62,8 @@ func (s *PortAlertService) notify(ctx context.Context, deviceID int, changed []p
 				continue
 			}
 			noc = append(noc, ports...)
-			if report.Enabled && report.NotifyPortStatus {
-				s.deliver(ctx, reportTarget(report), customerNotice(report.CustomerName, status, ports))
+			if customer := optedIn(ports); report.Enabled && len(customer) > 0 {
+				s.deliver(ctx, reportTarget(report), customerNotice(report.CustomerName, status, customer))
 			}
 		}
 		if len(noc) > 0 {
@@ -73,23 +74,40 @@ func (s *PortAlertService) notify(ctx context.Context, deviceID int, changed []p
 }
 
 // reportNoticePorts answers a report's ports that moved to status, each once
-// even where the report graphs a port twice.
+// even where the report graphs a port twice; such a port notifies the
+// customer when either of its rows is opted in.
 func reportNoticePorts(
 	report models.GraphReport, rows []models.GraphReportPort, changed map[string]portTransition, status string,
 ) []noticePort {
 	var ports []noticePort
-	seen := map[string]bool{}
+	seen := map[string]int{}
 	for _, row := range rows {
 		transition := changed[row.IfName]
-		if transition.status != status || seen[row.IfName] {
+		if transition.status != status {
 			continue
 		}
-		seen[row.IfName] = true
+		if i, ok := seen[row.IfName]; ok {
+			ports[i].notify = ports[i].notify || row.NotifyStatus
+			continue
+		}
+		seen[row.IfName] = len(ports)
 		ports = append(ports, noticePort{
-			customer: report.CustomerName, label: row.Label, device: row.DeviceName, transition: transition,
+			customer: report.CustomerName, label: row.Label, device: row.DeviceName,
+			notify: row.NotifyStatus, transition: transition,
 		})
 	}
 	return ports
+}
+
+// optedIn answers the ports whose notices go to the customer.
+func optedIn(ports []noticePort) []noticePort {
+	var notified []noticePort
+	for _, port := range ports {
+		if port.notify {
+			notified = append(notified, port)
+		}
+	}
+	return notified
 }
 
 func reportTarget(report models.GraphReport) noticeTarget {

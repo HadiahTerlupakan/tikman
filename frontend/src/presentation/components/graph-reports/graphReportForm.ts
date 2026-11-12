@@ -18,6 +18,7 @@ export interface PortFormValue {
   deviceName?: string;
   ifName?: string;
   label?: string;
+  notifyStatus?: boolean;
 }
 
 /** Where the report goes; the destinations of an unchosen channel are
@@ -60,7 +61,6 @@ export interface GraphReportFormValues {
   message?: string;
   enabled: boolean;
   mentionAll: boolean;
-  notifyPortStatus: boolean;
   /** Only its hour and minute are read; the TimePicker needs a Dayjs. */
   sendTime: Dayjs;
   ports: PortFormValue[];
@@ -92,7 +92,6 @@ export function emptyFormValues(): GraphReportFormValues {
     message: "",
     enabled: true,
     mentionAll: false,
-    notifyPortStatus: false,
     sendTime: parseSendTime(DEFAULT_GRAPH_REPORT_SEND_TIME),
     ports: [{}],
   };
@@ -109,15 +108,15 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
     message: report.message,
     enabled: report.enabled,
     mentionAll: report.mentionAll,
-    notifyPortStatus: report.notifyPortStatus,
     sendTime: parseSendTime(report.sendTime || DEFAULT_GRAPH_REPORT_SEND_TIME),
     ports: [...report.ports]
       .sort((a, b) => a.position - b.position)
-      .map(({ deviceId, deviceName, ifName, label }) => ({
+      .map(({ deviceId, deviceName, ifName, label, notifyStatus }) => ({
         deviceId,
         deviceName,
         ifName,
         label,
+        notifyStatus,
       })),
   };
 }
@@ -128,7 +127,7 @@ export function reportToFormValues(report: GraphReport): GraphReportFormValues {
 export function toPreviewInput(
   values: Omit<
     GraphReportFormValues,
-    "channel" | "enabled" | "mentionAll" | "notifyPortStatus" | "sendTime"
+    "channel" | "enabled" | "mentionAll" | "sendTime"
   >,
 ): GraphReportPreviewInput {
   return {
@@ -155,8 +154,13 @@ export function toGraphReportInput(
   const telegramChatId = sendsTelegram(values.channel)
     ? values.telegramChatId ?? null
     : null;
+  const preview = toPreviewInput(values);
   return {
-    ...toPreviewInput(values),
+    ...preview,
+    ports: preview.ports.map((port, i) => ({
+      ...port,
+      notifyStatus: values.ports[i].notifyStatus ?? false,
+    })),
     waGroupId,
     telegramChatId,
     // Changing the chat resets the topic, so a thread id only survives
@@ -170,7 +174,6 @@ export function toGraphReportInput(
     // later pick on the new number keeps the choice; with no group there is
     // no one to tag.
     mentionAll: Boolean(waGroupId) && values.mentionAll,
-    notifyPortStatus: values.notifyPortStatus,
     sendTime: formatSendTime(values.sendTime),
   };
 }

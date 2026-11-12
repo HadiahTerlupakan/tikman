@@ -117,7 +117,7 @@ func graphReportView(report models.GraphReport, ports []models.GraphReportPort) 
 		ID: report.ID, WAGroupID: report.WAGroupID, TelegramChatID: report.TelegramChatID,
 		TelegramThreadID: report.TelegramThreadID,
 		CustomerName:     report.CustomerName, Message: report.Message, Enabled: report.Enabled,
-		MentionAll: report.MentionAll, NotifyPortStatus: report.NotifyPortStatus, SendTime: report.SendTime, LastAttemptAt: report.LastAttemptAt,
+		MentionAll: report.MentionAll, SendTime: report.SendTime, LastAttemptAt: report.LastAttemptAt,
 		LastError: report.LastError, Ports: ports,
 	}
 	if view.Ports == nil {

@@ -1,4 +1,4 @@
-import { Form, Input, Select } from "antd";
+import { Checkbox, Form, Input, Select } from "antd";
 import { useLibrenmsPorts } from "@/application/hooks";
 import type { LibrenmsDevice } from "@/domain/entities";
 import {
@@ -23,6 +23,9 @@ interface PortRowProps {
 }
 
 const FIELD_STYLE = { flex: "1 1 200px", marginBottom: 8 };
+// The fields and actions already fill the modal's width, so the opt-in takes
+// a line of its own under them rather than wrapping wherever it falls.
+const NOTIFY_STYLE = { flex: "1 0 100%", marginTop: -4, marginBottom: 12 };
 
 export function PortRow({
   name,
@@ -40,7 +43,8 @@ export function PortRow({
     value.deviceId,
   );
 
-  // A new device makes the old port and its label meaningless.
+  // A new device makes the old port and its label meaningless; the notice
+  // choice is the admin's for the row, so it stays.
   const handleDevice = (deviceId: number) => {
     const device = devices.find((d) => d.deviceId === deviceId);
     form.setFieldValue(["ports", name], {
@@ -48,6 +52,7 @@ export function PortRow({
       deviceName: device ? deviceDisplayName(device) : String(deviceId),
       ifName: undefined,
       label: "",
+      notifyStatus: value.notifyStatus ?? false,
     });
   };
 
@@ -120,6 +125,13 @@ export function PortRow({
           })
         }
       />
+      <Form.Item
+        name={[name, "notifyStatus"]}
+        valuePropName="checked"
+        style={NOTIFY_STYLE}
+      >
+        <Checkbox>Notif down/up ke pelanggan</Checkbox>
+      </Form.Item>
     </div>
   );
 }

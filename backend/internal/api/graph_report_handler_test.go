@@ -260,6 +260,24 @@ func TestGraphReportMentionAllRoundTrips(t *testing.T) {
 	assert.Contains(t, env.do(http.MethodGet, "/api/v1/graph-reports", nil).Body.String(), `"mention_all":true`)
 }
 
+func TestGraphReportPortNoticeChoiceRoundTrips(t *testing.T) {
+	env := newGraphReportEnv(t)
+	body := env.reportBody()
+	created := env.do(http.MethodPost, "/api/v1/graph-reports", body)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	assert.Contains(t, created.Body.String(), `"notify_status":false`, "left out, a port stays silent")
+	var report services.GraphReportView
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &report))
+
+	body["ports"] = []map[string]any{
+		{"device_id": 7, "device_name": "core", "if_name": "ether1", "label": "Uplink", "notify_status": true},
+	}
+	rec := env.do(http.MethodPut, "/api/v1/graph-reports/"+report.ID.String(), body)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"notify_status":true`)
+	assert.Contains(t, env.do(http.MethodGet, "/api/v1/graph-reports", nil).Body.String(), `"notify_status":true`)
+}
+
 func TestGraphReportSendTimeRoundTrips(t *testing.T) {
 	env := newGraphReportEnv(t)
 	body := env.reportBody()

@@ -39,7 +39,6 @@ const report: GraphReport = {
   message: "Halo {pelanggan}",
   enabled: true,
   mentionAll: true,
-  notifyPortStatus: true,
   sendTime: "14:30",
   lastSentOn: null,
   lastAttemptAt: null,
@@ -52,6 +51,7 @@ const report: GraphReport = {
       ifName: "sfp2",
       label: "Kedua",
       position: 1,
+      notifyStatus: true,
     },
     {
       id: "p1",
@@ -60,6 +60,7 @@ const report: GraphReport = {
       ifName: "ether 1/1",
       label: "Pertama",
       position: 0,
+      notifyStatus: false,
     },
   ],
 };
@@ -83,10 +84,15 @@ describe("toGraphReportInput", () => {
       message: "  Halo {pelanggan}\n ",
       enabled: false,
       mentionAll: true,
-      notifyPortStatus: true,
       sendTime: dayjs("2026-11-11T07:05:00"),
       ports: [
-        { deviceId: 3, deviceName: "edge", ifName: "ether2", label: " B " },
+        {
+          deviceId: 3,
+          deviceName: "edge",
+          ifName: "ether2",
+          label: " B ",
+          notifyStatus: true,
+        },
         { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
       ],
     });
@@ -99,11 +105,22 @@ describe("toGraphReportInput", () => {
       message: "Halo {pelanggan}",
       enabled: false,
       mentionAll: true,
-      notifyPortStatus: true,
       sendTime: "07:05",
       ports: [
-        { deviceId: 3, deviceName: "edge", ifName: "ether2", label: "B" },
-        { deviceId: 7, deviceName: "core", ifName: "ether 1/1", label: "A" },
+        {
+          deviceId: 3,
+          deviceName: "edge",
+          ifName: "ether2",
+          label: "B",
+          notifyStatus: true,
+        },
+        {
+          deviceId: 7,
+          deviceName: "core",
+          ifName: "ether 1/1",
+          label: "A",
+          notifyStatus: false,
+        },
       ],
     });
   });
@@ -346,30 +363,40 @@ describe("emptyFormValues", () => {
     expect(emptyFormValues().mentionAll).toBe(false);
   });
 
-  // Existing customers never asked for outage notices, so a report starts
-  // silent like the reports saved before the option existed.
-  it("starts a new report without port notices", () => {
-    expect(emptyFormValues().notifyPortStatus).toBe(false);
+  // Customers never asked for outage notices, so a port starts silent like
+  // the ports saved before the option existed.
+  it("starts a new report's port without notices", () => {
     expect(
-      toGraphReportInput({ ...emptyFormValues(), customerName: "A" })
-        .notifyPortStatus,
-    ).toBe(false);
+      toGraphReportInput({ ...emptyFormValues(), customerName: "A" }).ports,
+    ).toEqual([
+      {
+        deviceId: undefined,
+        deviceName: "",
+        ifName: "",
+        label: "",
+        notifyStatus: false,
+      },
+    ]);
   });
 });
 
-describe("notifyPortStatus", () => {
-  it("round-trips the saved choice through the form", () => {
-    expect(
-      toGraphReportInput(reportToFormValues(report)).notifyPortStatus,
-    ).toBe(true);
-    const silent = { ...report, notifyPortStatus: false };
-    expect(
-      toGraphReportInput(reportToFormValues(silent)).notifyPortStatus,
-    ).toBe(false);
+describe("port notifyStatus", () => {
+  const notified = (input: {
+    ports: { label: string; notifyStatus: boolean }[];
+  }) => input.ports.map((p) => [p.label, p.notifyStatus]);
+
+  it("round-trips each port's saved choice through the form", () => {
+    expect(notified(toGraphReportInput(reportToFormValues(report)))).toEqual([
+      ["Pertama", false],
+      ["Kedua", true],
+    ]);
   });
 
   it("keeps it when only Aktif flips", () => {
-    expect(reportWithEnabled(report, false).notifyPortStatus).toBe(true);
+    expect(notified(reportWithEnabled(report, false))).toEqual([
+      ["Pertama", false],
+      ["Kedua", true],
+    ]);
   });
 });
 

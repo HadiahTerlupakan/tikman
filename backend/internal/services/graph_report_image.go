@@ -166,6 +166,7 @@ func portRows(ports []GraphReportPortInput) []models.GraphReportPort {
 		rows[i] = models.GraphReportPort{
 			DeviceID: port.DeviceID, DeviceName: strings.TrimSpace(port.DeviceName),
 			IfName: strings.TrimSpace(port.IfName), Label: strings.TrimSpace(port.Label), Position: i,
+			NotifyStatus: port.NotifyStatus,
 		}
 	}
 	return rows

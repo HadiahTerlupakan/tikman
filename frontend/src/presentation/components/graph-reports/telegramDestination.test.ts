@@ -49,7 +49,6 @@ const telegramReport = (
   message: "",
   enabled: true,
   mentionAll: false,
-  notifyPortStatus: false,
   sendTime: "06:00",
   lastSentOn: null,
   lastAttemptAt: null,

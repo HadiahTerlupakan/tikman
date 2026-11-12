@@ -25,6 +25,9 @@ type GraphReportPortRequest struct {
 	DeviceName string `json:"device_name"`
 	IfName     string `json:"if_name"`
 	Label      string `json:"label"`
+	// NotifyStatus sends this port's down/up notices to the report's
+	// destinations; false when left out.
+	NotifyStatus bool `json:"notify_status"`
 }
 
 // GraphReportRequest creates or rewrites a report. Enabled defaults to true
@@ -39,7 +42,6 @@ type GraphReportRequest struct {
 	Message          string                   `json:"message"`
 	Enabled          *bool                    `json:"enabled"`
 	MentionAll       bool                     `json:"mention_all"`
-	NotifyPortStatus bool                     `json:"notify_port_status"`
 	SendTime         string                   `json:"send_time"`
 	Ports            []GraphReportPortRequest `json:"ports"`
 }
@@ -48,7 +50,7 @@ func (r GraphReportRequest) input() services.GraphReportInput {
 	return services.GraphReportInput{
 		WAGroupID: r.WAGroupID, TelegramChatID: r.TelegramChatID, TelegramThreadID: r.TelegramThreadID,
 		CustomerName: r.CustomerName, Message: r.Message,
-		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll, NotifyPortStatus: r.NotifyPortStatus,
+		Enabled: r.Enabled == nil || *r.Enabled, MentionAll: r.MentionAll,
 		SendTime: r.SendTime, Ports: portInputs(r.Ports),
 	}
 }

@@ -8,6 +8,9 @@ export interface GraphReportPort {
   ifName: string;
   label: string;
   position: number;
+  /** Its down/up notices, as LibreNMS reports them, also go to the report's
+   * destinations; the NOC hears of every port either way. */
+  notifyStatus: boolean;
 }
 
 /** A topic of a forum supergroup. Telegram has no call that lists them, so
@@ -64,9 +67,6 @@ export interface GraphReport {
   /** Tags every member but our own number, without naming them in the
    * caption. WhatsApp only: Telegram has no way to. */
   mentionAll: boolean;
-  /** Also posts a notice to its destinations when one of its ports goes
-   * down or comes back, as LibreNMS reports it. */
-  notifyPortStatus: boolean;
   /** "HH:MM", 24-hour, WIB: when the daily send's window opens. */
   sendTime: string;
   /** WIB calendar date (YYYY-MM-DD) of the last scheduled send. A manual
@@ -78,11 +78,17 @@ export interface GraphReport {
   ports: GraphReportPort[];
 }
 
-export interface GraphReportPortInput {
+/** A port as a preview draws it. */
+export interface GraphReportPreviewPort {
   deviceId: number;
   deviceName: string;
   ifName: string;
   label: string;
+}
+
+/** A port as a report saves it. */
+export interface GraphReportPortInput extends GraphReportPreviewPort {
+  notifyStatus: boolean;
 }
 
 /** What the composed image and its caption are built from; ports go in the
@@ -90,22 +96,22 @@ export interface GraphReportPortInput {
 export interface GraphReportPreviewInput {
   customerName: string;
   message: string;
-  ports: GraphReportPortInput[];
+  ports: GraphReportPreviewPort[];
 }
 
 /** The body of a create or update; at least one destination is set. */
 export interface GraphReportInput extends GraphReportPreviewInput {
+  ports: GraphReportPortInput[];
   waGroupId?: string | null;
   telegramChatId?: string | null;
   telegramThreadId?: number | null;
   enabled: boolean;
   mentionAll: boolean;
-  notifyPortStatus: boolean;
   sendTime: string;
 }
 
 /** The NOC's own destination for port down/up notices: every changed port
- * of every report, whether or not the report itself notifies its customer.
+ * of every report, whether or not that port notifies its customer.
  * Both destinations null sends the NOC nothing. */
 export interface PortAlertDestination {
   /** The WhatsApp group's number; null without a group. */
