@@ -120,9 +120,9 @@ func TestDynamicQueuesAsksForProplist(t *testing.T) {
 	assert.Equal(t, []string{"/queue/simple/print", "=.proplist=name,target,rate", "?dynamic=true"}, <-router.received)
 }
 
-func TestInterfacesFiltersDynamic(t *testing.T) {
+func TestInterfacesAsksForEveryInterface(t *testing.T) {
 	client := restClient(t, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "false", r.URL.Query().Get("dynamic"))
+		assert.False(t, r.URL.Query().Has("dynamic"), "a dynamic=false filter dropped real ports on RouterOS")
 		_, _ = w.Write([]byte(`[]`))
 	})
 	_, err := client.Interfaces()
@@ -131,7 +131,7 @@ func TestInterfacesFiltersDynamic(t *testing.T) {
 	apiC, router := apiClient(t, map[string][][]string{"/interface/print": {{"!done"}}})
 	_, err = apiC.Interfaces()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/interface/print", "?dynamic=false"}, <-router.received)
+	assert.Equal(t, []string{"/interface/print"}, <-router.received)
 }
 
 func TestDefaultRouteFilter(t *testing.T) {

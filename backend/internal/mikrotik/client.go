@@ -78,11 +78,13 @@ func (c *Client) Clock() (Clock, error) {
 	return out, err
 }
 
-// Interfaces lists the interfaces an operator configured. A BRAS holds one
-// dynamic interface per PPPoE session, thousands of rows nobody names.
+// Interfaces lists every interface; discovery drops the dynamic ones itself.
+// Do not filter dynamic=false on the router: on a production CCR the REST
+// query returned only the two bridges, and discovery deleted every other
+// stored interface (2026-11-20).
 func (c *Client) Interfaces() ([]Interface, error) {
 	var out []Interface
-	err := c.transport.List("/interface", &out, "dynamic=false")
+	err := c.transport.List("/interface", &out)
 	return out, err
 }
 
