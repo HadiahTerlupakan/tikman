@@ -26,6 +26,7 @@ func (h *handlers) registerMikrotikRoutes(api *gin.RouterGroup, authenticated gi
 		routers.POST("/:id/trust-certificate", admin, h.routerHandler.TrustCertificate)
 		routers.GET("/:id/interfaces", h.routerHandler.Interfaces)
 		routers.GET("/:id/interfaces/:ifId/traffic", h.routerHandler.Traffic)
+		routers.GET("/:id/bras", h.routerHandler.BRAS)
 		routers.GET("/:id/bgp/sessions", h.routerHandler.Sessions)
 		routers.GET("/:id/bgp/events", h.routerHandler.Events)
 		routers.GET("/:id/bgp/lookup", operator, h.routerPathHandler.Lookup)
