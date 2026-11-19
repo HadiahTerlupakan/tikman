@@ -1,57 +1,26 @@
 import { useState } from "react";
-import { Button, Card, Table, Tooltip } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { Link } from "react-router-dom";
+import { Button, Card, Spin, Typography } from "antd";
 import { UserRole, type MikrotikRouter } from "@/domain/entities";
 import { useAuthStore } from "@/application/stores";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
 import { RouterFormModal } from "@/presentation/components/routers/RouterFormModal";
-import { RouterStatusTag } from "@/presentation/components/routers/RouterStatusTag";
-import { bgpSummary } from "@/presentation/components/routers/routerTraffic";
+import { RouterRack } from "@/presentation/components/routers/faceplate/RouterRack";
+import { routerReachable } from "@/presentation/components/routers/faceplate/portModel";
 
-const columns: ColumnsType<MikrotikRouter> = [
-  {
-    title: "Nama",
-    render: (_, r) => <Link to={`/routers/${r.id}`}>{r.name}</Link>,
-  },
-  { title: "Host", dataIndex: "host" },
-  { title: "Status", render: (_, r) => <RouterStatusTag router={r} /> },
-  {
-    title: "BGP",
-    render: (_, r) =>
-      r.apiStatus === "ok" ? (
-        bgpSummary(r)
-      ) : (
-        <Tooltip title="API router sedang gagal; jumlah sesi terakhir sudah usang">
-          <span>{bgpSummary(r)}</span>
-        </Tooltip>
-      ),
-  },
-  {
-    title: "CPU",
-    render: (_, r) => (r.cpuLoad === null ? "—" : `${r.cpuLoad}%`),
-  },
-  { title: "RouterOS", render: (_, r) => r.rosVersion ?? "—" },
-];
+function rackSummary(routers: MikrotikRouter[]): string {
+  const reachable = routers.filter(routerReachable).length;
+  const unreachable = routers.length - reachable;
+  const est = routers.reduce((n, r) => n + r.bgpEstablished, 0);
+  const total = routers.reduce((n, r) => n + r.bgpTotal, 0);
+  const away = unreachable ? `, ${unreachable} tidak terjangkau` : "";
+  return `${routers.length} router · ${reachable} terjangkau${away} · BGP ${est}/${total} established`;
+}
 
 export default function RoutersPage() {
   const { data: routers = [], isLoading } = useMikrotikRouters();
   const isAdmin = useAuthStore((state) => state.user?.role) === UserRole.ADMIN;
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MikrotikRouter | null>(null);
-
-  const adminColumns: ColumnsType<MikrotikRouter> = [
-    ...columns,
-    {
-      title: "Aksi",
-      key: "actions",
-      render: (_, r) => (
-        <Button size="small" onClick={() => setEditing(r)}>
-          Ubah
-        </Button>
-      ),
-    },
-  ];
 
   return (
     <Card
@@ -64,13 +33,12 @@ export default function RoutersPage() {
         )
       }
     >
-      <Table
-        rowKey="id"
-        loading={isLoading}
-        columns={isAdmin ? adminColumns : columns}
-        dataSource={routers}
-        pagination={false}
-      />
+      <Spin spinning={isLoading}>
+        <Typography.Paragraph type="secondary">
+          {rackSummary(routers)}
+        </Typography.Paragraph>
+        <RouterRack routers={routers} isAdmin={isAdmin} onEdit={setEditing} />
+      </Spin>
       {adding && <RouterFormModal onClose={() => setAdding(false)} />}
       {editing && (
         <RouterFormModal router={editing} onClose={() => setEditing(null)} />
