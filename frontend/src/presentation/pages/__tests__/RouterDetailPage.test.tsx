@@ -30,6 +30,12 @@ vi.mock("@/presentation/components/routers/InterfacesTab", () => ({
 vi.mock("@/presentation/components/routers/RouterInfoTab", () => ({
   RouterInfoTab: () => null,
 }));
+vi.mock("@/presentation/components/routers/bras/BrasSummaryTab", () => ({
+  BrasSummaryTab: () => <div>bras summary</div>,
+}));
+vi.mock("@/presentation/components/routers/bras/BrasTrafficTab", () => ({
+  BrasTrafficTab: () => null,
+}));
 vi.mock("@/presentation/components/routers/RouterStatusTag", () => ({
   RouterStatusTag: () => null,
 }));
@@ -74,10 +80,21 @@ describe("RouterDetailPage", () => {
     renderPage();
     expect(screen.queryByRole("tab", { name: "Upstream & BGP" })).toBeNull();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Ringkasan",
       "Panel depan",
+      "Trafik",
       "Interface & VLAN",
       "Router",
     ]);
+  });
+
+  it("opens a BRAS on its summary", () => {
+    routers.data = [{ ...routers.data[0], name: "bras-1", role: "bras" }];
+    renderPage();
+    expect(
+      screen.getByRole("tab", { name: "Ringkasan", selected: true }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("bras summary")).toBeVisible();
   });
 
   it("opens on the front panel, in a tab of its own", () => {

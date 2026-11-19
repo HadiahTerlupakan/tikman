@@ -60,6 +60,15 @@ export function useRouterBgpEvents(routerId: string, range: TrafficRange) {
   });
 }
 
+/** A BRAS's snapshot, samples and drops over the range. */
+export function useRouterBras(routerId: string, range: TrafficRange) {
+  return useQuery({
+    queryKey: ["mikrotik", routerId, "bras", ...trafficRangeKey(range)],
+    queryFn: () => repository.bras(routerId, resolveTrafficRange(range)),
+    refetchInterval: liveRefetchInterval(range, POLL_INTERVAL_MS),
+  });
+}
+
 function trafficQuery(
   routerId: string,
   interfaceId: string,

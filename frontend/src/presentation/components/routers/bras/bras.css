@@ -1,0 +1,74 @@
+.bras-signals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #e3e6ea;
+  border-radius: 6px;
+}
+.bras-signal {
+  padding: 14px 16px;
+  border-left: 1px solid #e3e6ea;
+  min-width: 0;
+}
+.bras-signal:first-child {
+  border-left: 0;
+}
+.bras-signals-stale .bras-signal {
+  opacity: 0.55;
+}
+.bras-signal-what {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.bras-signal-value {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.bras-signal-context {
+  font-size: 13px;
+}
+
+.bras-led {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--fp-led-off);
+}
+.bras-led-ok {
+  background: var(--fp-led-up);
+}
+.bras-led-warn {
+  background: var(--fp-led-warn);
+}
+.bras-led-bad {
+  background: var(--fp-led-down);
+}
+
+.bras-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.bras-num {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .bras-signals {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bras-signal:nth-child(3) {
+    border-left: 0;
+  }
+  .bras-signal:nth-child(n + 3) {
+    border-top: 1px solid #e3e6ea;
+  }
+}

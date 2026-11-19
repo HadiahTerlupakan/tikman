@@ -14,9 +14,12 @@ const BORDER_TABS = [
   "interfaces",
   "router",
 ];
-const BRAS_TABS = ["panel", "interfaces", "router"];
+const BRAS_TABS = ["ringkasan", "panel", "trafik", "interfaces", "router"];
 
-/** Tabs a router's role makes meaningful; a BRAS has no upstream BGP to show. */
+/**
+ * Tabs a router's role makes meaningful, in order; the first is where the
+ * page opens. A BRAS has no upstream BGP to show, only its link to the border.
+ */
 export function tabKeysFor(role: RouterRole): string[] {
   return role === "bras" ? BRAS_TABS : BORDER_TABS;
 }

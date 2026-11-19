@@ -58,6 +58,36 @@ export interface BrasSnapshot {
   queuesFound: boolean;
 }
 
+/** One minute of a BRAS, as the page charts it. */
+export interface BrasSample {
+  time: string;
+  sessions: number;
+  cpuMax: number;
+  cpuAvg: number;
+  radiusAccepts: number;
+  radiusRejects: number;
+  radiusTimeouts: number;
+  poolMinFree: number | null;
+}
+
+/** A minute in which sessions fell sharply. */
+export interface BrasDrop {
+  time: string;
+  lost: number;
+}
+
+/** The BRAS page's data; the hourly counts are null when history cannot answer them. */
+export interface RouterBrasView {
+  bras: BrasSnapshot | null;
+  brasAt: string | null;
+  samples: BrasSample[];
+  sessions15mAgo: number | null;
+  radiusAccepts1h: number | null;
+  radiusRejects1h: number | null;
+  radiusTimeouts1h: number | null;
+  drops: BrasDrop[];
+}
+
 export interface MikrotikRouter {
   id: string;
   name: string;

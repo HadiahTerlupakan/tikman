@@ -1,6 +1,8 @@
 import { Card, Result, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
+import { BrasSummaryTab } from "@/presentation/components/routers/bras/BrasSummaryTab";
+import { BrasTrafficTab } from "@/presentation/components/routers/bras/BrasTrafficTab";
 import { BgpPathsTab } from "@/presentation/components/routers/BgpPathsTab";
 import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDestinationsTab";
 import { RouterFaceplate } from "@/presentation/components/routers/faceplate/RouterFaceplate";
@@ -21,9 +23,19 @@ export function RouterDetailPage() {
   const keys = tabKeysFor(router.role);
   const tabs = [
     {
+      key: "ringkasan",
+      label: "Ringkasan",
+      children: <BrasSummaryTab router={router} />,
+    },
+    {
       key: "panel",
       label: "Panel depan",
       children: <RouterFaceplate router={router} />,
+    },
+    {
+      key: "trafik",
+      label: "Trafik",
+      children: <BrasTrafficTab router={router} />,
     },
     {
       key: "upstream",
@@ -57,7 +69,9 @@ export function RouterDetailPage() {
       label: "Router",
       children: <RouterInfoTab router={router} />,
     },
-  ].filter((tab) => keys.includes(tab.key));
+  ]
+    .filter((tab) => keys.includes(tab.key))
+    .sort((a, b) => keys.indexOf(a.key) - keys.indexOf(b.key));
 
   return (
     <Card title={router.name} extra={<RouterStatusTag router={router} />}>

@@ -5,6 +5,7 @@ import type {
   MikrotikRouter,
   RouterBgpEvent,
   RouterBgpSession,
+  RouterBrasView,
   RouterConnectionTestResult,
   RouterInterface,
   RouterTrafficPoint,
@@ -83,6 +84,14 @@ export class MikrotikRouterRepository {
           params: range,
         },
       )
+    ).data;
+  }
+
+  async bras(id: string, range: TimeRange): Promise<RouterBrasView> {
+    return (
+      await apiClient.get(API_ENDPOINTS.MIKROTIK_ROUTER_BRAS(id), {
+        params: range,
+      })
     ).data;
   }
 }
