@@ -17,7 +17,11 @@ const PLUG_COLOR: Record<PortRole, string> = {
   mgmt: "var(--fp-tape-mgmt)",
 };
 
-const BLINK_THRESHOLD_BPS = 1e6;
+// Anything above nothing lights the activity LED: a port carrying only ARP and
+// discovery still blips now and then on the router.
+const ACTIVITY_FLOOR_BPS = 1;
+// Below this the port carries only background chatter: an occasional blip.
+const TRICKLE_BPS = 10e3;
 const NUM_OFFSET_RJ = 14;
 const NUM_OFFSET_CAGE = 22;
 const NUM_LINE = 10;
@@ -50,13 +54,41 @@ function linkLed(view: PortView): string {
   return view.state === "down" ? "down" : "";
 }
 
-// More inbound traffic blinks faster: about 1 s at 1 Mbps, the 0.12 s floor near 30 Gbps.
-function blinkPeriod(inBps: number): string {
-  return `${Math.max(0.12, 1.2 - Math.log10(inBps) / 9).toFixed(2)}s`;
+// The busier the port against its own speed, the faster it flickers: a 10G
+// port at 1.5 Gbps flickers slower than a 1G port near full. TikMan reads the
+// counters once a minute, so this shows the last minute's load, not packets.
+const FLICKER_BY_LOAD: [number, number][] = [
+  [0.5, 0.22],
+  [0.1, 0.4],
+  [0.01, 0.8],
+  [0, 1.6],
+];
+
+function activity(view: PortView): CSSProperties | null {
+  const bps = Math.max(view.inBps, view.outBps);
+  if (bps < ACTIVITY_FLOOR_BPS) return null;
+  const speedBps = (view.iface.speedMbps || 1000) * 1e6;
+  const load = bps / speedBps;
+  const trickle = bps < TRICKLE_BPS;
+  const period = trickle
+    ? 3
+    : FLICKER_BY_LOAD.find(([min]) => load >= min)?.[1] ?? 1.6;
+  return {
+    "--fp-blink": `${period}s`,
+    "--fp-pattern": trickle ? "fp-blip" : "fp-flicker",
+    // Each port starts its pattern at its own point, so the panel never blinks in step.
+    "--fp-phase": `-${(hash(view.iface.name) % 1000) / 1000}s`,
+  } as CSSProperties;
+}
+
+function hash(text: string): number {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h;
 }
 
 function portNumber(jack: PlacedJack): string {
-  const short = jack.name
+  const short = jack.slot
     .replace("ether", "")
     .replace("qsfp28-", "QSFP28-")
     .replace("sfp-sfpplus", "SFP+")
@@ -73,20 +105,22 @@ function ledClass(base: string, state: string, act: boolean): string {
 function PortLeds(props: { jack: PlacedJack; view?: PortView; live: boolean }) {
   const { jack, view, live } = props;
   const link = live && view ? linkLed(view) : "";
-  const act = live && view !== undefined && view.inBps > BLINK_THRESHOLD_BPS;
-  const blink = act
-    ? ({ "--fp-blink": blinkPeriod(view.inBps) } as CSSProperties)
-    : undefined;
+  const blink = live && view ? activity(view) ?? undefined : undefined;
+  const act = blink !== undefined;
   if (jack.kind !== "rj") {
     return <i className={ledClass("fp-led", link, act)} style={blink} />;
   }
   const lit =
     live && view && view.state !== "down" && view.state !== "disabled";
+  // As on the operator's routers: the RJ45 link LED glows orange while a cable
+  // is up, and the green one flickers with traffic. A port TikMan expects up
+  // but finds down stays red, which no hardware LED says.
+  const rjLink = link === "down" ? "down" : link ? "link" : "";
   return (
     <>
-      <i className={ledClass("fp-led fp-led-a", link, false)} />
+      <i className={ledClass("fp-led fp-led-a", rjLink, false)} />
       <i
-        className={ledClass("fp-led fp-led-b", lit ? "up" : "", act)}
+        className={ledClass("fp-led fp-led-b", lit && act ? "up" : "", act)}
         style={blink}
       />
     </>

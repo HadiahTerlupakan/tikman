@@ -3,7 +3,10 @@ import type { RouterInterface } from "../../../../domain/entities/MikrotikRouter
 export type JackKind = "rj" | "sfp" | "qsfp";
 
 export interface PlacedJack {
+  /** The interface's own name, which may be one the operator gave it. */
   name: string;
+  /** The port as printed on the panel, e.g. "ether1" for "ether1-x86". */
+  slot: string;
   kind: JackKind;
   row: "top" | "bottom";
   x: number;
@@ -27,6 +30,8 @@ interface Group {
   kind: JackKind;
   rows: 1 | 2;
   ports: string[];
+  /** Panel names, parallel to ports, where a port was renamed. */
+  slots?: string[];
   mgmt?: boolean;
 }
 
@@ -89,11 +94,34 @@ function autoGroups(names: string[], singleRjIsMgmt: boolean): Group[] {
   return groups;
 }
 
-/** A template matches default names; ports the operator renamed trail it, grouped by name. */
+/**
+ * The interface sitting in a template slot: the slot's own name, or one an
+ * operator extended it into, as RouterOS operators do ("ether1-x86",
+ * "sfp-sfpplus1-AGREGATOR"). "ether12-wifi" must not land on ether1, so the
+ * extension may not start with a digit.
+ */
+function occupant(slot: string, names: string[], taken: Set<string>): string {
+  const free = names.filter((n) => !taken.has(n));
+  return (
+    free.find((n) => n === slot) ??
+    free.find((n) => n.startsWith(slot) && /^\D/.test(n.slice(slot.length))) ??
+    slot
+  );
+}
+
+/** A template keeps every port in its place; names that fit no slot trail it, grouped by name. */
 function templateGroups(template: Group[], names: string[]): Group[] {
-  const placed = new Set(template.flatMap((g) => g.ports));
-  const renamed = names.filter((n) => !placed.has(n));
-  return [...template, ...autoGroups(renamed, false)];
+  const taken = new Set<string>();
+  const placed = template.map((group) => {
+    const ports = group.ports.map((slot) => {
+      const name = occupant(slot, names, taken);
+      taken.add(name);
+      return name;
+    });
+    return { ...group, ports, slots: group.ports };
+  });
+  const rest = names.filter((n) => !taken.has(n));
+  return [...placed, ...autoGroups(rest, false)];
 }
 
 function placeGroup(group: Group, startX: number): PlacedJack[] {
@@ -103,6 +131,7 @@ function placeGroup(group: Group, startX: number): PlacedJack[] {
     const col = double ? Math.floor(i / 2) : i;
     return {
       name,
+      slot: group.slots?.[i] ?? name,
       kind: group.kind,
       row: double && i % 2 === 0 ? "top" : "bottom",
       x: startX + col * geo.pitch,

@@ -55,6 +55,30 @@ describe("layoutFaceplate", () => {
     );
   });
 
+  it("keeps a port the operator extended in its own slot", () => {
+    const names = [
+      "ether1-x86",
+      "ether12-wifi-bascamp",
+      "sfp-sfpplus1-AGREGATOR",
+    ];
+    const layout = layoutFaceplate("CCR2116-12G-4S+", names);
+    const plain = layoutFaceplate("CCR2116-12G-4S+", []);
+    const at = (l: typeof layout, slot: string) =>
+      l.jacks.find((j) => j.slot === slot);
+
+    expect(layout.jacks).toHaveLength(plain.jacks.length);
+    expect(layout.width).toBe(plain.width);
+    expect(at(layout, "ether1")?.name).toBe("ether1-x86");
+    expect(at(layout, "ether12")?.name).toBe("ether12-wifi-bascamp");
+    expect(at(layout, "sfp-sfpplus1")?.name).toBe("sfp-sfpplus1-AGREGATOR");
+    expect(at(layout, "ether12")?.x).toBe(at(plain, "ether12")?.x);
+  });
+
+  it("does not seat ether12-something in the ether1 slot", () => {
+    const layout = layoutFaceplate("CCR2116-12G-4S+", ["ether12-uplink"]);
+    expect(layout.jacks.find((j) => j.slot === "ether1")?.name).toBe("ether1");
+  });
+
   it("draws a port whose name fits no group of an unknown board", () => {
     const layout = layoutFaceplate(null, ["ether1", "ether2", "uplink-a"]);
     expect(layout.jacks.map((j) => j.name)).toEqual([

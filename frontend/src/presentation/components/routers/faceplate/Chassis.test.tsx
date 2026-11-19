@@ -161,7 +161,7 @@ describe("Chassis", () => {
     const leds = (name: string) =>
       container.querySelector(`[data-port="${name}"]`)?.querySelectorAll("i");
     expect(leds("sfp-sfpplus1")?.[0].className).toContain("fp-led-up");
-    expect(leds("ether3")?.[0].className).toContain("fp-led-warn");
+    expect(leds("ether3")?.[0].className).toContain("fp-led-link");
     expect(ledOf("STATUS")).toBe("fp-led-up");
     const blink = container.querySelector<HTMLElement>(
       '[data-port="sfp-sfpplus1"] .fp-led-act',
@@ -326,5 +326,76 @@ describe("Chassis", () => {
     expect(
       container.querySelector(".fp-leds")?.getAttribute("title"),
     ).toBeNull();
+  });
+});
+
+describe("port LEDs", () => {
+  const view = (over: Partial<RouterInterface>[]) =>
+    render(
+      <Chassis
+        layout={templated}
+        ports={buildPortViews(router, over.map(iface), [])}
+        offline={false}
+        health={NO_HEALTH}
+      />,
+    ).container;
+  const led = (c: HTMLElement, port: string, which: "a" | "b") =>
+    c.querySelector<HTMLElement>(`[data-port="${port}"] .fp-led-${which}`);
+  const blinkOf = (c: HTMLElement, port: string) =>
+    c.querySelector<HTMLElement>(`[data-port="${port}"] .fp-led-act`);
+
+  it("glows orange while an RJ45 cable is up, green only with traffic", () => {
+    const c = view([
+      { name: "ether2", lastInBps: 5e6, speedMbps: 1000 },
+      { name: "ether3", lastInBps: 0, lastOutBps: 0, speedMbps: 100 },
+    ]);
+    expect(led(c, "ether2", "a")?.className).toContain("fp-led-link");
+    expect(led(c, "ether2", "b")?.className).toContain("fp-led-up");
+    expect(led(c, "ether3", "a")?.className).toContain("fp-led-link");
+    expect(led(c, "ether3", "b")?.className).not.toContain("fp-led-up");
+    expect(blinkOf(c, "ether3")).toBeNull();
+  });
+
+  it("keeps a port TikMan expects up red when it is down", () => {
+    const c = view([
+      // A comment marks the port as one the operator uses.
+      { name: "ether2", comment: "pop-south", operStatus: "down" },
+    ]);
+    expect(led(c, "ether2", "a")?.className).toContain("fp-led-down");
+  });
+
+  it("only blips now and then on background chatter", () => {
+    const c = view([{ name: "ether2", lastInBps: 600, lastOutBps: 2000 }]);
+    const blink = blinkOf(c, "ether2");
+    expect(blink?.style.getPropertyValue("--fp-pattern")).toBe("fp-blip");
+    expect(blink?.style.getPropertyValue("--fp-blink")).toBe("3s");
+  });
+
+  it("flickers faster the busier a port is against its own speed", () => {
+    const c = view([
+      { name: "sfp-sfpplus1", lastInBps: 12e6, speedMbps: 10000 },
+      { name: "sfp-sfpplus2", lastOutBps: 3.7e9, speedMbps: 10000 },
+      { name: "ether2", lastInBps: 90e6, speedMbps: 100 },
+    ]);
+    const period = (port: string) =>
+      blinkOf(c, port)?.style.getPropertyValue("--fp-blink");
+    expect(
+      blinkOf(c, "sfp-sfpplus1")?.style.getPropertyValue("--fp-pattern"),
+    ).toBe("fp-flicker");
+    expect(period("sfp-sfpplus1")).toBe("1.6s");
+    expect(period("sfp-sfpplus2")).toBe("0.4s");
+    // 90 Mbps fills a 100M port, so it outruns 3.7 Gbps on a 10G one.
+    expect(period("ether2")).toBe("0.22s");
+  });
+
+  it("starts each port's pattern at its own point", () => {
+    const c = view([
+      { name: "sfp-sfpplus1", lastInBps: 1e9, speedMbps: 10000 },
+      { name: "sfp-sfpplus2", lastInBps: 1e9, speedMbps: 10000 },
+    ]);
+    const phase = (port: string) =>
+      blinkOf(c, port)?.style.getPropertyValue("--fp-phase");
+    expect(phase("sfp-sfpplus1")).toMatch(/^-0?\.?\d*s$/);
+    expect(phase("sfp-sfpplus1")).not.toBe(phase("sfp-sfpplus2"));
   });
 });
