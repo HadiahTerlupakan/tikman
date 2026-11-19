@@ -11,6 +11,8 @@
   --fp-tape-mgmt: #2f69b3;
   --fp-tape-trunk: #3a4047;
   --fp-select: #2f6fe4;
+  --fp-cable: #9aa3ad;
+  --fp-stage-line: rgba(255, 255, 255, 0.12);
   --fp-condensed: "Barlow Condensed", "Arial Narrow", sans-serif;
 }
 
@@ -239,4 +241,107 @@
   font: 600 10px var(--fp-condensed);
   text-align: center;
   white-space: nowrap;
+}
+
+.fp-role-upstream {
+  --fp-role: var(--fp-tape-upstream);
+}
+.fp-role-dist {
+  --fp-role: var(--fp-tape-dist-plug);
+}
+.fp-role-mgmt {
+  --fp-role: var(--fp-tape-mgmt);
+}
+
+.fp-tag {
+  position: absolute;
+  z-index: 2;
+  width: max-content;
+  min-width: 96px;
+  max-width: 190px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: #15191d;
+  font: 600 14px/1.1 var(--fp-condensed);
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.fp-tag:focus-visible,
+.fp-tag.fp-tag-selected {
+  outline: 2px solid var(--fp-select);
+  outline-offset: 2px;
+}
+.fp-tag-main {
+  display: block;
+  padding: 4px 9px 5px;
+  border-radius: 2px;
+}
+.fp-tag small {
+  display: block;
+  margin-top: 2px;
+  color: rgba(21, 25, 29, 0.72);
+  font: 500 12px/1.1 var(--fp-condensed);
+}
+.fp-tag-upstream .fp-tag-main {
+  background: var(--fp-tape-upstream);
+}
+.fp-tag-dist .fp-tag-main {
+  background: var(--fp-tape-dist);
+}
+.fp-tag-mgmt .fp-tag-main {
+  background: var(--fp-tape-mgmt);
+  color: #fff;
+}
+.fp-tag-trunk .fp-tag-main {
+  background: var(--fp-tape-trunk);
+  color: #fff;
+}
+.fp-tag-mgmt small {
+  color: #fff;
+}
+.fp-tag-trunk small {
+  color: #dfe3e7;
+}
+.fp-tag.fp-tag-down {
+  box-shadow: 0 0 0 2px var(--fp-led-down);
+}
+.fp-tag.fp-tag-silent {
+  box-shadow: 0 0 0 2px var(--fp-led-warn);
+}
+
+.fp-vl {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 0;
+  border-top: 1px solid #e6e9ec;
+  background: #fff;
+  font: 500 13px/1.15 var(--fp-condensed);
+}
+.fp-vl::before {
+  content: "";
+  align-self: stretch;
+  width: 5px;
+  background: var(--fp-role);
+}
+.fp-vl-id,
+.fp-vl-rate {
+  color: #5d6874;
+}
+.fp-vl-rate {
+  margin-left: auto;
+  padding-left: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.fp-vl.fp-vl-more {
+  padding-left: 12px;
+  color: #5d6874;
+}
+.fp-vl.fp-vl-more::before {
+  display: none;
 }

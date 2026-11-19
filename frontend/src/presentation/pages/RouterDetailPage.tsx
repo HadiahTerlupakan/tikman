@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
 import { BgpPathsTab } from "@/presentation/components/routers/BgpPathsTab";
 import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDestinationsTab";
+import { RouterFaceplate } from "@/presentation/components/routers/faceplate/RouterFaceplate";
 import { InterfacesTab } from "@/presentation/components/routers/InterfacesTab";
 import { RouterInfoTab } from "@/presentation/components/routers/RouterInfoTab";
 import { RouterStatusTag } from "@/presentation/components/routers/RouterStatusTag";
@@ -18,6 +19,7 @@ export function RouterDetailPage() {
 
   return (
     <Card title={router.name} extra={<RouterStatusTag router={router} />}>
+      <RouterFaceplate router={router} />
       <Tabs
         items={[
           {

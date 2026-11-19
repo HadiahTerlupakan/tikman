@@ -5,16 +5,9 @@ import {
   type FaceplateLayout,
   type PlacedJack,
 } from "./portLayout";
-import type { PortRole, PortState, PortView } from "./portModel";
+import { STATE_TEXT, type PortRole, type PortView } from "./portModel";
 // Jacks, LEDs and the blink need pseudo-elements and a keyframe, which inline styles cannot express.
 import "./faceplate.css";
-
-const STATE_TEXT: Record<PortState, string> = {
-  up: "Aktif",
-  down: "Mati",
-  silent: "Kemungkinan down",
-  disabled: "Nonaktif",
-};
 
 const PLUG_COLOR: Record<PortRole, string> = {
   upstream: "var(--fp-tape-upstream)",

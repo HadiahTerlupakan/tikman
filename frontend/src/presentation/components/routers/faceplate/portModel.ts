@@ -32,6 +32,13 @@ export interface PortView {
   outBps: number;
 }
 
+export const STATE_TEXT: Record<PortState, string> = {
+  up: "Aktif",
+  down: "Mati",
+  silent: "Kemungkinan down",
+  disabled: "Nonaktif",
+};
+
 const ROLE_ORDER: PortRole[] = ["upstream", "dist", "mgmt"];
 
 export function routerReachable(r: MikrotikRouter): boolean {

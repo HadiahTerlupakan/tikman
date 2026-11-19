@@ -1,0 +1,93 @@
+import { Empty } from "antd";
+import { type CSSProperties, useMemo, useState } from "react";
+import type {
+  MikrotikRouter,
+  RouterBgpSession,
+  RouterInterface,
+} from "@/domain/entities";
+import {
+  useRouterBgpSessions,
+  useRouterInterfaces,
+} from "@/application/hooks/useMikrotikRouters";
+import { PortDetailPanel } from "./PortDetailPanel";
+import { PortLabels } from "./PortLabels";
+import {
+  layoutFaceplate,
+  physicalPortNames,
+  type FaceplateLayout,
+} from "./portLayout";
+import {
+  bgpStale,
+  buildPortViews,
+  routerReachable,
+  type PortView,
+} from "./portModel";
+
+// A wide board scrolls inside its stage instead of widening the page.
+const STAGE: CSSProperties = {
+  border: "1px solid var(--fp-stage-line)",
+  borderRadius: 10,
+  overflowX: "auto",
+};
+
+// Stable fallbacks: a fresh [] per render would rebuild the port views, and the
+// label layout effect that depends on them would loop while a query loads.
+const NO_INTERFACES: RouterInterface[] = [];
+const NO_SESSIONS: RouterBgpSession[] = [];
+
+/** The operator's pick while that port is still in use; otherwise the first trunk, else the first used port. */
+function selectedPort(
+  layout: FaceplateLayout,
+  ports: Map<string, PortView>,
+  picked: string | undefined,
+): string | undefined {
+  const used = layout.jacks
+    .map((j) => j.name)
+    .filter((name) => ports.get(name)?.role != null);
+  if (picked && used.includes(picked)) return picked;
+  return used.find((name) => ports.get(name)?.role === "trunk") ?? used[0];
+}
+
+/** The router's front panel with cable labels, and the panel of the port selected on it. */
+export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
+  const { data: interfaces = NO_INTERFACES } = useRouterInterfaces(router.id);
+  const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
+  const [picked, setPicked] = useState<string>();
+  const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
+  const layout = useMemo(
+    () => layoutFaceplate(router.boardName, physical),
+    [router.boardName, physical],
+  );
+  const ports = useMemo(
+    () => buildPortViews(router, interfaces, sessions),
+    [router, interfaces, sessions],
+  );
+
+  if (physical.length === 0) {
+    return <Empty description="Belum ada data interface" />;
+  }
+  const offline = !routerReachable(router);
+  const selected = selectedPort(layout, ports, picked);
+  const view = selected ? ports.get(selected) : undefined;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={STAGE}>
+        <PortLabels
+          layout={layout}
+          ports={ports}
+          offline={offline}
+          selected={selected}
+          onSelect={setPicked}
+        />
+      </div>
+      {view && (
+        <PortDetailPanel
+          routerId={router.id}
+          view={view}
+          offline={offline}
+          stale={bgpStale(router)}
+        />
+      )}
+    </div>
+  );
+}
