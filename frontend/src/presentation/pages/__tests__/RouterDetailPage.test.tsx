@@ -88,6 +88,24 @@ describe("RouterDetailPage", () => {
     ]);
   });
 
+  it("gives a router of another role only its ports and settings", () => {
+    routers.data = [{ ...routers.data[0], name: "core-1", role: "other" }];
+    renderPage();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Panel depan",
+      "Interface & VLAN",
+      "Router",
+    ]);
+  });
+
+  it("tapes the role beside the router's name", () => {
+    routers.data = [{ ...routers.data[0], name: "bras-1", role: "bras" }];
+    renderPage();
+    expect(document.querySelector(".fp-roletape-bras")?.textContent).toBe(
+      "BRAS",
+    );
+  });
+
   it("opens a BRAS on its summary", () => {
     routers.data = [{ ...routers.data[0], name: "bras-1", role: "bras" }];
     renderPage();

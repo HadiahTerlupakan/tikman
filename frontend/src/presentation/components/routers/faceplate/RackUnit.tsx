@@ -10,7 +10,8 @@ import {
   useRouterInterfaces,
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterStatusTag } from "../RouterStatusTag";
-import { ROLE_LABEL, isBras } from "../routerRole";
+import { RoleTape } from "../RoleTape";
+import { isBras } from "../routerRole";
 import { Chassis } from "./Chassis";
 import { HEALTH_TICK_MS, healthView, type HealthView } from "./healthModel";
 import {
@@ -171,9 +172,7 @@ function UnitBay(props: {
           className="fp-tapes"
           style={{ right: TAPE_RIGHT * scale, bottom: TAPE_BOTTOM * scale }}
         >
-          <span className={`fp-roletape fp-roletape-${router.role}`}>
-            {ROLE_LABEL[router.role]}
-          </span>
+          <RoleTape role={router.role} />
           <span className="fp-ptape">{router.name}</span>
         </span>
       </div>

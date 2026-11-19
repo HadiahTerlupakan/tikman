@@ -128,10 +128,10 @@ describe("RouterRack", () => {
     expect(screen.queryByText(/sesi BGP mati/)).toBeNull();
   });
 
-  it("tapes a border unit as Border", () => {
+  it("tapes a border unit as BORDER", () => {
     renderRack([router({})]);
     expect(document.querySelector(".fp-roletape-border")?.textContent).toBe(
-      "Border",
+      "BORDER",
     );
   });
 

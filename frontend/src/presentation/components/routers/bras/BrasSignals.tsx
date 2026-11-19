@@ -1,4 +1,5 @@
-import { Typography } from "antd";
+import type { CSSProperties } from "react";
+import { theme, Typography } from "antd";
 import type { RouterBrasView } from "@/domain/entities";
 import {
   brasSignals,
@@ -50,12 +51,17 @@ export function BrasSignals({
   view: RouterBrasView;
   now: Date;
 }) {
+  const { token } = theme.useToken();
   const s = brasSignals(view, now);
   const stale = isBrasStale(view.brasAt, now);
+  // The theme's border, as the cards and tables around it use, so the frame
+  // follows dark mode instead of glaring on it.
+  const line = { "--bras-line": token.colorBorderSecondary } as CSSProperties;
   return (
     <section aria-label="Kondisi BRAS">
       <div
         className={stale ? "bras-signals bras-signals-stale" : "bras-signals"}
+        style={line}
       >
         <SignalCell title="Pelanggan online" signal={s.sessions} />
         <SignalCell title="RADIUS" signal={s.radius} />

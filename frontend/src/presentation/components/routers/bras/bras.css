@@ -1,12 +1,12 @@
 .bras-signals {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 1px solid #e3e6ea;
+  border: 1px solid var(--bras-line);
   border-radius: 6px;
 }
 .bras-signal {
   padding: 14px 16px;
-  border-left: 1px solid #e3e6ea;
+  border-left: 1px solid var(--bras-line);
   min-width: 0;
 }
 .bras-signal:first-child {
@@ -69,6 +69,6 @@
     border-left: 0;
   }
   .bras-signal:nth-child(n + 3) {
-    border-top: 1px solid #e3e6ea;
+    border-top: 1px solid var(--bras-line);
   }
 }

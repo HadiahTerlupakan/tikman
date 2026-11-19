@@ -83,8 +83,11 @@ function radiusSignal(view: RouterBrasView, snap: BrasSnapshot): Signal {
       context: "Tanpa server RADIUS",
     };
   }
-  const silent = servers.filter((s) => s.answering === false).length;
   const context = `${formatCount(view.radiusRejects1h)} login ditolak dalam 1 jam`;
+  if (servers.every((s) => s.answering === null)) {
+    return { level: "none", value: "Belum dinilai", context };
+  }
+  const silent = servers.filter((s) => s.answering === false).length;
   if (silent === servers.length) {
     return { level: "bad", value: "Tidak menjawab", context };
   }

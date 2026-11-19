@@ -155,13 +155,19 @@ function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
 }
 
 // The backend binding rejects a null rack_position against min=1, so an empty
-// field is sent as an explicit clear instead.
-function updatePayload({
-  rackPosition,
-  role,
-  ...rest
-}: RouterFormValues): UpdateRouterDto {
-  const roleChange = role === "auto" ? { resetRole: true } : { role };
+// field is sent as an explicit clear instead. resetRole makes discovery due at
+// once, so it is sent only when an admin's choice is being given back to
+// TikMan, not on every save of a router already on Otomatis.
+function updatePayload(
+  { rackPosition, role, ...rest }: RouterFormValues,
+  router: MikrotikRouter,
+): UpdateRouterDto {
+  const roleChange =
+    role !== "auto"
+      ? { role }
+      : router.roleSetByAdmin
+        ? { resetRole: true }
+        : {};
   return rackPosition == null
     ? { ...rest, ...roleChange, clearRackPosition: true }
     : { ...rest, ...roleChange, rackPosition };
@@ -191,7 +197,7 @@ function useSaveRouter(
       if (router) {
         await update.mutateAsync({
           id: router.id,
-          data: updatePayload(values),
+          data: updatePayload(values, router),
         });
       } else if (fingerprint !== null) {
         await create.mutateAsync({

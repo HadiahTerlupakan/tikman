@@ -3,10 +3,20 @@ import type { ColumnsType } from "antd/es/table";
 import type { BrasUser } from "@/domain/entities";
 import { formatBps } from "../routerTraffic";
 
+// RouterOS names a PPPoE session's dynamic queue "<pppoe-USER>"; the username
+// inside is what an operator searches for. Other queues keep their name.
+const PPPOE_QUEUE = /^<pppoe-(.+)>$/;
+
+function userOf(queueName: string): string {
+  return PPPOE_QUEUE.exec(queueName)?.[1] ?? queueName;
+}
+
 const columns: ColumnsType<BrasUser> = [
   {
     title: "Pelanggan",
-    render: (_, u) => <Typography.Text copyable>{u.name}</Typography.Text>,
+    render: (_, u) => (
+      <Typography.Text copyable>{userOf(u.name)}</Typography.Text>
+    ),
   },
   {
     title: "Unduh",

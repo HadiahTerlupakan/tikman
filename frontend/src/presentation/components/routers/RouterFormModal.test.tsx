@@ -136,7 +136,30 @@ describe("RouterFormModal protocol", () => {
     expect("rackPosition" in data).toBe(false);
   });
 
-  it("asks the backend to guess again when Otomatis is saved", async () => {
+  it("asks the backend to guess again when an admin's role goes back to Otomatis", async () => {
+    updateMutate.mockResolvedValue({});
+    render(
+      <RouterFormModal
+        router={mikrotikRouter({
+          role: "border",
+          roleSetByAdmin: true,
+          roleGuess: "bras",
+        })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Tebakan TikMan: BRAS")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Otomatis"));
+    fireEvent.click(screen.getByText("Simpan"));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalled());
+    const data = updateMutate.mock.calls[0][0].data;
+    expect(data.resetRole).toBe(true);
+    expect("role" in data).toBe(false);
+  });
+
+  it("leaves the role alone when a router already on Otomatis is saved", async () => {
     updateMutate.mockResolvedValue({});
     render(
       <RouterFormModal
@@ -145,12 +168,11 @@ describe("RouterFormModal protocol", () => {
       />,
     );
 
-    expect(screen.getByText("Tebakan TikMan: BRAS")).toBeTruthy();
     fireEvent.click(screen.getByText("Simpan"));
 
     await waitFor(() => expect(updateMutate).toHaveBeenCalled());
     const data = updateMutate.mock.calls[0][0].data;
-    expect(data.resetRole).toBe(true);
+    expect("resetRole" in data).toBe(false);
     expect("role" in data).toBe(false);
   });
 

@@ -16,6 +16,21 @@ describe("BrasTopUsers", () => {
     expect(row).toHaveTextContent("9");
   });
 
+  it("shows and copies a PPPoE queue as the bare username", () => {
+    render(
+      <BrasTopUsers
+        users={[
+          { name: "<pppoe-pel-0002>", downBps: 1_000_000, upBps: 0 },
+          { name: "hotspot-lobby", downBps: 500_000, upBps: 0 },
+        ]}
+        queuesFound
+      />,
+    );
+    expect(screen.getByText("pel-0002")).toBeVisible();
+    expect(screen.queryByText("<pppoe-pel-0002>")).toBeNull();
+    expect(screen.getByText("hotspot-lobby")).toBeVisible();
+  });
+
   it("explains an empty list when the BRAS has no dynamic queues", () => {
     render(<BrasTopUsers users={[]} queuesFound={false} />);
     expect(

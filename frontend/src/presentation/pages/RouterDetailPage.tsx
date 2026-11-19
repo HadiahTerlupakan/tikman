@@ -1,4 +1,4 @@
-import { Card, Result, Spin, Tabs } from "antd";
+import { Card, Result, Space, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
 import { BrasSummaryTab } from "@/presentation/components/routers/bras/BrasSummaryTab";
@@ -8,6 +8,7 @@ import { FlowDestinationsTab } from "@/presentation/components/routers/FlowDesti
 import { RouterFaceplate } from "@/presentation/components/routers/faceplate/RouterFaceplate";
 import { InterfacesTab } from "@/presentation/components/routers/InterfacesTab";
 import { RouterInfoTab } from "@/presentation/components/routers/RouterInfoTab";
+import { RoleTape } from "@/presentation/components/routers/RoleTape";
 import { RouterStatusTag } from "@/presentation/components/routers/RouterStatusTag";
 import { tabKeysFor } from "@/presentation/components/routers/routerRole";
 import { UpstreamTab } from "@/presentation/components/routers/UpstreamTab";
@@ -74,7 +75,15 @@ export function RouterDetailPage() {
     .sort((a, b) => keys.indexOf(a.key) - keys.indexOf(b.key));
 
   return (
-    <Card title={router.name} extra={<RouterStatusTag router={router} />}>
+    <Card
+      title={
+        <Space>
+          {router.name}
+          <RoleTape role={router.role} />
+        </Space>
+      }
+      extra={<RouterStatusTag router={router} />}
+    >
       <Tabs items={tabs} />
     </Card>
   );

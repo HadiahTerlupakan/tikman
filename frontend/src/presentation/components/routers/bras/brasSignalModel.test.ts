@@ -103,6 +103,14 @@ describe("brasSignals: RADIUS", () => {
     });
   });
 
+  it("is grey and not yet judged before any server has a verdict", () => {
+    const servers = [server({ answering: null }), server({ answering: null })];
+    expect(radius({}, servers)).toMatchObject({
+      level: "none",
+      value: "Belum dinilai",
+    });
+  });
+
   it("is red when no server answers", () => {
     const servers = [
       server({ answering: false }),
