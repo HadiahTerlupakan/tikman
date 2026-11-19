@@ -3,7 +3,7 @@ import type { MikrotikRouter } from "@/domain/entities";
 import { RackUnit } from "./RackUnit";
 import { rackSlots } from "./rackOrder";
 // The cabinet, its rails and blank panels need pseudo-elements, which inline styles cannot express.
-import "./faceplate.css";
+import "./rack.css";
 
 interface RouterRackProps {
   routers: MikrotikRouter[];

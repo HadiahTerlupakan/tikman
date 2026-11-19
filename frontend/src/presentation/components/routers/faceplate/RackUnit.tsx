@@ -32,7 +32,7 @@ import {
   type PortView,
 } from "./portModel";
 // The rack's rails, blanks and hover ring need pseudo-elements, which inline styles cannot express.
-import "./faceplate.css";
+import "./rack.css";
 
 const TAPE_RIGHT = 34;
 const TAPE_BOTTOM = 8;

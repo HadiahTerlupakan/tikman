@@ -16,7 +16,7 @@
 - No new dependencies.
 - UI copy is Indonesian, matching the mockup: "Posisi di rak", "+N VLAN lain", "Tidak ada sesi BGP lewat port ini.", "Tidak ada VLAN di port ini.", "Semua normal", "N port mati", "N port diam", "N sesi BGP mati", "Tidak terjangkau". The detail stays its own route (`/routers/:id`), so the mockup's in-page back button is not built.
 - Colours (CSS custom properties): tape upstream `#f2d23a`, distribution `#f7f8f9` (plug `#e2e6ea`), management `#2f69b3`, trunk label `#3a4047`, LEDs up `#34d27b`, warn `#f3b437`, down `#ef4b4f`, off `#454b52`.
-- The faceplate CSS needs pseudo-elements and a keyframe, so it lives in one `faceplate.css` imported by the components. That is the one exception to the inline-style pattern, and the reason belongs in a one-line comment at the import.
+- The faceplate CSS needs pseudo-elements and a keyframe, so it lives in `faceplate.css` (the faceplate) and `rack.css` (the rack page, split off to keep each file under 350 lines), imported by the components. That is the one exception to the inline-style pattern, and the reason belongs in a one-line comment at the import.
 - The blinking LED respects `prefers-reduced-motion`.
 - The repo is public: tests use generic names (`peer-transit`, `border-1`), never real peer names, IPs or AS numbers.
 
