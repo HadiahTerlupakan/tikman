@@ -113,3 +113,53 @@ type AddressListEntry struct {
 	Address  string `json:"address"`
 	Disabled string `json:"disabled"`
 }
+
+// PPPoEServer is one row of /interface/pppoe-server/server.
+type PPPoEServer struct {
+	ServiceName string `json:"service-name"`
+	Interface   string `json:"interface"`
+	Disabled    string `json:"disabled"`
+}
+
+// IPPool is one row of /ip/pool, with the counts RouterOS keeps for it.
+type IPPool struct {
+	Name      string `json:"name"`
+	Ranges    string `json:"ranges"`
+	Total     string `json:"total"`
+	Used      string `json:"used"`
+	Available string `json:"available"`
+}
+
+// RadiusServer is one row of /radius.
+type RadiusServer struct {
+	ID       string `json:".id"`
+	Address  string `json:"address"`
+	Service  string `json:"service"`
+	Disabled string `json:"disabled"`
+}
+
+// RadiusStats is one /radius/monitor reading.
+type RadiusStats struct {
+	Pending        string `json:"pending"`
+	Requests       string `json:"requests"`
+	Accepts        string `json:"accepts"`
+	Rejects        string `json:"rejects"`
+	Resends        string `json:"resends"`
+	Timeouts       string `json:"timeouts"`
+	BadReplies     string `json:"bad-replies"`
+	LastRequestRTT string `json:"last-request-rtt"`
+}
+
+// CPULoad is one core of /system/resource/cpu.
+type CPULoad struct {
+	CPU  string `json:"cpu"`
+	Load string `json:"load"`
+}
+
+// SimpleQueue is one row of /queue/simple, limited to what the top-users
+// table shows.
+type SimpleQueue struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Rate   string `json:"rate"`
+}

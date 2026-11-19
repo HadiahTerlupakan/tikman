@@ -67,6 +67,20 @@ func (f *fakeRouterAPI) RoutesTo(prefix string) ([]mikrotik.BGPRoute, error) {
 	return f.bgpRoutes[prefix], f.err
 }
 
+func (f *fakeRouterAPI) PPPoEServers() ([]mikrotik.PPPoEServer, error) { return nil, f.err }
+func (f *fakeRouterAPI) PPPActiveCount() (int, error)                  { return 0, f.err }
+func (f *fakeRouterAPI) IPPools() ([]mikrotik.IPPool, error)           { return nil, f.err }
+func (f *fakeRouterAPI) PoolUsedCount(string) (int, error)             { return 0, f.err }
+func (f *fakeRouterAPI) RadiusServers() ([]mikrotik.RadiusServer, error) {
+	return nil, f.err
+}
+func (f *fakeRouterAPI) RadiusMonitor(string) (mikrotik.RadiusStats, error) {
+	return mikrotik.RadiusStats{}, f.err
+}
+func (f *fakeRouterAPI) CPULoads() ([]mikrotik.CPULoad, error)          { return nil, f.err }
+func (f *fakeRouterAPI) DynamicQueues() ([]mikrotik.SimpleQueue, error) { return nil, f.err }
+func (f *fakeRouterAPI) DefaultRoute() ([]mikrotik.Route, error)        { return nil, f.err }
+
 type pollFixture struct {
 	service  *RouterPollService
 	db       *gorm.DB

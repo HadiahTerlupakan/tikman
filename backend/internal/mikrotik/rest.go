@@ -1,6 +1,7 @@
 package mikrotik
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -47,17 +48,76 @@ func newRESTTransport(cfg Config) *restTransport {
 // List is GET /rest<path>, with each where as a query filter the router
 // applies itself.
 func (t *restTransport) List(path string, out interface{}, where ...string) error {
-	target := t.baseURL + path
+	return t.ListProps(path, "", out, where...)
+}
+
+// ListProps is List asking the router for only the named, comma-separated
+// properties, which keeps a large menu's reply small.
+func (t *restTransport) ListProps(path, props string, out interface{}, where ...string) error {
+	query, err := restFilter(where, props)
+	if err != nil {
+		return err
+	}
+	target := path
+	if query != "" {
+		target += "?" + query
+	}
+	return t.do(http.MethodGet, path, target, nil, out)
+}
+
+// Count is POST /rest<path>/print with count-only, so the router counts rows
+// itself instead of sending them.
+func (t *restTransport) Count(path string, where ...string) (int, error) {
+	for _, w := range where {
+		if _, _, err := splitFilter(w); err != nil {
+			return 0, err
+		}
+	}
+	body := map[string]interface{}{"count-only": ""}
 	if len(where) > 0 {
-		query, err := restFilter(where)
+		body[".query"] = where
+	}
+	var raw json.RawMessage
+	if err := t.do(http.MethodPost, path+"/print", path+"/print", body, &raw); err != nil {
+		return 0, err
+	}
+	return countFromJSON(raw)
+}
+
+// Command is POST /rest<path> with each arg as a body property.
+func (t *restTransport) Command(path string, out interface{}, args ...string) error {
+	body := map[string]string{}
+	for _, a := range args {
+		key, value, err := splitFilter(a)
 		if err != nil {
 			return err
 		}
-		target += "?" + query
+		body[key] = value
 	}
-	req, err := http.NewRequest(http.MethodGet, target, nil)
+	var raw json.RawMessage
+	if err := t.do(http.MethodPost, path, path, body, &raw); err != nil {
+		return err
+	}
+	return decodeFirstJSON(raw, out)
+}
+
+// do sends one request; label names the call in errors, target is the path
+// and query under /rest.
+func (t *restTransport) do(method, label, target string, body interface{}, out interface{}) error {
+	var payload io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		payload = bytes.NewReader(encoded)
+	}
+	req, err := http.NewRequest(method, t.baseURL+target, payload)
 	if err != nil {
 		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.SetBasicAuth(t.username, t.password)
 
@@ -66,7 +126,7 @@ func (t *restTransport) List(path string, out interface{}, where ...string) erro
 		if errors.Is(err, ErrCertificateChanged) {
 			return ErrCertificateChanged
 		}
-		return fmt.Errorf("GET %s: %w", path, err)
+		return fmt.Errorf("%s %s: %w", method, label, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -75,10 +135,10 @@ func (t *restTransport) List(path string, out interface{}, where ...string) erro
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, errorBodyLimit))
-		return fmt.Errorf("GET %s: HTTP %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%s %s: HTTP %d: %s", method, label, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
+		return fmt.Errorf("decode %s: %w", label, err)
 	}
 	return nil
 }
@@ -108,8 +168,11 @@ func Fingerprint(der []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func restFilter(where []string) (string, error) {
+func restFilter(where []string, props string) (string, error) {
 	query := url.Values{}
+	if props != "" {
+		query.Set(".proplist", props)
+	}
 	for _, w := range where {
 		key, value, err := splitFilter(w)
 		if err != nil {

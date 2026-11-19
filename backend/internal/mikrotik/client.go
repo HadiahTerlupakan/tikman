@@ -26,6 +26,15 @@ var (
 // filter the router applies before replying.
 type Transport interface {
 	List(path string, out interface{}, where ...string) error
+	// ListProps is List asking the router for only the named properties,
+	// comma-separated, such as "name,target,rate".
+	ListProps(path, props string, out interface{}, where ...string) error
+	// Count asks the router to count the rows matching where, without
+	// sending them.
+	Count(path string, where ...string) (int, error)
+	// Command runs a menu command. Each arg is "key=value"; "once=" is a
+	// flag with no value.
+	Command(path string, out interface{}, args ...string) error
 	Close() error
 }
 
@@ -69,10 +78,11 @@ func (c *Client) Clock() (Clock, error) {
 	return out, err
 }
 
-// Interfaces lists every interface, dynamic ones included.
+// Interfaces lists the interfaces an operator configured. A BRAS holds one
+// dynamic interface per PPPoE session, thousands of rows nobody names.
 func (c *Client) Interfaces() ([]Interface, error) {
 	var out []Interface
-	err := c.transport.List("/interface", &out)
+	err := c.transport.List("/interface", &out, "dynamic=false")
 	return out, err
 }
 

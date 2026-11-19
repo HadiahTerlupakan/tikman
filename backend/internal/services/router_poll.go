@@ -37,6 +37,15 @@ type RouterAPI interface {
 	RoutesTo(prefix string) ([]mikrotik.BGPRoute, error)
 	FilterRules() ([]mikrotik.FilterRule, error)
 	AddressList(list string) ([]mikrotik.AddressListEntry, error)
+	PPPoEServers() ([]mikrotik.PPPoEServer, error)
+	PPPActiveCount() (int, error)
+	IPPools() ([]mikrotik.IPPool, error)
+	PoolUsedCount(pool string) (int, error)
+	RadiusServers() ([]mikrotik.RadiusServer, error)
+	RadiusMonitor(id string) (mikrotik.RadiusStats, error)
+	CPULoads() ([]mikrotik.CPULoad, error)
+	DynamicQueues() ([]mikrotik.SimpleQueue, error)
+	DefaultRoute() ([]mikrotik.Route, error)
 }
 
 // IfCounterReader reads IF-MIB counters; connectivity.WalkIfCounters in

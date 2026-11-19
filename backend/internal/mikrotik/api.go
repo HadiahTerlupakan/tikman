@@ -127,6 +127,10 @@ func (t *apiTransport) run(words ...string) ([]map[string]string, error) {
 		case "!fatal":
 			return nil, fmt.Errorf("router closed the API session: %s", strings.Join(sentence[1:], " "))
 		case "!done":
+			// A count-only print answers in !done itself, not in a row.
+			if ret, ok := r.attrs["ret"]; ok && trap == nil {
+				rows = append(rows, map[string]string{"ret": ret})
+			}
 			if trap != nil {
 				return nil, trap
 			}
@@ -147,18 +151,64 @@ func sentenceBytes(words []string) int {
 // RouterOS ANDs them and returns only matching rows. The rows carry the same
 // property names REST uses, so they decode into the same structs.
 func (t *apiTransport) List(path string, out interface{}, where ...string) error {
+	return t.ListProps(path, "", out, where...)
+}
+
+// ListProps is List asking for only the named, comma-separated properties.
+func (t *apiTransport) ListProps(path, props string, out interface{}, where ...string) error {
 	words := []string{path + "/print"}
-	for _, w := range where {
-		if _, _, err := splitFilter(w); err != nil {
+	if props != "" {
+		words = append(words, "=.proplist="+props)
+	}
+	queries, err := queryWords(where)
+	if err != nil {
+		return err
+	}
+	rows, err := t.run(append(words, queries...)...)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return decodeRows(rows, out)
+}
+
+// Count prints with count-only, so the router answers with one number.
+func (t *apiTransport) Count(path string, where ...string) (int, error) {
+	queries, err := queryWords(where)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := t.run(append([]string{path + "/print", "=count-only="}, queries...)...)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", path, err)
+	}
+	return countFromRows(rows)
+}
+
+// Command runs a menu command, each arg an "=key=value" word.
+func (t *apiTransport) Command(path string, out interface{}, args ...string) error {
+	words := []string{path}
+	for _, a := range args {
+		if _, _, err := splitFilter(a); err != nil {
 			return err
 		}
-		words = append(words, "?"+w)
+		words = append(words, "="+a)
 	}
 	rows, err := t.run(words...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return decodeRows(rows, out)
+}
+
+func queryWords(where []string) ([]string, error) {
+	var words []string
+	for _, w := range where {
+		if _, _, err := splitFilter(w); err != nil {
+			return nil, err
+		}
+		words = append(words, "?"+w)
+	}
+	return words, nil
 }
 
 // Close ends the connection; the router drops the session with it.
