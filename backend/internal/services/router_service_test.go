@@ -244,3 +244,45 @@ func TestUpdateRouterRejectsASamplingRatioOutOfRange(t *testing.T) {
 		assert.ErrorIs(t, err, ErrValidation, ratio)
 	}
 }
+
+func TestRouterUpdateSetsRackPosition(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+	slot := 3
+
+	_, err = service.Update(router.ID, RouterUpdate{RackPosition: &slot})
+
+	require.NoError(t, err)
+	stored, err := service.Get(router.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.RackPosition)
+	assert.Equal(t, 3, *stored.RackPosition)
+}
+
+func TestRouterUpdateClearsRackPosition(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+	slot := 3
+	_, err = service.Update(router.ID, RouterUpdate{RackPosition: &slot})
+	require.NoError(t, err)
+
+	_, err = service.Update(router.ID, RouterUpdate{ClearRackPosition: true})
+
+	require.NoError(t, err)
+	stored, err := service.Get(router.ID)
+	require.NoError(t, err)
+	assert.Nil(t, stored.RackPosition)
+}
+
+func TestRouterUpdateRejectsRackPositionOutOfRange(t *testing.T) {
+	service, _ := newRouterServiceForTest(t)
+	router, err := service.Create(validRouterInput())
+	require.NoError(t, err)
+
+	for _, slot := range []int{0, 100} {
+		_, err := service.Update(router.ID, RouterUpdate{RackPosition: &slot})
+		assert.ErrorIs(t, err, ErrValidation, slot)
+	}
+}

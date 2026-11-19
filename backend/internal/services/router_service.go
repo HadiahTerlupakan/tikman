@@ -25,6 +25,12 @@ const (
 	maxFlowSampling = 10000
 )
 
+// The rack slots a router can sit in, counted from the top.
+const (
+	minRackPosition = 1
+	maxRackPosition = 99
+)
+
 // RouterService stores MikroTik routers and their credentials.
 type RouterService struct {
 	db            *gorm.DB
@@ -67,6 +73,9 @@ type RouterUpdate struct {
 	Enabled       *bool
 	FlowEnabled   *bool
 	FlowSampling  *int
+	RackPosition  *int
+	// ClearRackPosition takes the router out of the rack view's numbering.
+	ClearRackPosition bool
 }
 
 // Create stores a router and makes all its poll tiers due at once, so the
@@ -210,6 +219,13 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 	setIfGiven(updates, "site_id", upd.SiteID)
 	if upd.ClearSite {
 		updates["site_id"] = nil
+	}
+	if upd.RackPosition != nil && (*upd.RackPosition < minRackPosition || *upd.RackPosition > maxRackPosition) {
+		return nil, fmt.Errorf("%w: rack_position must be between %d and %d", ErrValidation, minRackPosition, maxRackPosition)
+	}
+	setIfGiven(updates, "rack_position", upd.RackPosition)
+	if upd.ClearRackPosition {
+		updates["rack_position"] = nil
 	}
 	return updates, s.encryptGivenSecrets(updates, upd)
 }

@@ -113,6 +113,19 @@ func TestUpdateRouterSwitchesItsProtocol(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"api_protocol":"api-ssl"`)
 }
 
+func TestUpdateRouterStoresItsRackPosition(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+	w, c := SetupTestContext(http.MethodPut, "/api/v1/routers/"+created.ID.String(),
+		map[string]int{"rack_position": 2})
+	c.Params = gin.Params{{Key: "id", Value: created.ID.String()}}
+
+	handler.Update(c)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"rack_position":2`)
+}
+
 func TestTestRouterConnectionBindsItsBody(t *testing.T) {
 	full := TestRouterConnectionRequest{Host: "192.0.2.1", SNMPCommunity: "c", APIUsername: "u", APIPassword: "p"}
 	badFingerprint := full

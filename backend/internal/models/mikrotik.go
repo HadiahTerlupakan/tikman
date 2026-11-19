@@ -94,6 +94,10 @@ type MikrotikRouter struct {
 	FlowSampling   int        `gorm:"not null;default:100" json:"flow_sampling"`
 	FlowLastSeenAt *time.Time `json:"flow_last_seen_at"`
 
+	// RackPosition is the slot counted from the top of the rack, so the screen
+	// can match the physical rack.
+	RackPosition *int `json:"rack_position"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

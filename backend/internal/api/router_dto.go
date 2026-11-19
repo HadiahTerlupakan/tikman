@@ -44,6 +44,9 @@ type UpdateRouterRequest struct {
 	Enabled       *bool      `json:"enabled"`
 	FlowEnabled   *bool      `json:"flow_enabled"`
 	FlowSampling  *int       `json:"flow_sampling" binding:"omitempty,min=1,max=10000"`
+	RackPosition  *int       `json:"rack_position" binding:"omitempty,min=1,max=99"`
+	// ClearRackPosition unsets the slot; RackPosition alone cannot say null.
+	ClearRackPosition bool `json:"clear_rack_position"`
 }
 
 func (r UpdateRouterRequest) toUpdate() services.RouterUpdate {
@@ -51,6 +54,7 @@ func (r UpdateRouterRequest) toUpdate() services.RouterUpdate {
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, ClearSite: r.ClearSite, SNMPCommunity: r.SNMPCommunity,
 		SNMPPort: r.SNMPPort, APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort,
 		APIProtocol: r.APIProtocol, Enabled: r.Enabled, FlowEnabled: r.FlowEnabled, FlowSampling: r.FlowSampling,
+		RackPosition: r.RackPosition, ClearRackPosition: r.ClearRackPosition,
 	}
 }
 
