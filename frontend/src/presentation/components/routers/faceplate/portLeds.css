@@ -1,0 +1,64 @@
+/* How a port's activity LED moves; split from faceplate.css to keep that file in bounds. */
+/* Uneven on/off gaps read as bursts of packets, not a metronome. */
+.fp-led-act {
+  animation: var(--fp-pattern, fp-flicker) var(--fp-blink, 1s) step-end
+    var(--fp-phase, 0s) infinite;
+}
+/* Background chatter: dark most of the time, two short blips a cycle. */
+@keyframes fp-blip {
+  0% {
+    opacity: 0.15;
+  }
+  38% {
+    opacity: 1;
+  }
+  42% {
+    opacity: 0.15;
+  }
+  71% {
+    opacity: 1;
+  }
+  74% {
+    opacity: 0.15;
+  }
+}
+@keyframes fp-flicker {
+  0% {
+    opacity: 1;
+  }
+  9% {
+    opacity: 0.2;
+  }
+  15% {
+    opacity: 1;
+  }
+  37% {
+    opacity: 0.2;
+  }
+  41% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 0.2;
+  }
+  52% {
+    opacity: 1;
+  }
+  71% {
+    opacity: 0.25;
+  }
+  76% {
+    opacity: 1;
+  }
+  89% {
+    opacity: 0.2;
+  }
+  94% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-led-act {
+    animation: none;
+  }
+}

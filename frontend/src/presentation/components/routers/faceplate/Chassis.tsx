@@ -10,6 +10,7 @@ import { HealthLeds } from "./HealthLeds";
 import { STATE_TEXT, type PortRole, type PortView } from "./portModel";
 // Jacks, LEDs and the blink need pseudo-elements and a keyframe, which inline styles cannot express.
 import "./faceplate.css";
+import "./portLeds.css";
 
 const PLUG_COLOR: Record<PortRole, string> = {
   upstream: "var(--fp-tape-upstream)",
