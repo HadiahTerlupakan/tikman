@@ -247,7 +247,7 @@ so both jobs use it.
 
 **Storage.**
 
-- Migration 82 adds `router_bras_samples`, one row per BRAS per minute:
+- Migration 83 adds `router_bras_samples`, one row per BRAS per minute:
   - `router_id`, `time`, `sessions`, `cpu_max`, `cpu_avg`
   - `radius_accepts`, `radius_rejects`, `radius_timeouts` (cumulative
     totals summed over servers, as read)
@@ -256,7 +256,7 @@ so both jobs use it.
 
   It is a hypertable like `router_interface_metrics`, with 30 days of
   raw data and no rollups. That is about 43k rows per BRAS a month.
-- Migration 82 also adds `bras jsonb` and `bras_at timestamptz` to
+- Migration 83 also adds `bras jsonb` and `bras_at timestamptz` to
   `mikrotik_routers` for the latest snapshot: cores, pools, RADIUS
   servers, top users and uplink. This follows the `health` / `health_at`
   pattern.
