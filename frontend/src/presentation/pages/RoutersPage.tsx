@@ -38,6 +38,20 @@ export default function RoutersPage() {
   const { data: routers = [], isLoading } = useMikrotikRouters();
   const isAdmin = useAuthStore((state) => state.user?.role) === UserRole.ADMIN;
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<MikrotikRouter | null>(null);
+
+  const adminColumns: ColumnsType<MikrotikRouter> = [
+    ...columns,
+    {
+      title: "Aksi",
+      key: "actions",
+      render: (_, r) => (
+        <Button size="small" onClick={() => setEditing(r)}>
+          Ubah
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <Card
@@ -53,11 +67,14 @@ export default function RoutersPage() {
       <Table
         rowKey="id"
         loading={isLoading}
-        columns={columns}
+        columns={isAdmin ? adminColumns : columns}
         dataSource={routers}
         pagination={false}
       />
       {adding && <RouterFormModal onClose={() => setAdding(false)} />}
+      {editing && (
+        <RouterFormModal router={editing} onClose={() => setEditing(null)} />
+      )}
     </Card>
   );
 }
