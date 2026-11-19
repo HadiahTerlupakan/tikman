@@ -66,11 +66,13 @@ function unitStatus(
   router: MikrotikRouter,
   ports: Map<string, PortView>,
   physical: string[],
-  loading: boolean,
+  query: { loading: boolean; failed: boolean },
 ): Status | null {
   if (!routerReachable(router))
     return { text: "Tidak terjangkau", tone: "down" };
-  if (loading) return null;
+  if (query.loading) return null;
+  if (query.failed)
+    return { text: "Data interface gagal dimuat", tone: "warn" };
   if (physical.length === 0) {
     return { text: "Belum ada data interface", tone: "none" };
   }
@@ -157,9 +159,11 @@ function UnitBay(props: {
 /** One router in the rack: its scaled front panel, and beside it what needs a look. */
 export function RackUnit(props: RackUnitProps) {
   const { router, u, sharedWidth, isAdmin, onEdit, onLayout } = props;
-  const { data: interfaces = NO_INTERFACES, isLoading } = useRouterInterfaces(
-    router.id,
-  );
+  const {
+    data: interfaces = NO_INTERFACES,
+    isLoading,
+    isError,
+  } = useRouterInterfaces(router.id);
   const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
   const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
   const layout = useMemo(
@@ -174,7 +178,10 @@ export function RackUnit(props: RackUnitProps) {
     onLayout(router.id, layout.width);
   }, [onLayout, router.id, layout.width]);
   const shared = { ...layout, width: Math.max(sharedWidth, layout.width) };
-  const status = unitStatus(router, ports, physical, isLoading);
+  const status = unitStatus(router, ports, physical, {
+    loading: isLoading,
+    failed: isError,
+  });
 
   return (
     <div className="fp-row">

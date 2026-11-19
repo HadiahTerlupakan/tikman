@@ -115,6 +115,20 @@ function PortFace(props: {
   );
 }
 
+function FreePort(props: {
+  jack: PlacedJack;
+  className: string;
+  style: CSSProperties;
+}) {
+  const { jack, className, style } = props;
+  return (
+    <div className={className} style={style} data-port={jack.name} aria-hidden>
+      <div className="fp-jack" />
+      <PortLeds jack={jack} live={false} />
+    </div>
+  );
+}
+
 function Port(props: {
   jack: PlacedJack;
   view?: PortView;
@@ -126,17 +140,7 @@ function Port(props: {
   const box = { left: jack.x, top: jack.y, width: jack.w, height: jack.h };
   const cls = `fp-port fp-${jack.kind} fp-${jack.row}`;
   if (!view || view.role === null) {
-    return (
-      <div
-        className={`${cls} fp-free`}
-        style={box}
-        data-port={jack.name}
-        aria-hidden
-      >
-        <div className="fp-jack" />
-        <PortLeds jack={jack} live={false} />
-      </div>
-    );
+    return <FreePort jack={jack} className={`${cls} fp-free`} style={box} />;
   }
   const face = <PortFace jack={jack} view={view} offline={offline} />;
   // Without onSelect the chassis sits inside a rack unit that is itself the

@@ -1,4 +1,4 @@
-import { Empty, Typography } from "antd";
+import { Alert, Empty, Typography } from "antd";
 import { type CSSProperties, useMemo, useState } from "react";
 import type {
   MikrotikRouter,
@@ -50,9 +50,11 @@ function selectedPort(
 
 /** The router's front panel with cable labels, and the panel of the port selected on it. */
 export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
-  const { data: interfaces = NO_INTERFACES, isLoading } = useRouterInterfaces(
-    router.id,
-  );
+  const {
+    data: interfaces = NO_INTERFACES,
+    isLoading,
+    isError,
+  } = useRouterInterfaces(router.id);
   const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
   const [picked, setPicked] = useState<string>();
   const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
@@ -66,6 +68,8 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
   );
 
   if (isLoading) return null;
+  if (isError)
+    return <Alert type="error" message="Data interface gagal dimuat" />;
   if (physical.length === 0) {
     return <Empty description="Belum ada data interface" />;
   }

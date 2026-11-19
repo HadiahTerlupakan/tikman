@@ -30,7 +30,11 @@ const baseInterfaces = [
   iface({ name: "ether3", comment: "pop-a", operStatus: "down" }),
 ];
 
-const data: { interfaces: RouterInterface[] | undefined; loading: boolean } = {
+const data: {
+  interfaces: RouterInterface[] | undefined;
+  loading: boolean;
+  failed?: boolean;
+} = {
   interfaces: baseInterfaces,
   loading: false,
 };
@@ -39,6 +43,7 @@ vi.mock("@/application/hooks/useMikrotikRouters", () => ({
   useRouterInterfaces: () => ({
     data: data.interfaces,
     isLoading: data.loading,
+    isError: data.failed ?? false,
   }),
   useRouterBgpSessions: () => ({ data: [] }),
 }));
@@ -80,6 +85,7 @@ describe("RouterRack", () => {
   beforeEach(() => {
     data.interfaces = baseInterfaces;
     data.loading = false;
+    data.failed = false;
   });
 
   it("leaves a blank panel where no router sits between two positions", () => {
@@ -148,6 +154,14 @@ describe("RouterRack", () => {
     renderRack([router({})]);
     expect(screen.queryByText("Belum ada data interface")).toBeNull();
     expect(screen.queryByText("Semua normal")).toBeNull();
+  });
+
+  it("says the interfaces failed to load rather than that none exist", () => {
+    data.interfaces = undefined;
+    data.failed = true;
+    renderRack([router({})]);
+    expect(screen.getByText("Data interface gagal dimuat")).toBeInTheDocument();
+    expect(screen.queryByText("Belum ada data interface")).toBeNull();
   });
 
   it("gives the ports inside a unit no tab stop of their own", () => {

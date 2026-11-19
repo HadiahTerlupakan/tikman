@@ -67,12 +67,14 @@ const data: {
   interfaces: RouterInterface[] | undefined;
   sessions: RouterBgpSession[];
   loading: boolean;
+  failed?: boolean;
 } = { interfaces: baseInterfaces, sessions, loading: false };
 
 vi.mock("@/application/hooks/useMikrotikRouters", () => ({
   useRouterInterfaces: () => ({
     data: data.interfaces,
     isLoading: data.loading,
+    isError: data.failed ?? false,
   }),
   useRouterBgpSessions: () => ({ data: data.sessions }),
   useInterfaceTraffic: () => ({ data: [] }),
@@ -95,6 +97,7 @@ describe("RouterFaceplate", () => {
     data.interfaces = baseInterfaces;
     data.sessions = sessions;
     data.loading = false;
+    data.failed = false;
   });
 
   it("lists a trunk's first three VLANs and counts the rest", () => {
@@ -154,6 +157,15 @@ describe("RouterFaceplate", () => {
     data.loading = true;
     render(<RouterFaceplate router={router} />);
 
+    expect(screen.queryByText("Belum ada data interface")).toBeNull();
+  });
+
+  it("says the interfaces failed to load rather than that none exist", () => {
+    data.interfaces = undefined;
+    data.failed = true;
+    render(<RouterFaceplate router={router} />);
+
+    expect(screen.getByText("Data interface gagal dimuat")).toBeTruthy();
     expect(screen.queryByText("Belum ada data interface")).toBeNull();
   });
 
