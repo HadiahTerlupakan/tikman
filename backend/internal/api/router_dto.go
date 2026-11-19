@@ -19,13 +19,18 @@ type CreateRouterRequest struct {
 	APIPort        int        `json:"api_port" binding:"omitempty,min=1,max=65535"`
 	APIProtocol    string     `json:"api_protocol" binding:"omitempty,oneof=rest api-ssl api"`
 	TLSFingerprint string     `json:"tls_fingerprint" binding:"omitempty,len=64,hexadecimal"`
+	Role           *string    `json:"role" binding:"omitempty,oneof=border bras other"`
 }
 
 func (r CreateRouterRequest) toInput() services.RouterInput {
-	return services.RouterInput{
+	in := services.RouterInput{
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, SNMPCommunity: r.SNMPCommunity, SNMPPort: r.SNMPPort,
 		APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort, APIProtocol: r.APIProtocol, TLSFingerprint: r.TLSFingerprint,
 	}
+	if r.Role != nil {
+		in.Role = models.RouterRole(*r.Role)
+	}
+	return in
 }
 
 // UpdateRouterRequest changes a router. An omitted or empty secret keeps the
@@ -46,16 +51,25 @@ type UpdateRouterRequest struct {
 	FlowSampling  *int       `json:"flow_sampling" binding:"omitempty,min=1,max=10000"`
 	RackPosition  *int       `json:"rack_position" binding:"omitempty,min=1,max=99"`
 	// ClearRackPosition unsets the slot; RackPosition alone cannot say null.
-	ClearRackPosition bool `json:"clear_rack_position"`
+	ClearRackPosition bool    `json:"clear_rack_position"`
+	Role              *string `json:"role" binding:"omitempty,oneof=border bras other"`
+	// ResetRole returns the role to discovery's guess.
+	ResetRole bool `json:"reset_role"`
 }
 
 func (r UpdateRouterRequest) toUpdate() services.RouterUpdate {
-	return services.RouterUpdate{
+	upd := services.RouterUpdate{
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, ClearSite: r.ClearSite, SNMPCommunity: r.SNMPCommunity,
 		SNMPPort: r.SNMPPort, APIUsername: r.APIUsername, APIPassword: r.APIPassword, APIPort: r.APIPort,
 		APIProtocol: r.APIProtocol, Enabled: r.Enabled, FlowEnabled: r.FlowEnabled, FlowSampling: r.FlowSampling,
 		RackPosition: r.RackPosition, ClearRackPosition: r.ClearRackPosition,
+		ResetRole: r.ResetRole,
 	}
+	if r.Role != nil {
+		role := models.RouterRole(*r.Role)
+		upd.Role = &role
+	}
+	return upd
 }
 
 // TestRouterConnectionRequest is the add-router form before anything is

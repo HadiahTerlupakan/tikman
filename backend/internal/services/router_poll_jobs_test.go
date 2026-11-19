@@ -119,7 +119,7 @@ func TestRouterRunNowMakesTheGivenTiersDue(t *testing.T) {
 	service := NewRouterPollJobService(setupTestDB(t))
 	later := time.Now().Add(time.Hour)
 	id := uuid.New()
-	for _, kind := range AllRouterPollKinds {
+	for _, kind := range RouterPollKindsFor(models.RouterRoleBorder) {
 		require.NoError(t, service.db.Create(&models.RouterPollJob{RouterID: id, Kind: kind, DueAt: later}).Error)
 	}
 

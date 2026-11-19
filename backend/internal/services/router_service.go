@@ -55,6 +55,9 @@ type RouterInput struct {
 	APIProtocol    string
 	APIPort        int
 	TLSFingerprint string
+	// Role is empty unless the operator chose one; empty is border, left to
+	// discovery to correct.
+	Role models.RouterRole
 }
 
 // RouterUpdate changes some of a router's fields. A nil or empty secret keeps
@@ -76,6 +79,9 @@ type RouterUpdate struct {
 	RackPosition  *int
 	// ClearRackPosition takes the router out of the rack view's numbering.
 	ClearRackPosition bool
+	Role              *models.RouterRole
+	// ResetRole hands the role back to discovery.
+	ResetRole bool
 }
 
 // Create stores a router and makes all its poll tiers due at once, so the
@@ -105,12 +111,16 @@ func (s *RouterService) Create(in RouterInput) (*models.MikrotikRouter, error) {
 		APIUsername: in.APIUsername, APIPassword: password, APIProtocol: string(protocol),
 		APIPort: portOr(in.APIPort, protocol.DefaultPort()), TLSFingerprint: fingerprint, Enabled: true,
 		Status: models.RouterStatusUnknown, APIStatus: models.RouterAPIStatusUnknown,
+		Role: models.RouterRoleBorder,
+	}
+	if in.Role != "" {
+		router.Role, router.RoleSetByAdmin = in.Role, true
 	}
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(router).Error; err != nil {
 			return err
 		}
-		return createRouterJobs(tx, router.ID)
+		return createRouterJobs(tx, router.ID, router.Role)
 	})
 	if err != nil {
 		return nil, err
@@ -118,9 +128,9 @@ func (s *RouterService) Create(in RouterInput) (*models.MikrotikRouter, error) {
 	return router, nil
 }
 
-func createRouterJobs(tx *gorm.DB, routerID uuid.UUID) error {
+func createRouterJobs(tx *gorm.DB, routerID uuid.UUID, role models.RouterRole) error {
 	now := time.Now()
-	for _, kind := range AllRouterPollKinds {
+	for _, kind := range RouterPollKindsFor(role) {
 		if err := tx.Create(&models.RouterPollJob{RouterID: routerID, Kind: kind, DueAt: now}).Error; err != nil {
 			return err
 		}
@@ -182,10 +192,19 @@ func (s *RouterService) Update(id uuid.UUID, upd RouterUpdate) (*models.Mikrotik
 	if err != nil {
 		return nil, err
 	}
-	if len(updates) > 0 {
-		if err := s.db.Model(&models.MikrotikRouter{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-			return nil, err
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if len(updates) > 0 {
+			if err := tx.Model(&models.MikrotikRouter{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+				return err
+			}
 		}
+		if upd.Role != nil {
+			return SetRouterRole(tx, id, *upd.Role, true)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return s.Get(id)
 }
@@ -226,6 +245,12 @@ func (s *RouterService) updateColumns(upd RouterUpdate) (map[string]interface{},
 	setIfGiven(updates, "rack_position", upd.RackPosition)
 	if upd.ClearRackPosition {
 		updates["rack_position"] = nil
+	}
+	if upd.Role != nil && !validRouterRole(*upd.Role) {
+		return nil, fmt.Errorf("%w: role must be border, bras or other", ErrValidation)
+	}
+	if upd.ResetRole {
+		updates["role_set_by_admin"] = false
 	}
 	return updates, s.encryptGivenSecrets(updates, upd)
 }

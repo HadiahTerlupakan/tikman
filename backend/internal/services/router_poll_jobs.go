@@ -15,6 +15,7 @@ import (
 const (
 	RouterInterfacesInterval = time.Minute
 	RouterBGPInterval        = time.Minute
+	RouterBRASInterval       = time.Minute
 	RouterDiscoveryInterval  = 6 * time.Hour
 	// RouterRoutesInterval: BGP best paths for busy prefixes rarely change
 	// within the hour, and each prefix read costs the router a table scan.
@@ -31,15 +32,6 @@ const (
 // longLeaseKinds hold their lease for routerDiscoveryLease: discovery, and the
 // route read, which spends about a second per prefix.
 var longLeaseKinds = []models.RouterPollKind{models.RouterPollKindDiscovery, models.RouterPollKindRoutes}
-
-// AllRouterPollKinds is every router tier, discovery first so a new router has
-// interfaces before its first counter poll.
-var AllRouterPollKinds = []models.RouterPollKind{
-	models.RouterPollKindDiscovery,
-	models.RouterPollKindInterfaces,
-	models.RouterPollKindBGP,
-	models.RouterPollKindRoutes,
-}
 
 // RouterPollJobService hands out one router's work to one worker at a time.
 type RouterPollJobService struct {
@@ -61,6 +53,8 @@ func RouterIntervalFor(kind models.RouterPollKind) time.Duration {
 		return RouterBGPInterval
 	case models.RouterPollKindRoutes:
 		return RouterRoutesInterval
+	case models.RouterPollKindBRAS:
+		return RouterBRASInterval
 	default:
 		return RouterDiscoveryInterval
 	}

@@ -38,6 +38,17 @@ const (
 	BGPStateDown        BGPState = "down"
 )
 
+// RouterRole is what a router does in the network, which decides the jobs it
+// is polled with and the tabs it shows.
+type RouterRole string
+
+// The router roles.
+const (
+	RouterRoleBorder RouterRole = "border"
+	RouterRoleBRAS   RouterRole = "bras"
+	RouterRoleOther  RouterRole = "other"
+)
+
 // RouterPollKind is one tier of polling work for a router.
 type RouterPollKind string
 
@@ -48,6 +59,8 @@ const (
 	// RouterPollKindRoutes reads the BGP candidates for the busiest
 	// destination prefixes, for route advice.
 	RouterPollKindRoutes RouterPollKind = "routes"
+	// RouterPollKindBRAS reads the subscriber sessions of a BRAS router.
+	RouterPollKindBRAS RouterPollKind = "bras"
 )
 
 // MikrotikRouter is a RouterOS v7 router read over SNMP (traffic) and REST
@@ -98,6 +111,13 @@ type MikrotikRouter struct {
 	// RackPosition is the slot counted from the top of the rack, so the screen
 	// can match the physical rack.
 	RackPosition *int `json:"rack_position"`
+
+	// Role defaults to border: every router before roles existed was one.
+	// RoleSetByAdmin stops discovery from overwriting a role the operator
+	// chose; RoleGuess is what discovery would pick, so the form can say so.
+	Role           RouterRole  `gorm:"type:varchar(8);not null;default:border" json:"role"`
+	RoleSetByAdmin bool        `gorm:"not null;default:false" json:"role_set_by_admin"`
+	RoleGuess      *RouterRole `gorm:"type:varchar(8)" json:"role_guess"`
 
 	// Health is the last MIKROTIK-MIB gauge table read, as
 	// [{"name","value","unit"}]: the items differ by model, so they are kept

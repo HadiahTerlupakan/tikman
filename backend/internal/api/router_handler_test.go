@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -314,4 +315,53 @@ func TestUpdateRouterRefusesASamplingRatioOutOfRange(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code, ratio)
 	}
+}
+
+func updateRouterVia(t *testing.T, handler *RouterHandler, id uuid.UUID, body interface{}) *httptest.ResponseRecorder {
+	t.Helper()
+	w, c := SetupTestContext(http.MethodPut, "/api/v1/routers/"+id.String(), body)
+	c.Params = gin.Params{{Key: "id", Value: id.String()}}
+	handler.Update(c)
+	return w
+}
+
+func TestUpdateRouterRole(t *testing.T) {
+	handler, db := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+
+	w := updateRouterVia(t, handler, created.ID, map[string]string{"role": "bras"})
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"role":"bras"`)
+	assert.Contains(t, w.Body.String(), `"role_set_by_admin":true`)
+	assert.Contains(t, w.Body.String(), `"role_guess":null`)
+	var kinds []string
+	require.NoError(t, db.Model(&models.RouterPollJob{}).Where("router_id = ?", created.ID).Pluck("kind", &kinds).Error)
+	assert.ElementsMatch(t, []string{"discovery", "interfaces", "bras"}, kinds)
+}
+
+func TestUpdateRouterRoleRejectsUnknown(t *testing.T) {
+	handler, _ := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+
+	w := updateRouterVia(t, handler, created.ID, map[string]string{"role": "core"})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+}
+
+func TestUpdateRouterResetRole(t *testing.T) {
+	handler, db := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+	require.Equal(t, http.StatusOK, updateRouterVia(t, handler, created.ID, map[string]string{"role": "other"}).Code)
+	require.NoError(t, db.Model(&models.RouterPollJob{}).
+		Where("router_id = ? AND kind = ?", created.ID, models.RouterPollKindDiscovery).
+		Update("due_at", time.Now().Add(time.Hour)).Error)
+
+	w := updateRouterVia(t, handler, created.ID, map[string]bool{"reset_role": true})
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"role_set_by_admin":false`)
+	var discovery models.RouterPollJob
+	require.NoError(t, db.First(&discovery, "router_id = ? AND kind = ?", created.ID, models.RouterPollKindDiscovery).Error)
+	assert.False(t, discovery.DueAt.After(time.Now().Add(time.Second)))
 }
