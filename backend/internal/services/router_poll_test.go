@@ -30,12 +30,19 @@ type fakeRouterAPI struct {
 	asked     []string
 	// onRoutesTo, when set, runs inside the first RoutesTo call, so a test
 	// can hold a lookup open.
-	onRoutesTo func()
-	rules      []mikrotik.FilterRule
-	lists      map[string][]mikrotik.AddressListEntry
-	listsErr   error
-	err        error
-	closed     int
+	onRoutesTo  func()
+	rules       []mikrotik.FilterRule
+	lists       map[string][]mikrotik.AddressListEntry
+	listsErr    error
+	pppoe       []mikrotik.PPPoEServer
+	pppoeErr    error
+	defaults    []mikrotik.Route
+	defaultsErr error
+	// calls records the BRAS-only reads, so a test can show a border router
+	// never makes them.
+	calls  []string
+	err    error
+	closed int
 }
 
 func (f *fakeRouterAPI) Close() error { f.closed++; return nil }
@@ -67,10 +74,15 @@ func (f *fakeRouterAPI) RoutesTo(prefix string) ([]mikrotik.BGPRoute, error) {
 	return f.bgpRoutes[prefix], f.err
 }
 
-func (f *fakeRouterAPI) PPPoEServers() ([]mikrotik.PPPoEServer, error) { return nil, f.err }
-func (f *fakeRouterAPI) PPPActiveCount() (int, error)                  { return 0, f.err }
-func (f *fakeRouterAPI) IPPools() ([]mikrotik.IPPool, error)           { return nil, f.err }
-func (f *fakeRouterAPI) PoolUsedCount(string) (int, error)             { return 0, f.err }
+func (f *fakeRouterAPI) PPPoEServers() ([]mikrotik.PPPoEServer, error) {
+	if f.pppoeErr != nil {
+		return nil, f.pppoeErr
+	}
+	return f.pppoe, f.err
+}
+func (f *fakeRouterAPI) PPPActiveCount() (int, error)        { return 0, f.err }
+func (f *fakeRouterAPI) IPPools() ([]mikrotik.IPPool, error) { return nil, f.err }
+func (f *fakeRouterAPI) PoolUsedCount(string) (int, error)   { return 0, f.err }
 func (f *fakeRouterAPI) RadiusServers() ([]mikrotik.RadiusServer, error) {
 	return nil, f.err
 }
@@ -79,18 +91,26 @@ func (f *fakeRouterAPI) RadiusMonitor(string) (mikrotik.RadiusStats, error) {
 }
 func (f *fakeRouterAPI) CPULoads() ([]mikrotik.CPULoad, error)          { return nil, f.err }
 func (f *fakeRouterAPI) DynamicQueues() ([]mikrotik.SimpleQueue, error) { return nil, f.err }
-func (f *fakeRouterAPI) DefaultRoute() ([]mikrotik.Route, error)        { return nil, f.err }
+func (f *fakeRouterAPI) DefaultRoute() ([]mikrotik.Route, error) {
+	f.calls = append(f.calls, "DefaultRoute")
+	if f.defaultsErr != nil {
+		return nil, f.defaultsErr
+	}
+	return f.defaults, f.err
+}
 
 type pollFixture struct {
-	service  *RouterPollService
-	db       *gorm.DB
-	router   *models.MikrotikRouter
-	api      *fakeRouterAPI
-	counters []connectivity.IfCounters
-	snmpErr  error
-	gauges   []connectivity.Gauge
-	gaugeErr error
-	openErr  error
+	service   *RouterPollService
+	db        *gorm.DB
+	router    *models.MikrotikRouter
+	api       *fakeRouterAPI
+	counters  []connectivity.IfCounters
+	snmpErr   error
+	gauges    []connectivity.Gauge
+	gaugeErr  error
+	ifNames   map[string]int
+	ifNameErr error
+	openErr   error
 }
 
 func newPollFixture(t *testing.T) *pollFixture {
@@ -114,6 +134,10 @@ func newPollFixture(t *testing.T) *pollFixture {
 		},
 		readGauges: func(context.Context, string, int, string) ([]connectivity.Gauge, error) {
 			return f.gauges, f.gaugeErr
+		},
+		readIfNames: func(context.Context, string, int, string) (map[string]int, error) {
+			f.api.calls = append(f.api.calls, "WalkIfNames")
+			return f.ifNames, f.ifNameErr
 		},
 		fetchFingerprint: func(string, int) (string, error) { return "ef" + testFingerprint[2:], nil },
 	}

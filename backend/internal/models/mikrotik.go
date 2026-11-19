@@ -118,6 +118,9 @@ type MikrotikRouter struct {
 	Role           RouterRole  `gorm:"type:varchar(8);not null;default:border" json:"role"`
 	RoleSetByAdmin bool        `gorm:"not null;default:false" json:"role_set_by_admin"`
 	RoleGuess      *RouterRole `gorm:"type:varchar(8)" json:"role_guess"`
+	// UplinkInterfaceID is the interface a BRAS's default route leaves by,
+	// found at discovery; nil when there is no default route to follow.
+	UplinkInterfaceID *uuid.UUID `gorm:"type:uuid" json:"uplink_interface_id"`
 
 	// Health is the last MIKROTIK-MIB gauge table read, as
 	// [{"name","value","unit"}]: the items differ by model, so they are kept

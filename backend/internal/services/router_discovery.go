@@ -30,8 +30,8 @@ type routerInventory struct {
 	routesErr  error
 }
 
-// Discover brings the stored interfaces in line with the router's, then
-// re-matches BGP sessions to them.
+// Discover brings the stored interfaces in line with the router's, guesses the
+// router's role, then re-matches BGP sessions to the interfaces.
 func (s *RouterPollService) Discover(router *models.MikrotikRouter) error {
 	api, err := s.apiFor(router)
 	if err != nil {
@@ -46,8 +46,15 @@ func (s *RouterPollService) Discover(router *models.MikrotikRouter) error {
 	if len(rows) == 0 {
 		return errNoInterfaces
 	}
+	reads := s.readRole(api, router)
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if err := upsertInterfaces(tx, router.ID, rows); err != nil {
+			return err
+		}
+		if err := applyRole(tx, router, reads); err != nil {
+			return err
+		}
+		if err := applyBRAS(tx, router.ID, reads); err != nil {
 			return err
 		}
 		if err := rematchSessions(tx, router.ID); err != nil {
