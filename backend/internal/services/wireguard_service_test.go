@@ -58,7 +58,8 @@ func TestCreatePeerAllocatesAddressAndAppliesToDevice(t *testing.T) {
 
 	require.Len(t, device.Applied.Peers, 1)
 	require.Equal(t, peer.PublicKey, device.Applied.Peers[0].PublicKey)
-	require.Equal(t, []string{"10.10.10.0/24"}, device.Applied.Peers[0].AllowedIPs)
+	require.Equal(t, []string{"10.88.0.2/32", "10.10.10.0/24"}, device.Applied.Peers[0].AllowedIPs,
+		"the peer's own tunnel address must route to it, so the site router itself can be polled")
 	require.Equal(t, "10.88.0.1/24", device.Applied.Address)
 }
 

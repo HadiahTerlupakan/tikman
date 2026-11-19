@@ -202,10 +202,14 @@ func (s *WireGuardService) reconcileLocked() error {
 		if !peer.Enabled {
 			continue
 		}
-		allowedIPs, err := peer.AllowedIPsList()
+		subnets, err := peer.AllowedIPsList()
 		if err != nil {
 			return err
 		}
+		// The site router's own tunnel address belongs to its peer too.
+		// Without it the kernel drops anything sent to that address, so the
+		// router at the far end could never be polled, only what sits behind it.
+		allowedIPs := append([]string{peer.TunnelAddress + "/32"}, subnets...)
 		cfg.Peers = append(cfg.Peers, connectivity.TunnelPeerConfig{
 			PublicKey:  peer.PublicKey,
 			AllowedIPs: allowedIPs,

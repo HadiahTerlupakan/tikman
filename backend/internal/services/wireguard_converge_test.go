@@ -54,7 +54,7 @@ func TestUpdatePeerReconcilesAfterRestoringRejectedEdit(t *testing.T) {
 	require.Error(t, err)
 
 	require.Len(t, device.Applied.Peers, 1)
-	require.Equal(t, []string{"10.10.10.0/24"}, device.Applied.Peers[0].AllowedIPs,
+	require.Equal(t, []string{peer.TunnelAddress + "/32", "10.10.10.0/24"}, device.Applied.Peers[0].AllowedIPs,
 		"the kernel must be put back onto the restored row, not left holding the rejected subnet")
 }
 
