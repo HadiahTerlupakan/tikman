@@ -65,6 +65,14 @@ const router = (over: Partial<MikrotikRouter>): MikrotikRouter =>
     ...over,
   }) as MikrotikRouter;
 
+const psu2Failed = (healthAt: string) => ({
+  health: [
+    { name: "psu1-state", value: 0, unit: 6 },
+    { name: "psu2-state", value: 1, unit: 6 },
+  ],
+  healthAt,
+});
+
 function renderRack(routers: MikrotikRouter[]) {
   render(
     <MemoryRouter initialEntries={["/routers"]}>
@@ -97,7 +105,9 @@ describe("RouterRack", () => {
   });
 
   it("shows an unreachable router with every LED off", () => {
-    renderRack([router({ status: "down" })]);
+    renderRack([
+      router({ status: "down", ...psu2Failed(new Date().toISOString()) }),
+    ]);
     const unit = screen.getByRole("link", {
       name: "Buka border-1, Tidak terjangkau",
     });
@@ -123,6 +133,22 @@ describe("RouterRack", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("RB5009UG+S+IN · CPU 12% · BGP 1/2"),
+    ).toBeInTheDocument();
+  });
+
+  it("names a failed PSU among the troubles", () => {
+    renderRack([router(psu2Failed(new Date().toISOString()))]);
+    expect(
+      screen.getByRole("link", {
+        name: "Buka border-1, 1 port mati, PSU2 fail",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("names no PSU failure from a reading that is no longer fresh", () => {
+    renderRack([router(psu2Failed("2026-01-01T00:00:00Z"))]);
+    expect(
+      screen.getByRole("link", { name: "Buka border-1, 1 port mati" }),
     ).toBeInTheDocument();
   });
 

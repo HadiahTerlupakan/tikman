@@ -7,6 +7,14 @@ export type RouterApiStatus =
 export type RouterApiProtocol = "rest" | "api-ssl" | "api";
 export type BgpState = "established" | "down";
 
+/** One item of the router's /system health, as MIKROTIK-MIB's gauge table reports it. */
+export interface RouterHealthItem {
+  name: string;
+  value: number;
+  /** MIKROTIK-MIB unit: 1 °C, 2 RPM, 3 dV, 4 dA, 5 dW, 6 status (0 ok, 1 fail). */
+  unit: number;
+}
+
 export interface MikrotikRouter {
   id: string;
   name: string;
@@ -37,6 +45,9 @@ export interface MikrotikRouter {
   /** Enabled interfaces that receive nothing although they carried traffic. */
   silentInterfaces: number;
   rackPosition: number | null;
+  /** null until the router's gauge table has been read once. */
+  health: RouterHealthItem[] | null;
+  healthAt: string | null;
 }
 
 export interface RouterInterface {

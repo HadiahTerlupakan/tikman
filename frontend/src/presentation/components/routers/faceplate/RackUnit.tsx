@@ -11,6 +11,7 @@ import {
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterStatusTag } from "../RouterStatusTag";
 import { Chassis } from "./Chassis";
+import { healthView, type HealthView } from "./healthModel";
 import {
   CHASSIS_HEIGHT,
   layoutFaceplate,
@@ -50,7 +51,11 @@ interface Status {
 }
 
 /** Only drawn ports count: a down tunnel or a quiet bridge has no LED to match. */
-function issues(router: MikrotikRouter, used: PortView[]): string[] {
+function issues(
+  router: MikrotikRouter,
+  used: PortView[],
+  health: HealthView,
+): string[] {
   const down = used.filter((p) => p.state === "down").length;
   const silent = used.filter((p) => p.state === "silent").length;
   const dead = bgpStale(router) ? 0 : router.bgpTotal - router.bgpEstablished;
@@ -58,6 +63,7 @@ function issues(router: MikrotikRouter, used: PortView[]): string[] {
   if (down) found.push(`${down} port mati`);
   if (silent) found.push(`${silent} port diam`);
   if (dead) found.push(`${dead} sesi BGP mati`);
+  if (health.fresh) found.push(...health.failures.map((f) => `${f} fail`));
   return found;
 }
 
@@ -66,6 +72,7 @@ function unitStatus(
   router: MikrotikRouter,
   ports: Map<string, PortView>,
   physical: string[],
+  health: HealthView,
   query: { loading: boolean; failed: boolean },
 ): Status | null {
   if (!routerReachable(router))
@@ -80,7 +87,7 @@ function unitStatus(
     const view = ports.get(name);
     return view && view.role !== null ? [view] : [];
   });
-  const found = issues(router, used);
+  const found = issues(router, used, health);
   return found.length
     ? { text: found.join(", "), tone: "warn" }
     : { text: "Semua normal", tone: "" };
@@ -112,9 +119,10 @@ function UnitBay(props: {
   u: number;
   layout: FaceplateLayout;
   ports: Map<string, PortView>;
+  health: HealthView;
   status: Status | null;
 }) {
-  const { router, u, layout, ports, status } = props;
+  const { router, u, layout, ports, health, status } = props;
   const navigate = useNavigate();
   const unitRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(unitRef, layout.width);
@@ -143,7 +151,12 @@ function UnitBay(props: {
           className="fp-unit-chassis"
           style={{ transform: `scale(${scale})` }}
         >
-          <Chassis layout={layout} ports={ports} offline={offline} />
+          <Chassis
+            layout={layout}
+            ports={ports}
+            offline={offline}
+            health={health}
+          />
         </div>
         <span
           className="fp-ptape"
@@ -179,7 +192,8 @@ export function RackUnit(props: RackUnitProps) {
   }, [onLayout, router.id, layout.width]);
   const shared = { ...layout, width: Math.max(sharedWidth, layout.width) };
   const detail = detailLine(router, layout.model);
-  const status = unitStatus(router, ports, physical, {
+  const health = healthView(router, new Date());
+  const status = unitStatus(router, ports, physical, health, {
     loading: isLoading,
     failed: isError,
   });
@@ -191,6 +205,7 @@ export function RackUnit(props: RackUnitProps) {
         u={u}
         layout={shared}
         ports={ports}
+        health={health}
         status={status}
       />
       <div className="fp-info">

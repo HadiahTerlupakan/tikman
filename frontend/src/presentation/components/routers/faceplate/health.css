@@ -1,0 +1,46 @@
+.fp-leds {
+  position: absolute;
+  right: 34px;
+  top: 66px;
+  display: flex;
+  gap: 12px;
+  color: var(--fp-silk);
+  font: 600 10px var(--fp-condensed);
+}
+.fp-leds span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.fp-leds i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fp-led-off);
+}
+.fp-leds i.fp-led-up {
+  background: var(--fp-led-up);
+}
+.fp-leds i.fp-led-down {
+  background: var(--fp-led-down);
+}
+
+.fp-health {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 18px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.fp-health-stale {
+  opacity: 0.55;
+}
+.fp-health-item b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fp-health-item b.fp-health-fail {
+  color: var(--fp-led-down);
+}

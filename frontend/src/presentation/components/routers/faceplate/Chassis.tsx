@@ -5,6 +5,8 @@ import {
   type FaceplateLayout,
   type PlacedJack,
 } from "./portLayout";
+import type { HealthView } from "./healthModel";
+import { HealthLeds } from "./HealthLeds";
 import { STATE_TEXT, type PortRole, type PortView } from "./portModel";
 // Jacks, LEDs and the blink need pseudo-elements and a keyframe, which inline styles cannot express.
 import "./faceplate.css";
@@ -26,6 +28,7 @@ interface ChassisProps {
   layout: FaceplateLayout;
   ports: Map<string, PortView>;
   offline: boolean;
+  health: HealthView;
   selected?: string;
   onSelect?: (name: string) => void;
 }
@@ -228,6 +231,7 @@ export function Chassis({
   layout,
   ports,
   offline,
+  health,
   selected,
   onSelect,
 }: ChassisProps) {
@@ -243,10 +247,7 @@ export function Chassis({
       <div className="fp-silk fp-model" style={modelStyle(layout)}>
         {model}
       </div>
-      <span className="fp-chassis-status" aria-hidden>
-        <i className={offline ? undefined : "fp-led-up"} />
-        STATUS
-      </span>
+      <HealthLeds offline={offline} health={health} />
       {layout.jacks.map((jack) => (
         <Port
           key={jack.name}

@@ -1,6 +1,7 @@
 import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import { formatBps } from "../routerTraffic";
 import { Chassis } from "./Chassis";
+import type { HealthView } from "./healthModel";
 import {
   CHASSIS_HEIGHT,
   type FaceplateLayout,
@@ -232,6 +233,7 @@ interface PortLabelsProps {
   layout: FaceplateLayout;
   ports: Map<string, PortView>;
   offline: boolean;
+  health: HealthView;
   selected?: string;
   onSelect: (name: string) => void;
 }
@@ -281,7 +283,8 @@ function Cables({ placement }: { placement: LabelPlacement | null }) {
 function LabelLayer(
   props: PortLabelsProps & { placement: LabelPlacement | null },
 ) {
-  const { layout, ports, offline, selected, onSelect, placement } = props;
+  const { layout, ports, offline, health, selected, onSelect, placement } =
+    props;
   const chassisTop = placement?.chassisTop ?? MARGIN;
   return (
     <>
@@ -293,6 +296,7 @@ function LabelLayer(
           layout={layout}
           ports={ports}
           offline={offline}
+          health={health}
           selected={selected}
           onSelect={onSelect}
         />

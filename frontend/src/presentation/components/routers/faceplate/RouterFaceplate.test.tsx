@@ -217,4 +217,56 @@ describe("RouterFaceplate", () => {
 
     expect(screen.queryByText(/belum punya cetakan/)).toBeNull();
   });
+
+  describe("health strip", () => {
+    const health = [
+      { name: "cpu-temperature", value: 43, unit: 1 },
+      { name: "psu2-state", value: 1, unit: 6 },
+    ];
+
+    it("lists every reading and marks the failed one", () => {
+      render(
+        <RouterFaceplate
+          router={{ ...router, health, healthAt: new Date().toISOString() }}
+        />,
+      );
+
+      const strip = screen.getByRole("region", { name: "Kesehatan" });
+      expect(within(strip).getByText("43 °C")).toBeTruthy();
+      expect(within(strip).getByText("fail").className).toContain(
+        "fp-health-fail",
+      );
+      expect(strip.className).not.toContain("fp-health-stale");
+      expect(within(strip).queryByText(/^Pembacaan terakhir/)).toBeNull();
+    });
+
+    it("says there is no health data before the first reading", () => {
+      render(
+        <RouterFaceplate
+          router={{ ...router, health: null, healthAt: null }}
+        />,
+      );
+
+      expect(screen.getByText("Belum ada data kesehatan")).toBeTruthy();
+    });
+
+    it("dims an unreachable router's reading and dates it", () => {
+      render(
+        <RouterFaceplate
+          router={{
+            ...router,
+            status: "down",
+            health,
+            healthAt: "2026-11-19T04:30:00Z",
+          }}
+        />,
+      );
+
+      const strip = screen.getByRole("region", { name: "Kesehatan" });
+      expect(strip.className).toContain("fp-health-stale");
+      expect(
+        within(strip).getByText(/^Pembacaan terakhir \d{2} Nov \d{2}:\d{2}$/),
+      ).toBeTruthy();
+    });
+  });
 });

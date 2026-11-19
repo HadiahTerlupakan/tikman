@@ -33,6 +33,8 @@ export function mikrotikRouter(
     bgpTotal: 0,
     silentInterfaces: 0,
     rackPosition: null,
+    health: null,
+    healthAt: null,
     ...over,
   };
 }

@@ -9,6 +9,8 @@ import {
   useRouterBgpSessions,
   useRouterInterfaces,
 } from "@/application/hooks/useMikrotikRouters";
+import { healthView } from "./healthModel";
+import { HealthStrip } from "./HealthStrip";
 import { PortDetailPanel } from "./PortDetailPanel";
 import { PortLabels } from "./PortLabels";
 import {
@@ -76,6 +78,7 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
   const offline = !routerReachable(router);
   const selected = selectedPort(layout, ports, picked);
   const view = selected ? ports.get(selected) : undefined;
+  const health = healthView(router, new Date());
   return (
     <div style={{ marginBottom: 16 }}>
       {!layout.templated && (
@@ -88,10 +91,12 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
           layout={layout}
           ports={ports}
           offline={offline}
+          health={health}
           selected={selected}
           onSelect={setPicked}
         />
       </div>
+      <HealthStrip health={health} healthAt={router.healthAt} />
       {view && (
         <PortDetailPanel
           routerId={router.id}
