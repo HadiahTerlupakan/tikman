@@ -62,6 +62,7 @@ type RouterPollService struct {
 	routers          *RouterService
 	newAPI           func(router *models.MikrotikRouter, password string) (RouterAPI, error)
 	readCounters     IfCounterReader
+	getIfCounters    IfCounterGetter
 	readGauges       GaugeReader
 	readIfNames      IfNameReader
 	fetchFingerprint func(host string, port int) (string, error)
@@ -76,6 +77,7 @@ func NewRouterPollService(db *gorm.DB, routers *RouterService) *RouterPollServic
 		routers:          routers,
 		newAPI:           openRouterAPI,
 		readCounters:     connectivity.WalkIfCounters,
+		getIfCounters:    connectivity.GetIfCounters,
 		readGauges:       connectivity.WalkGauges,
 		readIfNames:      connectivity.WalkIfNames,
 		fetchFingerprint: mikrotik.FetchFingerprint,
@@ -101,6 +103,9 @@ func (s *RouterPollService) PollInterfaces(router *models.MikrotikRouter, now ti
 	community, _, err := s.routers.Secrets(router)
 	if err != nil {
 		return err
+	}
+	if router.Role == models.RouterRoleBRAS {
+		return s.pollBRASInterfaces(router, community, now)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), snmpWalkBudget)
 	defer cancel()
