@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tikman/olt-provisioning/internal/mikrotik"
 )
 
 func TestPoolTotalFromRanges(t *testing.T) {
@@ -24,6 +26,19 @@ func TestPoolTotalFromRanges(t *testing.T) {
 			assert.Equal(t, c.want, poolTotalFromRanges(c.ranges))
 		})
 	}
+}
+
+// A range that counts fewer addresses than are in use is not the pool's size,
+// and a negative free count would read as an exhausted pool.
+func TestReadPoolRangesShorterThanUsedIsUnknown(t *testing.T) {
+	api := &fakeRouterAPI{poolUsed: map[string]int{"pel": 20}}
+
+	pool, err := readPool(api, mikrotik.IPPool{Name: "pel", Ranges: "192.0.2.1-192.0.2.10"})
+
+	require.NoError(t, err)
+	assert.Equal(t, 20, pool.Used)
+	assert.Nil(t, pool.Total)
+	assert.Nil(t, pool.Free)
 }
 
 func TestRadiusAnsweringVerdict(t *testing.T) {

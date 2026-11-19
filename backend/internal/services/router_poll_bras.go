@@ -144,6 +144,12 @@ func readPool(api RouterAPI, row mikrotik.IPPool) (BRASPool, error) {
 			return pool, err
 		}
 		pool.Total = poolTotalFromRanges(row.Ranges)
+		// Ranges counting fewer addresses than are in use are not the pool's
+		// size, and the negative free count they give would read as an
+		// exhausted pool.
+		if pool.Total != nil && *pool.Total < pool.Used {
+			pool.Total = nil
+		}
 	}
 	if pool.Total != nil {
 		free := *pool.Total - pool.Used

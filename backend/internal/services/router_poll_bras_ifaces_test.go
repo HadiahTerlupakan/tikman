@@ -121,6 +121,41 @@ func TestBRASPollMapsAgainWhenAnIndexIsGone(t *testing.T) {
 	assert.False(t, f.discoveryDueAt(t).After(start))
 }
 
+// A mismatch discovery cannot fix (an ifName it never sees) must not pull
+// discovery forward every minute once it has just run.
+func TestBRASPollLeavesARecentDiscoveryAlone(t *testing.T) {
+	f := newBRASPollFixture(t)
+	f.addMapped(t, "ether-up", 3)
+	start := time.Date(2026, 11, 20, 3, 0, 0, 0, time.UTC)
+	ranAt := start.Add(-5 * time.Minute)
+	require.NoError(t, f.db.Model(&models.RouterPollJob{}).
+		Where("router_id = ? AND kind = ?", f.router.ID, models.RouterPollKindDiscovery).
+		Update("last_run_at", ranAt).Error)
+	before := f.discoveryDueAt(t)
+
+	f.got = []connectivity.IfCounters{{IfIndex: 3, Name: "<pppoe-pel-0001>"}}
+	require.NoError(t, f.service.PollInterfaces(f.router, start))
+	require.NoError(t, f.service.PollInterfaces(f.router, start.Add(time.Minute)))
+
+	assert.True(t, f.discoveryDueAt(t).Equal(before))
+}
+
+// With no port mapped nothing is asked of the router, so nothing says it is up.
+func TestBRASPollWithNoMappedPortsLeavesStatusAlone(t *testing.T) {
+	f := newBRASPollFixture(t)
+	f.addInterface(t, "ether-new", "", false)
+	start := time.Date(2026, 11, 20, 3, 0, 0, 0, time.UTC)
+	before := f.storedRouter(t)
+
+	require.NoError(t, f.service.PollInterfaces(f.router, start))
+
+	after := f.storedRouter(t)
+	assert.Empty(t, f.asked)
+	assert.Equal(t, before.Status, after.Status)
+	assert.Nil(t, after.LastSeenAt)
+	assert.False(t, f.discoveryDueAt(t).After(start), "discovery must be due to map the ports")
+}
+
 func TestBRASPollGetFailureMarksDown(t *testing.T) {
 	f := newBRASPollFixture(t)
 	f.addMapped(t, "ether-up", 3)

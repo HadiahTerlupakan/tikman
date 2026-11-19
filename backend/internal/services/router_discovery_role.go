@@ -33,10 +33,14 @@ type roleReads struct {
 }
 
 // guessRole names what a router appears to do: only a BRAS terminates PPPoE,
-// and a router with a live BGP session and no PPPoE is taken for a border.
+// and a router with a live BGP session and no PPPoE is taken for a border. A
+// disabled PPPoE server is no evidence: a border router can carry one left
+// over from a test.
 func guessRole(pppoe []mikrotik.PPPoEServer, bgp []mikrotik.BGPConnection) models.RouterRole {
-	if len(pppoe) > 0 {
-		return models.RouterRoleBRAS
+	for _, server := range pppoe {
+		if !mikrotik.ParseBool(server.Disabled) {
+			return models.RouterRoleBRAS
+		}
 	}
 	for _, c := range bgp {
 		if !mikrotik.ParseBool(c.Disabled) {
@@ -103,14 +107,21 @@ func (s *RouterPollService) walkIfNames(router *models.MikrotikRouter) (map[stri
 }
 
 // applyRole stores the guess, and moves the role to it unless an admin chose
-// the role.
+// the role. The choice is read again here, not taken from the router loaded at
+// claim: an admin may have picked a role while discovery was reading the
+// router. The conditional UPDATE also locks the row on Postgres, so an admin's
+// save that lands after it waits and then wins.
 func applyRole(tx *gorm.DB, router *models.MikrotikRouter, reads roleReads) error {
 	if reads.guess == nil {
 		return nil
 	}
-	err := tx.Model(&models.MikrotikRouter{}).Where("id = ?", router.ID).Update("role_guess", *reads.guess).Error
-	if err != nil || router.RoleSetByAdmin {
-		return err
+	result := tx.Model(&models.MikrotikRouter{}).Where("id = ? AND role_set_by_admin = ?", router.ID, false).
+		Update("role_guess", *reads.guess)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return tx.Model(&models.MikrotikRouter{}).Where("id = ?", router.ID).Update("role_guess", *reads.guess).Error
 	}
 	return SetRouterRole(tx, router.ID, *reads.guess, false)
 }

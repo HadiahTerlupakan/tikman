@@ -37,6 +37,10 @@ func (s *RouterPollService) pollBRASInterfaces(router *models.MikrotikRouter, co
 		indexes = append(indexes, *iface.IfIndex)
 	}
 	sort.Ints(indexes)
+	if len(indexes) == 0 {
+		// Nothing is asked of the router, so nothing says it is up.
+		return requestDiscovery(s.db, router, now)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), snmpWalkBudget)
 	defer cancel()
@@ -62,7 +66,7 @@ func (s *RouterPollService) pollBRASInterfaces(router *models.MikrotikRouter, co
 			}
 		}
 		if stale || sampled < len(indexes) {
-			if err := dueDiscoveryNow(tx, router, now); err != nil {
+			if err := requestDiscovery(tx, router, now); err != nil {
 				return err
 			}
 		}
@@ -70,8 +74,16 @@ func (s *RouterPollService) pollBRASInterfaces(router *models.MikrotikRouter, co
 	})
 }
 
-func dueDiscoveryNow(tx *gorm.DB, router *models.MikrotikRouter, now time.Time) error {
+// rediscoverAfter is how recently discovery may have run before a mismatch
+// pulls it forward again. A mismatch discovery cannot fix (a port SNMP names
+// differently from the API) would otherwise re-run it every minute.
+const rediscoverAfter = 30 * time.Minute
+
+// requestDiscovery makes discovery due now, unless it ran within
+// rediscoverAfter.
+func requestDiscovery(tx *gorm.DB, router *models.MikrotikRouter, now time.Time) error {
 	return tx.Model(&models.RouterPollJob{}).
 		Where("router_id = ? AND kind = ? AND due_at > ?", router.ID, models.RouterPollKindDiscovery, now).
+		Where("last_run_at IS NULL OR last_run_at < ?", now.Add(-rediscoverAfter)).
 		Update("due_at", now).Error
 }

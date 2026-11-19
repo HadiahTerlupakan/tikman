@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -15,6 +16,7 @@ func TestGuessRole(t *testing.T) {
 	pppoe := []mikrotik.PPPoEServer{{ServiceName: "pel", Interface: "vlan-10"}}
 	bgp := []mikrotik.BGPConnection{{Name: "transit", RemoteAS: "64500", Disabled: "false"}}
 	disabled := []mikrotik.BGPConnection{{Name: "old", RemoteAS: "64500", Disabled: "true"}}
+	offPPPoE := []mikrotik.PPPoEServer{{ServiceName: "lab", Interface: "vlan-99", Disabled: "true"}}
 	cases := []struct {
 		name  string
 		pppoe []mikrotik.PPPoEServer
@@ -23,6 +25,8 @@ func TestGuessRole(t *testing.T) {
 	}{
 		{"pppoe and bgp", pppoe, bgp, models.RouterRoleBRAS},
 		{"bgp only", nil, bgp, models.RouterRoleBorder},
+		{"disabled pppoe and bgp", offPPPoE, bgp, models.RouterRoleBorder},
+		{"disabled pppoe only", offPPPoE, nil, models.RouterRoleOther},
 		{"disabled bgp only", nil, disabled, models.RouterRoleOther},
 		{"nothing", nil, nil, models.RouterRoleOther},
 	}
@@ -107,6 +111,24 @@ func TestDiscoverWritesGuessUnlessAdminSet(t *testing.T) {
 	assert.Equal(t, models.RouterRoleBorder, router.Role, "the operator's choice stands")
 	require.NotNil(t, router.RoleGuess)
 	assert.Equal(t, models.RouterRoleBRAS, *router.RoleGuess)
+}
+
+// An admin who picks a role while discovery is reading the router must not
+// have it overwritten by the guess discovery made from the router it loaded.
+func TestDiscoverKeepsRoleAnAdminSetMidRun(t *testing.T) {
+	f := newPollFixture(t)
+	brasInventory(f.api)
+	f.service.readIfNames = func(context.Context, string, int, string) (map[string]int, error) {
+		require.NoError(t, SetRouterRole(f.db, f.router.ID, models.RouterRoleOther, true))
+		return nil, nil
+	}
+
+	require.NoError(t, f.service.Discover(f.router))
+
+	router := f.reloadRouter(t)
+	assert.Equal(t, models.RouterRoleOther, router.Role)
+	assert.True(t, router.RoleSetByAdmin)
+	assert.ElementsMatch(t, RouterPollKindsFor(models.RouterRoleOther), f.jobKinds(t))
 }
 
 func TestDiscoverKeepsRoleWhenPPPoEReadFails(t *testing.T) {

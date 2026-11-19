@@ -135,3 +135,18 @@ func TestRoutersWithoutAProtocolReadAsREST(t *testing.T) {
 	require.NoError(t, db.Raw("SELECT api_protocol FROM mikrotik_routers WHERE id = ?", id).Scan(&protocol).Error)
 	assert.Equal(t, "rest", protocol)
 }
+
+// Migration 81 must leave every router that already exists on the role it has,
+// so the first discovery after the deploy cannot move a live border router to
+// a guess. The router is seeded before 81 runs, as production's are.
+func TestRouterRoleMigrationPinsExistingRouters(t *testing.T) {
+	db := freshPostgresBefore(t, "router_role_check", "81")
+	routerID := insertTestRouter(t, db)
+
+	require.NoError(t, RunSQLMigrations(db, "../../migrations"))
+
+	var setByAdmin bool
+	require.NoError(t, db.Raw(`SELECT role_set_by_admin FROM mikrotik_routers WHERE id = ?`, routerID).
+		Scan(&setByAdmin).Error)
+	assert.True(t, setByAdmin)
+}
