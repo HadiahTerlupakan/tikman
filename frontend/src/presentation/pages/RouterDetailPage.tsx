@@ -19,9 +19,13 @@ export function RouterDetailPage() {
 
   return (
     <Card title={router.name} extra={<RouterStatusTag router={router} />}>
-      <RouterFaceplate router={router} />
       <Tabs
         items={[
+          {
+            key: "panel",
+            label: "Panel depan",
+            children: <RouterFaceplate router={router} />,
+          },
           {
             key: "upstream",
             label: "Upstream & BGP",
