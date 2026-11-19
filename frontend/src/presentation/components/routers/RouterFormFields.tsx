@@ -111,7 +111,18 @@ export function RouterFormFields({ editing }: { editing: boolean }) {
       <Form.Item name="apiPort" label="Port API">
         <InputNumber min={1} max={65535} />
       </Form.Item>
-      {editing && <FlowFields />}
+      {editing && (
+        <>
+          <Form.Item
+            name="rackPosition"
+            label="Posisi di rak"
+            extra="Urutan dari atas di halaman MikroTik; kosongkan untuk mengurut menurut nama"
+          >
+            <InputNumber min={1} max={99} />
+          </Form.Item>
+          <FlowFields />
+        </>
+      )}
     </>
   );
 }

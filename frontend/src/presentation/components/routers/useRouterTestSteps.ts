@@ -18,6 +18,7 @@ export interface RouterFormValues {
   apiProtocol: RouterApiProtocol;
   flowEnabled?: boolean;
   flowSampling?: number;
+  rackPosition?: number | null;
 }
 
 /**

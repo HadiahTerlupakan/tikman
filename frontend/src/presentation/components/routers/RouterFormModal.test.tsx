@@ -103,6 +103,39 @@ describe("RouterFormModal protocol", () => {
     });
   });
 
+  it("shows the rack position of the router being edited", () => {
+    render(
+      <RouterFormModal
+        router={mikrotikRouter({ rackPosition: 2 })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(
+      (screen.getByLabelText("Posisi di rak") as HTMLInputElement).value,
+    ).toBe("2");
+  });
+
+  it("clears the rack position instead of sending null", async () => {
+    updateMutate.mockResolvedValue({});
+    render(
+      <RouterFormModal
+        router={mikrotikRouter({ rackPosition: 2 })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Posisi di rak"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByText("Simpan"));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalled());
+    const data = updateMutate.mock.calls[0][0].data;
+    expect(data.clearRackPosition).toBe(true);
+    expect("rackPosition" in data).toBe(false);
+  });
+
   it("does not offer NetFlow while adding a router", () => {
     render(<RouterFormModal onClose={vi.fn()} />);
 

@@ -36,6 +36,7 @@ export interface MikrotikRouter {
   bgpTotal: number;
   /** Enabled interfaces that receive nothing although they carried traffic. */
   silentInterfaces: number;
+  rackPosition: number | null;
 }
 
 export interface RouterInterface {
@@ -130,6 +131,8 @@ export interface UpdateRouterDto {
   enabled?: boolean;
   flowEnabled?: boolean;
   flowSampling?: number;
+  rackPosition?: number;
+  clearRackPosition?: boolean;
 }
 
 export interface RouterConnectionTestResult {

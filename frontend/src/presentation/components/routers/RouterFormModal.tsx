@@ -11,6 +11,7 @@ import type {
   MikrotikRouter,
   RouterApiProtocol,
   RouterConnectionTestResult,
+  UpdateRouterDto,
 } from "@/domain/entities";
 import {
   useCreateMikrotikRouter,
@@ -147,7 +148,19 @@ function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
     apiPort: router?.apiPort ?? PROTOCOL_DEFAULT_PORT[apiProtocol],
     flowEnabled: router?.flowEnabled ?? false,
     flowSampling: router?.flowSampling ?? DEFAULT_FLOW_SAMPLING,
+    rackPosition: router?.rackPosition ?? undefined,
   };
+}
+
+// The backend binding rejects a null rack_position against min=1, so an empty
+// field is sent as an explicit clear instead.
+function updatePayload({
+  rackPosition,
+  ...rest
+}: RouterFormValues): UpdateRouterDto {
+  return rackPosition == null
+    ? { ...rest, clearRackPosition: true }
+    : { ...rest, rackPosition };
 }
 
 // A new router is saved only once the test passed; "" means plain API, which
@@ -164,7 +177,10 @@ function useSaveRouter(
     try {
       const values = await form.validateFields();
       if (router) {
-        await update.mutateAsync({ id: router.id, data: values });
+        await update.mutateAsync({
+          id: router.id,
+          data: updatePayload(values),
+        });
       } else if (fingerprint !== null) {
         await create.mutateAsync({
           ...values,
