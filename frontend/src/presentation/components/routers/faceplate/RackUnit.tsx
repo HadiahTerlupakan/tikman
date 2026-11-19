@@ -92,7 +92,7 @@ function StatusLine(props: { router: MikrotikRouter; status: Status | null }) {
   return (
     <span className={status.tone ? `fp-st fp-st-${status.tone}` : "fp-st"}>
       <i />
-      <span>{status.text}</span>
+      <span className="fp-st-text">{status.text}</span>
       {status.tone === "down" && <RouterStatusTag router={router} />}
     </span>
   );
@@ -178,6 +178,7 @@ export function RackUnit(props: RackUnitProps) {
     onLayout(router.id, layout.width);
   }, [onLayout, router.id, layout.width]);
   const shared = { ...layout, width: Math.max(sharedWidth, layout.width) };
+  const detail = detailLine(router, layout.model);
   const status = unitStatus(router, ports, physical, {
     loading: isLoading,
     failed: isError,
@@ -193,20 +194,22 @@ export function RackUnit(props: RackUnitProps) {
         status={status}
       />
       <div className="fp-info">
-        <span className="fp-info-name">{router.name}</span>
+        <div className="fp-info-head">
+          <span className="fp-info-name">{router.name}</span>
+          {isAdmin && (
+            <button
+              type="button"
+              className="fp-info-edit"
+              onClick={() => onEdit(router)}
+            >
+              Ubah
+            </button>
+          )}
+        </div>
         <StatusLine router={router} status={status} />
-        <span className="fp-info-muted">
-          {detailLine(router, layout.model)}
+        <span className="fp-info-muted" title={detail}>
+          {detail}
         </span>
-        {isAdmin && (
-          <button
-            type="button"
-            className="fp-info-edit"
-            onClick={() => onEdit(router)}
-          >
-            Ubah
-          </button>
-        )}
       </div>
     </div>
   );

@@ -16,3 +16,14 @@ export function useFitScale(ref: RefObject<HTMLElement | null>, width: number) {
   }, [ref, width]);
   return scale;
 }
+
+// Below this the labels' text gets too small to read, so a narrow screen
+// scrolls the stage sideways instead of shrinking it further.
+export const MIN_STAGE_SCALE = 0.6;
+
+/** The detail stage's scale: shrunk to fit, never enlarged, and never below the readable floor. */
+export function stageScale(fit: number): number {
+  // An element not laid out yet reports no width, which is no reason to shrink.
+  if (!(fit > 0)) return 1;
+  return Math.min(1, Math.max(MIN_STAGE_SCALE, fit));
+}

@@ -23,7 +23,7 @@ import {
   type PortView,
 } from "./portModel";
 
-// A wide board scrolls inside its stage instead of widening the page.
+// The labels shrink to fit; only past their readable floor does a board scroll here instead of widening the page.
 const STAGE: CSSProperties = {
   border: "1px solid var(--fp-stage-line)",
   borderRadius: 10,

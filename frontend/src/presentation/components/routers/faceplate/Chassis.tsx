@@ -19,6 +19,8 @@ const BLINK_THRESHOLD_BPS = 1e6;
 const NUM_OFFSET_RJ = 14;
 const NUM_OFFSET_CAGE = 22;
 const NUM_LINE = 10;
+const MODEL_RIGHT = 34;
+const MODEL_GAP = 16;
 
 interface ChassisProps {
   layout: FaceplateLayout;
@@ -206,6 +208,21 @@ function RackMountAndConsole() {
   );
 }
 
+/**
+ * The silkscreen model fits the free area right of the last jack and ends in
+ * an ellipsis there: its width depends on the font, and an automatic board's
+ * model is long enough to run over its last port label.
+ */
+function modelStyle(layout: FaceplateLayout): CSSProperties {
+  const lastJack = Math.max(0, ...layout.jacks.map((j) => j.x + j.w));
+  return {
+    right: MODEL_RIGHT,
+    maxWidth: layout.width - lastJack - MODEL_RIGHT - MODEL_GAP,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+}
+
 /** A router's front panel; with onSelect, ports are buttons where something is plugged in. */
 export function Chassis({
   layout,
@@ -223,7 +240,9 @@ export function Chassis({
       style={{ width: layout.width, height: CHASSIS_HEIGHT }}
     >
       {layout.extras && <RackMountAndConsole />}
-      <div className="fp-silk fp-model">{model}</div>
+      <div className="fp-silk fp-model" style={modelStyle(layout)}>
+        {model}
+      </div>
       <span className="fp-chassis-status" aria-hidden>
         <i className={offline ? undefined : "fp-led-up"} />
         STATUS

@@ -175,4 +175,23 @@ describe("Chassis", () => {
     expect(screen.getByText("RB5009UG+S+IN · susunan otomatis")).toBeTruthy();
     expect(container.querySelector(".fp-ear")).toBeNull();
   });
+
+  it("keeps the silkscreen model clear of the last jack", () => {
+    const layout = layoutFaceplate("CCR2216-1G-12XS-2XQ", [
+      "ether1",
+      ...Array.from({ length: 12 }, (_, i) => `sfp28-${i + 1}`),
+      "qsfp28-1-1",
+      "qsfp28-2-1",
+    ]);
+    render(<Chassis layout={layout} ports={ports} offline={false} />);
+
+    const model = screen.getByText("CCR2216-1G-12XS-2XQ · susunan otomatis");
+    const lastJack = Math.max(...layout.jacks.map((j) => j.x + j.w));
+    const left =
+      layout.width -
+      parseFloat(model.style.right) -
+      parseFloat(model.style.maxWidth);
+    expect(left).toBeGreaterThan(lastJack);
+    expect(model.style.textOverflow).toBe("ellipsis");
+  });
 });

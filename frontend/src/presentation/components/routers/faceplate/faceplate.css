@@ -76,7 +76,6 @@
   white-space: nowrap;
 }
 .fp-model {
-  right: 34px;
   top: 22px;
   font-size: 15px;
   letter-spacing: 0.06em;
@@ -261,7 +260,7 @@
   z-index: 2;
   width: max-content;
   min-width: 96px;
-  max-width: 190px;
+  max-width: 240px;
   padding: 0;
   border: 0;
   border-radius: 2px;
@@ -325,6 +324,7 @@
   border-top: 1px solid #e6e9ec;
   background: #fff;
   font: 500 13px/1.15 var(--fp-condensed);
+  white-space: nowrap;
 }
 .fp-vl::before {
   content: "";

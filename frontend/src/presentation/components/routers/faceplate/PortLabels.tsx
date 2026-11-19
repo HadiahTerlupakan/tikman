@@ -7,6 +7,7 @@ import {
   type PlacedJack,
 } from "./portLayout";
 import type { PortView, VlanView } from "./portModel";
+import { stageScale, useFitScale } from "./useFitScale";
 // Labels, VLAN stripes and the cable layer share the faceplate's pseudo-element styles.
 import "./faceplate.css";
 
@@ -26,6 +27,11 @@ const DEAD_DOT: CSSProperties = {
   height: 7,
   borderRadius: "50%",
   background: "var(--fp-led-down)",
+};
+const VLAN_NAME: CSSProperties = {
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 const CABLES: CSSProperties = {
   position: "absolute",
@@ -174,7 +180,7 @@ function VlanLines({
           className={v.role ? `fp-vl fp-role-${v.role}` : "fp-vl"}
         >
           <span className="fp-vl-id">{v.iface.vlanId}</span>
-          {v.label}
+          <span style={VLAN_NAME}>{v.label}</span>
           {v.sessions.some((s) => s.state !== "established") && (
             <span
               className="fp-vl-dot"
@@ -272,14 +278,13 @@ function Cables({ placement }: { placement: LabelPlacement | null }) {
   );
 }
 
-/** The chassis with a hanging label per used port, cabled to it. */
-export function PortLabels(props: PortLabelsProps) {
-  const { layout, ports, offline, selected, onSelect } = props;
-  const { rack, placement } = useLabelPlacement(layout, ports, offline);
-  const box = { width: placement?.width, height: placement?.height };
+function LabelLayer(
+  props: PortLabelsProps & { placement: LabelPlacement | null },
+) {
+  const { layout, ports, offline, selected, onSelect, placement } = props;
   const chassisTop = placement?.chassisTop ?? MARGIN;
   return (
-    <div ref={rack} style={{ position: "relative", margin: "0 auto", ...box }}>
+    <>
       <Cables placement={placement} />
       <div
         style={{ position: "absolute", left: CHASSIS_LEFT, top: chassisTop }}
@@ -302,6 +307,38 @@ export function PortLabels(props: PortLabelsProps) {
           onSelect={onSelect}
         />
       ))}
+    </>
+  );
+}
+
+/** The chassis with a hanging label per used port, cabled to it, scaled down as one to fit its stage. */
+export function PortLabels(props: PortLabelsProps) {
+  const { rack, placement } = useLabelPlacement(
+    props.layout,
+    props.ports,
+    props.offline,
+  );
+  const stage = useRef<HTMLDivElement>(null);
+  const width = placement?.width ?? 0;
+  const height = placement?.height ?? 0;
+  const scale = stageScale(useFitScale(stage, width));
+  // Labels are placed from offsetWidth, which a transform leaves alone, so
+  // scaling the whole layer keeps the placement and shrinks only its footprint.
+  const layer: CSSProperties = {
+    position: "absolute",
+    width: placement?.width,
+    height: placement?.height,
+    transform: `scale(${scale})`,
+    transformOrigin: "0 0",
+  };
+  const footprint = { width: width * scale, height: height * scale };
+  return (
+    <div ref={stage}>
+      <div style={{ position: "relative", margin: "0 auto", ...footprint }}>
+        <div ref={rack} style={layer}>
+          <LabelLayer {...props} placement={placement} />
+        </div>
+      </div>
     </div>
   );
 }
