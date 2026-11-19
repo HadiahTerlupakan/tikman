@@ -38,6 +38,14 @@ type fakeRouterAPI struct {
 	pppoeErr    error
 	defaults    []mikrotik.Route
 	defaultsErr error
+	ppp         int
+	pppErr      error
+	pools       []mikrotik.IPPool
+	poolUsed    map[string]int
+	radius      []mikrotik.RadiusServer
+	radiusStats map[string]mikrotik.RadiusStats
+	cores       []mikrotik.CPULoad
+	queues      []mikrotik.SimpleQueue
 	// calls records the BRAS-only reads, so a test can show a border router
 	// never makes them.
 	calls  []string
@@ -80,17 +88,25 @@ func (f *fakeRouterAPI) PPPoEServers() ([]mikrotik.PPPoEServer, error) {
 	}
 	return f.pppoe, f.err
 }
-func (f *fakeRouterAPI) PPPActiveCount() (int, error)        { return 0, f.err }
-func (f *fakeRouterAPI) IPPools() ([]mikrotik.IPPool, error) { return nil, f.err }
-func (f *fakeRouterAPI) PoolUsedCount(string) (int, error)   { return 0, f.err }
+func (f *fakeRouterAPI) PPPActiveCount() (int, error) {
+	if f.pppErr != nil {
+		return 0, f.pppErr
+	}
+	return f.ppp, f.err
+}
+func (f *fakeRouterAPI) IPPools() ([]mikrotik.IPPool, error) { return f.pools, f.err }
+func (f *fakeRouterAPI) PoolUsedCount(pool string) (int, error) {
+	f.calls = append(f.calls, "PoolUsedCount "+pool)
+	return f.poolUsed[pool], f.err
+}
 func (f *fakeRouterAPI) RadiusServers() ([]mikrotik.RadiusServer, error) {
-	return nil, f.err
+	return f.radius, f.err
 }
-func (f *fakeRouterAPI) RadiusMonitor(string) (mikrotik.RadiusStats, error) {
-	return mikrotik.RadiusStats{}, f.err
+func (f *fakeRouterAPI) RadiusMonitor(id string) (mikrotik.RadiusStats, error) {
+	return f.radiusStats[id], f.err
 }
-func (f *fakeRouterAPI) CPULoads() ([]mikrotik.CPULoad, error)          { return nil, f.err }
-func (f *fakeRouterAPI) DynamicQueues() ([]mikrotik.SimpleQueue, error) { return nil, f.err }
+func (f *fakeRouterAPI) CPULoads() ([]mikrotik.CPULoad, error)          { return f.cores, f.err }
+func (f *fakeRouterAPI) DynamicQueues() ([]mikrotik.SimpleQueue, error) { return f.queues, f.err }
 func (f *fakeRouterAPI) DefaultRoute() ([]mikrotik.Route, error) {
 	f.calls = append(f.calls, "DefaultRoute")
 	if f.defaultsErr != nil {

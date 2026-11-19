@@ -43,3 +43,17 @@ func TestOtherDiscoveryErrorsStillBackOff(t *testing.T) {
 	require.NotNil(t, stored.LastError)
 	assert.Equal(t, "router unreachable", *stored.LastError)
 }
+
+func TestBRASJobRunsThePollBRAS(t *testing.T) {
+	db := setupWorkerOLTStatusTestDB(t)
+	rt := &workerRuntime{routerPoll: services.NewRouterPollService(db, services.NewRouterService(db, ""))}
+	router := &models.MikrotikRouter{ID: uuid.New(), Name: "bras-1", Role: models.RouterRoleBRAS}
+	job := &models.RouterPollJob{RouterID: router.ID, Kind: models.RouterPollKindBRAS}
+
+	// The router's secrets cannot be decrypted, so the poll stops at its first
+	// step; what matters is that the kind reached it.
+	err := runRouterJob(rt, job, router)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "unknown router poll kind")
+	assert.Contains(t, err.Error(), "decrypt")
+}

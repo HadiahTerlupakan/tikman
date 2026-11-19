@@ -226,8 +226,7 @@ func (s *RouterPollService) PollBGP(router *models.MikrotikRouter, now time.Time
 				return err
 			}
 		}
-		return tx.Model(&models.MikrotikRouter{}).Where("id = ?", router.ID).
-			Updates(resourceUpdates(snapshot.resource)).Error
+		return saveResource(tx, router.ID, snapshot.resource)
 	})
 }
 
@@ -277,6 +276,12 @@ func replaceSessions(tx *gorm.DB, routerID uuid.UUID, peers []BGPPeerState, ifac
 		gone = gone.Where("name NOT IN ?", names)
 	}
 	return gone.Delete(&models.RouterBGPSession{}).Error
+}
+
+// saveResource writes the router's resource columns and marks its API as
+// answering. PollBGP and PollBRAS both start from it.
+func saveResource(db *gorm.DB, routerID uuid.UUID, r mikrotik.SystemResource) error {
+	return db.Model(&models.MikrotikRouter{}).Where("id = ?", routerID).Updates(resourceUpdates(r)).Error
 }
 
 func resourceUpdates(r mikrotik.SystemResource) map[string]interface{} {

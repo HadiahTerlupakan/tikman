@@ -83,6 +83,8 @@ func runRouterJob(rt *workerRuntime, job *models.RouterPollJob, router *models.M
 		return rt.routerPoll.Discover(router)
 	case models.RouterPollKindRoutes:
 		return rt.routerPoll.ReadRoutes(router, time.Now())
+	case models.RouterPollKindBRAS:
+		return rt.routerPoll.PollBRAS(router, time.Now())
 	default:
 		return fmt.Errorf("unknown router poll kind %q", job.Kind)
 	}

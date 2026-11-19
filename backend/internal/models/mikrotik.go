@@ -129,6 +129,12 @@ type MikrotikRouter struct {
 	Health   datatypes.JSON `gorm:"type:jsonb" json:"health"`
 	HealthAt *time.Time     `json:"health_at"`
 
+	// BRAS is the last snapshot of a BRAS's cores, pools, RADIUS servers and
+	// top users; BRASAt is when it was read. Like Health, a failed poll leaves
+	// both alone.
+	BRAS   datatypes.JSON `gorm:"type:jsonb" json:"bras"`
+	BRASAt *time.Time     `json:"bras_at"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

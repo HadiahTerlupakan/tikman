@@ -58,5 +58,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&RouterFilterRule{},
 		&RouterFlowOwnPrefix{},
 		&RouterRoutedPrefix{},
+		&RouterBRASSample{},
 	)
 }
