@@ -15,6 +15,49 @@ export interface RouterHealthItem {
   unit: number;
 }
 
+export type RouterRole = "border" | "bras" | "other";
+
+export interface BrasCore {
+  cpu: string;
+  load: number;
+}
+
+/** total and free are null when the pool's ranges are not plain IPv4. */
+export interface BrasPool {
+  name: string;
+  used: number;
+  total: number | null;
+  free: number | null;
+}
+
+export interface BrasRadius {
+  id: string;
+  address: string;
+  requests: number;
+  accepts: number;
+  rejects: number;
+  timeouts: number;
+  pending: number;
+  rttMs: number | null;
+  /** null until there is a previous snapshot to judge against. */
+  answering: boolean | null;
+}
+
+export interface BrasUser {
+  name: string;
+  downBps: number;
+  upBps: number;
+}
+
+export interface BrasSnapshot {
+  sessions: number;
+  cores: BrasCore[];
+  pools: BrasPool[];
+  radius: BrasRadius[];
+  topUsers: BrasUser[];
+  queuesFound: boolean;
+}
+
 export interface MikrotikRouter {
   id: string;
   name: string;
@@ -45,6 +88,13 @@ export interface MikrotikRouter {
   /** Enabled interfaces that receive nothing although they carried traffic. */
   silentInterfaces: number;
   rackPosition: number | null;
+  role: RouterRole;
+  roleSetByAdmin: boolean;
+  roleGuess: RouterRole | null;
+  /** null until a BRAS has been read once. */
+  bras: BrasSnapshot | null;
+  brasAt: string | null;
+  uplinkInterfaceId: string | null;
   /** null until the router's gauge table has been read once. */
   health: RouterHealthItem[] | null;
   healthAt: string | null;
@@ -128,6 +178,7 @@ export interface TestRouterConnectionDto {
 
 export interface CreateRouterDto extends TestRouterConnectionDto {
   name: string;
+  role?: RouterRole;
 }
 
 export interface UpdateRouterDto {
@@ -144,6 +195,8 @@ export interface UpdateRouterDto {
   flowSampling?: number;
   rackPosition?: number;
   clearRackPosition?: boolean;
+  role?: RouterRole;
+  resetRole?: boolean;
 }
 
 export interface RouterConnectionTestResult {

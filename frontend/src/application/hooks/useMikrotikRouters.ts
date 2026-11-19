@@ -43,8 +43,9 @@ export function useRouterInterfaces(routerId: string) {
   });
 }
 
-export function useRouterBgpSessions(routerId: string) {
+export function useRouterBgpSessions(routerId: string, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ["mikrotik", routerId, "sessions"],
     queryFn: () => repository.sessions(routerId),
     refetchInterval: POLL_INTERVAL_MS,

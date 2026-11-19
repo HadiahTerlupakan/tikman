@@ -39,13 +39,18 @@ const data: {
   loading: false,
 };
 
+const sessionsRequests: unknown[][] = [];
+
 vi.mock("@/application/hooks/useMikrotikRouters", () => ({
   useRouterInterfaces: () => ({
     data: data.interfaces,
     isLoading: data.loading,
     isError: data.failed ?? false,
   }),
-  useRouterBgpSessions: () => ({ data: [] }),
+  useRouterBgpSessions: (...args: unknown[]) => {
+    sessionsRequests.push(args);
+    return { data: [] };
+  },
 }));
 
 const router = (over: Partial<MikrotikRouter>): MikrotikRouter =>
@@ -62,6 +67,7 @@ const router = (over: Partial<MikrotikRouter>): MikrotikRouter =>
     bgpTotal: 2,
     silentInterfaces: 0,
     rackPosition: null,
+    role: "border",
     ...over,
   }) as MikrotikRouter;
 
@@ -94,6 +100,39 @@ describe("RouterRack", () => {
     data.interfaces = baseInterfaces;
     data.loading = false;
     data.failed = false;
+    sessionsRequests.length = 0;
+  });
+
+  it("tapes a BRAS unit, counts its subscribers and leaves BGP alone", () => {
+    renderRack([
+      router({
+        name: "bras-1",
+        role: "bras",
+        bgpEstablished: 0,
+        bgpTotal: 2,
+        bras: {
+          sessions: 1842,
+          cores: [],
+          pools: [],
+          radius: [],
+          topUsers: [],
+          queuesFound: true,
+        },
+      }),
+    ]);
+    expect(document.querySelector(".fp-roletape-bras")?.textContent).toBe(
+      "BRAS",
+    );
+    expect(screen.getByText(/1\.842 online/)).toBeTruthy();
+    expect(sessionsRequests.every(([, opts]) => opts === false)).toBe(true);
+    expect(screen.queryByText(/sesi BGP mati/)).toBeNull();
+  });
+
+  it("tapes a border unit as Border", () => {
+    renderRack([router({})]);
+    expect(document.querySelector(".fp-roletape-border")?.textContent).toBe(
+      "Border",
+    );
   });
 
   it("leaves a blank panel where no router sits between two positions", () => {

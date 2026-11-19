@@ -7,6 +7,7 @@ import { RouterFaceplate } from "@/presentation/components/routers/faceplate/Rou
 import { InterfacesTab } from "@/presentation/components/routers/InterfacesTab";
 import { RouterInfoTab } from "@/presentation/components/routers/RouterInfoTab";
 import { RouterStatusTag } from "@/presentation/components/routers/RouterStatusTag";
+import { tabKeysFor } from "@/presentation/components/routers/routerRole";
 import { UpstreamTab } from "@/presentation/components/routers/UpstreamTab";
 
 export function RouterDetailPage() {
@@ -17,51 +18,50 @@ export function RouterDetailPage() {
   if (isLoading) return <Spin />;
   if (!router) return <Result status="404" title="Router tidak ditemukan" />;
 
+  const keys = tabKeysFor(router.role);
+  const tabs = [
+    {
+      key: "panel",
+      label: "Panel depan",
+      children: <RouterFaceplate router={router} />,
+    },
+    {
+      key: "upstream",
+      label: "Upstream & BGP",
+      children: (
+        <UpstreamTab routerId={router.id} apiStatus={router.apiStatus} />
+      ),
+    },
+    {
+      key: "paths",
+      label: "Jalur BGP",
+      children: <BgpPathsTab routerId={router.id} routerName={router.name} />,
+    },
+    {
+      key: "flows",
+      label: "Tujuan Trafik",
+      children: (
+        <FlowDestinationsTab
+          routerId={router.id}
+          flowEnabled={router.flowEnabled}
+        />
+      ),
+    },
+    {
+      key: "interfaces",
+      label: "Interface & VLAN",
+      children: <InterfacesTab routerId={router.id} />,
+    },
+    {
+      key: "router",
+      label: "Router",
+      children: <RouterInfoTab router={router} />,
+    },
+  ].filter((tab) => keys.includes(tab.key));
+
   return (
     <Card title={router.name} extra={<RouterStatusTag router={router} />}>
-      <Tabs
-        items={[
-          {
-            key: "panel",
-            label: "Panel depan",
-            children: <RouterFaceplate router={router} />,
-          },
-          {
-            key: "upstream",
-            label: "Upstream & BGP",
-            children: (
-              <UpstreamTab routerId={router.id} apiStatus={router.apiStatus} />
-            ),
-          },
-          {
-            key: "paths",
-            label: "Jalur BGP",
-            children: (
-              <BgpPathsTab routerId={router.id} routerName={router.name} />
-            ),
-          },
-          {
-            key: "flows",
-            label: "Tujuan Trafik",
-            children: (
-              <FlowDestinationsTab
-                routerId={router.id}
-                flowEnabled={router.flowEnabled}
-              />
-            ),
-          },
-          {
-            key: "interfaces",
-            label: "Interface & VLAN",
-            children: <InterfacesTab routerId={router.id} />,
-          },
-          {
-            key: "router",
-            label: "Router",
-            children: <RouterInfoTab router={router} />,
-          },
-        ]}
-      />
+      <Tabs items={tabs} />
     </Card>
   );
 }

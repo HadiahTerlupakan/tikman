@@ -5,15 +5,22 @@ import { useAuthStore } from "@/application/stores";
 import { useMikrotikRouters } from "@/application/hooks/useMikrotikRouters";
 import { RouterFormModal } from "@/presentation/components/routers/RouterFormModal";
 import { RouterRack } from "@/presentation/components/routers/faceplate/RouterRack";
+import { isBras } from "@/presentation/components/routers/routerRole";
 import { routerReachable } from "@/presentation/components/routers/faceplate/portModel";
 
 function rackSummary(routers: MikrotikRouter[]): string {
   const reachable = routers.filter(routerReachable).length;
   const unreachable = routers.length - reachable;
-  const est = routers.reduce((n, r) => n + r.bgpEstablished, 0);
-  const total = routers.reduce((n, r) => n + r.bgpTotal, 0);
+  const bgp = routers.filter((r) => !isBras(r));
+  const est = bgp.reduce((n, r) => n + r.bgpEstablished, 0);
+  const total = bgp.reduce((n, r) => n + r.bgpTotal, 0);
+  const brases = routers.filter(isBras);
+  const online = brases.reduce((n, r) => n + (r.bras?.sessions ?? 0), 0);
+  const customers = brases.length
+    ? ` · ${online.toLocaleString("id-ID")} pelanggan online`
+    : "";
   const away = unreachable ? `, ${unreachable} tidak terjangkau` : "";
-  return `${routers.length} router · ${reachable} terjangkau${away} · BGP ${est}/${total} established`;
+  return `${routers.length} router · ${reachable} terjangkau${away} · BGP ${est}/${total} established${customers}`;
 }
 
 export default function RoutersPage() {

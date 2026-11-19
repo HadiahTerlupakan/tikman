@@ -50,6 +50,41 @@ const session = (
     interfaceId,
   }) as RouterBgpSession;
 
+describe("buildPortViews on a BRAS", () => {
+  const bras = (uplinkInterfaceId: string | null) =>
+    router({ role: "bras", uplinkInterfaceId });
+
+  it("marks the uplink port as upstream", () => {
+    const ports = [
+      iface({ name: "sfp-sfpplus1" }),
+      iface({ name: "sfp-sfpplus2" }),
+    ];
+    const views = buildPortViews(bras("sfp-sfpplus1"), ports, []);
+    expect(views.get("sfp-sfpplus1")?.role).toBe("upstream");
+    expect(views.get("sfp-sfpplus2")?.role).toBe("dist");
+  });
+
+  it("marks the parent of an uplink VLAN as upstream", () => {
+    const ports = [
+      iface({ name: "sfp-sfpplus1" }),
+      iface({ name: "vlan10", parentName: "sfp-sfpplus1", type: "vlan" }),
+    ];
+    const view = buildPortViews(bras("vlan10"), ports, []).get("sfp-sfpplus1");
+    expect(view?.role).toBe("upstream");
+    expect(view?.vlans[0].role).toBe("upstream");
+  });
+
+  it("leaves a border router's ports alone even with an uplink set", () => {
+    const ports = [iface({ name: "ether1", comment: "pop-a" })];
+    const view = buildPortViews(
+      router({ role: "border", uplinkInterfaceId: "ether1" }),
+      ports,
+      [],
+    ).get("ether1");
+    expect(view?.role).toBe("dist");
+  });
+});
+
 describe("buildPortViews", () => {
   it("marks a port carrying a session as upstream", () => {
     const ports = [iface({ name: "sfp-sfpplus1" })];

@@ -3,6 +3,7 @@ import { message, type FormInstance } from "antd";
 import type {
   RouterApiProtocol,
   RouterConnectionTestResult,
+  RouterRole,
 } from "@/domain/entities";
 import { useTestRouterConnection } from "@/application/hooks/useMikrotikRouters";
 import { requestErrorText, savableFingerprint } from "./routerTestSteps";
@@ -19,6 +20,8 @@ export interface RouterFormValues {
   flowEnabled?: boolean;
   flowSampling?: number;
   rackPosition?: number | null;
+  /** "auto" leaves the role to TikMan's guess. */
+  role: RouterRole | "auto";
 }
 
 /**

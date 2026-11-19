@@ -11,6 +11,7 @@ import {
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterFlowStatus } from "./RouterFlowStatus";
 import { RouterFormModal } from "./RouterFormModal";
+import { ROLE_LABEL } from "./routerRole";
 import { PROTOCOL_LABEL } from "./routerProtocol";
 import { RouterStatusTag } from "./RouterStatusTag";
 import { formatUptime, memoryUsedPercent } from "./routerTraffic";
@@ -54,6 +55,10 @@ export function RouterInfoTab({ router }: { router: MikrotikRouter }) {
       <Descriptions bordered size="small" column={1}>
         <Descriptions.Item label="Status">
           <RouterStatusTag router={router} />
+        </Descriptions.Item>
+        <Descriptions.Item label="Peran">
+          {ROLE_LABEL[router.role]}
+          {!router.roleSetByAdmin && " (tebakan TikMan)"}
         </Descriptions.Item>
         <Descriptions.Item label="Host">{router.host}</Descriptions.Item>
         <Descriptions.Item label="Board">

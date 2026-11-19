@@ -10,6 +10,7 @@ import {
   useRouterInterfaces,
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterStatusTag } from "../RouterStatusTag";
+import { ROLE_LABEL, isBras } from "../routerRole";
 import { Chassis } from "./Chassis";
 import { HEALTH_TICK_MS, healthView, type HealthView } from "./healthModel";
 import {
@@ -59,7 +60,10 @@ function issues(
 ): string[] {
   const down = used.filter((p) => p.state === "down").length;
   const silent = used.filter((p) => p.state === "silent").length;
-  const dead = bgpStale(router) ? 0 : router.bgpTotal - router.bgpEstablished;
+  const dead =
+    isBras(router) || bgpStale(router)
+      ? 0
+      : router.bgpTotal - router.bgpEstablished;
   const found: string[] = [];
   if (down) found.push(`${down} port mati`);
   if (silent) found.push(`${silent} port diam`);
@@ -108,7 +112,11 @@ function StatusLine(props: { router: MikrotikRouter; status: Status | null }) {
 
 function detailLine(router: MikrotikRouter, model: string): string {
   const parts = [model];
+  if (router.bras) {
+    parts.push(`${router.bras.sessions.toLocaleString("id-ID")} online`);
+  }
   if (router.cpuLoad !== null) parts.push(`CPU ${router.cpuLoad}%`);
+  if (isBras(router)) return parts.filter(Boolean).join(" · ");
   if (bgpStale(router)) parts.push("BGP usang");
   else if (router.bgpTotal > 0)
     parts.push(`BGP ${router.bgpEstablished}/${router.bgpTotal}`);
@@ -160,10 +168,13 @@ function UnitBay(props: {
           />
         </div>
         <span
-          className="fp-ptape"
+          className="fp-tapes"
           style={{ right: TAPE_RIGHT * scale, bottom: TAPE_BOTTOM * scale }}
         >
-          {router.name}
+          <span className={`fp-roletape fp-roletape-${router.role}`}>
+            {ROLE_LABEL[router.role]}
+          </span>
+          <span className="fp-ptape">{router.name}</span>
         </span>
       </div>
     </div>
@@ -178,7 +189,10 @@ export function RackUnit(props: RackUnitProps) {
     isLoading,
     isError,
   } = useRouterInterfaces(router.id);
-  const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
+  const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(
+    router.id,
+    !isBras(router),
+  );
   const now = useNow(HEALTH_TICK_MS);
   const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
   const layout = useMemo(

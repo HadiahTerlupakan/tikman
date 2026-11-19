@@ -77,15 +77,29 @@
 .fp-unit-offline .fp-chassis {
   filter: saturate(0.3) brightness(0.75);
 }
-.fp-ptape {
+.fp-tapes {
   position: absolute;
   z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+.fp-ptape,
+.fp-roletape {
   padding: 3px 8px;
   border-radius: 2px;
   background: var(--fp-tape-dist);
   color: #15191d;
   font: 600 14px/1.1 var(--fp-condensed);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+.fp-roletape-border {
+  background: var(--fp-tape-upstream);
+}
+.fp-roletape-bras {
+  background: var(--fp-tape-mgmt);
+}
+.fp-roletape-other {
+  background: var(--fp-tape-dist);
 }
 .fp-blank {
   border-radius: 3px;

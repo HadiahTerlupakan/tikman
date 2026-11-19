@@ -57,12 +57,15 @@ function holdsHost(iface: RouterInterface, host: string): boolean {
     .some((cidr) => cidr.trim().split("/")[0] === host);
 }
 
+// A BRAS has no BGP to mark its way out, so the operator's chosen uplink does it.
 function ownRole(
   iface: RouterInterface,
   sessions: RouterBgpSession[],
-  host: string,
+  r: MikrotikRouter,
 ): PortRole | null {
+  const host = r.host;
   if (sessions.length > 0) return "upstream";
+  if (r.role === "bras" && iface.id === r.uplinkInterfaceId) return "upstream";
   if (holdsHost(iface, host)) return "mgmt";
   if (iface.disabled) return null;
   return iface.comment.trim() || iface.operStatus === "up" ? "dist" : null;
@@ -88,14 +91,14 @@ function sessionsOf(
 function buildVlans(
   vlans: RouterInterface[],
   sessions: RouterBgpSession[],
-  host: string,
+  r: MikrotikRouter,
 ): VlanView[] {
   return vlans.map((iface) => {
     const own = sessionsOf(iface, sessions);
     return {
       iface,
       label: interfaceLabel(iface),
-      role: ownRole(iface, own, host),
+      role: ownRole(iface, own, r),
       inBps: iface.lastInBps ?? 0,
       sessions: own,
     };
@@ -106,10 +109,10 @@ function buildPort(
   iface: RouterInterface,
   vlans: VlanView[],
   all: RouterBgpSession[],
-  host: string,
+  r: MikrotikRouter,
 ): PortView {
   const own = sessionsOf(iface, all);
-  const base = ownRole(iface, own, host);
+  const base = ownRole(iface, own, r);
   // A trunk's own "dist" is just its link being up; only VLANs can make it one.
   const carries = vlans.some((v) => v.role !== null);
   const portRole = carries && base === "dist" ? null : base;
@@ -141,12 +144,7 @@ export function buildPortViews(
     const children = interfaces.filter((i) => i.parentName === iface.name);
     views.set(
       iface.name,
-      buildPort(
-        iface,
-        buildVlans(children, sessions, r.host),
-        sessions,
-        r.host,
-      ),
+      buildPort(iface, buildVlans(children, sessions, r), sessions, r),
     );
   }
   return views;

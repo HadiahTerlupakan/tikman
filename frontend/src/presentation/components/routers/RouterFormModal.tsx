@@ -11,6 +11,7 @@ import type {
   MikrotikRouter,
   RouterApiProtocol,
   RouterConnectionTestResult,
+  RouterRole,
   UpdateRouterDto,
 } from "@/domain/entities";
 import {
@@ -149,6 +150,7 @@ function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
     flowEnabled: router?.flowEnabled ?? false,
     flowSampling: router?.flowSampling ?? DEFAULT_FLOW_SAMPLING,
     rackPosition: router?.rackPosition ?? undefined,
+    role: router?.roleSetByAdmin ? router.role : "auto",
   };
 }
 
@@ -156,11 +158,21 @@ function initialValues(router?: MikrotikRouter): Partial<RouterFormValues> {
 // field is sent as an explicit clear instead.
 function updatePayload({
   rackPosition,
+  role,
   ...rest
 }: RouterFormValues): UpdateRouterDto {
+  const roleChange = role === "auto" ? { resetRole: true } : { role };
   return rackPosition == null
-    ? { ...rest, clearRackPosition: true }
-    : { ...rest, rackPosition };
+    ? { ...rest, ...roleChange, clearRackPosition: true }
+    : { ...rest, ...roleChange, rackPosition };
+}
+
+// An automatic role is simply not sent: the backend guesses it.
+function createPayload({
+  role,
+  ...rest
+}: RouterFormValues): Omit<RouterFormValues, "role"> & { role?: RouterRole } {
+  return role === "auto" ? rest : { ...rest, role };
 }
 
 // A new router is saved only once the test passed; "" means plain API, which
@@ -183,7 +195,7 @@ function useSaveRouter(
         });
       } else if (fingerprint !== null) {
         await create.mutateAsync({
-          ...values,
+          ...createPayload(values),
           tlsFingerprint: fingerprint || undefined,
         });
       }
@@ -251,7 +263,10 @@ export function RouterFormModal({ router, onClose }: Props) {
         onValuesChange={onValuesChange}
         initialValues={initialValues(router)}
       >
-        <RouterFormFields editing={editing} />
+        <RouterFormFields
+          editing={editing}
+          roleGuess={router?.roleGuess ?? null}
+        />
       </Form>
       <TestStepResults steps={steps} protocol={protocol} />
     </Modal>

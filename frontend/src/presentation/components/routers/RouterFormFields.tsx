@@ -1,5 +1,6 @@
 import { Alert, Form, Input, InputNumber, Radio, Switch } from "antd";
-import type { RouterApiProtocol } from "@/domain/entities";
+import type { RouterApiProtocol, RouterRole } from "@/domain/entities";
+import { ROLE_LABEL } from "./routerRole";
 
 const KEEP_STORED = "Kosongkan untuk tetap memakai yang tersimpan";
 
@@ -63,7 +64,37 @@ function FlowFields() {
 
 // Editing never shows the stored secrets, so an empty field means "unchanged"
 // there and only a new router has to be given them.
-export function RouterFormFields({ editing }: { editing: boolean }) {
+const ROLE_OPTIONS = [
+  { label: "Otomatis", value: "auto" },
+  ...(Object.keys(ROLE_LABEL) as RouterRole[]).map((role) => ({
+    label: ROLE_LABEL[role],
+    value: role,
+  })),
+];
+
+// The guess is read from what the router has polled, so a new router has none to show.
+function guessText(editing: boolean, guess: RouterRole | null) {
+  if (!editing) return undefined;
+  return guess ? `Tebakan TikMan: ${ROLE_LABEL[guess]}` : "Belum ditebak";
+}
+
+function RoleField(props: { editing: boolean; guess: RouterRole | null }) {
+  return (
+    <Form.Item
+      name="role"
+      label="Peran"
+      extra={guessText(props.editing, props.guess)}
+    >
+      <Radio.Group options={ROLE_OPTIONS} />
+    </Form.Item>
+  );
+}
+
+export function RouterFormFields(props: {
+  editing: boolean;
+  roleGuess: RouterRole | null;
+}) {
+  const { editing, roleGuess } = props;
   const secretRule = editing ? [] : [{ required: true }];
   const secretExtra = editing ? KEEP_STORED : undefined;
   return (
@@ -71,6 +102,7 @@ export function RouterFormFields({ editing }: { editing: boolean }) {
       <Form.Item name="name" label="Nama" rules={[{ required: true, min: 2 }]}>
         <Input />
       </Form.Item>
+      <RoleField editing={editing} guess={roleGuess} />
       <Form.Item
         name="host"
         label="IP atau hostname"

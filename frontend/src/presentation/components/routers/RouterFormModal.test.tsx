@@ -136,6 +136,56 @@ describe("RouterFormModal protocol", () => {
     expect("rackPosition" in data).toBe(false);
   });
 
+  it("asks the backend to guess again when Otomatis is saved", async () => {
+    updateMutate.mockResolvedValue({});
+    render(
+      <RouterFormModal
+        router={mikrotikRouter({ roleSetByAdmin: false, roleGuess: "bras" })}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Tebakan TikMan: BRAS")).toBeTruthy();
+    fireEvent.click(screen.getByText("Simpan"));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalled());
+    const data = updateMutate.mock.calls[0][0].data;
+    expect(data.resetRole).toBe(true);
+    expect("role" in data).toBe(false);
+  });
+
+  it("sends the role the admin chose", async () => {
+    updateMutate.mockResolvedValue({});
+    render(<RouterFormModal router={mikrotikRouter()} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText("BRAS"));
+    fireEvent.click(screen.getByText("Simpan"));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalled());
+    const data = updateMutate.mock.calls[0][0].data;
+    expect(data.role).toBe("bras");
+    expect("resetRole" in data).toBe(false);
+  });
+
+  it("says so when TikMan has no guess yet", () => {
+    render(<RouterFormModal router={mikrotikRouter()} onClose={vi.fn()} />);
+    expect(screen.getByText("Belum ditebak")).toBeTruthy();
+  });
+
+  it("starts a new router on Otomatis and sends no role for it", async () => {
+    testMutate.mockResolvedValue({ boardName: "CCR2116", version: "7.24.2" });
+    createMutate.mockResolvedValue({});
+    render(<RouterFormModal onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText("API (tanpa enkripsi)"));
+    fillRequired();
+    fireEvent.click(screen.getByText("Uji koneksi"));
+    await waitFor(() => expect(testMutate).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("Simpan"));
+
+    await waitFor(() => expect(createMutate).toHaveBeenCalled());
+    expect("role" in createMutate.mock.calls[0][0]).toBe(false);
+  });
+
   it("does not offer NetFlow while adding a router", () => {
     render(<RouterFormModal onClose={vi.fn()} />);
 

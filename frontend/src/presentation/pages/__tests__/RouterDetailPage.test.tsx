@@ -1,14 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { RouterDetailPage } from "../RouterDetailPage";
 
+const routers = vi.hoisted(() => ({
+  data: [] as Record<string, unknown>[],
+}));
+
 vi.mock("@/application/hooks/useMikrotikRouters", () => ({
-  useMikrotikRouters: () => ({
-    isLoading: false,
-    data: [{ id: "r-1", name: "border-1", enabled: true, status: "up" }],
-  }),
+  useMikrotikRouters: () => ({ isLoading: false, data: routers.data }),
 }));
 
 vi.mock("@/presentation/components/routers/faceplate/RouterFaceplate", () => ({
@@ -44,6 +45,41 @@ function renderPage() {
 }
 
 describe("RouterDetailPage", () => {
+  beforeEach(() => {
+    routers.data = [
+      {
+        id: "r-1",
+        name: "border-1",
+        enabled: true,
+        status: "up",
+        role: "border",
+      },
+    ];
+  });
+
+  it("keeps the six tabs of a border router", () => {
+    renderPage();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Panel depan",
+      "Upstream & BGP",
+      "Jalur BGP",
+      "Tujuan Trafik",
+      "Interface & VLAN",
+      "Router",
+    ]);
+  });
+
+  it("gives a BRAS no upstream tab", () => {
+    routers.data = [{ ...routers.data[0], name: "bras-1", role: "bras" }];
+    renderPage();
+    expect(screen.queryByRole("tab", { name: "Upstream & BGP" })).toBeNull();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Panel depan",
+      "Interface & VLAN",
+      "Router",
+    ]);
+  });
+
   it("opens on the front panel, in a tab of its own", () => {
     renderPage();
     expect(
