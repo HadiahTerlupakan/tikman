@@ -3,6 +3,7 @@
   --fp-silk: #c9ced4;
   --fp-led-up: #34d27b;
   --fp-led-warn: #f3b437;
+  --fp-led-link: #f28c28;
   --fp-led-down: #ef4b4f;
   --fp-led-off: #454b52;
   --fp-tape-upstream: #f2d23a;
@@ -197,7 +198,7 @@
   background: var(--fp-led-up);
 }
 .fp-led-link {
-  background: #f28c28;
+  background: var(--fp-led-link);
 }
 .fp-led-warn {
   background: var(--fp-led-warn);

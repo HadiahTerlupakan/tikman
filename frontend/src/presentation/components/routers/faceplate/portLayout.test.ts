@@ -74,6 +74,12 @@ describe("layoutFaceplate", () => {
     expect(at(layout, "ether12")?.x).toBe(at(plain, "ether12")?.x);
   });
 
+  it("gives the slot to the exact name when both it and an extension exist", () => {
+    const layout = layoutFaceplate("CCR2116-12G-4S+", ["ether1", "ether1-x86"]);
+    expect(layout.jacks.find((j) => j.slot === "ether1")?.name).toBe("ether1");
+    expect(layout.jacks.some((j) => j.name === "ether1-x86")).toBe(true);
+  });
+
   it("does not seat ether12-something in the ether1 slot", () => {
     const layout = layoutFaceplate("CCR2116-12G-4S+", ["ether12-uplink"]);
     expect(layout.jacks.find((j) => j.slot === "ether1")?.name).toBe("ether1");
