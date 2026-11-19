@@ -1,7 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { MikrotikRouter } from "@/domain/entities";
+import { CHASSIS_HEIGHT } from "./portLayout";
 import { RackUnit } from "./RackUnit";
 import { rackSlots } from "./rackOrder";
+import { useFitScale } from "./useFitScale";
 // The cabinet, its rails and blank panels need pseudo-elements, which inline styles cannot express.
 import "./rack.css";
 
@@ -11,12 +13,20 @@ interface RouterRackProps {
   onEdit: (r: MikrotikRouter) => void;
 }
 
-function BlankPanel({ u }: { u: number }) {
+/** As tall as a unit at the rack's scale, so the screen counts U like the cabinet does. */
+function BlankPanel({ u, sharedWidth }: { u: number; sharedWidth: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scale = useFitScale(ref, sharedWidth);
   return (
     <div className="fp-row">
       <div className="fp-bay">
         <span className="fp-u">{u}</span>
-        <div className="fp-blank" data-testid="rack-blank" />
+        <div
+          ref={ref}
+          className="fp-blank"
+          style={{ height: CHASSIS_HEIGHT * scale }}
+          data-testid="rack-blank"
+        />
       </div>
       <div />
     </div>
@@ -41,7 +51,11 @@ export function RouterRack({ routers, isAdmin, onEdit }: RouterRackProps) {
     <div className="fp-cabinet">
       {rackSlots(routers).map((slot) =>
         slot.kind === "blank" ? (
-          <BlankPanel key={`blank-${slot.u}`} u={slot.u} />
+          <BlankPanel
+            key={`blank-${slot.u}`}
+            u={slot.u}
+            sharedWidth={sharedWidth}
+          />
         ) : (
           <RackUnit
             key={slot.router.id}

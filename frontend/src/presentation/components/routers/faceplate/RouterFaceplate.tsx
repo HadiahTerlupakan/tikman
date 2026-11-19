@@ -1,4 +1,4 @@
-import { Empty } from "antd";
+import { Empty, Typography } from "antd";
 import { type CSSProperties, useMemo, useState } from "react";
 import type {
   MikrotikRouter,
@@ -50,7 +50,9 @@ function selectedPort(
 
 /** The router's front panel with cable labels, and the panel of the port selected on it. */
 export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
-  const { data: interfaces = NO_INTERFACES } = useRouterInterfaces(router.id);
+  const { data: interfaces = NO_INTERFACES, isLoading } = useRouterInterfaces(
+    router.id,
+  );
   const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
   const [picked, setPicked] = useState<string>();
   const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
@@ -63,6 +65,7 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
     [router, interfaces, sessions],
   );
 
+  if (isLoading) return null;
   if (physical.length === 0) {
     return <Empty description="Belum ada data interface" />;
   }
@@ -71,6 +74,11 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
   const view = selected ? ports.get(selected) : undefined;
   return (
     <div style={{ marginBottom: 16 }}>
+      {!layout.templated && (
+        <Typography.Paragraph type="secondary">
+          {`Model ${layout.model || "ini"} belum punya cetakan, jadi susunan port dibuat otomatis dari nama interface.`}
+        </Typography.Paragraph>
+      )}
       <div style={STAGE}>
         <PortLabels
           layout={layout}

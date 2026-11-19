@@ -53,38 +53,51 @@ interface SessionRow {
   via: string;
 }
 
-const bgpColumns: ColumnsType<SessionRow> = [
-  { title: "Sesi", render: (_, r) => r.session.name },
-  { title: "Lewat", dataIndex: "via" },
-  {
-    title: "Prefix",
-    align: "right",
-    render: (_, r) => r.session.prefixCount.toLocaleString("id-ID"),
-  },
-  {
-    title: "Status",
-    render: (_, r) =>
-      r.session.state === "established" ? (
-        <Tag color="green">Established</Tag>
-      ) : (
-        <Tag color="red">Down</Tag>
-      ),
-  },
-];
+// An unreachable router's session states and rates are last-known, so they
+// lose their live colour and the rate is not shown at all.
+function bgpColumns(offline: boolean): ColumnsType<SessionRow> {
+  return [
+    { title: "Sesi", render: (_, r) => r.session.name },
+    { title: "Lewat", dataIndex: "via" },
+    {
+      title: "Prefix",
+      align: "right",
+      render: (_, r) => r.session.prefixCount.toLocaleString("id-ID"),
+    },
+    {
+      title: "Status",
+      render: (_, r) => {
+        const up = r.session.state === "established";
+        const color = up ? "green" : "red";
+        return (
+          <Tag color={offline ? undefined : color}>
+            {up ? "Established" : "Down"}
+          </Tag>
+        );
+      },
+    },
+  ];
+}
 
-const vlanColumns: ColumnsType<VlanView> = [
-  {
-    title: "VLAN",
-    render: (_, v) => (
-      <>
-        <i className={`fp-role-${v.role}`} style={SWATCH} />
-        {v.iface.vlanId}
-      </>
-    ),
-  },
-  { title: "Nama", dataIndex: "label" },
-  { title: "Masuk", align: "right", render: (_, v) => formatBps(v.inBps) },
-];
+function vlanColumns(offline: boolean): ColumnsType<VlanView> {
+  return [
+    {
+      title: "VLAN",
+      render: (_, v) => (
+        <>
+          {v.role && <i className={`fp-role-${v.role}`} style={SWATCH} />}
+          {v.iface.vlanId}
+        </>
+      ),
+    },
+    { title: "Nama", dataIndex: "label" },
+    {
+      title: "Masuk",
+      align: "right",
+      render: (_, v) => (offline ? "—" : formatBps(v.inBps)),
+    },
+  ];
+}
 
 /** A session on a VLAN is reached through that VLAN, not the port itself. */
 function sessionRows(view: PortView): SessionRow[] {
@@ -172,15 +185,28 @@ function EmptyNote({ text }: { text: string }) {
   return <Typography.Paragraph type="secondary">{text}</Typography.Paragraph>;
 }
 
-function SessionsAndVlans({ view, stale }: { view: PortView; stale: boolean }) {
+function staleNote(offline: boolean, stale: boolean): string | null {
+  if (offline) {
+    return "Router tidak terjangkau: data di bawah adalah pembacaan terakhir";
+  }
+  return stale ? "Data BGP usang: API router sedang gagal" : null;
+}
+
+function SessionsAndVlans(props: {
+  view: PortView;
+  offline: boolean;
+  stale: boolean;
+}) {
+  const { view, offline, stale } = props;
   const rows = sessionRows(view);
+  const note = staleNote(offline, stale);
   return (
     <Card size="small" title="Sesi BGP">
-      {stale && (
+      {note && (
         <Alert
           type="warning"
           showIcon
-          message="Data BGP usang: API router sedang gagal"
+          message={note}
           style={{ marginBottom: 12 }}
         />
       )}
@@ -189,7 +215,7 @@ function SessionsAndVlans({ view, stale }: { view: PortView; stale: boolean }) {
           size="small"
           rowKey={(r) => r.session.id}
           pagination={false}
-          columns={bgpColumns}
+          columns={bgpColumns(offline)}
           dataSource={rows}
         />
       ) : (
@@ -203,7 +229,7 @@ function SessionsAndVlans({ view, stale }: { view: PortView; stale: boolean }) {
           size="small"
           rowKey={(v) => v.iface.id}
           pagination={false}
-          columns={vlanColumns}
+          columns={vlanColumns(offline)}
           dataSource={view.vlans}
         />
       ) : (
@@ -242,7 +268,7 @@ export function PortDetailPanel({ routerId, view, offline, stale }: Props) {
         </Card>
       </Col>
       <Col xs={24} lg={13}>
-        <SessionsAndVlans view={view} stale={stale} />
+        <SessionsAndVlans view={view} offline={offline} stale={stale} />
       </Col>
     </Row>
   );

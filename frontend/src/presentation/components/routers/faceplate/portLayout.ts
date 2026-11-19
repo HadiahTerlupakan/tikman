@@ -72,21 +72,28 @@ const AUTO_KINDS: [JackKind, RegExp][] = [
   ["qsfp", /^qsfp/],
 ];
 
-function autoGroups(names: string[]): Group[] {
+/** The one rj port of a board is its management port, unless it was left over from a template. */
+function autoGroups(names: string[], singleRjIsMgmt: boolean): Group[] {
   const groups: Group[] = [];
   for (const [kind, re] of AUTO_KINDS) {
-    // "qsfp" also matches the sfp pattern, so the sfp group must exclude it.
-    const ports = names.filter(
-      (n) => re.test(n) && !(kind === "sfp" && /^qsfp/.test(n)),
-    );
+    const ports = names.filter((n) => re.test(n));
     if (ports.length === 0) continue;
-    if (kind === "rj" && ports.length === 1) {
-      groups.push({ kind, rows: 1, ports, mgmt: true });
-    } else {
-      groups.push({ kind, rows: ports.length > 1 ? 2 : 1, ports });
-    }
+    const mgmt = singleRjIsMgmt && kind === "rj" && ports.length === 1;
+    groups.push({ kind, rows: ports.length > 1 ? 2 : 1, ports, mgmt });
+  }
+  // A port renamed away from every pattern is still a port, and must still be drawn.
+  const rest = names.filter((n) => !AUTO_KINDS.some(([, re]) => re.test(n)));
+  if (rest.length > 0) {
+    groups.push({ kind: "rj", rows: rest.length > 1 ? 2 : 1, ports: rest });
   }
   return groups;
+}
+
+/** A template matches default names; ports the operator renamed trail it, grouped by name. */
+function templateGroups(template: Group[], names: string[]): Group[] {
+  const placed = new Set(template.flatMap((g) => g.ports));
+  const renamed = names.filter((n) => !placed.has(n));
+  return [...template, ...autoGroups(renamed, false)];
 }
 
 function placeGroup(group: Group, startX: number): PlacedJack[] {
@@ -120,7 +127,9 @@ export function layoutFaceplate(
   portNames: string[],
 ): FaceplateLayout {
   const template = boardName ? TEMPLATES[boardName] : undefined;
-  const groups = template ?? autoGroups(portNames);
+  const groups = template
+    ? templateGroups(template, portNames)
+    : autoGroups(portNames, true);
   const extras = template !== undefined;
   let x = extras ? START_WITH_EXTRAS : START_WITHOUT_EXTRAS;
   const jacks: PlacedJack[] = [];

@@ -40,6 +40,30 @@ describe("layoutFaceplate", () => {
     expect(layout.jacks[3].name).toBe("qsfp28-1-1");
   });
 
+  it("still draws a port renamed away from its template name", () => {
+    const layout = layoutFaceplate("CCR2116-12G-4S+", [
+      "ether1",
+      "sfp1-transit",
+      "sfp-sfpplus2",
+    ]);
+    const renamed = layout.jacks.find((j) => j.name === "sfp1-transit");
+
+    expect(layout.jacks).toHaveLength(18);
+    expect(renamed?.kind).toBe("sfp");
+    expect(renamed?.x).toBeGreaterThan(
+      Math.max(...layout.jacks.filter((j) => j !== renamed).map((j) => j.x)),
+    );
+  });
+
+  it("draws a port whose name fits no group of an unknown board", () => {
+    const layout = layoutFaceplate(null, ["ether1", "ether2", "uplink-a"]);
+    expect(layout.jacks.map((j) => j.name)).toEqual([
+      "ether1",
+      "ether2",
+      "uplink-a",
+    ]);
+  });
+
   it("treats a null board like an unknown one", () => {
     expect(layoutFaceplate(null, ["ether1"]).templated).toBe(false);
   });

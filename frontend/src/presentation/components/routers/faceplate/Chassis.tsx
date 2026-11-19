@@ -88,9 +88,31 @@ function PortLeds(props: { jack: PlacedJack; view?: PortView; live: boolean }) {
   );
 }
 
-function hoverTitle(name: string, view: PortView): string {
-  const base = `${name} · ${view.label} · ${STATE_TEXT[view.state]}`;
-  return view.state === "up" ? `${base} · ↓ ${formatBps(view.inBps)}` : base;
+// An unreachable router's state and rate are last-known, so neither is named as if live.
+function stateText(view: PortView, offline: boolean): string {
+  return offline ? "Tidak terjangkau" : STATE_TEXT[view.state];
+}
+
+function hoverTitle(name: string, view: PortView, offline: boolean): string {
+  const base = `${name} · ${view.label} · ${stateText(view, offline)}`;
+  return !offline && view.state === "up"
+    ? `${base} · ↓ ${formatBps(view.inBps)}`
+    : base;
+}
+
+function PortFace(props: {
+  jack: PlacedJack;
+  view: PortView;
+  offline: boolean;
+}) {
+  const { jack, view, offline } = props;
+  return (
+    <>
+      <div className="fp-jack" />
+      <span className="fp-plug" style={{ background: plugFill(view.roles) }} />
+      <PortLeds jack={jack} view={view} live={!offline} />
+    </>
+  );
 }
 
 function Port(props: {
@@ -116,19 +138,32 @@ function Port(props: {
       </div>
     );
   }
+  const face = <PortFace jack={jack} view={view} offline={offline} />;
+  // Without onSelect the chassis sits inside a rack unit that is itself the
+  // link, so a port there is only a picture; the unit's label names its state.
+  if (!onSelect) {
+    return (
+      <div
+        className={cls}
+        style={box}
+        data-port={jack.name}
+        title={hoverTitle(jack.name, view, offline)}
+        aria-hidden
+      >
+        {face}
+      </div>
+    );
+  }
   return (
     <button
       type="button"
       className={selected ? `${cls} fp-selected` : cls}
       style={box}
       data-port={jack.name}
-      aria-label={`${jack.name}, ${view.label}, ${STATE_TEXT[view.state]}`}
-      title={onSelect ? undefined : hoverTitle(jack.name, view)}
-      onClick={onSelect && (() => onSelect(jack.name))}
+      aria-label={`${jack.name}, ${view.label}, ${stateText(view, offline)}`}
+      onClick={() => onSelect(jack.name)}
     >
-      <div className="fp-jack" />
-      <span className="fp-plug" style={{ background: plugFill(view.roles) }} />
-      <PortLeds jack={jack} view={view} live={!offline} />
+      {face}
     </button>
   );
 }
@@ -167,7 +202,7 @@ function RackMountAndConsole() {
   );
 }
 
-/** A router's front panel; ports are buttons only where something is plugged in. */
+/** A router's front panel; with onSelect, ports are buttons where something is plugged in. */
 export function Chassis({
   layout,
   ports,

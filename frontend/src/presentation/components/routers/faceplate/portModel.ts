@@ -11,7 +11,8 @@ export type PortState = "up" | "down" | "silent" | "disabled";
 export interface VlanView {
   iface: RouterInterface;
   label: string;
-  role: PortRole;
+  /** null for a VLAN with no comment, session or link: listed, but drawn without a stripe. */
+  role: PortRole | null;
   inBps: number;
   sessions: RouterBgpSession[];
 }
@@ -48,10 +49,6 @@ export function routerReachable(r: MikrotikRouter): boolean {
 /** A reachable router whose API failed: its BGP sessions are last-known, not live. */
 export function bgpStale(r: MikrotikRouter): boolean {
   return routerReachable(r) && r.apiStatus !== "ok";
-}
-
-export function pollHost(r: MikrotikRouter): string {
-  return r.host;
 }
 
 function holdsHost(iface: RouterInterface, host: string): boolean {
@@ -93,20 +90,16 @@ function buildVlans(
   sessions: RouterBgpSession[],
   host: string,
 ): VlanView[] {
-  const views: VlanView[] = [];
-  for (const iface of vlans) {
+  return vlans.map((iface) => {
     const own = sessionsOf(iface, sessions);
-    const role = ownRole(iface, own, host);
-    if (!role) continue;
-    views.push({
+    return {
       iface,
       label: interfaceLabel(iface),
-      role,
+      role: ownRole(iface, own, host),
       inBps: iface.lastInBps ?? 0,
       sessions: own,
-    });
-  }
-  return views;
+    };
+  });
 }
 
 function buildPort(
@@ -118,7 +111,8 @@ function buildPort(
   const own = sessionsOf(iface, all);
   const base = ownRole(iface, own, host);
   // A trunk's own "dist" is just its link being up; only VLANs can make it one.
-  const portRole = vlans.length > 0 && base === "dist" ? null : base;
+  const carries = vlans.some((v) => v.role !== null);
+  const portRole = carries && base === "dist" ? null : base;
   const roles = distinctRoles([portRole, ...vlans.map((v) => v.role)]);
   const sessions = [...own, ...vlans.flatMap((v) => v.sessions)];
   return {
@@ -141,14 +135,18 @@ export function buildPortViews(
   interfaces: RouterInterface[],
   sessions: RouterBgpSession[],
 ): Map<string, PortView> {
-  const host = pollHost(r);
   const views = new Map<string, PortView>();
   for (const iface of interfaces) {
     if (iface.parentName) continue;
     const children = interfaces.filter((i) => i.parentName === iface.name);
     views.set(
       iface.name,
-      buildPort(iface, buildVlans(children, sessions, host), sessions, host),
+      buildPort(
+        iface,
+        buildVlans(children, sessions, r.host),
+        sessions,
+        r.host,
+      ),
     );
   }
   return views;

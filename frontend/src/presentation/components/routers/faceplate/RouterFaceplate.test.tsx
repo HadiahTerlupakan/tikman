@@ -64,12 +64,16 @@ const sessions = [
 ];
 
 const data: {
-  interfaces: RouterInterface[];
+  interfaces: RouterInterface[] | undefined;
   sessions: RouterBgpSession[];
-} = { interfaces: baseInterfaces, sessions };
+  loading: boolean;
+} = { interfaces: baseInterfaces, sessions, loading: false };
 
 vi.mock("@/application/hooks/useMikrotikRouters", () => ({
-  useRouterInterfaces: () => ({ data: data.interfaces }),
+  useRouterInterfaces: () => ({
+    data: data.interfaces,
+    isLoading: data.loading,
+  }),
   useRouterBgpSessions: () => ({ data: data.sessions }),
   useInterfaceTraffic: () => ({ data: [] }),
 }));
@@ -90,6 +94,7 @@ describe("RouterFaceplate", () => {
   beforeEach(() => {
     data.interfaces = baseInterfaces;
     data.sessions = sessions;
+    data.loading = false;
   });
 
   it("lists a trunk's first three VLANs and counts the rest", () => {
@@ -142,5 +147,62 @@ describe("RouterFaceplate", () => {
     render(<RouterFaceplate router={router} />);
 
     expect(screen.getByText("Belum ada data interface")).toBeTruthy();
+  });
+
+  it("claims no missing data while the interfaces load", () => {
+    data.interfaces = undefined;
+    data.loading = true;
+    render(<RouterFaceplate router={router} />);
+
+    expect(screen.queryByText("Belum ada data interface")).toBeNull();
+  });
+
+  it("presents an unreachable router's sessions and VLANs as last read", () => {
+    render(<RouterFaceplate router={{ ...router, status: "down" }} />);
+
+    expect(
+      screen.getByText(
+        "Router tidak terjangkau: data di bawah adalah pembacaan terakhir",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(label(/^peer-transit/));
+    expect(document.querySelector(".ant-tag-green")).toBeNull();
+    fireEvent.click(label(/^trunk-metro/));
+    const vlanRow = screen
+      .getAllByRole("row")
+      .find((row) => row.textContent?.includes("pop-a"));
+    expect(vlanRow?.lastElementChild?.textContent).toBe("—");
+  });
+
+  it("lists a VLAN that has no role on its port", () => {
+    data.interfaces = [
+      ...baseInterfaces.slice(0, 2),
+      iface({ name: "sfp-sfpplus2", comment: "peer-ix" }),
+      { ...vlan("vlan300", 300, ""), operStatus: "down" },
+    ];
+    render(<RouterFaceplate router={router} />);
+
+    fireEvent.click(label(/^peer-ix/));
+    expect(screen.queryByText("Tidak ada VLAN di port ini.")).toBeNull();
+    const rows = screen.getAllByRole("row").map((row) => row.textContent);
+    expect(rows.some((text) => text?.startsWith("300"))).toBe(true);
+  });
+
+  it("says when the port layout was made from interface names", () => {
+    render(
+      <RouterFaceplate router={{ ...router, boardName: "RB5009UG+S+IN" }} />,
+    );
+
+    expect(
+      screen.getByText(
+        "Model RB5009UG+S+IN belum punya cetakan, jadi susunan port dibuat otomatis dari nama interface.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("adds no layout note to a board with a template", () => {
+    render(<RouterFaceplate router={router} />);
+
+    expect(screen.queryByText(/belum punya cetakan/)).toBeNull();
   });
 });

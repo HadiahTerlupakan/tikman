@@ -47,7 +47,14 @@ const templated = layoutFaceplate("CCR2116-12G-4S+", []);
 
 describe("Chassis", () => {
   it("makes a button of every used port and nothing of unused ones", () => {
-    render(<Chassis layout={templated} ports={ports} offline={false} />);
+    render(
+      <Chassis
+        layout={templated}
+        ports={ports}
+        offline={false}
+        onSelect={vi.fn()}
+      />,
+    );
 
     const names = screen
       .getAllByRole("button")
@@ -60,12 +67,44 @@ describe("Chassis", () => {
   });
 
   it("names a port on hover when there is nothing to select", () => {
-    render(<Chassis layout={templated} ports={ports} offline={false} />);
+    const { container } = render(
+      <Chassis layout={templated} ports={ports} offline={false} />,
+    );
 
-    const port = screen.getByRole("button", { name: /^sfp-sfpplus1/ });
-    expect(port.getAttribute("title")).toBe(
+    const port = container.querySelector('[data-port="sfp-sfpplus1"]');
+    expect(port?.getAttribute("title")).toBe(
       "sfp-sfpplus1 · transit · Aktif · ↓ 3.00 Gbps",
     );
+  });
+
+  it("gives no port a tab stop when there is nothing to select", () => {
+    const { container } = render(
+      <Chassis layout={templated} ports={ports} offline={false} />,
+    );
+
+    expect(screen.queryAllByRole("button")).toEqual([]);
+    expect(container.querySelector("button, [tabindex]")).toBeNull();
+  });
+
+  it("names no state or rate it cannot read from an unreachable router", () => {
+    const { container } = render(
+      <Chassis layout={templated} ports={ports} offline />,
+    );
+    const port = container.querySelector('[data-port="sfp-sfpplus1"]');
+    expect(port?.getAttribute("title")).toBe(
+      "sfp-sfpplus1 · transit · Tidak terjangkau",
+    );
+  });
+
+  it("tells a screen reader the router is unreachable", () => {
+    render(
+      <Chassis layout={templated} ports={ports} offline onSelect={vi.fn()} />,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: /^sfp-sfpplus1/ })
+        .getAttribute("aria-label"),
+    ).toBe("sfp-sfpplus1, transit, Tidak terjangkau");
   });
 
   it("lights LEDs by state and blinks the busy port", () => {

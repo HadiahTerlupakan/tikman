@@ -4,12 +4,7 @@ import type {
   RouterBgpSession,
   RouterInterface,
 } from "@/domain/entities";
-import {
-  bgpStale,
-  buildPortViews,
-  pollHost,
-  routerReachable,
-} from "./portModel";
+import { bgpStale, buildPortViews, routerReachable } from "./portModel";
 
 const router = (over: Partial<MikrotikRouter> = {}): MikrotikRouter =>
   ({
@@ -116,13 +111,49 @@ describe("buildPortViews", () => {
   });
 
   it("ignores a session on an interface that is no port", () => {
-    const ports = [iface({ name: "ether4", operStatus: "down" })];
-    const view = buildPortViews(router(), ports, [session("bridge1")]).get(
-      "ether4",
-    );
-    expect(view?.role).toBeNull();
-    expect(view?.state).toBe("down");
-    expect(view?.roles).toEqual([]);
+    const ports = [
+      iface({ name: "ether4", operStatus: "down" }),
+      iface({ name: "bridge1", type: "bridge" }),
+    ];
+    const views = buildPortViews(router(), ports, [session("bridge1")]);
+    expect(views.get("bridge1")?.sessions).toHaveLength(1);
+    expect(views.get("ether4")?.role).toBeNull();
+    expect(views.get("ether4")?.sessions).toEqual([]);
+  });
+
+  it("keeps a VLAN without a role but draws no stripe for it", () => {
+    const ports = [
+      iface({ name: "sfp-sfpplus2" }),
+      iface({ name: "vlan101", parentName: "sfp-sfpplus2", type: "vlan" }),
+      iface({
+        name: "vlan300",
+        parentName: "sfp-sfpplus2",
+        type: "vlan",
+        operStatus: "down",
+      }),
+    ];
+    const view = buildPortViews(router(), ports, []).get("sfp-sfpplus2");
+    expect(view?.vlans.map((v) => [v.iface.name, v.role])).toEqual([
+      ["vlan101", "dist"],
+      ["vlan300", null],
+    ]);
+    expect(view?.roles).toEqual(["dist"]);
+    expect(view?.role).toBe("dist");
+  });
+
+  it("leaves a port whose only VLANs have no role as its own link makes it", () => {
+    const ports = [
+      iface({ name: "ether5" }),
+      iface({
+        name: "vlan300",
+        parentName: "ether5",
+        type: "vlan",
+        operStatus: "down",
+      }),
+    ];
+    const view = buildPortViews(router(), ports, []).get("ether5");
+    expect(view?.role).toBe("dist");
+    expect(view?.vlans).toHaveLength(1);
   });
 });
 
@@ -140,9 +171,5 @@ describe("router reachability", () => {
       false,
     );
     expect(bgpStale(router())).toBe(false);
-  });
-
-  it("exposes the poll host", () => {
-    expect(pollHost(router({ host: "192.0.2.1" }))).toBe("192.0.2.1");
   });
 });

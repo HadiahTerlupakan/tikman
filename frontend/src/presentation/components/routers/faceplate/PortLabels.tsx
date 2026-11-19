@@ -169,7 +169,10 @@ function VlanLines({
   return (
     <>
       {vlans.slice(0, VLANS_SHOWN).map((v) => (
-        <span key={v.iface.id} className={`fp-vl fp-role-${v.role}`}>
+        <span
+          key={v.iface.id}
+          className={v.role ? `fp-vl fp-role-${v.role}` : "fp-vl"}
+        >
           <span className="fp-vl-id">{v.iface.vlanId}</span>
           {v.label}
           {v.sessions.some((s) => s.state !== "established") && (

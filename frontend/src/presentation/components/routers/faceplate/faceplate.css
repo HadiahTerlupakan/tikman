@@ -13,7 +13,10 @@
   --fp-select: #2f6fe4;
   --fp-cable: #9aa3ad;
   --fp-stage-line: rgba(255, 255, 255, 0.12);
-  --fp-condensed: "Barlow Condensed", "Arial Narrow", sans-serif;
+  /* The app's own stack: no webfont is loaded for this, and labels are placed
+     from their measured size, so any face lays out correctly. */
+  --fp-condensed: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
 .fp-chassis {

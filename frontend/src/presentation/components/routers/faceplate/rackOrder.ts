@@ -7,7 +7,7 @@ export type RackSlot =
 const byName = (a: MikrotikRouter, b: MikrotikRouter) =>
   a.name.localeCompare(b.name);
 
-/** Lays routers out bottom-up by U; a U claimed twice keeps its first router by name. */
+/** Lays routers out from U1 at the top down; a U claimed twice keeps its first router by name. */
 export function rackSlots(routers: MikrotikRouter[]): RackSlot[] {
   const placed = new Map<number, MikrotikRouter>();
   const loose: MikrotikRouter[] = [];
