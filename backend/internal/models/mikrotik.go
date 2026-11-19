@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -97,6 +98,13 @@ type MikrotikRouter struct {
 	// RackPosition is the slot counted from the top of the rack, so the screen
 	// can match the physical rack.
 	RackPosition *int `json:"rack_position"`
+
+	// Health is the last MIKROTIK-MIB gauge table read, as
+	// [{"name","value","unit"}]: the items differ by model, so they are kept
+	// as the router names them. HealthAt is when it was read; a failed read
+	// leaves both alone, so a stale HealthAt is how the screen tells.
+	Health   datatypes.JSON `gorm:"type:jsonb" json:"health"`
+	HealthAt *time.Time     `json:"health_at"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

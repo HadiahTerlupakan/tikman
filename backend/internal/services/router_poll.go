@@ -2,8 +2,10 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/tikman/olt-provisioning/internal/connectivity"
 	"github.com/tikman/olt-provisioning/internal/mikrotik"
 	"github.com/tikman/olt-provisioning/internal/models"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -41,12 +44,17 @@ type RouterAPI interface {
 // production.
 type IfCounterReader func(ctx context.Context, host string, port int, community string) ([]connectivity.IfCounters, error)
 
+// GaugeReader reads the router's health sensors; connectivity.WalkGauges in
+// production.
+type GaugeReader func(ctx context.Context, host string, port int, community string) ([]connectivity.Gauge, error)
+
 // RouterPollService runs the work of each router poll tier.
 type RouterPollService struct {
 	db               *gorm.DB
 	routers          *RouterService
 	newAPI           func(router *models.MikrotikRouter, password string) (RouterAPI, error)
 	readCounters     IfCounterReader
+	readGauges       GaugeReader
 	fetchFingerprint func(host string, port int) (string, error)
 	// lookups holds the routers with an operator's route lookup running.
 	lookups sync.Map
@@ -59,6 +67,7 @@ func NewRouterPollService(db *gorm.DB, routers *RouterService) *RouterPollServic
 		routers:          routers,
 		newAPI:           openRouterAPI,
 		readCounters:     connectivity.WalkIfCounters,
+		readGauges:       connectivity.WalkGauges,
 		fetchFingerprint: mikrotik.FetchFingerprint,
 	}
 }
@@ -99,6 +108,8 @@ func (s *RouterPollService) PollInterfaces(router *models.MikrotikRouter, now ti
 	for _, iface := range ifaces {
 		byName[iface.Name] = iface
 	}
+	routerUpdates := map[string]interface{}{"status": models.RouterStatusUp, "last_seen_at": now}
+	s.addHealth(ctx, router, community, now, routerUpdates)
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		for _, c := range counters {
@@ -110,9 +121,25 @@ func (s *RouterPollService) PollInterfaces(router *models.MikrotikRouter, now ti
 				return err
 			}
 		}
-		return tx.Model(&models.MikrotikRouter{}).Where("id = ?", router.ID).
-			Updates(map[string]interface{}{"status": models.RouterStatusUp, "last_seen_at": now}).Error
+		return tx.Model(&models.MikrotikRouter{}).Where("id = ?", router.ID).Updates(routerUpdates).Error
 	})
+}
+
+// addHealth reads the gauge table into updates. Health is extra: a failed or
+// empty read keeps the earlier reading and its time, and never fails the poll
+// or marks the router down, because the interfaces have already answered.
+func (s *RouterPollService) addHealth(ctx context.Context, router *models.MikrotikRouter, community string,
+	now time.Time, updates map[string]interface{}) {
+	gauges, err := s.readGauges(ctx, router.Host, router.SNMPPort, community)
+	if err != nil {
+		log.Printf("[Router] Health sensors unreadable on %s: %v", router.Name, err)
+		return
+	}
+	if len(gauges) == 0 {
+		return
+	}
+	health, _ := json.Marshal(gauges)
+	updates["health"], updates["health_at"] = datatypes.JSON(health), now
 }
 
 func recordCounters(tx *gorm.DB, iface models.RouterInterface, c connectivity.IfCounters, now time.Time) error {

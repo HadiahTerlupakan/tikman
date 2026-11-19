@@ -74,6 +74,8 @@ type pollFixture struct {
 	api      *fakeRouterAPI
 	counters []connectivity.IfCounters
 	snmpErr  error
+	gauges   []connectivity.Gauge
+	gaugeErr error
 	openErr  error
 }
 
@@ -95,6 +97,9 @@ func newPollFixture(t *testing.T) *pollFixture {
 		},
 		readCounters: func(context.Context, string, int, string) ([]connectivity.IfCounters, error) {
 			return f.counters, f.snmpErr
+		},
+		readGauges: func(context.Context, string, int, string) ([]connectivity.Gauge, error) {
+			return f.gauges, f.gaugeErr
 		},
 		fetchFingerprint: func(string, int) (string, error) { return "ef" + testFingerprint[2:], nil },
 	}
@@ -187,6 +192,62 @@ func TestPollInterfacesMarksTheRouterDownWhenSNMPFails(t *testing.T) {
 	var router models.MikrotikRouter
 	require.NoError(t, f.db.First(&router, "id = ?", f.router.ID).Error)
 	assert.Equal(t, models.RouterStatusDown, router.Status)
+}
+
+func (f *pollFixture) storedRouter(t *testing.T) models.MikrotikRouter {
+	t.Helper()
+	var router models.MikrotikRouter
+	require.NoError(t, f.db.First(&router, "id = ?", f.router.ID).Error)
+	return router
+}
+
+func TestPollInterfacesStoresHealth(t *testing.T) {
+	f := newPollFixture(t)
+	now := time.Date(2026, 11, 19, 3, 0, 0, 0, time.UTC)
+	f.gauges = []connectivity.Gauge{
+		{Name: "cpu-temperature", Value: 43, Unit: 1},
+		{Name: "psu1-state", Value: 0, Unit: 6},
+		{Name: "psu2-voltage", Value: 121, Unit: 3},
+	}
+
+	require.NoError(t, f.service.PollInterfaces(f.router, now))
+
+	router := f.storedRouter(t)
+	assert.JSONEq(t, `[{"name":"cpu-temperature","value":43,"unit":1},`+
+		`{"name":"psu1-state","value":0,"unit":6},{"name":"psu2-voltage","value":121,"unit":3}]`, string(router.Health))
+	require.NotNil(t, router.HealthAt)
+	assert.True(t, router.HealthAt.Equal(now))
+}
+
+func TestPollInterfacesKeepsPollingWhenHealthFails(t *testing.T) {
+	f := newPollFixture(t)
+	first := time.Date(2026, 11, 19, 3, 0, 0, 0, time.UTC)
+	f.gauges = []connectivity.Gauge{{Name: "psu1-state", Value: 0, Unit: 6}}
+	require.NoError(t, f.service.PollInterfaces(f.router, first))
+
+	f.gaugeErr = errors.New("no such name")
+	require.NoError(t, f.service.PollInterfaces(f.router, first.Add(time.Minute)))
+
+	router := f.storedRouter(t)
+	assert.Equal(t, models.RouterStatusUp, router.Status)
+	assert.JSONEq(t, `[{"name":"psu1-state","value":0,"unit":6}]`, string(router.Health))
+	require.NotNil(t, router.HealthAt)
+	assert.True(t, router.HealthAt.Equal(first), "a failed read must not make the old reading look fresh")
+}
+
+func TestPollInterfacesIgnoresEmptyHealth(t *testing.T) {
+	f := newPollFixture(t)
+	first := time.Date(2026, 11, 19, 3, 0, 0, 0, time.UTC)
+	f.gauges = []connectivity.Gauge{{Name: "fan1-speed", Value: 5654, Unit: 2}}
+	require.NoError(t, f.service.PollInterfaces(f.router, first))
+
+	f.gauges = nil
+	require.NoError(t, f.service.PollInterfaces(f.router, first.Add(time.Minute)))
+
+	router := f.storedRouter(t)
+	assert.JSONEq(t, `[{"name":"fan1-speed","value":5654,"unit":2}]`, string(router.Health))
+	require.NotNil(t, router.HealthAt)
+	assert.True(t, router.HealthAt.Equal(first))
 }
 
 func TestPollBGPStoresSessionsMatchedToTheirVLANAndTheRoutersResources(t *testing.T) {
