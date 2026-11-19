@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type {
   MikrotikRouter,
   RouterBgpSession,
@@ -238,6 +238,28 @@ describe("RouterFaceplate", () => {
       );
       expect(strip.className).not.toContain("fp-health-stale");
       expect(within(strip).queryByText(/^Pembacaan terakhir/)).toBeNull();
+    });
+
+    it("dims the strip and darkens PWR when the reading goes stale while open", () => {
+      vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+      try {
+        vi.setSystemTime(new Date("2026-11-19T12:00:00Z"));
+        render(
+          <RouterFaceplate
+            router={{ ...router, health, healthAt: "2026-11-19T12:00:00Z" }}
+          />,
+        );
+        const pwr2 = () => screen.getByText("PWR2").querySelector("i");
+        expect(pwr2()?.className).toBe("fp-led-down");
+
+        act(() => vi.advanceTimersByTime(6 * 60 * 1000));
+
+        expect(pwr2()?.className).toBe("");
+        const strip = screen.getByRole("region", { name: "Kesehatan" });
+        expect(strip.className).toContain("fp-health-stale");
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("says there is no health data before the first reading", () => {

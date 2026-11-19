@@ -11,7 +11,8 @@ export interface HealthReading {
 export interface HealthView {
   /** Only a fresh reading may light an LED; anything else is last-known. */
   fresh: boolean;
-  psus: { n: number; ok: boolean }[];
+  /** ok is null for a state MIKROTIK-MIB gives no meaning to, which lights nothing. */
+  psus: { n: number; ok: boolean | null }[];
   failures: string[];
   readings: HealthReading[];
 }
@@ -20,9 +21,13 @@ export interface HealthView {
 // stopped answering, and a stuck reading must not keep a PSU looking healthy.
 const FRESH_MS = 5 * 60 * 1000;
 
+/** How often an open page re-checks freshness; a minute late is well inside FRESH_MS. */
+export const HEALTH_TICK_MS = 60 * 1000;
+
 const UNIT_CELSIUS = 1;
 const UNIT_RPM = 2;
 const UNIT_STATUS = 6;
+const STATUS_OK = 0;
 const STATUS_FAIL = 1;
 // MIKROTIK-MIB reports volts, amps and watts in tenths.
 const TENTHS_SUFFIX: Record<number, string> = { 3: "V", 4: "A", 5: "W" };
@@ -48,14 +53,19 @@ function label(name: string): string {
 function text(item: RouterHealthItem): string {
   if (item.unit === UNIT_CELSIUS) return `${item.value} °C`;
   if (item.unit === UNIT_RPM) return `${item.value} RPM`;
-  if (item.unit === UNIT_STATUS)
-    return item.value === STATUS_FAIL ? "fail" : "ok";
+  if (item.unit === UNIT_STATUS && item.value === STATUS_OK) return "ok";
+  if (item.unit === UNIT_STATUS && item.value === STATUS_FAIL) return "fail";
   const suffix = TENTHS_SUFFIX[item.unit];
   return suffix ? `${(item.value / 10).toFixed(1)} ${suffix}` : `${item.value}`;
 }
 
 const failed = (item: RouterHealthItem) =>
   item.unit === UNIT_STATUS && item.value === STATUS_FAIL;
+
+function psuOk(item: RouterHealthItem): boolean | null {
+  if (item.value === STATUS_OK) return true;
+  return failed(item) ? false : null;
+}
 
 function fresh(r: MikrotikRouter, now: Date): boolean {
   if (!r.healthAt || !routerReachable(r)) return false;
@@ -73,7 +83,7 @@ export function healthView(r: MikrotikRouter, now: Date): HealthView {
   const psus = items
     .flatMap((item) => {
       const n = psuNumber(item);
-      return n === null ? [] : [{ n, ok: !failed(item) }];
+      return n === null ? [] : [{ n, ok: psuOk(item) }];
     })
     .sort((a, b) => a.n - b.n);
   const failures = items.filter(failed).map((item) => {

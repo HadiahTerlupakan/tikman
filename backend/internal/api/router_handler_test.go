@@ -192,6 +192,39 @@ func TestListRoutersCountsSilentInterfaces(t *testing.T) {
 	assert.Equal(t, 1, out[0].SilentInterfaces, "a disabled interface is not counted")
 }
 
+func listRoutersRaw(t *testing.T, handler *RouterHandler) map[string]json.RawMessage {
+	t.Helper()
+	w, c := SetupTestContext(http.MethodGet, "/api/v1/routers", nil)
+	handler.List(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	var out []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+	require.Len(t, out, 1)
+	return out[0]
+}
+
+func TestListRoutersCarriesTheHealthReading(t *testing.T) {
+	handler, db := setupRouterHandlerTest(t)
+	created := createRouterVia(t, handler)
+
+	before := listRoutersRaw(t, handler)
+	require.Contains(t, before, "health")
+	require.Contains(t, before, "health_at")
+	assert.JSONEq(t, "null", string(before["health"]))
+	assert.JSONEq(t, "null", string(before["health_at"]))
+
+	readAt := time.Date(2026, 11, 19, 3, 0, 0, 0, time.UTC)
+	reading := `[{"name":"psu1-state","value":0,"unit":6}]`
+	require.NoError(t, db.Model(&models.MikrotikRouter{}).Where("id = ?", created.ID).
+		Updates(map[string]interface{}{"health": reading, "health_at": readAt}).Error)
+
+	after := listRoutersRaw(t, handler)
+	assert.JSONEq(t, reading, string(after["health"]))
+	var at time.Time
+	require.NoError(t, json.Unmarshal(after["health_at"], &at))
+	assert.True(t, at.Equal(readAt))
+}
+
 func TestDeleteUnknownRouterIs404(t *testing.T) {
 	handler, _ := setupRouterHandlerTest(t)
 	id := uuid.New().String()

@@ -292,6 +292,27 @@ describe("Chassis", () => {
     expect(ledOf("FAULT")).toBe("");
   });
 
+  it("leaves a PWR LED dark when its PSU state is neither ok nor fail", () => {
+    const unknown = health({
+      health: [
+        { name: "psu1-state", value: 0, unit: 6 },
+        { name: "psu2-state", value: 2, unit: 6 },
+      ],
+    });
+    render(
+      <Chassis
+        layout={templated}
+        ports={ports}
+        offline={false}
+        health={unknown}
+      />,
+    );
+
+    expect(ledOf("PWR1")).toBe("fp-led-up");
+    expect(ledOf("PWR2")).toBe("");
+    expect(ledOf("FAULT")).toBe("");
+  });
+
   it("lights no health LED from a reading that is not fresh", () => {
     const stale = { ...psu2Failed, fresh: false };
     const { container } = render(

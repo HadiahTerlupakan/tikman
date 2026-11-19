@@ -12,6 +12,11 @@ function Led(props: { label: string; state: "" | "up" | "down" }) {
   );
 }
 
+function psuLed(ok: boolean | null): "" | "up" | "down" {
+  if (ok === null) return "";
+  return ok ? "up" : "down";
+}
+
 /**
  * STATUS, one PWR per PSU the board reports, and FAULT. A reading that is not
  * fresh lights nothing, so a router that stopped answering never looks healthy.
@@ -30,7 +35,7 @@ export function HealthLeds(props: { offline: boolean; health: HealthView }) {
         <Led
           key={psu.n}
           label={`PWR${psu.n}`}
-          state={live ? (psu.ok ? "up" : "down") : ""}
+          state={live ? psuLed(psu.ok) : ""}
         />
       ))}
       <Led

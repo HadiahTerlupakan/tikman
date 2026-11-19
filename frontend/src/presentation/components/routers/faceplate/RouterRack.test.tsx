@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { MikrotikRouter, RouterInterface } from "@/domain/entities";
@@ -150,6 +150,25 @@ describe("RouterRack", () => {
     expect(
       screen.getByRole("link", { name: "Buka border-1, 1 port mati" }),
     ).toBeInTheDocument();
+  });
+
+  it("darkens the PWR LEDs when the reading goes stale while the rack is open", () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-19T12:00:00Z"));
+      renderRack([router(psu2Failed("2026-11-19T12:00:00Z"))]);
+      const pwr1 = () => screen.getByText("PWR1").querySelector("i");
+      expect(pwr1()?.className).toBe("fp-led-up");
+
+      act(() => vi.advanceTimersByTime(6 * 60 * 1000));
+
+      expect(pwr1()?.className).toBe("");
+      expect(
+        screen.getByRole("link", { name: "Buka border-1, 1 port mati" }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("counts no interface that is not drawn as a port", () => {

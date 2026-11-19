@@ -11,7 +11,7 @@ import {
 } from "@/application/hooks/useMikrotikRouters";
 import { RouterStatusTag } from "../RouterStatusTag";
 import { Chassis } from "./Chassis";
-import { healthView, type HealthView } from "./healthModel";
+import { HEALTH_TICK_MS, healthView, type HealthView } from "./healthModel";
 import {
   CHASSIS_HEIGHT,
   layoutFaceplate,
@@ -25,6 +25,7 @@ import {
   type PortView,
 } from "./portModel";
 import { useFitScale } from "./useFitScale";
+import { useNow } from "./useNow";
 // The rack's rails, blanks and hover ring need pseudo-elements, which inline styles cannot express.
 import "./rack.css";
 
@@ -178,6 +179,7 @@ export function RackUnit(props: RackUnitProps) {
     isError,
   } = useRouterInterfaces(router.id);
   const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
+  const now = useNow(HEALTH_TICK_MS);
   const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
   const layout = useMemo(
     () => layoutFaceplate(router.boardName, physical),
@@ -192,7 +194,7 @@ export function RackUnit(props: RackUnitProps) {
   }, [onLayout, router.id, layout.width]);
   const shared = { ...layout, width: Math.max(sharedWidth, layout.width) };
   const detail = detailLine(router, layout.model);
-  const health = healthView(router, new Date());
+  const health = healthView(router, now);
   const status = unitStatus(router, ports, physical, health, {
     loading: isLoading,
     failed: isError,

@@ -9,10 +9,11 @@ import {
   useRouterBgpSessions,
   useRouterInterfaces,
 } from "@/application/hooks/useMikrotikRouters";
-import { healthView } from "./healthModel";
+import { HEALTH_TICK_MS, healthView } from "./healthModel";
 import { HealthStrip } from "./HealthStrip";
 import { PortDetailPanel } from "./PortDetailPanel";
 import { PortLabels } from "./PortLabels";
+import { useNow } from "./useNow";
 import {
   layoutFaceplate,
   physicalPortNames,
@@ -59,6 +60,7 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
   } = useRouterInterfaces(router.id);
   const { data: sessions = NO_SESSIONS } = useRouterBgpSessions(router.id);
   const [picked, setPicked] = useState<string>();
+  const now = useNow(HEALTH_TICK_MS);
   const physical = useMemo(() => physicalPortNames(interfaces), [interfaces]);
   const layout = useMemo(
     () => layoutFaceplate(router.boardName, physical),
@@ -78,7 +80,7 @@ export function RouterFaceplate({ router }: { router: MikrotikRouter }) {
   const offline = !routerReachable(router);
   const selected = selectedPort(layout, ports, picked);
   const view = selected ? ports.get(selected) : undefined;
-  const health = healthView(router, new Date());
+  const health = healthView(router, now);
   return (
     <div style={{ marginBottom: 16 }}>
       {!layout.templated && (

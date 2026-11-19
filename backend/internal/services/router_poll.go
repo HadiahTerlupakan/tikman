@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -128,14 +127,14 @@ func (s *RouterPollService) PollInterfaces(router *models.MikrotikRouter, now ti
 // addHealth reads the gauge table into updates. Health is extra: a failed or
 // empty read keeps the earlier reading and its time, and never fails the poll
 // or marks the router down, because the interfaces have already answered.
+// A failure is not logged: this runs every minute, so a gauge walk that keeps
+// failing would log every minute, and health_at going stale already shows the
+// gap on the page. Telling the first failure from the rest would need the
+// previous outcome, which the row loaded at claim time does not reliably carry.
 func (s *RouterPollService) addHealth(ctx context.Context, router *models.MikrotikRouter, community string,
 	now time.Time, updates map[string]interface{}) {
 	gauges, err := s.readGauges(ctx, router.Host, router.SNMPPort, community)
-	if err != nil {
-		log.Printf("[Router] Health sensors unreadable on %s: %v", router.Name, err)
-		return
-	}
-	if len(gauges) == 0 {
+	if err != nil || len(gauges) == 0 {
 		return
 	}
 	health, _ := json.Marshal(gauges)

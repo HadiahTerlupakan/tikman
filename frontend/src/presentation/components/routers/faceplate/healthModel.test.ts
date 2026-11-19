@@ -66,6 +66,20 @@ describe("healthView", () => {
     expect(view([item("fan-state", 1, 6)]).failures).toEqual(["fan-state"]);
   });
 
+  it("shows a status value that is neither 0 nor 1 raw and claims no PSU state from it", () => {
+    const v = view([item("psu1-state", 0, 6), item("psu2-state", 2, 6)]);
+
+    expect(v.psus).toEqual([
+      { n: 1, ok: true },
+      { n: 2, ok: null },
+    ]);
+    expect(v.failures).toEqual([]);
+    expect(v.readings.map((r) => [r.text, r.failed])).toEqual([
+      ["ok", false],
+      ["2", false],
+    ]);
+  });
+
   it("keeps an unknown unit's value raw", () => {
     const v = view([item("new-sensor", 77, 9)]);
 
