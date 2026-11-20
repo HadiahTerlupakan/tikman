@@ -1,81 +1,78 @@
-import { Card, Space, Table, Tag } from "antd";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Card, Empty, Input, Space, Switch, Typography } from "antd";
 import {
   useSwitchInterfaces,
   useSwitchVlans,
 } from "@/application/hooks/useSwitches";
-import { matrixPorts, vlanMembership } from "./switchVlans";
-
-const MATRIX_CELL: React.CSSProperties = {
-  textAlign: "center",
-  padding: "2px 6px",
-  fontFamily: "monospace",
-};
+import { SwitchVlanMatrix } from "./SwitchVlanMatrix";
+import { matrixPorts } from "./switchVlans";
+import { isIdlePort, portGroups, vlanLabel } from "./vlanMatrix";
 
 export function SwitchVlanTab({ switchId }: { switchId: string }) {
   const { data: vlans = [], isLoading } = useSwitchVlans(switchId);
   const { data: allPorts = [] } = useSwitchInterfaces(switchId);
+  const [query, setQuery] = useState("");
+  const [showIdle, setShowIdle] = useState(false);
+
   const ports = useMemo(() => matrixPorts(allPorts), [allPorts]);
+  const idleCount = ports.filter(isIdlePort).length;
+  const groups = useMemo(
+    () => portGroups(showIdle ? ports : ports.filter((p) => !isIdlePort(p))),
+    [ports, showIdle],
+  );
+  const q = query.trim().toLowerCase();
+  const shown = useMemo(
+    () =>
+      q
+        ? vlans.filter(
+            (v) =>
+              String(v.vid).includes(q) ||
+              vlanLabel(v).toLowerCase().includes(q),
+          )
+        : vlans,
+    [vlans, q],
+  );
+  const count = q ? `${shown.length} dari ${vlans.length}` : vlans.length;
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Card size="small" title="Daftar VLAN">
-        <Table
-          size="small"
-          rowKey="vid"
-          loading={isLoading}
-          pagination={false}
-          dataSource={vlans}
-          columns={[
-            { title: "VLAN", dataIndex: "vid" },
-            { title: "Nama", dataIndex: "name" },
-          ]}
+    <Card
+      size="small"
+      loading={isLoading}
+      title={
+        <Space size={8}>
+          Matriks VLAN × port
+          <Typography.Text type="secondary">{count} VLAN</Typography.Text>
+        </Space>
+      }
+      extra={
+        <Space size="middle" wrap>
+          <Input.Search
+            allowClear
+            size="small"
+            placeholder="Cari VLAN atau nama"
+            style={{ width: 170 }}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <label style={{ cursor: "pointer", whiteSpace: "nowrap" }}>
+            <Space size={6}>
+              <Switch size="small" checked={showIdle} onChange={setShowIdle} />
+              <Typography.Text type="secondary">
+                Port kosong ({idleCount})
+              </Typography.Text>
+            </Space>
+          </label>
+        </Space>
+      }
+    >
+      {shown.length === 0 ? (
+        <Empty
+          description={
+            q ? "Tidak ada VLAN yang cocok" : "Belum ada data VLAN dari switch"
+          }
         />
-      </Card>
-      <Card
-        size="small"
-        title="Matriks VLAN × port"
-        extra={
-          <Space size={4}>
-            <Tag color="blue">T tagged</Tag>
-            <Tag color="green">U untagged</Tag>
-          </Space>
-        }
-      >
-        <div style={{ overflowX: "auto" }}>
-          <table
-            data-testid="vlan-matrix"
-            style={{ borderCollapse: "collapse" }}
-          >
-            <thead>
-              <tr>
-                <th style={MATRIX_CELL}>VLAN</th>
-                {ports.map((p) => (
-                  <th key={p.name} style={MATRIX_CELL}>
-                    {p.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {vlans.map((v) => (
-                <tr key={v.vid}>
-                  <th style={MATRIX_CELL}>{v.vid}</th>
-                  {ports.map((p) => (
-                    <td
-                      key={p.name}
-                      data-testid={`cell-${v.vid}-${p.name}`}
-                      style={MATRIX_CELL}
-                    >
-                      {vlanMembership(p, v.vid)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </Space>
+      ) : (
+        <SwitchVlanMatrix vlans={shown} groups={groups} countPorts={ports} />
+      )}
+    </Card>
   );
 }

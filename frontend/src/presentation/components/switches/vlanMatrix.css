@@ -1,0 +1,168 @@
+/* Colours arrive as custom properties set from the antd theme token. */
+.vm-scroll {
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--vm-border);
+  border-radius: 6px;
+}
+
+.vm-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vm-table th,
+.vm-table td {
+  padding: 0;
+  background: var(--vm-bg);
+  border-bottom: 1px solid var(--vm-border);
+}
+
+/* Both header rows stay put while scrolling down a long VLAN list. */
+.vm-table thead th {
+  position: sticky;
+  z-index: 2;
+  font-weight: 500;
+  color: var(--vm-muted);
+}
+/* A table cell's height is only a minimum, so the first row's height is fixed
+   by line-height and padding to match the second row's sticky offset. */
+.vm-table thead tr:first-child th {
+  top: 0;
+  box-sizing: border-box;
+  height: 22px;
+  line-height: 17px;
+}
+.vm-table thead tr:last-child th {
+  top: 22px;
+}
+
+.vm-group {
+  padding: 2px 8px 2px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.vm-port {
+  min-width: 28px;
+  padding: 4px 2px 6px;
+  text-align: center;
+  cursor: default;
+}
+.vm-port-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: 0 auto 3px;
+  border-radius: 50%;
+  background: var(--vm-down);
+}
+.vm-port-dot[data-up="true"] {
+  background: var(--vm-up);
+}
+.vm-group-start {
+  border-left: 1px solid var(--vm-divider);
+}
+
+/* The VLAN column stays visible while scrolling across ports. */
+.vm-vlan {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 180px;
+  max-width: 240px;
+  padding: 4px 12px 4px 10px;
+  text-align: left;
+  border-right: 1px solid var(--vm-border);
+}
+.vm-table thead .vm-vlan {
+  z-index: 3;
+}
+.vm-vid {
+  display: inline-block;
+  min-width: 38px;
+  font-weight: 600;
+  color: var(--vm-text);
+}
+.vm-name {
+  color: var(--vm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  display: inline-block;
+  max-width: 170px;
+}
+
+.vm-count {
+  padding: 4px 10px;
+  text-align: right;
+  color: var(--vm-muted);
+  white-space: nowrap;
+  border-left: 1px solid var(--vm-border);
+}
+
+.vm-cell {
+  height: 26px;
+  text-align: center;
+}
+
+/* Crosshair: the hovered VLAN row and port column light up together. The
+   tint is layered over the cell's own background, so sticky cells stay
+   opaque and keep covering what scrolls under them. */
+.vm-table tr[data-hot="true"] > *,
+.vm-table [data-col-hot="true"] {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--vm-text) 9%, transparent),
+    color-mix(in srgb, var(--vm-text) 9%, transparent)
+  );
+}
+
+.vm-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+.vm-chip[data-m="T"] {
+  background: var(--vm-tagged);
+}
+.vm-chip[data-m="U"] {
+  background: var(--vm-untagged);
+}
+.vm-chip[data-m=""] {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vm-border);
+}
+
+.vm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--vm-muted);
+}
+.vm-legend .vm-chip,
+.vm-legend .vm-port-dot {
+  margin: 0 0 0 10px;
+}
+.vm-legend .vm-chip:first-child {
+  margin-left: 0;
+}
+
+.vm-empty-row .vm-vid,
+.vm-empty-row .vm-name {
+  opacity: 0.5;
+}
