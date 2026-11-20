@@ -118,22 +118,25 @@ func (h *SwitchReadsHandler) BackupDiff(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"diff": diff})
 }
 
-// BackupNow makes the backup job due, for the worker to run.
+// BackupNow makes the backup job due, for the worker to run as a manual
+// backup.
 func (h *SwitchReadsHandler) BackupNow(c *gin.Context) {
-	h.schedule(c, "backup_now", models.SwitchPollKindBackup)
+	h.schedule(c, "backup_now", h.jobs.RequestBackup)
 }
 
 // Refresh makes the interface and inventory jobs due.
 func (h *SwitchReadsHandler) Refresh(c *gin.Context) {
-	h.schedule(c, "refresh", models.SwitchPollKindInterfaces, models.SwitchPollKindInventory)
+	h.schedule(c, "refresh", func(id uuid.UUID) error {
+		return h.jobs.RunNow(id, models.SwitchPollKindInterfaces, models.SwitchPollKindInventory)
+	})
 }
 
-func (h *SwitchReadsHandler) schedule(c *gin.Context, action string, kinds ...models.SwitchPollKind) {
+func (h *SwitchReadsHandler) schedule(c *gin.Context, action string, run func(uuid.UUID) error) {
 	id, ok := h.existingSwitch(c)
 	if !ok {
 		return
 	}
-	if err := h.jobs.RunNow(id, kinds...); err != nil {
+	if err := run(id); err != nil {
 		respondSwitchError(c, err)
 		return
 	}
@@ -141,13 +144,18 @@ func (h *SwitchReadsHandler) schedule(c *gin.Context, action string, kinds ...mo
 	c.JSON(http.StatusAccepted, gin.H{"status": "scheduled"})
 }
 
-// TrustHostKey pins the fingerprint the switch last presented.
+// TrustHostKey pins the fingerprint the admin confirmed, if the switch still
+// presents it.
 func (h *SwitchReadsHandler) TrustHostKey(c *gin.Context) {
 	id, ok := routerParam(c, "id")
 	if !ok {
 		return
 	}
-	sw, err := h.switches.TrustHostKey(id)
+	var req TrustSwitchHostKeyRequest
+	if !bindRouterJSON(c, &req) {
+		return
+	}
+	sw, err := h.switches.TrustHostKey(id, req.Fingerprint)
 	if err != nil {
 		respondSwitchError(c, err)
 		return

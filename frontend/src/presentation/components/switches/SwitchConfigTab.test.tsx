@@ -10,14 +10,12 @@ const backups = [
     id: "b2",
     takenAt: "2026-11-11T01:00:00Z",
     reason: "daily",
-    rawSha256: "x",
     size: 20,
   },
   {
     id: "b1",
     takenAt: "2026-11-10T01:00:00Z",
     reason: "manual",
-    rawSha256: "y",
     size: 18,
   },
 ];

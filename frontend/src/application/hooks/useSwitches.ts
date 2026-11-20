@@ -70,7 +70,10 @@ export function useSwitchBackupNow() {
 }
 
 export function useTrustSwitchHostKey() {
-  return useSwitchMutation((id: string) => repository.trustHostKey(id));
+  return useSwitchMutation(
+    ({ id, fingerprint }: { id: string; fingerprint: string }) =>
+      repository.trustHostKey(id, fingerprint),
+  );
 }
 
 function useSwitchMutation<TArgs, TResult>(

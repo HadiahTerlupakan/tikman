@@ -10,11 +10,10 @@ import (
 
 // SwitchBackupSummary is a backup without its text, for the list.
 type SwitchBackupSummary struct {
-	ID        uuid.UUID `json:"id"`
-	TakenAt   time.Time `json:"taken_at"`
-	Reason    string    `json:"reason"`
-	RawSHA256 string    `json:"raw_sha256"`
-	Size      int       `json:"size"`
+	ID      uuid.UUID `json:"id"`
+	TakenAt time.Time `json:"taken_at"`
+	Reason  string    `json:"reason"`
+	Size    int       `json:"size"`
 }
 
 // SwitchQueryService reads what the poller stored about a switch.
@@ -49,7 +48,7 @@ func (s *SwitchQueryService) Neighbors(switchID uuid.UUID) ([]models.SwitchNeigh
 func (s *SwitchQueryService) Backups(switchID uuid.UUID) ([]SwitchBackupSummary, error) {
 	var list []SwitchBackupSummary
 	err := s.db.Model(&models.SwitchConfigBackup{}).
-		Select("id, taken_at, reason, raw_sha256, size").
+		Select("id, taken_at, reason, size").
 		Where("switch_id = ?", switchID).Order("taken_at DESC").Scan(&list).Error
 	return list, err
 }

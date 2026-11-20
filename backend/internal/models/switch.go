@@ -120,11 +120,15 @@ type SwitchInterface struct {
 	OperStatus string `gorm:"type:varchar(8);not null" json:"oper_status"`
 	SpeedMbps  *int64 `json:"speed_mbps"`
 
-	// Mode is access, trunk, hybrid, or empty when the port has none.
-	Mode         string `gorm:"type:varchar(8);not null;default:''" json:"mode"`
+	// Mode is access, trunk, hybrid, or empty when the port has none. The
+	// column is wider than those words so a vendor's own term cannot fail an
+	// insert.
+	Mode         string `gorm:"type:varchar(16);not null;default:''" json:"mode"`
 	PVID         *int   `gorm:"column:pvid" json:"pvid"`
 	AllowedVLANs string `gorm:"column:allowed_vlans;type:text;not null;default:''" json:"allowed_vlans"`
 	STPEdge      *bool  `gorm:"column:stp_edge" json:"stp_edge"`
+	// STPDisabled is nil for a port that does not switch.
+	STPDisabled *bool `gorm:"column:stp_disabled" json:"stp_disabled"`
 
 	LastInBps    *float64   `json:"last_in_bps"`
 	LastOutBps   *float64   `json:"last_out_bps"`
@@ -202,16 +206,19 @@ func (n *SwitchNeighbor) BeforeCreate(tx *gorm.DB) error {
 func (SwitchNeighbor) TableName() string { return "switch_neighbors" }
 
 // SwitchConfigBackup is a config snapshot. Masked is the text with secrets
-// removed; RawSHA256 lets a change be seen without keeping the raw text.
+// removed; RawHMAC lets a change be seen without keeping the raw text. It is
+// keyed with ENCRYPTION_KEY and never served: a plain hash beside the masked
+// text would let anyone who can read it test guesses at a masked secret.
 type SwitchConfigBackup struct {
 	ID       uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	SwitchID uuid.UUID `gorm:"type:uuid;not null;index:idx_switch_config_backups_switch_taken,priority:1" json:"switch_id"`
 	TakenAt  time.Time `gorm:"not null;index:idx_switch_config_backups_switch_taken,priority:2" json:"taken_at"`
-	// Reason is daily or manual.
-	Reason    string `gorm:"type:varchar(8);not null" json:"reason"`
-	RawSHA256 string `gorm:"column:raw_sha256;type:varchar(64);not null" json:"raw_sha256"`
-	Masked    string `gorm:"type:text;not null" json:"masked"`
-	Size      int    `gorm:"not null" json:"size"`
+	// Reason is daily or manual; before_change and after_change come with
+	// the write paths.
+	Reason  string `gorm:"type:varchar(16);not null" json:"reason"`
+	RawHMAC string `gorm:"column:raw_hmac;type:varchar(64);not null" json:"-"`
+	Masked  string `gorm:"type:text;not null" json:"masked"`
+	Size    int    `gorm:"not null" json:"size"`
 }
 
 // BeforeCreate assigns a UUID when none is set.
@@ -239,6 +246,9 @@ type SwitchPollJob struct {
 	LastDurationMs      *int64     `json:"last_duration_ms"`
 	LastError           *string    `json:"last_error"`
 	ConsecutiveFailures int        `gorm:"not null;default:0" json:"consecutive_failures"`
+	// ManualRequested marks a backup an operator asked for, so it is stored
+	// as manual; the next release clears it.
+	ManualRequested bool `gorm:"not null;default:false" json:"manual_requested"`
 }
 
 // TableName returns the table name for SwitchPollJob.

@@ -39,7 +39,7 @@ func TestSwitchReadRoutesFollowTheRoles(t *testing.T) {
 			assert.Equal(t, http.StatusForbidden, requestAs(t, router, store, role, http.MethodPost, path), "%s %s", role, path)
 		}
 	}
-	assert.Equal(t, http.StatusNotFound, requestAs(t, router, store, models.UserRoleAdmin, http.MethodPost, base+"/trust-host-key"))
+	assert.Equal(t, http.StatusBadRequest, requestAs(t, router, store, models.UserRoleAdmin, http.MethodPost, base+"/trust-host-key"))
 	assert.Equal(t, http.StatusBadRequest, requestAs(t, router, store, models.UserRoleAdmin, http.MethodPost, "/api/v1/switches/test-connection"))
 }
 
@@ -63,26 +63,47 @@ func newSwitchReadsFixture(t *testing.T, protocol models.SwitchProtocol) switchR
 }
 
 func (f switchReadsFixture) ctx(method string, params gin.Params) (*gin.Context, func() (int, string)) {
-	w, c := SetupTestContext(method, "/api/v1/switches", nil)
+	return f.ctxWithBody(method, params, nil)
+}
+
+func (f switchReadsFixture) ctxWithBody(method string, params gin.Params, body interface{}) (*gin.Context, func() (int, string)) {
+	w, c := SetupTestContext(method, "/api/v1/switches", body)
 	c.Params = params
 	return c, func() (int, string) { return w.Code, w.Body.String() }
 }
 
-func TestTrustHostKeyPinsThePresentedFingerprintAndClearsTheFlag(t *testing.T) {
+const presentedFingerprint = "SHA256:bmV3LWtleS1mb3ItdGVzdHMtb25seS0xMjM0NTY3ODk"
+
+func TestTrustHostKeyPinsTheConfirmedFingerprintAndClearsTheFlag(t *testing.T) {
 	f := newSwitchReadsFixture(t, models.SwitchProtocolSSH)
 	require.NoError(t, f.db.Model(f.sw).Updates(map[string]interface{}{
-		"presented_fingerprint": "SHA256:bmV3LWtleS1mb3ItdGVzdHMtb25seS0xMjM0NTY3ODk", "host_key_changed": true}).Error)
-	c, result := f.ctx(http.MethodPost, gin.Params{{Key: "id", Value: f.sw.ID.String()}})
+		"presented_fingerprint": presentedFingerprint, "host_key_changed": true}).Error)
+	c, result := f.ctxWithBody(http.MethodPost, gin.Params{{Key: "id", Value: f.sw.ID.String()}},
+		gin.H{"fingerprint": presentedFingerprint})
 
 	f.handler.TrustHostKey(c)
 
 	code, body := result()
 	require.Equal(t, http.StatusOK, code, body)
-	assert.Contains(t, body, `"host_key_fingerprint":"SHA256:bmV3LWtleS1mb3ItdGVzdHMtb25seS0xMjM0NTY3ODk"`)
+	assert.Contains(t, body, `"host_key_fingerprint":"`+presentedFingerprint+`"`)
 	assert.Contains(t, body, `"host_key_changed":false`)
 }
 
-func TestTrustHostKeyRefusesWhenNothingWasPresented(t *testing.T) {
+func TestTrustHostKeyAnswersConflictWhenTheSwitchPresentsAnotherKey(t *testing.T) {
+	f := newSwitchReadsFixture(t, models.SwitchProtocolSSH)
+	require.NoError(t, f.db.Model(f.sw).Update("presented_fingerprint",
+		"SHA256:aW50ZXJjZXB0b3Ita2V5LWZvci10ZXN0cy0xMjM0NTY").Error)
+	c, result := f.ctxWithBody(http.MethodPost, gin.Params{{Key: "id", Value: f.sw.ID.String()}},
+		gin.H{"fingerprint": presentedFingerprint})
+
+	f.handler.TrustHostKey(c)
+
+	code, body := result()
+	assert.Equal(t, http.StatusConflict, code)
+	assert.Contains(t, body, "HOST_KEY_NOT_PRESENTED")
+}
+
+func TestTrustHostKeyRefusesARequestWithoutAFingerprint(t *testing.T) {
 	f := newSwitchReadsFixture(t, models.SwitchProtocolSSH)
 	c, result := f.ctx(http.MethodPost, gin.Params{{Key: "id", Value: f.sw.ID.String()}})
 
@@ -99,7 +120,7 @@ func dueAt(t *testing.T, f switchReadsFixture, kind models.SwitchPollKind) time.
 	return job.DueAt
 }
 
-func TestBackupNowMakesOnlyTheBackupJobDue(t *testing.T) {
+func TestBackupNowMakesOnlyTheBackupJobDueAndMarksItManual(t *testing.T) {
 	f := newSwitchReadsFixture(t, models.SwitchProtocolTelnet)
 	later := time.Now().Add(time.Hour)
 	require.NoError(t, f.db.Model(&models.SwitchPollJob{}).Where("switch_id = ?", f.sw.ID).Update("due_at", later).Error)
@@ -111,13 +132,16 @@ func TestBackupNowMakesOnlyTheBackupJobDue(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, code)
 	assert.True(t, dueAt(t, f, models.SwitchPollKindBackup).Before(later))
 	assert.WithinDuration(t, later, dueAt(t, f, models.SwitchPollKindInventory), time.Second)
+	var job models.SwitchPollJob
+	require.NoError(t, f.db.First(&job, "switch_id = ? AND kind = ?", f.sw.ID, models.SwitchPollKindBackup).Error)
+	assert.True(t, job.ManualRequested)
 }
 
 func TestBackupDiffAndBackupTextOverHTTP(t *testing.T) {
 	f := newSwitchReadsFixture(t, models.SwitchProtocolTelnet)
 	now := time.Now()
-	from := models.SwitchConfigBackup{SwitchID: f.sw.ID, TakenAt: now.Add(-time.Hour), Reason: "daily", RawSHA256: "a", Masked: "vlan 10\n", Size: 8}
-	to := models.SwitchConfigBackup{SwitchID: f.sw.ID, TakenAt: now, Reason: "daily", RawSHA256: "b", Masked: "vlan 20\n", Size: 8}
+	from := models.SwitchConfigBackup{SwitchID: f.sw.ID, TakenAt: now.Add(-time.Hour), Reason: "daily", RawHMAC: "a", Masked: "vlan 10\n", Size: 8}
+	to := models.SwitchConfigBackup{SwitchID: f.sw.ID, TakenAt: now, Reason: "daily", RawHMAC: "b", Masked: "vlan 20\n", Size: 8}
 	require.NoError(t, f.db.Create(&from).Error)
 	require.NoError(t, f.db.Create(&to).Error)
 

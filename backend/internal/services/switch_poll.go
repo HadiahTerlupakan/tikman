@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -20,13 +21,19 @@ import (
 // claim the job.
 const switchCLIBudget = 4 * time.Minute
 
-// switchBackupRetention is how long a daily backup is kept.
+// switchBackupRetention is how long a backup not linked to a change is kept.
 const switchBackupRetention = 90 * 24 * time.Hour
 
+// Why a backup was taken.
 const (
-	backupReasonDaily = "daily"
-	operStatusUnknown = "unknown"
+	BackupReasonDaily  = "daily"
+	BackupReasonManual = "manual"
 )
+
+// prunedBackupReasons age out; a backup linked to a change is kept for good.
+var prunedBackupReasons = []string{BackupReasonDaily, BackupReasonManual}
+
+const operStatusUnknown = "unknown"
 
 // IfStateReader reads IF-MIB alias, admin state and error counters;
 // connectivity.WalkIfState in production.
@@ -250,7 +257,7 @@ func portColumns(port switchdriver.Port) map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"alias": port.Alias, "kind": port.Kind, "admin_up": port.AdminUp, "mode": port.Mode,
-		"pvid": pvid, "allowed_vlans": port.AllowedVLANs, "stp_edge": port.STPEdge,
+		"pvid": pvid, "allowed_vlans": port.AllowedVLANs, "stp_edge": port.STPEdge, "stp_disabled": port.STPDisabled,
 	}
 }
 
@@ -280,10 +287,10 @@ func replaceVLANsAndNeighbors(tx *gorm.DB, sw *models.Switch, inv switchInventor
 	return nil
 }
 
-// Backup reads the running config and stores it masked, with the SHA-256 of
-// the raw text. An unchanged config is not stored again. The raw text never
-// leaves this function.
-func (s *SwitchPollService) Backup(sw *models.Switch, now time.Time) error {
+// Backup reads the running config and stores it masked, with a keyed digest
+// of the raw text. An unchanged config is not stored again. The raw text
+// never leaves this function.
+func (s *SwitchPollService) Backup(sw *models.Switch, reason string, now time.Time) error {
 	ctx, cancel := context.WithTimeout(context.Background(), switchCLIBudget)
 	defer cancel()
 	reader, err := s.openReader(ctx, sw)
@@ -295,18 +302,19 @@ func (s *SwitchPollService) Backup(sw *models.Switch, now time.Time) error {
 	if err != nil {
 		return fmt.Errorf("read config: %w", err)
 	}
-	sum := sha256.Sum256([]byte(raw))
-	hash := hex.EncodeToString(sum[:])
+	mac := hmac.New(sha256.New, []byte(s.switches.encryptionKey))
+	mac.Write([]byte(raw))
+	digest := hex.EncodeToString(mac.Sum(nil))
 
 	var latest models.SwitchConfigBackup
 	err = s.db.Where("switch_id = ?", sw.ID).Order("taken_at DESC").First(&latest).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	if err != nil || latest.RawSHA256 != hash {
+	if err != nil || latest.RawHMAC != digest {
 		masked := MaskConfig(sw.Vendor, raw)
-		latest = models.SwitchConfigBackup{SwitchID: sw.ID, TakenAt: now, Reason: backupReasonDaily,
-			RawSHA256: hash, Masked: masked, Size: len(masked)}
+		latest = models.SwitchConfigBackup{SwitchID: sw.ID, TakenAt: now, Reason: reason,
+			RawHMAC: digest, Masked: masked, Size: len(masked)}
 		if err := s.db.Create(&latest).Error; err != nil {
 			return err
 		}
@@ -314,10 +322,11 @@ func (s *SwitchPollService) Backup(sw *models.Switch, now time.Time) error {
 	return s.pruneBackups(sw, latest, now)
 }
 
-// pruneBackups drops daily backups past retention, except the latest: an
-// unchanged config is stored once, and that one copy must outlive 90 days.
+// pruneBackups drops daily and manual backups past retention, except the
+// latest: an unchanged config is stored once, and that one copy must outlive
+// 90 days.
 func (s *SwitchPollService) pruneBackups(sw *models.Switch, latest models.SwitchConfigBackup, now time.Time) error {
-	return s.db.Where("switch_id = ? AND reason = ? AND taken_at < ? AND id <> ?",
-		sw.ID, backupReasonDaily, now.Add(-switchBackupRetention), latest.ID).
+	return s.db.Where("switch_id = ? AND reason IN ? AND taken_at < ? AND id <> ?",
+		sw.ID, prunedBackupReasons, now.Add(-switchBackupRetention), latest.ID).
 		Delete(&models.SwitchConfigBackup{}).Error
 }

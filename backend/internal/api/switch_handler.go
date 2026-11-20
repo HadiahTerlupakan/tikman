@@ -114,6 +114,9 @@ func respondSwitchError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "INVALID_SWITCH"})
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Switch not found", Code: "NOT_FOUND"})
+	case errors.Is(err, services.ErrHostKeyNotPresented):
+		c.JSON(http.StatusConflict, ErrorResponse{Error: "Switch kini menunjukkan fingerprint lain",
+			Code: "HOST_KEY_NOT_PRESENTED"})
 	default:
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Switch request failed", Code: "SWITCH_FAILED"})
 	}

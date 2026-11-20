@@ -50,8 +50,8 @@ func TestSwitchQueryListsPortsVLANsAndNeighborsInOrder(t *testing.T) {
 
 func seedMaskedBackup(t *testing.T, db *gorm.DB, sw *models.Switch, at time.Time, masked string) uuid.UUID {
 	t.Helper()
-	b := models.SwitchConfigBackup{SwitchID: sw.ID, TakenAt: at, Reason: backupReasonDaily,
-		RawSHA256: uuid.NewString(), Masked: masked, Size: len(masked)}
+	b := models.SwitchConfigBackup{SwitchID: sw.ID, TakenAt: at, Reason: BackupReasonDaily,
+		RawHMAC: uuid.NewString(), Masked: masked, Size: len(masked)}
 	require.NoError(t, db.Create(&b).Error)
 	return b.ID
 }
@@ -106,11 +106,44 @@ func TestSwitchTrustHostKeyPinsThePresentedFingerprintAndClearsTheFlag(t *testin
 	require.NoError(t, db.Model(sw).Updates(map[string]interface{}{
 		"presented_fingerprint": presented, "host_key_changed": true}).Error)
 
-	trusted, err := switches.TrustHostKey(sw.ID)
+	trusted, err := switches.TrustHostKey(sw.ID, presented)
 
 	require.NoError(t, err)
 	assert.Equal(t, presented, trusted.HostKeyFingerprint)
 	assert.False(t, trusted.HostKeyChanged)
+}
+
+// The admin trusts the fingerprint they were shown. If the poller recorded a
+// different one since the page loaded, pinning it would trust a key nobody
+// saw, so the trust is refused and the pin left alone.
+func TestSwitchTrustHostKeyRefusesAFingerprintThatIsNoLongerPresented(t *testing.T) {
+	switches, db := newSwitchServiceForTest(t)
+	in := validSwitchInput()
+	in.Protocol = models.SwitchProtocolSSH
+	sw, err := switches.Create(in)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(sw).Updates(map[string]interface{}{
+		"presented_fingerprint": "SHA256:aW50ZXJjZXB0b3Ita2V5LWZvci10ZXN0cy0xMjM0NTY", "host_key_changed": true}).Error)
+
+	_, err = switches.TrustHostKey(sw.ID, testSSHFingerprint)
+
+	assert.ErrorIs(t, err, ErrHostKeyNotPresented)
+	stored := reloadSwitch(t, db, sw)
+	assert.Empty(t, stored.HostKeyFingerprint)
+	assert.True(t, stored.HostKeyChanged)
+}
+
+func TestSwitchTrustHostKeyRefusesAMalformedFingerprint(t *testing.T) {
+	switches, db := newSwitchServiceForTest(t)
+	in := validSwitchInput()
+	in.Protocol = models.SwitchProtocolSSH
+	sw, err := switches.Create(in)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(sw).Update("presented_fingerprint", "SHA256:x").Error)
+
+	_, err = switches.TrustHostKey(sw.ID, "SHA256:x")
+
+	assert.ErrorIs(t, err, ErrValidation)
 }
 
 func TestSwitchTrustHostKeyRefusesWhenThereIsNothingToTrust(t *testing.T) {
@@ -118,15 +151,15 @@ func TestSwitchTrustHostKeyRefusesWhenThereIsNothingToTrust(t *testing.T) {
 	telnet, err := switches.Create(validSwitchInput())
 	require.NoError(t, err)
 	require.NoError(t, db.Model(telnet).Update("presented_fingerprint", "SHA256:x").Error)
-	_, err = switches.TrustHostKey(telnet.ID)
+	_, err = switches.TrustHostKey(telnet.ID, testSSHFingerprint)
 	assert.ErrorIs(t, err, ErrValidation, "telnet has no host key")
 
 	in := validSwitchInput()
 	in.Protocol = models.SwitchProtocolSSH
 	ssh, err := switches.Create(in)
 	require.NoError(t, err)
-	_, err = switches.TrustHostKey(ssh.ID)
-	assert.ErrorIs(t, err, ErrValidation, "no fingerprint was presented yet")
+	_, err = switches.TrustHostKey(ssh.ID, testSSHFingerprint)
+	assert.ErrorIs(t, err, ErrHostKeyNotPresented, "no fingerprint was presented yet")
 }
 
 func TestSwitchProbeReturnsTheIdentityAndClosesTheSession(t *testing.T) {
@@ -184,10 +217,10 @@ func TestSwitchProbeOpensWithTheFingerprintTheFormConfirmed(t *testing.T) {
 	}}
 	in := validSwitchInput()
 	in.Protocol = models.SwitchProtocolSSH
-	in.HostKeyFingerprint = "SHA256:abc"
+	in.HostKeyFingerprint = testSSHFingerprint
 
 	_, err := probe.Probe(context.Background(), in)
 
 	require.NoError(t, err)
-	assert.Equal(t, "SHA256:abc", opened.HostKeyFingerprint)
+	assert.Equal(t, testSSHFingerprint, opened.HostKeyFingerprint)
 }

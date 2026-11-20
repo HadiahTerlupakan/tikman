@@ -31,6 +31,12 @@ func (r CreateSwitchRequest) toInput() services.SwitchInput {
 	}
 }
 
+// TrustSwitchHostKeyRequest carries the fingerprint the admin was shown, so
+// a key the poller recorded after the page loaded is never the one pinned.
+type TrustSwitchHostKeyRequest struct {
+	Fingerprint string `json:"fingerprint" binding:"required,max=64"`
+}
+
 // UpdateSwitchRequest changes a switch. An omitted or empty secret keeps the
 // stored one.
 type UpdateSwitchRequest struct {

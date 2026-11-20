@@ -17,6 +17,10 @@ func newSwitchServiceForTest(t *testing.T) (*SwitchService, *gorm.DB) {
 	return NewSwitchService(db, routerTestKey), db
 }
 
+// testSSHFingerprint has the shape ssh-keygen -l prints: SHA256: and 43
+// base64 characters.
+const testSSHFingerprint = "SHA256:bmV3LWtleS1mb3ItdGVzdHMtb25seS0xMjM0NTY3ODk"
+
 func validSwitchInput() SwitchInput {
 	return SwitchInput{
 		Name: "SW-TEST", Host: "192.0.2.10", Vendor: models.SwitchVendorHuaweiCE,
@@ -208,20 +212,52 @@ func TestCreateSwitchPinsTheFingerprintConfirmedInTheForm(t *testing.T) {
 	service, _ := newSwitchServiceForTest(t)
 	in := validSwitchInput()
 	in.Protocol = models.SwitchProtocolSSH
-	in.HostKeyFingerprint = "SHA256:abc"
+	in.HostKeyFingerprint = testSSHFingerprint
 
 	sw, err := service.Create(in)
 
 	require.NoError(t, err)
-	assert.Equal(t, "SHA256:abc", sw.HostKeyFingerprint)
+	assert.Equal(t, testSSHFingerprint, sw.HostKeyFingerprint)
 }
 
 func TestCreateSwitchRefusesAFingerprintOnTelnet(t *testing.T) {
 	service, _ := newSwitchServiceForTest(t)
 	in := validSwitchInput()
-	in.HostKeyFingerprint = "SHA256:abc"
+	in.HostKeyFingerprint = testSSHFingerprint
 
 	_, err := service.Create(in)
 
 	assert.ErrorIs(t, err, ErrValidation)
+}
+
+func TestCreateSwitchRefusesAMalformedFingerprint(t *testing.T) {
+	service, _ := newSwitchServiceForTest(t)
+	for _, fingerprint := range []string{
+		"SHA256:abc",
+		"MD5:bmV3LWtleS1mb3ItdGVzdHMtb25seS0xMjM0NTY3ODk",
+		"SHA256:bmV3LWtleS1mb3ItdGVzdHMtb25seS0xMjM0NTY3OD!",
+		testSSHFingerprint + "A",
+	} {
+		in := validSwitchInput()
+		in.Protocol = models.SwitchProtocolSSH
+		in.HostKeyFingerprint = fingerprint
+
+		_, err := service.Create(in)
+
+		assert.ErrorIs(t, err, ErrValidation, fingerprint)
+	}
+}
+
+func TestUpdateSwitchRefusesAnEmptyUsername(t *testing.T) {
+	service, _ := newSwitchServiceForTest(t)
+	sw, err := service.Create(validSwitchInput())
+	require.NoError(t, err)
+
+	blank := "   "
+	_, err = service.Update(sw.ID, SwitchUpdate{Username: &blank})
+
+	assert.ErrorIs(t, err, ErrValidation)
+	stored, err := service.Get(sw.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "tikman", stored.Username)
 }

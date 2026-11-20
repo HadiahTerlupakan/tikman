@@ -135,6 +135,8 @@ func validateSwitchInput(in SwitchInput) error {
 		return fmt.Errorf("%w: username and password are required", ErrValidation)
 	case in.HostKeyFingerprint != "" && in.Protocol != models.SwitchProtocolSSH:
 		return fmt.Errorf("%w: hanya SSH yang punya host key", ErrValidation)
+	case in.HostKeyFingerprint != "":
+		return validateFingerprint(in.HostKeyFingerprint)
 	}
 	return nil
 }
@@ -183,7 +185,6 @@ func (s *SwitchService) switchColumns(current *models.Switch, upd SwitchUpdate) 
 		}
 		updates["protocol"] = *upd.Protocol
 	}
-	setIfGiven(updates, "username", upd.Username)
 	setIfGiven(updates, "snmp_port", upd.SNMPPort)
 	setIfGiven(updates, "port", upd.Port)
 	setIfGiven(updates, "enabled", upd.Enabled)
@@ -202,7 +203,7 @@ func (s *SwitchService) switchColumns(current *models.Switch, upd SwitchUpdate) 
 }
 
 func switchTextColumns(updates map[string]interface{}, upd SwitchUpdate) error {
-	for column, value := range map[string]*string{"name": upd.Name, "host": upd.Host} {
+	for column, value := range map[string]*string{"name": upd.Name, "host": upd.Host, "username": upd.Username} {
 		if value == nil {
 			continue
 		}

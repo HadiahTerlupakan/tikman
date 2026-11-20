@@ -104,7 +104,6 @@ export interface SwitchBackupSummary {
   takenAt: string;
   /** daily or manual. */
   reason: string;
-  rawSha256: string;
   size: number;
 }
 

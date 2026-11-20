@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -115,11 +116,11 @@ func TestSwitchPollInterfacesMarksDownWhenTheWalkFails(t *testing.T) {
 }
 
 func inventoryReader() *fakeSwitchReader {
-	edge := true
+	edge, stpOff := true, true
 	return &fakeSwitchReader{
 		identity: switchdriver.Identity{Model: "CE6850-48S4Q-EI", Version: "V100R006C00SPC600"},
 		ports: []switchdriver.Port{
-			{Name: "10GE1/0/1", Kind: "sfp", Mode: "trunk", AdminUp: true, PVID: 1, AllowedVLANs: "10,20"},
+			{Name: "10GE1/0/1", Kind: "sfp", Mode: "trunk", AdminUp: true, PVID: 1, AllowedVLANs: "10,20", STPDisabled: &stpOff},
 			{Name: "10GE1/0/2", Kind: "sfp", Mode: "access", AdminUp: false, PVID: 30, STPEdge: &edge},
 		},
 		vlans:     []switchdriver.VLAN{{VID: 10, Name: "mgmt"}, {VID: 20}},
@@ -146,6 +147,8 @@ func TestSwitchInventoryMergesPortsAndReplacesVLANsAndNeighbors(t *testing.T) {
 	require.NoError(t, db.First(&merged, "id = ?", snmpRow.ID).Error)
 	assert.Equal(t, "trunk", merged.Mode)
 	assert.Equal(t, "10,20", merged.AllowedVLANs)
+	require.NotNil(t, merged.STPDisabled)
+	assert.True(t, *merged.STPDisabled)
 	assert.Equal(t, 7, *merged.IfIndex, "the SNMP reading survives the merge")
 	assert.InDelta(t, 1234.0, *merged.LastInBps, 0.01)
 	var added models.SwitchInterface
@@ -208,7 +211,7 @@ func TestSwitchUnpinnedHostKeyIsRecordedWithoutTheFlag(t *testing.T) {
 	presented := "SHA256:Zmlyc3Qta2V5LWZvci10ZXN0cy1vbmx5LTEyMzQ1Njc4OQ"
 	poll, sw, db := newSwitchPollForTest(t, nil, shell.ErrHostKeyUnpinned{Presented: presented})
 
-	require.Error(t, poll.Backup(sw, time.Now()))
+	require.Error(t, poll.Backup(sw, BackupReasonDaily, time.Now()))
 
 	reloaded := reloadSwitch(t, db, sw)
 	assert.False(t, reloaded.HostKeyChanged)
@@ -221,23 +224,54 @@ func TestSwitchBackupStoresMaskedTextOnceForTheSameConfig(t *testing.T) {
 	poll, sw, db := newSwitchPollForTest(t, &fakeSwitchReader{config: raw}, nil)
 	now := time.Now()
 
-	require.NoError(t, poll.Backup(sw, now))
-	require.NoError(t, poll.Backup(sw, now.Add(time.Hour)))
+	require.NoError(t, poll.Backup(sw, BackupReasonDaily, now))
+	require.NoError(t, poll.Backup(sw, BackupReasonDaily, now.Add(time.Hour)))
 
 	var backups []models.SwitchConfigBackup
 	require.NoError(t, db.Where("switch_id = ?", sw.ID).Find(&backups).Error)
 	require.Len(t, backups, 1)
-	sum := sha256.Sum256([]byte(raw))
-	assert.Equal(t, hex.EncodeToString(sum[:]), backups[0].RawSHA256)
+	assert.Equal(t, keyedDigest(raw), backups[0].RawHMAC)
 	assert.Equal(t, "daily", backups[0].Reason)
 	assert.NotContains(t, backups[0].Masked, "secret")
 	assert.Contains(t, backups[0].Masked, "snmp-agent community read cipher ***")
 	assert.Equal(t, len(backups[0].Masked), backups[0].Size)
 }
 
+// keyedDigest is what a backup of raw records under the test key. A plain
+// SHA-256 beside the masked text would let a reader test guesses at a masked
+// secret offline; keyed, it is useless without ENCRYPTION_KEY.
+func keyedDigest(raw string) string {
+	mac := hmac.New(sha256.New, []byte(routerTestKey))
+	mac.Write([]byte(raw))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func TestSwitchBackupDigestIsKeyedNotAPlainHash(t *testing.T) {
+	raw := "sysname SW-TEST\n"
+	poll, sw, db := newSwitchPollForTest(t, &fakeSwitchReader{config: raw}, nil)
+
+	require.NoError(t, poll.Backup(sw, BackupReasonDaily, time.Now()))
+
+	plain := sha256.Sum256([]byte(raw))
+	stored := backupHashes(t, db, sw)
+	require.Len(t, stored, 1)
+	assert.NotEqual(t, hex.EncodeToString(plain[:]), stored[0])
+	assert.Equal(t, keyedDigest(raw), stored[0])
+}
+
+func TestSwitchBackupNowIsStoredAsManual(t *testing.T) {
+	poll, sw, db := newSwitchPollForTest(t, &fakeSwitchReader{config: "sysname SW-TEST\n"}, nil)
+
+	require.NoError(t, poll.Backup(sw, BackupReasonManual, time.Now()))
+
+	var backup models.SwitchConfigBackup
+	require.NoError(t, db.First(&backup, "switch_id = ?", sw.ID).Error)
+	assert.Equal(t, "manual", backup.Reason)
+}
+
 func seedBackup(t *testing.T, db *gorm.DB, sw *models.Switch, at time.Time, reason, hash string) {
 	t.Helper()
-	b := models.SwitchConfigBackup{SwitchID: sw.ID, TakenAt: at, Reason: reason, RawSHA256: hash, Masked: hash}
+	b := models.SwitchConfigBackup{SwitchID: sw.ID, TakenAt: at, Reason: reason, RawHMAC: hash, Masked: hash}
 	require.NoError(t, db.Create(&b).Error)
 }
 
@@ -245,22 +279,24 @@ func backupHashes(t *testing.T, db *gorm.DB, sw *models.Switch) []string {
 	t.Helper()
 	var hashes []string
 	require.NoError(t, db.Model(&models.SwitchConfigBackup{}).Where("switch_id = ?", sw.ID).
-		Order("taken_at").Pluck("raw_sha256", &hashes).Error)
+		Order("taken_at").Pluck("raw_hmac", &hashes).Error)
 	return hashes
 }
 
-func TestSwitchBackupPrunesDailyBackupsOlderThan90Days(t *testing.T) {
+// The spec keeps backups for 90 days, except those linked to a change, which
+// are kept for good; a manual backup is not linked to one.
+func TestSwitchBackupPrunesDailyAndManualBackupsOlderThan90Days(t *testing.T) {
 	raw := "sysname SW-TEST\n"
 	poll, sw, db := newSwitchPollForTest(t, &fakeSwitchReader{config: raw}, nil)
 	now := time.Now()
 	seedBackup(t, db, sw, now.Add(-100*24*time.Hour), "daily", "old-daily")
 	seedBackup(t, db, sw, now.Add(-99*24*time.Hour), "manual", "old-manual")
+	seedBackup(t, db, sw, now.Add(-98*24*time.Hour), "before_change", "old-change")
 	seedBackup(t, db, sw, now.Add(-80*24*time.Hour), "daily", "recent-daily")
 
-	require.NoError(t, poll.Backup(sw, now))
+	require.NoError(t, poll.Backup(sw, BackupReasonDaily, now))
 
-	sum := sha256.Sum256([]byte(raw))
-	assert.Equal(t, []string{"old-manual", "recent-daily", hex.EncodeToString(sum[:])}, backupHashes(t, db, sw))
+	assert.Equal(t, []string{"old-change", "recent-daily", keyedDigest(raw)}, backupHashes(t, db, sw))
 }
 
 // A config that never changes is stored once; pruning must not take that one
@@ -269,10 +305,9 @@ func TestSwitchBackupKeepsTheLatestEvenWhenOld(t *testing.T) {
 	raw := "sysname SW-TEST\n"
 	poll, sw, db := newSwitchPollForTest(t, &fakeSwitchReader{config: raw}, nil)
 	now := time.Now()
-	sum := sha256.Sum256([]byte(raw))
-	seedBackup(t, db, sw, now.Add(-100*24*time.Hour), "daily", hex.EncodeToString(sum[:]))
+	seedBackup(t, db, sw, now.Add(-100*24*time.Hour), "daily", keyedDigest(raw))
 
-	require.NoError(t, poll.Backup(sw, now))
+	require.NoError(t, poll.Backup(sw, BackupReasonDaily, now))
 
-	assert.Equal(t, []string{hex.EncodeToString(sum[:])}, backupHashes(t, db, sw))
+	assert.Equal(t, []string{keyedDigest(raw)}, backupHashes(t, db, sw))
 }

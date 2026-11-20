@@ -60,8 +60,12 @@ export class SwitchRepository {
     await apiClient.post(API_ENDPOINTS.SWITCH_BACKUP_NOW(id));
   }
 
-  async trustHostKey(id: string): Promise<ManagedSwitch> {
-    return (await apiClient.post(API_ENDPOINTS.SWITCH_TRUST_HOST_KEY(id))).data;
+  async trustHostKey(id: string, fingerprint: string): Promise<ManagedSwitch> {
+    return (
+      await apiClient.post(API_ENDPOINTS.SWITCH_TRUST_HOST_KEY(id), {
+        fingerprint,
+      })
+    ).data;
   }
 
   // An unpinned SSH key answers 409 with the fingerprint to show; the error

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tikman/olt-provisioning/internal/models"
+	"github.com/tikman/olt-provisioning/internal/services"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -67,7 +68,11 @@ func runSwitchJob(rt *workerRuntime, job *models.SwitchPollJob, sw *models.Switc
 	case models.SwitchPollKindInventory:
 		return rt.switchPoll.Inventory(sw, time.Now())
 	case models.SwitchPollKindBackup:
-		return rt.switchPoll.Backup(sw, time.Now())
+		reason := services.BackupReasonDaily
+		if job.ManualRequested {
+			reason = services.BackupReasonManual
+		}
+		return rt.switchPoll.Backup(sw, reason, time.Now())
 	default:
 		return fmt.Errorf("unknown switch poll kind %q", job.Kind)
 	}

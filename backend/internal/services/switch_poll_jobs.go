@@ -114,6 +114,7 @@ func (s *SwitchPollJobService) Fail(job *models.SwitchPollJob, cause error) erro
 func (s *SwitchPollJobService) release(job *models.SwitchPollJob, updates map[string]interface{}) error {
 	updates["locked_by"] = nil
 	updates["locked_at"] = nil
+	updates["manual_requested"] = false
 	return s.db.Model(&models.SwitchPollJob{}).
 		Where("switch_id = ? AND kind = ?", job.SwitchID, job.Kind).
 		Updates(updates).Error
@@ -128,6 +129,14 @@ func switchBackoff(kind models.SwitchPollKind, failures int) time.Duration {
 		shift = maxRouterBackoffShift
 	}
 	return SwitchIntervalFor(kind) * time.Duration(1<<shift)
+}
+
+// RequestBackup makes the backup job due now and marks the backup it takes
+// as manual.
+func (s *SwitchPollJobService) RequestBackup(switchID uuid.UUID) error {
+	return s.db.Model(&models.SwitchPollJob{}).
+		Where("switch_id = ? AND kind = ?", switchID, models.SwitchPollKindBackup).
+		Updates(map[string]interface{}{"due_at": time.Now(), "manual_requested": true}).Error
 }
 
 // RunNow makes the given tiers due immediately. It schedules rather than runs,

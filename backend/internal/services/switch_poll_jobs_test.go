@@ -94,3 +94,21 @@ func TestSwitchRunNowMakesTheTierDue(t *testing.T) {
 	require.NotNil(t, job)
 	assert.Equal(t, id, job.SwitchID)
 }
+
+// The manual mark belongs to one run: once that run is released, the next
+// daily backup must not be labelled manual too.
+func TestSwitchRequestBackupMarksOneRunManual(t *testing.T) {
+	service := NewSwitchPollJobService(setupTestDB(t))
+	id := seedSwitchJob(t, service, models.SwitchPollKindBackup, time.Now().Add(time.Hour))
+
+	require.NoError(t, service.RequestBackup(id))
+	job, err := service.Claim("worker-a")
+	require.NoError(t, err)
+	require.NotNil(t, job)
+	assert.True(t, job.ManualRequested)
+
+	require.NoError(t, service.Complete(job, time.Second))
+	var released models.SwitchPollJob
+	require.NoError(t, service.db.First(&released, "switch_id = ? AND kind = ?", id, models.SwitchPollKindBackup).Error)
+	assert.False(t, released.ManualRequested)
+}

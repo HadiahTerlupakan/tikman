@@ -71,3 +71,18 @@ describe("SwitchRepository.backupDiff", () => {
     });
   });
 });
+
+describe("SwitchRepository.trustHostKey", () => {
+  beforeEach(() => post.mockReset());
+
+  // The server pins only the fingerprint the admin saw, so it must be sent.
+  it("sends the fingerprint being trusted", async () => {
+    post.mockResolvedValue({ status: 200, data: { id: "s-1" } });
+
+    await new SwitchRepository().trustHostKey("s-1", "SHA256:shown");
+
+    expect(post).toHaveBeenCalledWith("/api/v1/switches/s-1/trust-host-key", {
+      fingerprint: "SHA256:shown",
+    });
+  });
+});
