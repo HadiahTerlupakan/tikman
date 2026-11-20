@@ -76,6 +76,16 @@ func TestL3PortHasNoMode(t *testing.T) {
 	assert.Nil(t, ports[0].STPDisabled)
 }
 
+// A QinQ port (dot1q-tunnel) or any other link type outside the three modes
+// is stored with no mode rather than the raw word, which the column and the
+// UI do not know.
+func TestUnknownLinkTypeHasNoMode(t *testing.T) {
+	ports := parseConfigPorts("interface 10GE1/0/9\n port link-type dot1q-tunnel\n port default vlan 100\n#\n")
+
+	require.Len(t, ports, 1)
+	assert.Equal(t, Port{Name: "10GE1/0/9", Kind: KindSFP, AdminUp: true, STPDisabled: boolPtr(false)}, ports[0])
+}
+
 func TestPortKind(t *testing.T) {
 	cases := []struct {
 		name  string

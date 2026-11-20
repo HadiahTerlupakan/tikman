@@ -6,6 +6,9 @@ import (
 	"net"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // A VRP VTY opens with WILL ECHO, WILL SUPPRESS-GO-AHEAD and DO NAWS.
@@ -89,4 +92,18 @@ func TestOpenTelnetWrongPasswordFails(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "login refused") {
 		t.Fatalf("err = %v, want login refused", err)
 	}
+}
+
+// RFC 854 sends a bare carriage return as CR NUL. PostgreSQL text refuses a
+// NUL byte, so one left in the output fails every insert of it.
+func TestTelnetDropsTheNULAfterABareCarriageReturn(t *testing.T) {
+	cli := versionCLI()
+	cli.responses["display vlan"] = []string{"VID  Type\r\x00\r\n10   common"}
+	session := openTest(t, startFakeTelnet(t, cli))
+
+	out, err := session.Run(testContext(t), "display vlan")
+
+	require.NoError(t, err)
+	assert.NotContains(t, out, "\x00")
+	assert.Contains(t, out, "10   common")
 }

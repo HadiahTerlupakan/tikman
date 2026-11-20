@@ -21,6 +21,9 @@ const (
 	telnetWILL = 251
 	telnetDO   = 253
 	telnetNAWS = 31
+	// telnetNUL follows a bare CR (RFC 854) and carries no text; PostgreSQL
+	// text cannot hold it.
+	telnetNUL = 0
 )
 
 // The VRP VTY login prompts, exactly "Username:" and "Password:".
@@ -59,7 +62,7 @@ func pumpTelnet(s *Session, r *bufio.Reader, write func([]byte) error) {
 				return
 			}
 		}
-		if keep {
+		if keep && b != telnetNUL {
 			chunk = append(chunk, b)
 		}
 		if len(chunk) > 0 && r.Buffered() == 0 {

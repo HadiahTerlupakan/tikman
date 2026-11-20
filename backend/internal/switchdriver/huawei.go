@@ -3,6 +3,7 @@ package switchdriver
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/tikman/olt-provisioning/internal/connectivity/shell"
 	"github.com/tikman/olt-provisioning/internal/models"
@@ -57,7 +58,7 @@ func openHuawei(ctx context.Context, sw *models.Switch, _, password string) (Rea
 
 // Identify reads the model and software version.
 func (r *huaweiReader) Identify(ctx context.Context) (Identity, error) {
-	out, err := r.sh.Run(ctx, ceVersion)
+	out, err := r.run(ctx, ceVersion)
 	if err != nil {
 		return Identity{}, err
 	}
@@ -68,15 +69,15 @@ func (r *huaweiReader) Identify(ctx context.Context) (Identity, error) {
 // the source of truth on VRP, admin state from the interface table, and the
 // effective edge state from STP.
 func (r *huaweiReader) ReadPorts(ctx context.Context) ([]Port, error) {
-	config, err := r.sh.Run(ctx, ceConfig)
+	config, err := r.run(ctx, ceConfig)
 	if err != nil {
 		return nil, err
 	}
-	brief, err := r.sh.Run(ctx, ceInterfaceBrief)
+	brief, err := r.run(ctx, ceInterfaceBrief)
 	if err != nil {
 		return nil, err
 	}
-	stp, err := r.sh.Run(ctx, ceSTPBrief)
+	stp, err := r.run(ctx, ceSTPBrief)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func (r *huaweiReader) ReadPorts(ctx context.Context) ([]Port, error) {
 
 // ReadVLANs reads the VLANs and their names.
 func (r *huaweiReader) ReadVLANs(ctx context.Context) ([]VLAN, error) {
-	out, err := r.sh.Run(ctx, ceVLAN)
+	out, err := r.run(ctx, ceVLAN)
 	if err != nil {
 		return nil, err
 	}
@@ -94,20 +95,55 @@ func (r *huaweiReader) ReadVLANs(ctx context.Context) ([]VLAN, error) {
 
 // ReadNeighbors reads LLDP neighbours, then the MAC table.
 func (r *huaweiReader) ReadNeighbors(ctx context.Context) ([]Neighbor, error) {
-	lldp, err := r.sh.Run(ctx, ceLLDPBrief)
+	lldp, err := r.run(ctx, ceLLDPBrief)
 	if err != nil {
 		return nil, err
 	}
-	macs, err := r.sh.Run(ctx, ceMACTable)
+	macs, err := r.run(ctx, ceMACTable)
 	if err != nil {
 		return nil, err
 	}
 	return append(parseLLDPBrief(lldp), parseMACTable(macs)...), nil
 }
 
-// Backup returns the running config as the switch prints it.
+// Backup returns the running config as the switch prints it. Output that
+// holds neither a sysname nor the closing "return" is not a config, and
+// storing it would replace the last good backup with a message.
 func (r *huaweiReader) Backup(ctx context.Context) (string, error) {
-	return r.sh.Run(ctx, ceConfig)
+	config, err := r.run(ctx, ceConfig)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range lines(config) {
+		if strings.HasPrefix(line, "sysname ") || line == "return" {
+			return config, nil
+		}
+	}
+	return "", fmt.Errorf("switchdriver: %q printed no config", ceConfig)
+}
+
+// vrpRefused starts VRP's reply to a command it will not run: unknown, or
+// above the user's command level.
+const vrpRefused = "Error:"
+
+// run sends one command. A refusal comes back with the prompt like any
+// output, so the shell cannot see it; it is turned into an error here.
+func (r *huaweiReader) run(ctx context.Context, cmd string) (string, error) {
+	out, err := r.sh.Run(ctx, cmd)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range lines(out) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, vrpRefused) {
+			return "", fmt.Errorf("switchdriver: %q refused: %s", cmd, line)
+		}
+		break
+	}
+	return out, nil
 }
 
 // Close ends the session.

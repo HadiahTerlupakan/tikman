@@ -151,3 +151,45 @@ func TestHuaweiReaderReturnsShellErrors(t *testing.T) {
 	_, err = reader.ReadNeighbors(context.Background())
 	assert.Error(t, err)
 }
+
+// A VRP user below the command's level gets "Error: …" and the prompt back,
+// which the shell sees as a finished command. The driver must report it, or
+// the poller stores the error line as a config or wipes the VLANs it held.
+func TestHuaweiReaderReportsARefusedCommand(t *testing.T) {
+	refused := "Error: Unrecognized command found at '^' position."
+	ctx := context.Background()
+	for _, cmd := range []string{ceVersion, ceConfig, ceVLAN, ceLLDPBrief} {
+		fake := newFakeCE(t)
+		fake.outputs[cmd] = "\n" + refused
+		useFakeShell(t, fake)
+		reader, err := Open(ctx, testCE(models.SwitchProtocolTelnet), "", "s3cret")
+		require.NoError(t, err)
+
+		_, identifyErr := reader.Identify(ctx)
+		_, portsErr := reader.ReadPorts(ctx)
+		_, vlansErr := reader.ReadVLANs(ctx)
+		_, neighborsErr := reader.ReadNeighbors(ctx)
+		_, backupErr := reader.Backup(ctx)
+
+		affected := map[string][]error{
+			ceVersion: {identifyErr}, ceConfig: {portsErr, backupErr},
+			ceVLAN: {vlansErr}, ceLLDPBrief: {neighborsErr},
+		}[cmd]
+		for _, err := range affected {
+			require.Error(t, err, cmd)
+			assert.Contains(t, err.Error(), refused, cmd)
+		}
+	}
+}
+
+func TestHuaweiBackupRefusesOutputThatIsNotAConfig(t *testing.T) {
+	fake := newFakeCE(t)
+	fake.outputs[ceConfig] = "Info: The system is busy. Please try again later."
+	useFakeShell(t, fake)
+	reader, err := Open(context.Background(), testCE(models.SwitchProtocolTelnet), "", "s3cret")
+	require.NoError(t, err)
+
+	_, err = reader.Backup(context.Background())
+
+	assert.Error(t, err)
+}

@@ -26,6 +26,14 @@ const (
 // sent, so the command never lands in the tail of earlier output.
 const pendingQuiet = 50 * time.Millisecond
 
+// A device that never goes quiet (a log flood on the VTY) would hold the
+// drain forever; past either cap the command is sent anyway, and the prompt
+// match decides what belongs to it.
+const (
+	pendingDrainLimit = 2 * time.Second
+	pendingDrainBytes = 1 << 20
+)
+
 // Config says where a switch is and how to log in to it.
 type Config struct {
 	Protocol Protocol
@@ -124,7 +132,9 @@ func start(ctx context.Context, conn net.Conn, cfg Config) (*Session, error) {
 // Run sends cmd and returns what it printed, without the echoed command or
 // the prompt, with pager breaks answered and removed.
 func (s *Session) Run(ctx context.Context, cmd string) (string, error) {
-	s.discardPending()
+	if err := s.discardPending(ctx); err != nil {
+		return "", fmt.Errorf("shell: %q: %w", cmd, err)
+	}
 	if err := s.send(cmd); err != nil {
 		return "", err
 	}
@@ -183,18 +193,28 @@ func (s *Session) answer(reply string) error {
 	return s.send(reply)
 }
 
-// discardPending throws away output still arriving from before.
-func (s *Session) discardPending() {
-	for {
+// discardPending throws away output still arriving from before, until the
+// device goes quiet or a drain cap is reached.
+func (s *Session) discardPending(ctx context.Context) error {
+	limit := time.NewTimer(pendingDrainLimit)
+	defer limit.Stop()
+	drained := 0
+	for drained < pendingDrainBytes {
 		select {
-		case _, ok := <-s.out:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-limit.C:
+			return nil
+		case chunk, ok := <-s.out:
 			if !ok {
-				return
+				return nil
 			}
+			drained += len(chunk)
 		case <-time.After(pendingQuiet):
-			return
+			return nil
 		}
 	}
+	return nil
 }
 
 // emit hands a chunk read from the device to readUntil; false once closed.

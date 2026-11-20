@@ -108,16 +108,16 @@ func (s *ceStanza) port() Port {
 	if !s.switched(kind) {
 		return port
 	}
-	port.Mode = ModeAccess
-	if s.linkType != "" {
-		port.Mode = s.linkType
+	disabled := s.stpDisabled
+	port.STPDisabled = &disabled
+	port.Mode = s.mode()
+	if port.Mode == "" {
+		return port
 	}
 	port.PVID = defaultVLAN
 	if vid, ok := s.pvid[port.Mode]; ok {
 		port.PVID = vid
 	}
-	disabled := s.stpDisabled
-	port.STPDisabled = &disabled
 	switch port.Mode {
 	case ModeTrunk:
 		port.AllowedVLANs = s.trunk.String()
@@ -125,6 +125,19 @@ func (s *ceStanza) port() Port {
 		port.AllowedVLANs = s.hybrid.String()
 	}
 	return port
+}
+
+// mode is the port's link type, access when none is written. A link type
+// outside the three modes (dot1q-tunnel for QinQ) gives no mode: its VLANs
+// do not read the same way, and guessing would show the wrong ones.
+func (s *ceStanza) mode() string {
+	switch s.linkType {
+	case "":
+		return ModeAccess
+	case ModeAccess, ModeTrunk, ModeHybrid:
+		return s.linkType
+	}
+	return ""
 }
 
 // parseConfigPorts reads every `interface` stanza of `display
