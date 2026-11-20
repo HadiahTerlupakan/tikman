@@ -47,6 +47,7 @@ func Setup(ginEngine *gin.Engine, cfg *config.Config, db *gorm.DB, authStore *au
 	h.registerOperationsRoutes(api, authenticated)
 	h.registerVPNRoutes(api, authenticated)
 	h.registerMikrotikRoutes(api, authenticated)
+	h.registerSwitchRoutes(api, authenticated)
 	h.registerGraphReportRoutes(api, authenticated)
 
 	return router, pushNotifier, pushListener, graphReports

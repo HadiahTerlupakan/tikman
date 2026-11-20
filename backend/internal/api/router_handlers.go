@@ -46,6 +46,7 @@ type handlers struct {
 	routerPathHandler      *RouterPathHandler
 	graphReportHandler     *GraphReportHandler
 	portAlertHandler       *PortAlertHandler
+	switchHandler          *SwitchHandler
 }
 
 // newHandlers builds the services and handlers one API process needs, and
@@ -102,6 +103,7 @@ func newHandlers(cfg *config.Config, db *gorm.DB, authStore *auth.Store, logger 
 			services.NewRouterPollService(db, routerService), services.NewFlowQueryService(db)),
 		graphReportHandler: graphReportHandler,
 		portAlertHandler:   portAlertHandler,
+		switchHandler:      NewSwitchHandler(services.NewSwitchService(db, cfg.EncryptionKey), auditService),
 	}, cs.notifier, cs.listener, graphReportScheduler
 }
 

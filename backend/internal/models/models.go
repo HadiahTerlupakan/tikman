@@ -59,5 +59,12 @@ func AutoMigrate(db *gorm.DB) error {
 		&RouterFlowOwnPrefix{},
 		&RouterRoutedPrefix{},
 		&RouterBRASSample{},
+		&Switch{},
+		&SwitchInterface{},
+		&SwitchInterfaceMetric{},
+		&SwitchVLAN{},
+		&SwitchNeighbor{},
+		&SwitchConfigBackup{},
+		&SwitchPollJob{},
 	)
 }
