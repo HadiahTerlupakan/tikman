@@ -18,6 +18,7 @@ import CsGroupsPage from "../pages/CsGroupsPage";
 import VpnPage from "../pages/VpnPage";
 import RoutersPage from "../pages/RoutersPage";
 import SwitchesPage from "../pages/SwitchesPage";
+import SwitchDetailPage from "../pages/SwitchDetailPage";
 import SettingsPage from "../pages/SettingsPage";
 import GraphReportsPage from "../pages/GraphReportsPage";
 import NotFoundPage from "../pages/NotFound";
@@ -138,6 +139,10 @@ export const router = createBrowserRouter([
           {
             path: "switches",
             element: <SwitchesPage />,
+          },
+          {
+            path: "switches/:id",
+            element: <SwitchDetailPage />,
           },
           {
             path: "settings",

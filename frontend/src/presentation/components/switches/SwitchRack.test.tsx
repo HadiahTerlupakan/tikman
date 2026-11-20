@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ManagedSwitch, SwitchInterface } from "@/domain/entities";
+import { MemoryRouter } from "react-router-dom";
 import { SwitchRack } from "./SwitchRack";
 
 const ports: SwitchInterface[] = [
@@ -48,7 +49,9 @@ const sw = (over: Partial<ManagedSwitch> = {}): ManagedSwitch =>
 describe("SwitchRack", () => {
   it("draws a CE6850 from its template with the ports' state", () => {
     const { container } = render(
-      <SwitchRack switches={[sw()]} isAdmin={false} onEdit={vi.fn()} />,
+      <MemoryRouter>
+        <SwitchRack switches={[sw()]} isAdmin={false} onEdit={vi.fn()} />
+      </MemoryRouter>,
     );
 
     expect(container.querySelectorAll("[data-port]")).toHaveLength(53);
@@ -61,11 +64,13 @@ describe("SwitchRack", () => {
   it("leaves a blank for an empty rack position and lets an admin edit", async () => {
     const onEdit = vi.fn();
     render(
-      <SwitchRack
-        switches={[sw({ rackPosition: 2 })]}
-        isAdmin
-        onEdit={onEdit}
-      />,
+      <MemoryRouter>
+        <SwitchRack
+          switches={[sw({ rackPosition: 2 })]}
+          isAdmin
+          onEdit={onEdit}
+        />
+      </MemoryRouter>,
     );
 
     expect(screen.getAllByTestId("rack-blank")).toHaveLength(1);
@@ -75,11 +80,13 @@ describe("SwitchRack", () => {
 
   it("says an unreachable switch is unreachable", () => {
     render(
-      <SwitchRack
-        switches={[sw({ status: "down" })]}
-        isAdmin={false}
-        onEdit={vi.fn()}
-      />,
+      <MemoryRouter>
+        <SwitchRack
+          switches={[sw({ status: "down" })]}
+          isAdmin={false}
+          onEdit={vi.fn()}
+        />
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Tidak terjangkau")).toBeTruthy();

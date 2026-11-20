@@ -3,8 +3,12 @@ import { API_ENDPOINTS } from "../http/endpoints";
 import type {
   CreateSwitchDto,
   ManagedSwitch,
+  SwitchBackup,
+  SwitchBackupSummary,
   SwitchConnectionTestResult,
   SwitchInterface,
+  SwitchNeighbor,
+  SwitchVlan,
   UpdateSwitchDto,
 } from "@/domain/entities";
 
@@ -26,6 +30,38 @@ export class SwitchRepository {
 
   async interfaces(id: string): Promise<SwitchInterface[]> {
     return (await apiClient.get(API_ENDPOINTS.SWITCH_INTERFACES(id))).data;
+  }
+
+  async vlans(id: string): Promise<SwitchVlan[]> {
+    return (await apiClient.get(API_ENDPOINTS.SWITCH_VLANS(id))).data;
+  }
+
+  async neighbors(id: string): Promise<SwitchNeighbor[]> {
+    return (await apiClient.get(API_ENDPOINTS.SWITCH_NEIGHBORS(id))).data;
+  }
+
+  async backups(id: string): Promise<SwitchBackupSummary[]> {
+    return (await apiClient.get(API_ENDPOINTS.SWITCH_BACKUPS(id))).data;
+  }
+
+  async backup(id: string, backupId: string): Promise<SwitchBackup> {
+    return (await apiClient.get(API_ENDPOINTS.SWITCH_BACKUP(id, backupId)))
+      .data;
+  }
+
+  async backupDiff(id: string, from: string, to: string): Promise<string> {
+    const response = await apiClient.get(API_ENDPOINTS.SWITCH_BACKUP_DIFF(id), {
+      params: { from, to },
+    });
+    return response.data.diff;
+  }
+
+  async backupNow(id: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.SWITCH_BACKUP_NOW(id));
+  }
+
+  async trustHostKey(id: string): Promise<ManagedSwitch> {
+    return (await apiClient.post(API_ENDPOINTS.SWITCH_TRUST_HOST_KEY(id))).data;
   }
 
   // An unpinned SSH key answers 409 with the fingerprint to show; the error

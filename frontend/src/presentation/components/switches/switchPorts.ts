@@ -10,12 +10,21 @@ import {
   ROUTEROS_KINDS,
   type PortKinds,
 } from "../routers/faceplate/portLayout";
+import type { HealthView } from "../routers/faceplate/healthModel";
 import type { PortState, PortView } from "../routers/faceplate/portModel";
 
 export const SWITCH_PORT_KINDS: Record<SwitchVendor, PortKinds> = {
   huawei_ce: HUAWEI_CE_KINDS,
   fiberhome: FIBERHOME_KINDS,
   crs: ROUTEROS_KINDS,
+};
+
+// Switches report no PSU or fan readings yet, so the health LEDs stay dark.
+export const NO_HEALTH: HealthView = {
+  fresh: false,
+  psus: [],
+  failures: [],
+  readings: [],
 };
 
 const MGMT_PORT = /^MEth/;
@@ -37,7 +46,7 @@ export function physicalSwitchPorts(ports: SwitchInterface[]): string[] {
     .sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
 }
 
-function portState(p: SwitchInterface): PortState {
+export function portState(p: SwitchInterface): PortState {
   if (!p.adminUp) return "disabled";
   return p.operStatus === "up" ? "up" : "down";
 }
@@ -113,4 +122,14 @@ export function switchUnitStatus(
   return down
     ? { text: `${down} port mati`, tone: "warn" }
     : { text: "Semua normal", tone: "" };
+}
+
+export function vlanText(port: SwitchInterface): string {
+  const pvid = port.pvid === null ? "" : `PVID ${port.pvid}`;
+  return [pvid, port.allowedVlans].filter(Boolean).join(" · ") || "—";
+}
+
+export function stpText(edge: boolean | null): string {
+  if (edge === null) return "—";
+  return edge ? "Ya" : "Tidak";
 }

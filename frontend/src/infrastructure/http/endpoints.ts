@@ -111,6 +111,15 @@ export const API_ENDPOINTS = {
   SWITCH_BY_ID: (id: string) => `/api/v1/switches/${id}`,
   SWITCH_TEST: "/api/v1/switches/test-connection",
   SWITCH_INTERFACES: (id: string) => `/api/v1/switches/${id}/interfaces`,
+  SWITCH_VLANS: (id: string) => `/api/v1/switches/${id}/vlans`,
+  SWITCH_NEIGHBORS: (id: string) => `/api/v1/switches/${id}/neighbors`,
+  SWITCH_BACKUPS: (id: string) => `/api/v1/switches/${id}/backups`,
+  SWITCH_BACKUP: (id: string, backupId: string) =>
+    `/api/v1/switches/${id}/backups/${backupId}`,
+  SWITCH_BACKUP_DIFF: (id: string) => `/api/v1/switches/${id}/backups/diff`,
+  SWITCH_BACKUP_NOW: (id: string) => `/api/v1/switches/${id}/backup`,
+  SWITCH_TRUST_HOST_KEY: (id: string) =>
+    `/api/v1/switches/${id}/trust-host-key`,
 
   // Fibre plant: where a subscriber's drop lands. The cabinet/feed/route
   // endpoints that used to live here (ODCS, ODPS, ODC_FEED_LIST,

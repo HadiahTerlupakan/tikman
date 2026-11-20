@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SwitchRepository } from "./SwitchRepository";
 
 const post = vi.fn();
+const get = vi.fn();
 
 vi.mock("../http/apiClient", () => ({
   apiClient: {
+    get: (...args: unknown[]) => get(...args),
     post: (...args: unknown[]) => post(...args),
   },
 }));
@@ -54,5 +56,18 @@ describe("SwitchRepository.testConnection", () => {
     const validate = post.mock.calls[0][2].validateStatus;
     expect(validate(409)).toBe(true);
     expect(validate(502)).toBe(false);
+  });
+});
+
+describe("SwitchRepository.backupDiff", () => {
+  it("asks for the two backups and returns the diff text", async () => {
+    get.mockResolvedValue({ data: { diff: "-a\n+b" } });
+
+    const diff = await new SwitchRepository().backupDiff("s-1", "b1", "b2");
+
+    expect(diff).toBe("-a\n+b");
+    expect(get).toHaveBeenCalledWith("/api/v1/switches/s-1/backups/diff", {
+      params: { from: "b1", to: "b2" },
+    });
   });
 });

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import type { ManagedSwitch, SwitchInterface } from "@/domain/entities";
 import { useSwitchInterfaces } from "@/application/hooks/useSwitches";
 import { Chassis } from "../routers/faceplate/Chassis";
-import type { HealthView } from "../routers/faceplate/healthModel";
 import {
   CHASSIS_HEIGHT,
   layoutFaceplate,
@@ -13,6 +13,7 @@ import { rackSlots } from "../routers/faceplate/rackOrder";
 import { BlankPanel } from "../routers/faceplate/RouterRack";
 import { useFitScale } from "../routers/faceplate/useFitScale";
 import {
+  NO_HEALTH,
   SWITCH_PORT_KINDS,
   buildSwitchPortViews,
   physicalSwitchPorts,
@@ -26,13 +27,6 @@ import "../routers/faceplate/rack.css";
 const TAPE_RIGHT = 34;
 const TAPE_BOTTOM = 8;
 
-// Switches report no PSU or fan readings yet, so the health LEDs stay dark.
-const NO_HEALTH: HealthView = {
-  fresh: false,
-  psus: [],
-  failures: [],
-  readings: [],
-};
 const NO_PORTS: SwitchInterface[] = [];
 
 interface SwitchRackProps {
@@ -122,7 +116,9 @@ function SwitchRackUnit(props: {
       <UnitBay sw={sw} u={u} layout={shared} ports={ports} />
       <div className="fp-info">
         <div className="fp-info-head">
-          <span className="fp-info-name">{sw.name}</span>
+          <Link className="fp-info-name" to={`/switches/${sw.id}`}>
+            {sw.name}
+          </Link>
           {isAdmin && (
             <button
               type="button"

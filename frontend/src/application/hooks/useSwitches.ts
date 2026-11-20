@@ -24,6 +24,55 @@ export function useSwitchInterfaces(switchId: string) {
   });
 }
 
+export function useSwitchVlans(switchId: string) {
+  return useQuery({
+    queryKey: ["switches", switchId, "vlans"],
+    queryFn: () => repository.vlans(switchId),
+  });
+}
+
+export function useSwitchNeighbors(switchId: string) {
+  return useQuery({
+    queryKey: ["switches", switchId, "neighbors"],
+    queryFn: () => repository.neighbors(switchId),
+  });
+}
+
+export function useSwitchBackups(switchId: string) {
+  return useQuery({
+    queryKey: ["switches", switchId, "backups"],
+    queryFn: () => repository.backups(switchId),
+  });
+}
+
+export function useSwitchBackup(switchId: string, backupId: string | null) {
+  return useQuery({
+    queryKey: ["switches", switchId, "backups", backupId],
+    queryFn: () => repository.backup(switchId, backupId ?? ""),
+    enabled: backupId !== null,
+  });
+}
+
+export function useSwitchBackupDiff(
+  switchId: string,
+  from: string | null,
+  to: string | null,
+) {
+  return useQuery({
+    queryKey: ["switches", switchId, "backups", "diff", from, to],
+    queryFn: () => repository.backupDiff(switchId, from ?? "", to ?? ""),
+    enabled: from !== null && to !== null,
+  });
+}
+
+export function useSwitchBackupNow() {
+  return useSwitchMutation((id: string) => repository.backupNow(id));
+}
+
+export function useTrustSwitchHostKey() {
+  return useSwitchMutation((id: string) => repository.trustHostKey(id));
+}
+
 function useSwitchMutation<TArgs, TResult>(
   mutationFn: (args: TArgs) => Promise<TResult>,
 ) {

@@ -80,3 +80,36 @@ export interface UpdateSwitchDto {
 export type SwitchConnectionTestResult =
   | { kind: "identified"; model: string; version: string }
   | { kind: "unpinned"; presentedFingerprint: string };
+
+export interface SwitchVlan {
+  switchId: string;
+  vid: number;
+  name: string;
+}
+
+export interface SwitchNeighbor {
+  id: string;
+  switchId: string;
+  port: string;
+  kind: "lldp" | "mac";
+  mac: string;
+  vid: number | null;
+  remoteName: string;
+  remotePort: string;
+  remotePlatform: string;
+}
+
+export interface SwitchBackupSummary {
+  id: string;
+  takenAt: string;
+  /** daily or manual. */
+  reason: string;
+  rawSha256: string;
+  size: number;
+}
+
+export interface SwitchBackup extends SwitchBackupSummary {
+  switchId: string;
+  /** Config text with secrets removed. */
+  masked: string;
+}
