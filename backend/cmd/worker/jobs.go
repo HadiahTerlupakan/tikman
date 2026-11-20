@@ -36,6 +36,9 @@ type workerRuntime struct {
 	routers    *services.RouterService
 	routerJobs *services.RouterPollJobService
 	routerPoll *services.RouterPollService
+	switches   *services.SwitchService
+	switchJobs *services.SwitchPollJobService
+	switchPoll *services.SwitchPollService
 	logger     *zap.Logger
 }
 

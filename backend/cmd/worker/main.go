@@ -55,6 +55,7 @@ func main() {
 	// its availability figure were empty unless someone had seeded demo data.
 	eventService := services.NewEventService(db)
 	routerService := services.NewRouterService(db, cfg.EncryptionKey)
+	switchService := services.NewSwitchService(db, cfg.EncryptionKey)
 
 	rt := &workerRuntime{
 		db:         db,
@@ -67,6 +68,9 @@ func main() {
 		routers:    routerService,
 		routerJobs: services.NewRouterPollJobService(db),
 		routerPoll: services.NewRouterPollService(db, routerService),
+		switches:   switchService,
+		switchJobs: services.NewSwitchPollJobService(db),
+		switchPoll: services.NewSwitchPollService(db, switchService),
 		logger:     zapLogger,
 	}
 
@@ -97,11 +101,12 @@ func main() {
 			zapLogger.Error("Failed to ensure poll jobs", zap.Error(err))
 		}
 
-		// Both queues every pass, so a busy OLT queue cannot starve the
-		// routers' minute-level polls, nor the reverse.
+		// Every queue every pass, so a busy OLT queue cannot starve the
+		// routers' or switches' minute-level polls, nor the reverse.
 		ranOLTJob := runNextJob(rt)
 		ranRouterJob := runNextRouterJob(rt)
-		if !ranOLTJob && !ranRouterJob {
+		ranSwitchJob := runNextSwitchJob(rt)
+		if !ranOLTJob && !ranRouterJob && !ranSwitchJob {
 			// Nothing is due. Sleeping here rather than spinning is what keeps
 			// an idle worker off the database.
 			time.Sleep(idleWait)
