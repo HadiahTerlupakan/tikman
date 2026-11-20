@@ -1,0 +1,5 @@
+Local Interface         Exptime(s) Neighbor Interface      Neighbor Device     
+-------------------------------------------------------------------------------
+10GE1/0/1                      96  10GE1/0/3               SW-TEST-B
+10GE1/0/3                     111  TFGigabitEthernet 0/25  SW-TEST-C
+10GE1/0/6                     120  sfp-sfpplus1            RT-TEST-1

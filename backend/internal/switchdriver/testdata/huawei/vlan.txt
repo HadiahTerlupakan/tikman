@@ -1,0 +1,26 @@
+--------------------------------------------------------------------------------
+U: Up;         D: Down;         TG: Tagged;         UT: Untagged;
+MP: Vlan-mapping;               ST: Vlan-stacking;
+#: ProtocolTransparent-vlan;    *: Management-vlan;
+MAC-LRN: MAC-address learning;  STAT: Statistic;
+BC: Broadcast; MC: Multicast;   UC: Unknown-unicast;
+FWD: Forward;  DSD: Discard;
+--------------------------------------------------------------------------------
+
+VID  Ports                                                          
+--------------------------------------------------------------------------------
+   1 UT:10GE1/0/4(D)     10GE1/0/6(U)     40GE1/0/1(D)                     
+  10 TG:Eth-Trunk1(U)    10GE1/0/1(U)     10GE1/0/3(U)                     
+  20 UT:10GE1/0/2(U)                                                     
+     TG:Eth-Trunk1(U)    10GE1/0/1(U)     10GE1/0/3(U)                     
+  30 UT:10GE1/0/3(U)                                                     
+     TG:Eth-Trunk1(U)    10GE1/0/1(U)                                    
+3359 TG:10GE1/0/1(U)                                                     
+
+VID  Status  Property      MAC-LRN STAT    BC  MC  UC  Description      
+--------------------------------------------------------------------------------
+   1 enable  default       enable  disable FWD FWD FWD VLAN 0001        
+  10 enable  default       enable  disable FWD FWD FWD MGMT             
+  20 enable  default       enable  disable FWD FWD FWD CUSTOMER A       
+  30 enable  default       enable  disable FWD FWD FWD                  
+3359 enable  default       enable  disable FWD FWD FWD TRANSIT-1        

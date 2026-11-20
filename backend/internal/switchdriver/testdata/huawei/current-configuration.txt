@@ -1,0 +1,83 @@
+!Software Version V100R006C00SPC600
+!Last configuration was updated at 2026-11-01 10:00:00+00:00 by reader
+#
+sysname SW-TEST
+#
+device board 1 board-type CE6850-48S4Q-EI
+#
+vlan batch 10 20 30 3359 to 3361
+#
+stp region-configuration
+ instance 1 vlan 30
+#
+aaa
+ local-user reader password irreversible-cipher %^%#invented-not-a-real-hash%^%#
+ local-user reader service-type telnet
+ #
+ authentication-scheme default
+#
+interface Vlanif10
+ ip address 192.0.2.1 255.255.255.0
+#
+interface MEth0/0/0
+ ip address 192.0.2.2 255.255.255.0
+#
+interface Eth-Trunk1
+ description TO-SW-B
+ port link-type trunk
+ undo port trunk allow-pass vlan 1
+ port trunk allow-pass vlan 10 20 30
+ stp disable
+ mode lacp-static
+#
+interface 10GE1/0/1
+ description UPLINK-CORE
+ port link-type trunk
+ undo port trunk allow-pass vlan 1
+ port trunk allow-pass vlan 10 20 3359 to 3361
+ port trunk allow-pass vlan 30
+ stp disable
+ device transceiver 10GBASE-FIBER
+#
+interface 10GE1/0/2
+ description CUSTOMER A
+ port default vlan 20
+ stp disable
+ lldp disable
+#
+interface 10GE1/0/3
+ port link-type hybrid
+ port hybrid pvid vlan 30
+ undo port hybrid vlan 1
+ port hybrid tagged vlan 10 20
+ port hybrid untagged vlan 30
+#
+interface 10GE1/0/4
+ port default vlan 10
+ stp edged-port enable
+ shutdown
+#
+interface 10GE1/0/5
+ description TO-SW-B-1
+ eth-trunk 1
+ device transceiver 10GBASE-FIBER
+#
+interface 10GE1/0/6
+#
+interface 40GE1/0/1
+#
+interface LoopBack0
+ ip address 192.0.2.3 255.255.255.255
+#
+interface NULL0
+#
+snmp-agent
+snmp-agent community read cipher %^%#invented-community%^%#
+#
+lldp enable
+#
+user-interface vty 0 4
+ authentication-mode aaa
+ protocol inbound telnet
+#
+return

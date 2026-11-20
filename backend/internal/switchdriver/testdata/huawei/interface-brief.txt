@@ -1,0 +1,27 @@
+PHY: Physical
+*down: administratively down
+^down: standby
+(l): loopback
+(s): spoofing
+(E): E-Trunk down
+(b): BFD down
+(B): Bit-error-detection down
+(e): ETHOAM down
+(d): Dampening Suppressed
+(p): port alarm down
+(dl): DLDP down
+(c): CFM down
+InUti/OutUti: input utility rate/output utility rate
+Interface                  PHY      Protocol  InUti OutUti   inErrors  outErrors
+10GE1/0/1                  up       up          12%    10%          0          0
+10GE1/0/2                  up       up        0.01%  0.01%          0          0
+10GE1/0/3                  up       up        0.01%  0.01%          0          0
+10GE1/0/4                  *down    down         0%     0%          0          0
+10GE1/0/6                  up       up        0.01%  0.01%          0          0
+40GE1/0/1                  down     down         0%     0%          0          0
+Eth-Trunk1                 up       up        0.01%  0.01%          0          0
+  10GE1/0/5                up       up        0.01%  0.01%          0          0
+LoopBack0                  up       up(s)        0%     0%          0          0
+MEth0/0/0                  up       up        0.01%  0.01%          0          0
+NULL0                      up       up(s)        0%     0%          0          0
+Vlanif10                   up       up           --     --          0          0

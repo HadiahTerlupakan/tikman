@@ -1,0 +1,4 @@
+ MSTID  Port                        Role  STP State     Protection      Cost    Edged
+     0  10GE1/0/3                   DESI  forwarding    none            2000    disable   
+     0  10GE1/0/6                   DESI  forwarding    none            2000    enable    
+     1  10GE1/0/3                   DESI  forwarding    none            2000    disable   
