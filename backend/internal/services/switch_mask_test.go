@@ -42,6 +42,12 @@ func TestMaskConfigHidesEverySecret(t *testing.T) {
 			"username a password 0 x", "username ***", " x"},
 		{"CRS SNMP community", models.SwitchVendorCRS,
 			"/snmp community add name=x", "/snmp ***", "name=x"},
+		{"single-token key=value line", models.SwitchVendorCRS,
+			"    encryption-password=bar", "    ***", "bar"},
+		{"tab-separated line", models.SwitchVendorFiberHome,
+			"snmp\tcommunity x", "snmp ***", "community x"},
+		{"secret in the first word", models.SwitchVendorHuaweiCE,
+			" %^%#abc%^%#", " ***", "%^%#abc"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

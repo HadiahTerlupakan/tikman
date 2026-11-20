@@ -57,7 +57,8 @@ var maskRules = map[models.SwitchVendor][]maskRule{
 
 // MaskConfig returns a config with every secret replaced by ***. It is
 // deny-by-default: a line holding a sensitive word that no rule of the vendor
-// recognises keeps only its indentation and first word.
+// recognises keeps only its indentation and first word, or only its
+// indentation when that word could itself hold the secret.
 func MaskConfig(vendor models.SwitchVendor, raw string) string {
 	lines := strings.Split(raw, "\n")
 	for i, line := range lines {
@@ -92,9 +93,14 @@ func isSensitive(line string) bool {
 	return false
 }
 
+// maskFromFirstArgument keeps the first word only when it cannot itself be the
+// secret: a key=value line or a sensitive first word is masked whole.
 func maskFromFirstArgument(line string) string {
 	body := strings.TrimLeft(line, " \t")
 	indent := line[:len(line)-len(body)]
-	command, _, _ := strings.Cut(body, " ")
-	return indent + command + " " + maskedValue
+	fields := strings.Fields(body)
+	if len(fields) == 0 || strings.Contains(fields[0], "=") || isSensitive(fields[0]) {
+		return indent + maskedValue
+	}
+	return indent + fields[0] + " " + maskedValue
 }
