@@ -12,6 +12,7 @@ import (
 // at a machine they control.
 func (h *handlers) registerSwitchRoutes(api *gin.RouterGroup, authenticated gin.HandlerFunc) {
 	admin := middleware.RequireRole(models.UserRoleAdmin)
+	operator := middleware.RequireRole(models.UserRoleAdmin, models.UserRoleTechnician)
 
 	switches := api.Group("/switches")
 	switches.Use(authenticated)
@@ -21,5 +22,15 @@ func (h *handlers) registerSwitchRoutes(api *gin.RouterGroup, authenticated gin.
 		switches.POST("", admin, h.switchHandler.Create)
 		switches.PUT("/:id", admin, h.switchHandler.Update)
 		switches.DELETE("/:id", admin, h.switchHandler.Delete)
+		switches.POST("/test-connection", admin, h.switchReadsHandler.TestConnection)
+		switches.POST("/:id/refresh", operator, h.switchReadsHandler.Refresh)
+		switches.POST("/:id/backup", operator, h.switchReadsHandler.BackupNow)
+		switches.POST("/:id/trust-host-key", admin, h.switchReadsHandler.TrustHostKey)
+		switches.GET("/:id/interfaces", h.switchReadsHandler.Interfaces)
+		switches.GET("/:id/vlans", h.switchReadsHandler.VLANs)
+		switches.GET("/:id/neighbors", h.switchReadsHandler.Neighbors)
+		switches.GET("/:id/backups", h.switchReadsHandler.Backups)
+		switches.GET("/:id/backups/diff", h.switchReadsHandler.BackupDiff)
+		switches.GET("/:id/backups/:bid", h.switchReadsHandler.Backup)
 	}
 }
