@@ -175,3 +175,19 @@ func TestSwitchProbeRefusesAVendorWithoutADriver(t *testing.T) {
 
 	assert.ErrorIs(t, err, ErrValidation)
 }
+
+func TestSwitchProbeOpensWithTheFingerprintTheFormConfirmed(t *testing.T) {
+	var opened *models.Switch
+	probe := &SwitchProber{open: func(_ context.Context, sw *models.Switch, _, _ string) (switchdriver.Reader, error) {
+		opened = sw
+		return &fakeSwitchReader{}, nil
+	}}
+	in := validSwitchInput()
+	in.Protocol = models.SwitchProtocolSSH
+	in.HostKeyFingerprint = "SHA256:abc"
+
+	_, err := probe.Probe(context.Background(), in)
+
+	require.NoError(t, err)
+	assert.Equal(t, "SHA256:abc", opened.HostKeyFingerprint)
+}

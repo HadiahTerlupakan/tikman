@@ -46,6 +46,9 @@ type SwitchInput struct {
 	Port          int
 	Username      string
 	Password      string
+	// HostKeyFingerprint is the SSH key the admin confirmed in the form's
+	// connection test, so a new switch is pinned from its first poll.
+	HostKeyFingerprint string
 }
 
 // SwitchUpdate changes some of a switch's fields. A nil or empty secret keeps
@@ -85,7 +88,8 @@ func (s *SwitchService) Create(in SwitchInput) (*models.Switch, error) {
 		Name: strings.TrimSpace(in.Name), Host: strings.TrimSpace(in.Host), SiteID: in.SiteID, Vendor: in.Vendor,
 		SNMPCommunity: community, SNMPPort: portOr(in.SNMPPort, DefaultSwitchSNMPPort),
 		Protocol: in.Protocol, Port: portOr(in.Port, defaultSwitchPort(in.Protocol)),
-		Username: in.Username, Password: password, Enabled: true, Status: models.SwitchStatusUnknown,
+		Username: in.Username, Password: password, HostKeyFingerprint: in.HostKeyFingerprint,
+		Enabled: true, Status: models.SwitchStatusUnknown,
 	}
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(sw).Error; err != nil {
@@ -129,6 +133,8 @@ func validateSwitchInput(in SwitchInput) error {
 		return fmt.Errorf("%w: SNMP community is required", ErrValidation)
 	case in.Username == "" || in.Password == "":
 		return fmt.Errorf("%w: username and password are required", ErrValidation)
+	case in.HostKeyFingerprint != "" && in.Protocol != models.SwitchProtocolSSH:
+		return fmt.Errorf("%w: hanya SSH yang punya host key", ErrValidation)
 	}
 	return nil
 }

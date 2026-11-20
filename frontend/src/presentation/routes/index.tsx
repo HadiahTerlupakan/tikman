@@ -17,6 +17,7 @@ import CsInboxPage from "../pages/CsInboxPage";
 import CsGroupsPage from "../pages/CsGroupsPage";
 import VpnPage from "../pages/VpnPage";
 import RoutersPage from "../pages/RoutersPage";
+import SwitchesPage from "../pages/SwitchesPage";
 import SettingsPage from "../pages/SettingsPage";
 import GraphReportsPage from "../pages/GraphReportsPage";
 import NotFoundPage from "../pages/NotFound";
@@ -133,6 +134,10 @@ export const router = createBrowserRouter([
                 <RouterDetailPage />
               </Suspense>
             ),
+          },
+          {
+            path: "switches",
+            element: <SwitchesPage />,
           },
           {
             path: "settings",

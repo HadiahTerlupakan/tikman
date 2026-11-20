@@ -69,25 +69,53 @@ const TEMPLATES: Record<string, Group[]> = {
     { kind: "rj", rows: 2, ports: range("ether", 1, 16) },
     { kind: "sfp", rows: 2, ports: range("sfp-sfpplus", 1, 2) },
   ],
+  // Odd ports sit in the top row, as on the panel; the console left of
+  // MEth0/0/0 is drawn by the chassis as the template extras.
+  "CE6850-48S4Q-EI": [
+    { kind: "rj", rows: 1, ports: ["MEth0/0/0"], mgmt: true },
+    { kind: "sfp", rows: 2, ports: range("10GE1/0/", 1, 48) },
+    { kind: "qsfp", rows: 2, ports: range("40GE1/0/", 1, 4) },
+  ],
 };
 
-const AUTO_KINDS: [JackKind, RegExp][] = [
+/** Which jack an interface name is, in the order the panel groups them. */
+export type PortKinds = [JackKind, RegExp][];
+
+export const ROUTEROS_KINDS: PortKinds = [
   ["rj", /^ether/],
   ["sfp", /^(sfp|combo)/],
   ["qsfp", /^qsfp/],
 ];
 
+// MEth comes first and alone, so the automatic layout marks it as management.
+export const HUAWEI_CE_KINDS: PortKinds = [
+  ["rj", /^MEth\d+\/\d+\/\d+$/],
+  ["rj", /^GE\d+\/\d+\/\d+$/],
+  ["sfp", /^(10|25)GE\d+\/\d+\/\d+$/],
+  ["qsfp", /^(40|100)GE\d+\/\d+\/\d+$/],
+];
+
+export const FIBERHOME_KINDS: PortKinds = [
+  ["rj", /^gigaethernet/],
+  ["sfp", /^xgigaethernet/],
+  ["qsfp", /^40gigaethernet/],
+];
+
 /** The one rj port of a board is its management port, unless it was left over from a template. */
-function autoGroups(names: string[], singleRjIsMgmt: boolean): Group[] {
+function autoGroups(
+  names: string[],
+  singleRjIsMgmt: boolean,
+  kinds: PortKinds,
+): Group[] {
   const groups: Group[] = [];
-  for (const [kind, re] of AUTO_KINDS) {
+  for (const [kind, re] of kinds) {
     const ports = names.filter((n) => re.test(n));
     if (ports.length === 0) continue;
     const mgmt = singleRjIsMgmt && kind === "rj" && ports.length === 1;
     groups.push({ kind, rows: ports.length > 1 ? 2 : 1, ports, mgmt });
   }
   // A port renamed away from every pattern is still a port, and must still be drawn.
-  const rest = names.filter((n) => !AUTO_KINDS.some(([, re]) => re.test(n)));
+  const rest = names.filter((n) => !kinds.some(([, re]) => re.test(n)));
   if (rest.length > 0) {
     groups.push({ kind: "rj", rows: rest.length > 1 ? 2 : 1, ports: rest });
   }
@@ -110,7 +138,11 @@ function occupant(slot: string, names: string[], taken: Set<string>): string {
 }
 
 /** A template keeps every port in its place; names that fit no slot trail it, grouped by name. */
-function templateGroups(template: Group[], names: string[]): Group[] {
+function templateGroups(
+  template: Group[],
+  names: string[],
+  kinds: PortKinds,
+): Group[] {
   const taken = new Set<string>();
   const placed = template.map((group) => {
     const ports = group.ports.map((slot) => {
@@ -121,7 +153,7 @@ function templateGroups(template: Group[], names: string[]): Group[] {
     return { ...group, ports, slots: group.ports };
   });
   const rest = names.filter((n) => !taken.has(n));
-  return [...placed, ...autoGroups(rest, false)];
+  return [...placed, ...autoGroups(rest, false, kinds)];
 }
 
 function placeGroup(group: Group, startX: number): PlacedJack[] {
@@ -150,15 +182,16 @@ function groupWidth(group: Group): number {
   return (cols - 1) * geo.pitch + geo.w + GROUP_GAP;
 }
 
-/** Positions every jack of a router's front panel; a known board keeps its own template. */
+/** Positions every jack of a device's front panel; a known board keeps its own template. */
 export function layoutFaceplate(
   boardName: string | null,
   portNames: string[],
+  kinds: PortKinds = ROUTEROS_KINDS,
 ): FaceplateLayout {
   const template = boardName ? TEMPLATES[boardName] : undefined;
   const groups = template
-    ? templateGroups(template, portNames)
-    : autoGroups(portNames, true);
+    ? templateGroups(template, portNames, kinds)
+    : autoGroups(portNames, true, kinds);
   const extras = template !== undefined;
   let x = extras ? START_WITH_EXTRAS : START_WITHOUT_EXTRAS;
   const jacks: PlacedJack[] = [];

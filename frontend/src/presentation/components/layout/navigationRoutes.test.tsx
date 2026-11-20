@@ -19,6 +19,13 @@ describe("buildNavigationRoutes", () => {
     expect(paths(UserRole.VIEWER)).toContain("/routers");
   });
 
+  it("lists Switch right after MikroTik for every role", () => {
+    for (const role of [UserRole.ADMIN, UserRole.VIEWER]) {
+      const all = paths(role);
+      expect(all[all.indexOf("/routers") + 1]).toBe("/switches");
+    }
+  });
+
   it("shows Users only to an admin", () => {
     expect(paths(UserRole.ADMIN)).toContain("/users");
     expect(paths(UserRole.TECHNICIAN)).not.toContain("/users");

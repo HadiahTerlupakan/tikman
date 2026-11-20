@@ -14,7 +14,13 @@ interface RouterRackProps {
 }
 
 /** As tall as a unit at the rack's scale, so the screen counts U like the cabinet does. */
-function BlankPanel({ u, sharedWidth }: { u: number; sharedWidth: number }) {
+export function BlankPanel({
+  u,
+  sharedWidth,
+}: {
+  u: number;
+  sharedWidth: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const scale = useFitScale(ref, sharedWidth);
   return (
@@ -58,8 +64,8 @@ export function RouterRack({ routers, isAdmin, onEdit }: RouterRackProps) {
           />
         ) : (
           <RackUnit
-            key={slot.router.id}
-            router={slot.router}
+            key={slot.item.id}
+            router={slot.item}
             u={slot.u}
             sharedWidth={sharedWidth}
             isAdmin={isAdmin}

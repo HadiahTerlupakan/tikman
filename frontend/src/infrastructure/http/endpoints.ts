@@ -106,6 +106,12 @@ export const API_ENDPOINTS = {
   MIKROTIK_ROUTER_BGP: (id: string, read: string) =>
     `/api/v1/routers/${id}/bgp/${read}`,
 
+  // Managed switches
+  SWITCHES: "/api/v1/switches",
+  SWITCH_BY_ID: (id: string) => `/api/v1/switches/${id}`,
+  SWITCH_TEST: "/api/v1/switches/test-connection",
+  SWITCH_INTERFACES: (id: string) => `/api/v1/switches/${id}/interfaces`,
+
   // Fibre plant: where a subscriber's drop lands. The cabinet/feed/route
   // endpoints that used to live here (ODCS, ODPS, ODC_FEED_LIST,
   // ODC_FEED_ROUTE, ODP_ROUTE) were removed along with their last frontend

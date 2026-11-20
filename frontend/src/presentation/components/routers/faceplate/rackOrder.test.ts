@@ -7,7 +7,7 @@ const router = (name: string, rackPosition: number | null): MikrotikRouter =>
 
 const shape = (routers: MikrotikRouter[]) =>
   rackSlots(routers).map((s) =>
-    s.kind === "router" ? `${s.u}:${s.router.name}` : `${s.u}:blank`,
+    s.kind === "unit" ? `${s.u}:${s.item.name}` : `${s.u}:blank`,
   );
 
 describe("rackSlots", () => {

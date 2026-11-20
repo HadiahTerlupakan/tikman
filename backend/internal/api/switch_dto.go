@@ -19,13 +19,15 @@ type CreateSwitchRequest struct {
 	Port          int        `json:"port" binding:"omitempty,min=1,max=65535"`
 	Username      string     `json:"username" binding:"required,max=64"`
 	Password      string     `json:"password" binding:"required"`
+	// HostKeyFingerprint is the SSH key confirmed in the connection test.
+	HostKeyFingerprint string `json:"host_key_fingerprint" binding:"max=64"`
 }
 
 func (r CreateSwitchRequest) toInput() services.SwitchInput {
 	return services.SwitchInput{
 		Name: r.Name, Host: r.Host, SiteID: r.SiteID, Vendor: models.SwitchVendor(r.Vendor),
 		SNMPCommunity: r.SNMPCommunity, SNMPPort: r.SNMPPort, Protocol: models.SwitchProtocol(r.Protocol),
-		Port: r.Port, Username: r.Username, Password: r.Password,
+		Port: r.Port, Username: r.Username, Password: r.Password, HostKeyFingerprint: r.HostKeyFingerprint,
 	}
 }
 

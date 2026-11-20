@@ -92,7 +92,8 @@ function portNumber(jack: PlacedJack): string {
     .replace("ether", "")
     .replace("qsfp28-", "QSFP28-")
     .replace("sfp-sfpplus", "SFP+")
-    .replace(/^sfp28-/, "SFP28-");
+    .replace(/^sfp28-/, "SFP28-")
+    .replace(/^(\d*GE|MEth)\d+\/\d+\//, "$1");
   return jack.mgmt ? `${short} MGMT` : short;
 }
 

@@ -16,6 +16,7 @@ import {
   ClusterOutlined,
   TeamOutlined,
   PictureOutlined,
+  PartitionOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import { UserRole } from "@/domain/entities";
@@ -58,6 +59,7 @@ export function buildNavigationRoutes(role?: UserRole): NavigationRoute[] {
     { path: "/graphs", name: "Graphs", icon: <BarChartOutlined /> },
     { path: "/vpn", name: "VPN", icon: <CloudServerOutlined /> },
     { path: "/routers", name: "MikroTik", icon: <ClusterOutlined /> },
+    { path: "/switches", name: "Switch", icon: <PartitionOutlined /> },
     // Every route under /api/v1/cs turns a viewer away, so showing them the
     // inbox only offers a page that answers 403 on every request it makes.
     // Groups and the report sit beside it rather than under /cs: ProLayout

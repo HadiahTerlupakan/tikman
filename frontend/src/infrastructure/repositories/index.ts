@@ -19,3 +19,4 @@ export * from "./RouterPathRepository";
 export * from "./WaGroupRepository";
 export * from "./WaGroupMessageRepository";
 export * from "./GraphReportRepository";
+export * from "./SwitchRepository";

@@ -25,3 +25,4 @@ export * from "./RouterFlow";
 export * from "./WaGroup";
 export * from "./WaGroupMessageExtra";
 export * from "./GraphReport";
+export * from "./Switch";

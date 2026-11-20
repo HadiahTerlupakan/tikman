@@ -203,3 +203,25 @@ func TestListSwitchesOrdersByName(t *testing.T) {
 	require.Len(t, list, 2)
 	assert.Equal(t, "SW-A", list[0].Name)
 }
+
+func TestCreateSwitchPinsTheFingerprintConfirmedInTheForm(t *testing.T) {
+	service, _ := newSwitchServiceForTest(t)
+	in := validSwitchInput()
+	in.Protocol = models.SwitchProtocolSSH
+	in.HostKeyFingerprint = "SHA256:abc"
+
+	sw, err := service.Create(in)
+
+	require.NoError(t, err)
+	assert.Equal(t, "SHA256:abc", sw.HostKeyFingerprint)
+}
+
+func TestCreateSwitchRefusesAFingerprintOnTelnet(t *testing.T) {
+	service, _ := newSwitchServiceForTest(t)
+	in := validSwitchInput()
+	in.HostKeyFingerprint = "SHA256:abc"
+
+	_, err := service.Create(in)
+
+	assert.ErrorIs(t, err, ErrValidation)
+}

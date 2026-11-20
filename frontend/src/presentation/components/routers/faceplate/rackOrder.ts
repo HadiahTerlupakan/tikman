@@ -1,31 +1,34 @@
-import type { MikrotikRouter } from "@/domain/entities";
+/** Anything that sits in the rack: a router or a switch. */
+interface Rackable {
+  name: string;
+  rackPosition: number | null;
+}
 
-export type RackSlot =
-  | { kind: "router"; router: MikrotikRouter; u: number }
+export type RackSlot<T extends Rackable> =
+  | { kind: "unit"; item: T; u: number }
   | { kind: "blank"; u: number };
 
-const byName = (a: MikrotikRouter, b: MikrotikRouter) =>
-  a.name.localeCompare(b.name);
+const byName = (a: Rackable, b: Rackable) => a.name.localeCompare(b.name);
 
-/** Lays routers out from U1 at the top down; a U claimed twice keeps its first router by name. */
-export function rackSlots(routers: MikrotikRouter[]): RackSlot[] {
-  const placed = new Map<number, MikrotikRouter>();
-  const loose: MikrotikRouter[] = [];
-  const clashed: MikrotikRouter[] = [];
-  for (const r of [...routers].sort(byName)) {
+/** Lays units out from U1 at the top down; a U claimed twice keeps its first unit by name. */
+export function rackSlots<T extends Rackable>(items: T[]): RackSlot<T>[] {
+  const placed = new Map<number, T>();
+  const loose: T[] = [];
+  const clashed: T[] = [];
+  for (const r of [...items].sort(byName)) {
     if (r.rackPosition === null) loose.push(r);
     else if (placed.has(r.rackPosition)) clashed.push(r);
     else placed.set(r.rackPosition, r);
   }
 
-  const slots: RackSlot[] = [];
+  const slots: RackSlot<T>[] = [];
   const top = Math.max(0, ...placed.keys());
   for (let u = 1; u <= top; u++) {
-    const router = placed.get(u);
-    slots.push(router ? { kind: "router", router, u } : { kind: "blank", u });
+    const item = placed.get(u);
+    slots.push(item ? { kind: "unit", item, u } : { kind: "blank", u });
   }
-  for (const router of [...loose, ...clashed]) {
-    slots.push({ kind: "router", router, u: slots.length + 1 });
+  for (const item of [...loose, ...clashed]) {
+    slots.push({ kind: "unit", item, u: slots.length + 1 });
   }
   return slots;
 }

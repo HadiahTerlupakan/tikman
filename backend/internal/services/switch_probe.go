@@ -19,7 +19,7 @@ func NewSwitchProber() *SwitchProber {
 }
 
 // Probe logs in read-only and asks the switch what it is. Nothing is stored.
-// An SSH switch with no pinned key fails with shell.ErrHostKeyUnpinned, which
+// An SSH switch whose key the form has not confirmed fails with shell.ErrHostKeyUnpinned, which
 // carries the fingerprint for the form to show.
 func (p *SwitchProber) Probe(ctx context.Context, in SwitchInput) (switchdriver.Identity, error) {
 	if err := validateSwitchInput(in); err != nil {
@@ -27,7 +27,8 @@ func (p *SwitchProber) Probe(ctx context.Context, in SwitchInput) (switchdriver.
 	}
 	sw := &models.Switch{
 		Host: in.Host, Vendor: in.Vendor, Protocol: in.Protocol, Username: in.Username,
-		Port: portOr(in.Port, defaultSwitchPort(in.Protocol)), SNMPPort: portOr(in.SNMPPort, DefaultSwitchSNMPPort),
+		HostKeyFingerprint: in.HostKeyFingerprint,
+		Port:               portOr(in.Port, defaultSwitchPort(in.Protocol)), SNMPPort: portOr(in.SNMPPort, DefaultSwitchSNMPPort),
 	}
 	reader, err := p.open(ctx, sw, in.SNMPCommunity, in.Password)
 	if err != nil {
