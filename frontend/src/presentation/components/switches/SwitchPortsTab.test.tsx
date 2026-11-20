@@ -26,6 +26,6 @@ describe("SwitchPortsTab", () => {
   it("opens the port detail on a row click", async () => {
     render(<SwitchPortsTab switchId="s-1" />);
     await userEvent.click(screen.getByText("10GE1/0/2"));
-    expect(await screen.findByText("Error masuk / keluar")).toBeTruthy();
+    expect(await screen.findByText("Buang masuk")).toBeTruthy();
   });
 });

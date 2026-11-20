@@ -1,0 +1,69 @@
+.pd {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pd-head .pd-name {
+  margin: 0;
+}
+.pd-alias {
+  margin-top: -6px;
+  overflow-wrap: anywhere;
+}
+
+/* Four tiles across in the 560px drawer and the wider faceplate panel; they wrap on a narrow screen. */
+.pd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.pd-stat {
+  padding: 8px 12px;
+  border: 1px solid var(--pd-border);
+  border-radius: 6px;
+}
+.pd-stat-label {
+  display: block;
+  font-size: 12px;
+}
+.pd-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--pd-border);
+  border-radius: 6px;
+}
+.pd-row {
+  display: grid;
+  grid-template-columns: repeat(3, max-content 1fr);
+  column-gap: 8px;
+  row-gap: 4px;
+  align-items: baseline;
+}
+.pd-sub {
+  font-size: 12px;
+}
+.pd-vlans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.pd-vlans .pd-vlan {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
