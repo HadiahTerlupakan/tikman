@@ -1,22 +1,25 @@
-# Switch Module Phase 1 (Read-Only) Implementation Plan
+# Switch Module Phase 1 (Read-Only, Huawei CE First) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A "Switch" menu in TikMan that reads MikroTik CRS, Huawei CE
-and FiberHome switches without changing them. It covers:
+**Goal:** A "Switch" menu in TikMan that reads **Huawei CloudEngine**
+switches without changing them. The user asked on 2026-11-20 to focus on
+Huawei CE first; the reference unit is the CE6850-48S4Q-EI core switch
+at the APJII/Cyber POP. CRS and FiberHome follow in later plans; the
+vendor field and the driver registry are built so they slot in. It covers:
 - inventory;
-- port status, traffic, errors, VLANs and STP edge;
+- port status, traffic, errors, VLANs and STP;
 - MAC and LLDP neighbours;
-- config backups, with history and a diff;
-- switches detected from the neighbour tables.
+- config backups, with history and a diff.
+
+Detection of switches from neighbour tables moves to a later plan.
 
 **Architecture:**
 - A `switches` module mirrors the MikroTik router module: model,
   migration, poll-job queue, service, handlers and routes.
-- Per-vendor read drivers sit behind one registry:
-  - CRS goes over the existing RouterOS transport.
-  - CE and FiberHome go over a new interactive shell with a pinned SSH
-    host key.
+- Per-vendor read drivers sit behind one registry. Only the Huawei CE
+  driver is built here, over a new interactive shell (telnet, or SSH
+  with a pinned host key).
 - Counters come from SNMP IF-MIB for every vendor.
 - The frontend reuses the router faceplate, with vendor-aware port
   kinds.
@@ -31,21 +34,29 @@ here.
 
 ## Global Constraints
 
-- **No write to a switch, of any kind.** Every command sent is a read:
-  - CRS: `print` and `/export`.
-  - CE: `display`, `screen-length 0 temporary`.
-  - FiberHome: `show`, `terminal length 0`.
-
-  Each driver has a test asserting that the commands it sends come
-  from that allow-list.
-- Vendor values are exactly `crs`, `huawei_ce`, `fiberhome`. Access
-  protocol per vendor:
-  - CRS: `rest` | `api-ssl` | `api`
-  - CE: `ssh`
-  - FiberHome: `ssh` | `telnet`
-- **CRS requires RouterOS v7.** Identify refuses SwOS or v6 with
-  `ErrUnsupportedFirmware`, and the add form shows
-  "CRS harus RouterOS v7 (SwOS/v6 tidak didukung)".
+- **No write to a switch, of any kind.** Every command sent to a CE is
+  `display …` or `screen-length 0 temporary`, plus the login username
+  and password. A `[Y/N]` question during a read is answered `N`. The
+  driver test asserts every sent line against that allow-list.
+- Vendor values are exactly `crs`, `huawei_ce`, `fiberhome`, and the
+  column accepts all three. In this plan only `huawei_ce` can be
+  created: the others are refused with `ErrValidation` "belum didukung".
+- **CE access protocol is `telnet` or `ssh`.** The reference switch only
+  accepts telnet (`protocol inbound telnet` on its VTY). Telnet sends
+  the password in clear, so the form says: "Telnet tidak terenkripsi;
+  pakai hanya lewat VPN TikMan atau jaringan manajemen." There is no
+  host key on telnet; pinning applies to SSH only.
+- **VRP V100R006C00 is the reference software** (CE6850EI). Known
+  quirks, from reading the real switch on 2026-11-01 and 2026-11-11:
+  - the pager line is `  ---- More ----`;
+  - the login prompts are exactly `Username:` and `Password:`;
+  - the user prompt is `<NAME>`, and system-view is `[~NAME]` or
+    `[*NAME]`;
+  - interface names are `10GE1/0/1`, `40GE1/0/1`, `MEth0/0/0`,
+    `Eth-Trunk1` and `Vlanif10`;
+  - the `display` commands answer as on any CE, but
+    `display configuration commit changes` is not accepted (irrelevant
+    to reads).
 - **Secrets.** The SNMP community and password are stored encrypted
   with `utils.Encrypt` and serialised as `json:"-"`. Raw config text is
   never stored or logged. Backups store masked text plus the SHA-256 of
@@ -55,6 +66,14 @@ here.
   `%^%#` or `authentication` is masked from its first argument onward
   unless a vendor rule keeps it. The CRS `/snmp community` lines are
   masked too.
+- **Real sample output.** Two real configs of the reference switch are
+  at `~/mikrotik-configs/SW-CORE-CYBER-APJII_2026-11-01_runtime.txt`
+  and `…_2026-11-11_running.txt` on this Mac. They hold password and
+  SNMP cipher hashes and real addresses. Use them only to check parsers
+  locally. **Never copy them, or any line from them, into the repo,**
+  into reports or into logs. Committed fixtures are invented
+  (192.0.2.x, VLANs 10/20/30, names `SW-TEST`), shaped like the real
+  output.
 - **SSH host key.**
   - The first connection records the SHA-256 fingerprint (base64, as
     `ssh-keygen -l` prints it) and refuses to log in until an admin
@@ -69,6 +88,10 @@ here.
   match the SQL.
 - **Retention:** interface metrics 7 days raw, as for routers. Backups
   90 days. (Change-linked backups do not exist yet.)
+- **Reachability is not this plan's job.** The reference switch's
+  management address sits behind the border router. Reaching it from
+  TikMan is an infrastructure step done with the user after deploy (see
+  the end of this plan). Code must not special-case it.
 - **Poll kinds and intervals:** `interfaces` 1 min, `inventory` 30 min,
   `backup` 24 h. Leases are 2 min, and 5 min for `inventory` and
   `backup`.
@@ -82,30 +105,31 @@ here.
 ## Review Focus
 
 1. **A command outside the read allow-list** must never be sent.
-   - Pin it per driver with a fake transport or shell that records
-     every command.
-   - (T3, T4, T5)
+   - Pin it with a fake shell that records every line.
+   - (T3)
 2. **The pager or a wrapped line in long output.**
    - `display current-configuration` or `show running-config` longer
      than one screen, with `--More--` / `---- More ----` in the middle,
      must come back complete, with no pager text and no line broken at
      the terminal width.
+   - Telnet login against `Username:`/`Password:` prompts with IAC
+     negotiation in between must work.
    - (T2)
 3. **The host key changing after it was pinned.**
    - Connect must fail with `ErrHostKeyChanged`, store the presented
      fingerprint and set `host_key_changed`.
    - It must never log in.
-   - (T2, T8)
+   - (T2, T5)
 4. **A secret in a vendor line no rule knows.**
    - For example CE `ntp authentication-keyid 1 authentication-mode
      md5 cipher %^%#abc`.
    - It must come out masked.
-   - (T6)
+   - (T4)
 5. **A switch that stops answering mid-inventory.**
    - The earlier interfaces, VLANs and neighbours stay.
    - Status goes `down` only when the SNMP counters fail, as for
      routers.
-   - (T6)
+   - (T4)
 
 ---
 
@@ -167,8 +191,9 @@ here.
   - create stores the community and password encrypted (the raw DB
     value ≠ plaintext);
   - JSON never contains them;
-  - an invalid vendor/protocol pair (`huawei_ce` + `telnet`) is
-    rejected with `ErrValidation`;
+  - `huawei_ce` + `telnet` and `huawei_ce` + `ssh` are accepted;
+    `huawei_ce` + `rest` is rejected, and `crs`/`fiberhome` are rejected
+    as "belum didukung", all with `ErrValidation`;
   - Create seeds 3 jobs;
   - delete cascades its jobs.
 
@@ -234,18 +259,18 @@ here.
 - [ ] Run `go test ./internal/connectivity/... -race`, gofmt and vet.
 - [ ] Commit `feat(switches): interactive CLI shell with pinned SSH host keys`.
 
-### Task 3: Driver registry and the CRS read driver
+### Task 3: Driver registry and Huawei CE read driver
 
 **Files:**
-- Create: `backend/internal/switchdriver/` containing `driver.go` (the
-  interface, registry and types), `crs.go`, `crs_test.go`
-- Create: `backend/internal/mikrotik/client_switch.go`, with the CRS
-  reads on the existing transport
+- Create: `backend/internal/switchdriver/driver.go` (the interface,
+  registry and types)
+- Create: `backend/internal/switchdriver/huawei.go`,
+  `huawei_parse.go`, tests, and fixtures in `testdata/huawei/`
 
 **Interfaces (produces):**
 ```
 type Identity struct{ Model, Version string }
-type Port struct{ Name, Alias, Kind, Mode string; AdminUp bool; PVID int; AllowedVLANs string; STPEdge *bool }
+type Port struct{ Name, Alias, Kind, Mode string; AdminUp bool; PVID int; AllowedVLANs string; STPDisabled, STPEdge *bool }
 type VLAN struct{ VID int; Name string }
 type Neighbor struct{ Port, Kind, MAC string; VID int; RemoteName, RemotePort, RemotePlatform string }
 type Reader interface {
@@ -257,42 +282,15 @@ type Reader interface {
   Close() error
 }
 func Open(ctx, sw *models.Switch, community, password string) (Reader, error)  // picks by vendor
-var ErrUnsupportedFirmware error
+var ErrVendorNotSupported error
 ```
-`client_switch.go` adds these read methods on `*mikrotik.Client`:
-- `Ethernet()`, `BridgePorts()`, `BridgeVLANs()`, `Neighbors()` (from
-  `/ip/neighbor`), `BridgeHosts()`
-- `Export()`: `Command("/execute", out, "script=/export terse
-  show-sensitive=no", "as-string=")`
-- `Routerboard()`
-
-CRS reads:
-- **Identify:** `/system/resource` for version, `/system/routerboard`
-  for model. A version < 7 → `ErrUnsupportedFirmware`.
-- **Ports:** ethernet joined with bridge ports.
-  - mode = trunk when frame-types is admit-only-vlan-tagged, or the
-    port is tagged in any bridge VLAN;
-  - otherwise access with the PVID;
-  - STPEdge comes from `edge` (yes* → true, no* → false, auto → nil).
-
-- [ ] **Tests first**, with a fake transport recording every
-  path and argument:
-  - parsing of each read from recorded REST JSON;
-  - v6 → `ErrUnsupportedFirmware`;
-  - **every recorded call is a `List` or `ListProps`, or a `Command` to
-    `/execute` whose script begins with `/export` (Review Focus 1)**;
-  - trunk/access derivation table.
-- [ ] Implement, gofmt, vet, test.
-- [ ] Commit `feat(switches): driver registry and CRS read driver`.
-
-### Task 4: Huawei CE read driver
-
-**Files:**
-- Create: `backend/internal/switchdriver/huawei.go`,
-  `huawei_parse.go`, tests, and fixtures in `testdata/huawei/`
 
 **Behaviour:**
-- Opens `shell.Open` with DialectVRP.
+- Opens `shell.Open` with DialectVRP, over the switch's protocol.
+- Ports, mode, PVID, allowed VLANs and per-port `stp disable` /
+  `stp edged-port enable` come from parsing the interface stanzas of
+  `display current-configuration`, which is the source of truth on VRP.
+  `display interface brief` supplies admin and oper state.
 - Reads:
   - `display version` (model and version)
   - `display interface brief` (names, admin and oper state)
@@ -310,45 +308,21 @@ CRS reads:
     `MEth` which is rj
 
 **Tests first:**
-- [ ] Parsers, using fixtures typed from Huawei's documented sample
-  outputs. Each fixture file has a source comment.
+- [ ] Parsers, using invented fixtures shaped like the reference
+  switch's output (trunk with `undo port trunk allow-pass vlan 1`,
+  ranges like `3359 to 3361`, access ports, hybrid, `Eth-Trunk`,
+  `Vlanif`, `stp disable`, `lldp disable`, an unused 40GE with no
+  config).
+- [ ] Locally, not committed: run the parsers over the two real configs
+  in `~/mikrotik-configs` and check port count (52 physical plus MEth),
+  10GE1/0/1 trunk VLAN list and access ports. Write only pass/fail and
+  counts in the report, never the content.
 - [ ] A fake shell recording commands. **Every command starts with
   `display ` or is `screen-length 0 temporary` (Review Focus 1).**
 - [ ] Implement, gofmt, vet, test.
 - [ ] Commit `feat(switches): Huawei CloudEngine read driver`.
 
-### Task 5: FiberHome read driver and generic SNMP neighbour walks
-
-**Files:**
-- Create: `backend/internal/switchdriver/fiberhome.go`,
-  `fiberhome_parse.go`, tests, and `testdata/fiberhome/`
-- Create: `backend/internal/connectivity/snmp_lldp.go` (LLDP-MIB
-  lldpRemTable) and `snmp_fdb.go` (Q-BRIDGE dot1qTpFdb, falling back to
-  BRIDGE dot1dTpFdb)
-
-**Behaviour:**
-- FiberHome tries the SNMP walks for neighbours first, then falls back
-  to the CLI:
-  - `show lldp remote`
-  - `show mac-address-table`
-- Ports and VLANs come from `show interface brief`, `show vlan` and
-  `show running-config` (the `port link-type`, `port default vlan`,
-  `port trunk allow-pass vlan` and `stp edge-port` stanzas).
-- Model and version come from `show version`.
-- Kinds: `gigaethernet` → rj, `xgigaethernet` → sfp,
-  `40gigaethernet` → qsfp, `eth-trunk`/`vlan` → virtual.
-- The parsers must tolerate unknown lines, because FiberHome docs are
-  thin. A line they cannot parse is skipped, never an error.
-
-**Tests first:**
-- [ ] Parser fixtures from the S6800 command reference.
-- [ ] SNMP decoders fed with PDU fixtures.
-- [ ] Recorded commands are `show …` or `terminal length 0` only
-  (Review Focus 1).
-- [ ] Implement, gofmt, vet, test.
-- [ ] Commit `feat(switches): FiberHome read driver and SNMP LLDP/FDB walks`.
-
-### Task 6: Poll jobs, worker loop, masking, backups
+### Task 4: Poll jobs, worker loop, masking, backups
 
 **Files:**
 - Create: `backend/internal/services/switch_poll_jobs.go` (a copy of the
@@ -402,7 +376,7 @@ CRS reads:
 - [ ] Implement, gofmt, vet, test with `-race` on services.
 - [ ] Commit `feat(switches): polling, inventory, masked config backups`.
 
-### Task 7: Read and trust endpoints, plus detection
+### Task 5: Read and trust endpoints
 
 **Files:**
 - Create: `backend/internal/api/switch_reads_handler.go` and tests
@@ -423,27 +397,15 @@ CRS reads:
 | `POST /switches/:id/trust-host-key` | admin | pins the presented fingerprint and clears `host_key_changed` |
 | `POST /switches/:id/refresh` | admin, technician | |
 | `POST /switches/test-connection` | admin | opens the driver read-only, returns the identity or `ErrHostKeyUnpinned` with the fingerprint for the form to show |
-| `GET /switches/detected` | all | |
-
-**Detection:**
-- Sources:
-  - a new read of `/ip/neighbor` on routers TikMan polls (a new
-    `mikrotik.Client.Neighbors()` reused from T3, called from router
-    discovery and stored in `router_neighbors`, migration 85);
-  - plus `switch_neighbors` of kind lldp.
-- Keep entries whose platform or identity matches
-  `(?i)CRS|CloudEngine|\bCE\d|FiberHome|S\d{4}`. Drop hosts already in
-  `switches`.
 
 **Tests first:**
 - [ ] RBAC per endpoint.
 - [ ] A diff of two fixtures.
-- [ ] Detection filtering and de-dup.
 - [ ] Trust pins and clears the flag.
 - [ ] Implement, gofmt, vet, test.
-- [ ] Commit `feat(switches): read endpoints, host-key trust, detection`.
+- [ ] Commit `feat(switches): read endpoints and host-key trust`.
 
-### Task 8: Frontend list, add/edit form, detection, menu
+### Task 6: Frontend list, add/edit form, menu
 
 **Files:**
 - Create: `frontend/src/domain/entities/Switch.ts`
@@ -452,7 +414,7 @@ CRS reads:
 - Create: `application/hooks/useSwitches.ts`
 - Create: `presentation/pages/SwitchesPage.tsx`
 - Create: `components/switches/SwitchFormModal.tsx`,
-  `SwitchFormFields.tsx`, `DetectedSwitches.tsx`
+  `SwitchFormFields.tsx`
 - Modify: `navigationRoutes.tsx` (adds "Switch" after "MikroTik")
 - Modify: `routes/index.tsx`
 
@@ -471,20 +433,25 @@ CRS reads:
   - "Test koneksi":
     - an unpinned key shows the fingerprint with "Percayai kunci ini"
       before save;
-    - CRS v6/SwOS shows the firmware message.
-- **Detected panel:** each row has "Tambah", which prefills the form.
+- **Faceplate template** for `CE6850-48S4Q-EI`: 48 × 10GE SFP+ in two
+  rows (odd top, even bottom), 4 × 40GE QSFP+ to the right, `MEth0/0/0`
+  RJ45 and console on the left. Other CE models use the automatic
+  layout.
+- **Vendor choice:** only Huawei CE is selectable; CRS and FiberHome are
+  shown disabled with "segera".
 
 **Tests first:**
 - [ ] The protocol options per vendor.
 - [ ] The fingerprint confirm flow.
-- [ ] The firmware message.
-- [ ] Detected → prefill.
+- [ ] The telnet warning.
+- [ ] The CE6850 template places 10GE1/0/1 top-left and 40GE1/0/4
+  last.
 - [ ] A Huawei name layout test. The router layout tests stay
   unchanged.
 - [ ] Run `npm test -- --run && npm run lint && npm run format:check && npm run build`.
-- [ ] Commit `feat(switches): switch list, form and detection`.
+- [ ] Commit `feat(switches): switch list and form`.
 
-### Task 9: Frontend switch detail
+### Task 7: Frontend switch detail
 
 **Files:**
 - Create: `presentation/pages/SwitchDetailPage.tsx`
@@ -519,10 +486,17 @@ get a "Percayai" button.
 
 ---
 
-After Task 9:
+After Task 7:
 1. The whole-branch review.
-2. Merge and deploy, with approval. Migrations 84–85 mean the full
+2. Merge and deploy, with approval. Migration 84 means the full
    restart order.
-3. The user registers one switch per vendor. The controller then checks
-   ports, VLANs, neighbours and a backup against the user's own reading
-   of each switch.
+3. **Reach the reference switch.** Its management address sits behind
+   the border router's vlan10. The plan with the user:
+   - add the border as a WireGuard peer of TikMan, with the switch's
+     /32 as its allowed address;
+   - the border masquerades TikMan's traffic to the border's own vlan10
+     address, which the switch's ACL 2060 already allows for SNMP and
+     login. So the switch's config needs no change.
+4. The user registers the switch with a read-only login. The controller
+   checks ports, VLANs, neighbours and a backup against the saved
+   reading of 2026-11-11.
