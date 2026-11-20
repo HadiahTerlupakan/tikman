@@ -53,7 +53,7 @@ export const fixturePort = (
 export const fixturePorts: SwitchInterface[] = [
   fixturePort({
     name: "10GE1/0/1",
-    alias: "ke-olt",
+    alias: '"ke-olt"',
     mode: "trunk",
     pvid: 1,
     allowedVlans: "10,20-22",

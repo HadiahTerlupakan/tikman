@@ -35,7 +35,7 @@ describe("switch ports", () => {
 
   it("draws a port by its link, and a dark one only when nothing claims it", () => {
     const views = buildSwitchPortViews([
-      port({ name: "10GE1/0/1", alias: "ke-olt" }),
+      port({ name: "10GE1/0/1", alias: "** ke-olt **" }),
       port({ name: "10GE1/0/2", alias: "ke-pop", operStatus: "down" }),
       port({ name: "10GE1/0/3", operStatus: "down" }),
       port({ name: "10GE1/0/4", adminUp: false, operStatus: "down" }),

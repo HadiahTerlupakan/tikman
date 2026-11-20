@@ -10,6 +10,7 @@ import {
   ROUTEROS_KINDS,
   type PortKinds,
 } from "../routers/faceplate/portLayout";
+import { cleanLabel } from "./vlanMatrix";
 import type { HealthView } from "../routers/faceplate/healthModel";
 import type { PortState, PortView } from "../routers/faceplate/portModel";
 
@@ -57,7 +58,7 @@ function asChassisInterface(p: SwitchInterface): RouterInterface {
     id: p.id,
     routerId: p.switchId,
     name: p.name,
-    comment: p.alias,
+    comment: cleanLabel(p.alias),
     type: "ether",
     vlanId: null,
     parentName: null,
@@ -84,7 +85,7 @@ function portView(p: SwitchInterface): PortView {
   const role = !used ? null : mgmt ? "mgmt" : "dist";
   return {
     iface: asChassisInterface(p),
-    label: p.alias || p.name,
+    label: cleanLabel(p.alias) || p.name,
     state,
     role,
     roles: role ? [role] : [],

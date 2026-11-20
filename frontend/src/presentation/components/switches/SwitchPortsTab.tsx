@@ -8,6 +8,7 @@ import { formatBps } from "../routers/routerTraffic";
 import { formatSpeed } from "../trafficFormat";
 import { SwitchPortDetail } from "./SwitchPortDetail";
 import { portState, stpText, vlanText } from "./switchPorts";
+import { cleanLabel } from "./vlanMatrix";
 
 const STATE_COLOR: Record<PortState, string> = {
   up: "green",
@@ -53,7 +54,7 @@ const columns: ColumnsType<SwitchInterface> = [
     title: "Error (rx / tx)",
     render: (_, p) => `${p.inErrors ?? "—"} / ${p.outErrors ?? "—"}`,
   },
-  { title: "Alias", dataIndex: "alias" },
+  { title: "Alias", render: (_, p) => cleanLabel(p.alias) || "—" },
 ];
 
 function matches(
