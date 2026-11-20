@@ -12,6 +12,8 @@ func TestRenderLineAppliesErasure(t *testing.T) {
 		" --More-- \b\b\b\b\b\b\b\b\b\b          \b\b\b\b\b\b\b\b\b\bvlan 20": "vlan 20",
 		"  ---- More ----\rvlan 30":       "vlan 30",
 		"\x1b[?25hdescription to SW-EDGE": "description to SW-EDGE",
+		"text\r":                          "text",
+		"text\r\r":                        "text",
 	}
 	for raw, want := range cases {
 		if got := renderLine(raw); got != want {
@@ -28,6 +30,14 @@ func TestCleanOutputDropsUnerasedPagerAndUnwraps(t *testing.T) {
 
 	want := "line one\nline two\n" + long + "bbb"
 	if got != want {
+		t.Errorf("commandOutput = %q, want %q", got, want)
+	}
+}
+
+func TestCommandOutputKeepsLinesEndingInDoubleCR(t *testing.T) {
+	got := commandOutput("display x\r\r\na\r\r\nb\r\r\n<SW-TEST>", "display x")
+
+	if want := "a\nb"; got != want {
 		t.Errorf("commandOutput = %q, want %q", got, want)
 	}
 }

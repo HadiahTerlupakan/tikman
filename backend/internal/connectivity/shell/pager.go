@@ -43,8 +43,11 @@ func pendingReply(text string) string {
 // renderLine applies what a terminal would to one line: a move left erases
 // from there on, which is how the pager line is wiped after it is answered.
 // Truncating rather than overwriting also drops a marker that was only
-// returned over with '\r'.
+// returned over with '\r'. A trailing '\r' is not a return over anything:
+// "text\r\r\n" (the CLI's CRLF plus the tty's ONLCR) would otherwise erase
+// every line it ends.
 func renderLine(raw string) string {
+	raw = strings.TrimRight(raw, "\r")
 	var line []rune
 	for i := 0; i < len(raw); {
 		rest := raw[i:]
